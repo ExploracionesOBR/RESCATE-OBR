@@ -50,7 +50,7 @@
     <!-- ==========================================
          VISTA 0: LANDING (DISEÑO MEJORADO)
          ========================================== -->
-    <div id="view-landing" class="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-b from-asfalto via-black to-[#3a1800] relative overflow-hidden">
+    <div id="view-landing" class="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-b from-asfalto via-black to-[#3a1800] relative overflow-hidden hidden">
         <!-- Luces Decorativas de Fondo -->
         <div class="absolute top-[-10%] left-[-20%] w-96 h-96 bg-naranja/10 rounded-full blur-[100px] pointer-events-none"></div>
         <div class="absolute bottom-[10%] right-[-20%] w-96 h-96 bg-red-600/10 rounded-full blur-[100px] pointer-events-none"></div>
@@ -104,8 +104,8 @@
         <div class="w-full max-w-sm space-y-4">
             <!-- ALERTA DE DOMINIO -->
             <div id="auth-error-alert" class="hidden glass border-red-500/50 p-4 rounded-xl text-xs text-red-200 mb-4 bg-red-900/30">
-                <p class="font-bold text-red-500 mb-1 text-sm"><i class="fas fa-exclamation-triangle mr-1"></i> Entorno Restringido</p>
-                <p>Firebase requiere un servidor web seguro. Para saltar esto en modo de prueba, ingresa el número de test configurado en tu consola.</p>
+                <p class="font-bold text-red-500 mb-1 text-sm"><i class="fas fa-exclamation-triangle mr-1"></i> Problema de Seguridad</p>
+                <p id="auth-error-text">Firebase requiere un servidor web seguro. Para saltar esto en modo de prueba, ingresa el número de test configurado en tu consola.</p>
             </div>
 
             <!-- CONTENEDOR RECAPTCHA -->
@@ -113,7 +113,7 @@
             
             <div id="phone-step" class="glass p-6 rounded-3xl shadow-xl animate-fade-in">
                 
-                <!-- Campo Nombre (Solo visible en flujo SOS) -->
+                <!-- Campo Nombre (Solo visible en flujo SOS o Taller) -->
                 <div id="name-container" class="hidden mb-4">
                     <label class="text-[10px] text-gray-500 font-bold uppercase tracking-widest ml-1">Tu Nombre Completo</label>
                     <input id="name-input" type="text" placeholder="Ej. Juan Pérez" class="w-full bg-white/5 border-b-2 border-white/10 p-3 mt-1 focus:outline-none focus:border-naranja text-lg transition-all">
@@ -372,11 +372,6 @@
         const MOCK_ADMIN_PHONE = "+526311551533";
         let tempSOSGps = { lat: null, lng: null };
 
-        // ------------------ INTERCEPTOR DE URL (ADMIN OCULTO) ------------------
-        if (window.location.search.includes('taller26')) {
-            startFlow('admin');
-        }
-
         // ------------------ UTILIDADES UI ------------------
         window.showToast = function(msg, isError = false) {
             const t = document.getElementById('status-toast');
@@ -409,7 +404,7 @@
             } else if (intent === 'admin') {
                 document.getElementById('login-title').innerText = "ACCESO TALLER";
                 document.getElementById('login-subtitle').innerText = "ADMINISTRACIÓN OBR";
-                document.getElementById('name-container').classList.add('hidden');
+                document.getElementById('name-container').classList.remove('hidden');
             } else {
                 document.getElementById('login-title').innerText = "BIENVENIDO";
                 document.getElementById('login-subtitle').innerText = "ACCESO CLIENTES";
@@ -421,7 +416,6 @@
             document.getElementById('view-login').classList.add('hidden');
             document.getElementById('view-login').classList.remove('flex');
             document.getElementById('view-landing').classList.remove('hidden');
-            // Removemos el parámetro si lo había
             if(window.location.search) history.replaceState(null, '', window.location.pathname);
         };
 
@@ -451,10 +445,11 @@
             document.getElementById('auth-error-alert').classList.add('hidden');
 
             if (rawPhone.length !== 10) return showToast("El número debe tener exactamente 10 dígitos", true);
-            if (window.userIntent === 'sos' && name === "") return showToast("Por favor ingresa tu nombre", true);
+            if ((window.userIntent === 'sos' || window.userIntent === 'admin') && name === "") return showToast("Por favor ingresa tu nombre", true);
 
             const phone = "+52" + rawPhone; 
 
+            // Control de entorno Local
             if (window.location.protocol === 'file:' || window.location.hostname.includes('usercontent.goog')) {
                 if(phone === MOCK_ADMIN_PHONE) {
                     window.isLocalMockMode = true;
@@ -486,7 +481,19 @@
             } catch (error) {
                 btn.disabled = false;
                 btn.innerText = "Continuar";
-                showToast("Error de conexión. Intenta de nuevo", true);
+                console.error("Detalle del error SMS:", error);
+                
+                // Mostrar el error EXACTO para saber qué falta configurar
+                if (error.code === 'auth/internal-error') {
+                    document.getElementById('auth-error-alert').classList.remove('hidden');
+                    document.getElementById('auth-error-alert').innerHTML = `<p class="font-bold text-red-500 mb-1 text-sm"><i class="fas fa-exclamation-triangle mr-1"></i> Dominio no autorizado</p><p>Asegúrate de haber agregado <b>exploracionesobr.github.io</b> en la consola de Firebase.</p>`;
+                    showToast("Dominio no autorizado", true);
+                } else if (error.code === 'auth/unauthorized-domain') {
+                    showToast("Agrega exploracionesobr.github.io a Firebase", true);
+                } else {
+                    showToast("Fallo SMS: " + error.message, true);
+                }
+                
                 if (recaptchaVerifier) { recaptchaVerifier.clear(); recaptchaVerifier = null; }
             }
         };
@@ -510,47 +517,75 @@
 
         window.logout = () => {
             if(window.isLocalMockMode) location.reload();
-            else signOut(auth).then(() => location.reload());
+            else signOut(auth).then(() => {
+                window.location.href = window.location.pathname; // Limpiar URL al salir
+            });
         };
 
+        // ------------------ CONTROL DE ESTADO DE SESIÓN ------------------
         onAuthStateChanged(auth, async (user) => {
-            if(window.isLocalMockMode || !user) return; 
+            if(window.isLocalMockMode) return; 
 
-            document.getElementById('view-login').classList.add('hidden');
-            document.getElementById('view-landing').classList.add('hidden');
-            
-            try {
-                const userRef = doc(db, "users", user.uid);
-                const userSnap = await getDoc(userRef);
-                let role = 'cliente';
-                let userName = document.getElementById('name-input').value.trim() || 'Cliente OBR';
+            if (user) {
+                document.getElementById('view-login').classList.add('hidden');
+                document.getElementById('view-landing').classList.add('hidden');
+                
+                try {
+                    const userRef = doc(db, "users", user.uid);
+                    const userSnap = await getDoc(userRef);
+                    let role = 'cliente';
+                    let userName = document.getElementById('name-input').value.trim() || 'Usuario OBR';
 
-                if (!userSnap.exists()) {
-                    await setDoc(userRef, { phone: user.phoneNumber, name: userName, role: 'cliente', created: new Date().toISOString() });
-                } else {
-                    role = userSnap.data().role;
-                    if(userSnap.data().name) userName = userSnap.data().name;
-                }
-
-                if (role === 'admin' || role === 'socio' || role === 'taller') {
-                    document.getElementById('app-admin').classList.remove('hidden');
-                    document.getElementById('admin-phone-display').innerText = user.phoneNumber;
-                    adminLoadSales();
-                    adminListenSOS();
-                } else {
-                    // Routing post-login basado en userIntent
-                    if (window.userIntent === 'sos') {
-                        launchSOSForm(userName);
-                    } else {
-                        document.getElementById('app-client').classList.remove('hidden');
-                        document.getElementById('client-name-display').innerText = userName;
-                        
-                        if(window.userIntent === 'tienda') switchClientView('c-view-tienda');
-                        else if(window.userIntent === 'moto') switchClientView('c-view-moto');
-                        else switchClientView('c-view-inicio');
+                    // Forzar rol Admin si entró usando el enlace oculto
+                    if (window.location.search.includes('taller26')) {
+                        role = 'admin';
                     }
+
+                    if (!userSnap.exists()) {
+                        await setDoc(userRef, { phone: user.phoneNumber, name: userName, role: role, created: new Date().toISOString() });
+                    } else {
+                        // Actualizar rol en DB si descubrió el link secreto posteriormente
+                        if (window.location.search.includes('taller26') && userSnap.data().role !== 'admin') {
+                            await setDoc(userRef, { role: 'admin' }, { merge: true });
+                        } else {
+                            role = userSnap.data().role;
+                        }
+                        if(userSnap.data().name) userName = userSnap.data().name;
+                    }
+
+                    if (role === 'admin' || role === 'socio' || role === 'taller') {
+                        document.getElementById('app-admin').classList.remove('hidden');
+                        document.getElementById('admin-phone-display').innerText = user.phoneNumber;
+                        adminLoadSales();
+                        adminListenSOS();
+                    } else {
+                        if (window.userIntent === 'sos') {
+                            launchSOSForm(userName);
+                        } else {
+                            document.getElementById('app-client').classList.remove('hidden');
+                            document.getElementById('client-name-display').innerText = userName;
+                            
+                            if(window.userIntent === 'tienda') switchClientView('c-view-tienda');
+                            else if(window.userIntent === 'moto') switchClientView('c-view-moto');
+                            else switchClientView('c-view-inicio');
+                        }
+                    }
+                } catch (e) { 
+                    console.error(e);
+                    showToast("Error base de datos: Revisa permisos", true); 
                 }
-            } catch (e) { showToast("Error cargando perfil", true); }
+            } else {
+                // Usuario NO logueado
+                if (window.location.search.includes('taller26')) {
+                    startFlow('admin');
+                } else {
+                    document.getElementById('view-landing').classList.remove('hidden');
+                    document.getElementById('view-login').classList.add('hidden');
+                    document.getElementById('app-client').classList.add('hidden');
+                    document.getElementById('app-admin').classList.add('hidden');
+                    document.getElementById('view-sos-form').classList.add('hidden');
+                }
+            }
         });
 
         // ------------------ FLUJO SOS CONTINUACIÓN INVISIBLE ------------------
@@ -558,7 +593,6 @@
             document.getElementById('view-sos-form').classList.remove('hidden');
             document.getElementById('view-sos-form').classList.add('flex');
             
-            // Auto-capturar GPS
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((pos) => {
                     tempSOSGps.lat = pos.coords.latitude;
@@ -596,7 +630,6 @@
             let mediaUrl = "";
             
             try {
-                // Si hay archivo, subir a Storage
                 if (fileInput.files.length > 0) {
                     const file = fileInput.files[0];
                     if (file.size > 20 * 1024 * 1024) { 
@@ -608,7 +641,6 @@
                     mediaUrl = await getDownloadURL(storageRef);
                 }
 
-                // Guardar en Firestore Historial
                 const rescateData = {
                     uid: auth.currentUser.uid,
                     phone: auth.currentUser.phoneNumber,
@@ -621,13 +653,10 @@
                     timestamp: Date.now()
                 };
                 await addDoc(collection(db, "rescates"), rescateData);
-
-                // Enviar a Realtime DB para alerta de Taller en Vivo
                 await rtdbSet(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), rescateData);
 
                 showToast("¡Unidad OBR en camino!");
                 
-                // Transición a la app cliente (Seguimiento)
                 document.getElementById('view-sos-form').classList.add('hidden');
                 document.getElementById('view-sos-form').classList.remove('flex');
                 document.getElementById('app-client').classList.remove('hidden');
