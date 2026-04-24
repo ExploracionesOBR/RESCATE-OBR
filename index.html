@@ -65,8 +65,6 @@
         <img src="logo.png" alt="OBR" class="w-32 mb-6 z-10 drop-shadow-[0_0_20px_rgba(255,107,0,0.5)]" onerror="this.src='https://via.placeholder.com/150/FF6B00/FFFFFF?text=OBR'">
         
         <div class="z-10 flex flex-col items-center w-full max-w-sm animate-fade-in">
-            <p class="text-naranja font-black tracking-widest text-[10px] mb-8 uppercase border border-naranja/30 px-4 py-1 rounded-full bg-naranja/10">Asistencia Vial 24/7</p>
-            
             <!-- BOTÓN SOS PRINCIPAL GIGANTE -->
             <button onclick="startFlow('sos')" class="btn-sos-huge w-64 h-64 rounded-full bg-naranja border-[12px] border-white/10 text-white flex flex-col items-center justify-center shadow-[0_0_50px_rgba(255,107,0,0.6)] transition-all active:scale-95 mb-10">
                 <i class="fas fa-tools text-6xl mb-2 drop-shadow-lg"></i>
@@ -103,9 +101,9 @@
             <div class="text-center bg-black/40 border border-white/5 p-3 rounded-2xl w-full backdrop-blur-sm">
                 <p class="text-[9px] text-gray-500 uppercase tracking-widest font-black mb-1">Líneas de Atención OBR</p>
                 <div class="flex items-center justify-center space-x-3">
-                    <a href="tel:6311551533" class="text-naranja font-black tracking-widest text-xs hover:text-white transition-colors">631 155 1533</a>
+                    <a href="tel:6311551533" class="p-2 text-naranja font-black tracking-widest text-xs hover:text-white transition-colors">631 155 1533</a>
                     <span class="text-gray-600">|</span>
-                    <a href="tel:6441106011" class="text-naranja font-black tracking-widest text-xs hover:text-white transition-colors">644 110 6011</a>
+                    <a href="tel:6441106011" class="p-2 text-naranja font-black tracking-widest text-xs hover:text-white transition-colors">644 110 6011</a>
                 </div>
             </div>
         </div>
@@ -114,27 +112,25 @@
     <!-- ==========================================
          VISTA PÚBLICA: TIENDA DE REFACCIONES
          ========================================== -->
-    <div id="view-public-store" class="app-view min-h-screen hidden flex-col p-6 bg-asfalto pt-8">
-        <div class="flex items-center justify-between mb-8">
-            <button onclick="cancelFlow()" class="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white"><i class="fas fa-arrow-left"></i></button>
-            <h2 class="text-2xl font-black italic uppercase text-white">Catálogo OBR</h2>
-            <div class="w-10"></div>
-        </div>
+    <div id="view-public-store" class="app-view min-h-screen hidden flex-col items-center p-6 bg-asfalto pt-8">
+        <div class="w-full max-w-md">
+            <button onclick="cancelFlow()" class="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white mb-6"><i class="fas fa-arrow-left"></i></button>
+            <h2 class="text-3xl font-black italic uppercase text-white mb-2">Catálogo OBR</h2>
+            <p class="text-xs text-gray-400 mb-8">Explora nuestros productos disponibles para tu moto.</p>
 
-        <p class="text-xs text-gray-400 mb-6 text-center">Explora nuestros productos disponibles para tu moto.</p>
-
-        <div class="grid grid-cols-2 gap-4 max-w-lg mx-auto w-full">
-            <div class="glass rounded-3xl p-4 flex flex-col justify-between hover:bg-white/5 transition-colors">
-                <div class="w-full aspect-square bg-white/5 rounded-2xl mb-3 flex items-center justify-center"><i class="fas fa-oil-can text-4xl text-gray-600"></i></div>
-                <p class="text-xs font-black uppercase leading-tight mb-1">Aceite Motul 5100</p>
-                <p class="text-naranja font-black text-lg mb-3">$250</p>
-                <button onclick="requireLoginToBuy('Aceite Motul 5100')" class="w-full bg-naranja hover:bg-orange-600 p-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-white">Pedir</button>
-            </div>
-            <div class="glass rounded-3xl p-4 flex flex-col justify-between hover:bg-white/5 transition-colors">
-                <div class="w-full aspect-square bg-white/5 rounded-2xl mb-3 flex items-center justify-center"><i class="fas fa-battery-full text-4xl text-gray-600"></i></div>
-                <p class="text-xs font-black uppercase leading-tight mb-1">Batería Gel 12V</p>
-                <p class="text-naranja font-black text-lg mb-3">$680</p>
-                <button onclick="requireLoginToBuy('Batería Gel 12V')" class="w-full bg-naranja hover:bg-orange-600 p-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-white">Pedir</button>
+            <div class="grid grid-cols-2 gap-4 w-full">
+                <div class="glass rounded-3xl p-4 flex flex-col justify-between hover:bg-white/5 transition-colors">
+                    <div class="w-full aspect-square bg-white/5 rounded-2xl mb-3 flex items-center justify-center"><i class="fas fa-oil-can text-4xl text-gray-600"></i></div>
+                    <p class="text-xs font-black uppercase leading-tight mb-1">Aceite Motul 5100</p>
+                    <p class="text-naranja font-black text-lg mb-3">$250</p>
+                    <button onclick="requireLoginToBuy('Aceite Motul 5100')" class="w-full bg-naranja hover:bg-orange-600 p-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-white">Pedir</button>
+                </div>
+                <div class="glass rounded-3xl p-4 flex flex-col justify-between hover:bg-white/5 transition-colors">
+                    <div class="w-full aspect-square bg-white/5 rounded-2xl mb-3 flex items-center justify-center"><i class="fas fa-battery-full text-4xl text-gray-600"></i></div>
+                    <p class="text-xs font-black uppercase leading-tight mb-1">Batería Gel 12V</p>
+                    <p class="text-naranja font-black text-lg mb-3">$680</p>
+                    <button onclick="requireLoginToBuy('Batería Gel 12V')" class="w-full bg-naranja hover:bg-orange-600 p-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-white">Pedir</button>
+                </div>
             </div>
         </div>
     </div>
@@ -319,7 +315,13 @@
     </div>
 
     <!-- ==========================================
-         VISTA 2: APLICACIÓN CLIENTE (SOLO CLIENTES)
+         VISTA 2: APLICACIÓN CLIENTE (INTERNA TRAS LOGIN)
+         ========================================== -->
+    <div id="app-client" class="app-view hidden pb-24 flex-col">
+        <header class="p-5 flex justify-between items-center bg-asfalto/90 backdrop-blur-md sticky top-0 z-40 border-b border-white/5 w-full">
+            <div>
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Mi Perfil</p>
+                <h2 id="client-name-display" class="font-black text-white">Cargando...</h2>
             </div>
             <button onclick="logout()" class="w-10 h-10 rounded-full glass flex items-center justify-center text-red-500 active:scale-95"><i class="fas fa-sign-out-alt"></i></button>
         </header>
@@ -332,6 +334,12 @@
                         <i class="fas fa-ambulance text-red-500 text-2xl animate-pulse"></i>
                         <h3 class="font-black text-white uppercase italic">Unidad en Camino</h3>
                     </div>
+                    <p class="text-xs text-gray-300 mb-4">Tu reporte de rescate está activo. El taller OBR ha recibido tu ubicación y detalles de la falla.</p>
+                    <a href="https://wa.me/526311551533" class="inline-block bg-white text-red-600 text-[10px] px-4 py-2 rounded-full font-black uppercase">Contactar al Taller</a>
+                </div>
+            </section>
+        </main>
+        
         <nav class="fixed bottom-0 w-full glass border-t border-white/5 flex justify-around p-3 z-50 bg-asfalto/90 backdrop-blur-lg">
             <button onclick="switchClientView('c-view-inicio')" class="c-nav-btn tab-active flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2"><i class="fas fa-home text-2xl mb-1"></i><span class="text-[10px] font-black uppercase tracking-widest mt-1">Inicio</span></button>
             <button onclick="switchClientView('c-view-tienda')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2"><i class="fas fa-shopping-bag text-2xl mb-1"></i><span class="text-[10px] font-black uppercase tracking-widest mt-1">Tienda</span></button>
@@ -487,15 +495,15 @@
                 if (intent === 'sos') {
                     document.getElementById('login-title').innerText = "NUEVO AUXILIO VIAL";
                     document.getElementById('login-subtitle').innerText = "REGISTRO RÁPIDO";
-                    document.getElementById('name-container').classList.remove('hidden');
                 } else if (intent === 'login_tienda') {
                     document.getElementById('login-title').innerText = "FINALIZAR COMPRA";
                     document.getElementById('login-subtitle').innerText = "DEJA TUS DATOS DE CONTACTO";
-                    document.getElementById('name-container').classList.remove('hidden');
                 } else if (intent === 'admin') {
                     document.getElementById('login-title').innerText = "ACCESO TALLER";
                     document.getElementById('login-subtitle').innerText = "ADMINISTRACIÓN OBR";
-                    document.getElementById('name-container').classList.add('hidden');
+                } else {
+                    document.getElementById('login-title').innerText = "BIENVENIDO";
+                    document.getElementById('login-subtitle').innerText = "ACCESO CLIENTES";
                 }
             }
         };
@@ -513,7 +521,7 @@
             document.getElementById('auth-step-register').classList.add('hidden');
             document.getElementById('auth-step-recovery').classList.add('hidden');
             document.getElementById('phone-input').value = '';
-            document.getElementById('login-password').value = '';
+            if(document.getElementById('login-password')) document.getElementById('login-password').value = '';
         };
 
         window.switchAdminView = (id) => {
@@ -522,6 +530,52 @@
             document.querySelectorAll('.a-nav-btn').forEach(b => b.classList.remove('tab-active'));
             const btn = Array.from(document.querySelectorAll('.a-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
             if(btn) btn.classList.add('tab-active');
+        };
+
+        // ------------------ FUNCIONES PÚBLICAS ------------------
+        window.requireLoginToBuy = (item) => {
+            window.pendingItemToBuy = item;
+            startFlow('login_tienda');
+        };
+
+        window.searchServiceStatus = async () => {
+            const val = document.getElementById('search-tracker-input').value.trim();
+            if(!val) return showToast("Escribe tu número de celular o ID", true);
+            
+            document.getElementById('tracking-result-container').classList.add('hidden');
+            document.getElementById('tracking-not-found').classList.add('hidden');
+            
+            let queryRef;
+            if(val.length === 10 && !isNaN(val)) {
+                // Es celular
+                queryRef = query(collection(db, "rescates"), where("phone", "==", "+52"+val), limit(1));
+            } else {
+                // Asumimos Folio
+                showToast("Por el momento, rastrea usando tus 10 dígitos del celular", false);
+                return;
+            }
+
+            const btn = document.querySelector('#view-public-tracking button.bg-naranja');
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            btn.disabled = true;
+
+            try {
+                const snapshot = await getDocs(queryRef);
+                if(!snapshot.empty) {
+                    document.getElementById('tracked-id-display').innerText = "Servicio Activo";
+                    document.getElementById('tracking-result-container').classList.remove('hidden');
+                    showToast("¡Servicio localizado!");
+                } else {
+                    document.getElementById('tracking-not-found').classList.remove('hidden');
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Error al buscar en el taller.", true);
+            } finally {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
         };
 
         // ------------------ NUEVO AUTH FLOW (GRATUITO, SEGURO Y CON RECUPERACIÓN) ------------------
@@ -611,10 +665,43 @@
                     created: new Date().toISOString() 
                 });
                 // onAuthStateChanged toma el control
-            } catch (e) {
-                btn.disabled = false;
-                btn.innerText = "Registrarme y Entrar";
-                showToast("Error de registro: " + e.message, true);
+            } catch (createError) {
+                if (createError.code === 'auth/email-already-in-use') {
+                    // MODO RECUPERACIÓN / DESINCRONIZACIÓN DE PRUEBAS
+                    try {
+                        // Intentamos iniciar sesión con la contraseña que puso
+                        const userCred = await signInWithEmailAndPassword(auth, fakeEmail, password);
+                        // Si entra, restauramos su documento en Firestore
+                        await setDoc(doc(db, "users", userCred.user.uid), { 
+                            phone: "+52" + rawPhone, 
+                            name: name, 
+                            role: 'cliente', 
+                            secQuestion: question,
+                            secAnswer: answer.toLowerCase(),
+                            pwd: password,
+                            created: new Date().toISOString() 
+                        });
+                        showToast("Cuenta recuperada y sincronizada exitosamente.");
+                        return; // onAuthStateChanged takes over
+                    } catch(loginErr) {
+                        btn.disabled = false;
+                        btn.innerText = "Registrarme y Entrar";
+                        showToast("El número ya existe. Ingresa tu contraseña en el Login.", true);
+                        // Send them to login step
+                        document.getElementById('auth-step-register').classList.add('hidden');
+                        document.getElementById('auth-step-login').classList.remove('hidden');
+                        document.getElementById('login-name-display').innerText = name;
+                        if(!window.currentUserDoc) window.currentUserDoc = { phone: "+52"+rawPhone };
+                    }
+                } else if (createError.code === 'auth/operation-not-allowed') {
+                    btn.disabled = false;
+                    btn.innerText = "Registrarme y Entrar";
+                    showToast("Error crítico: Habilita 'Correo/Contraseña' en Firebase Auth", true);
+                } else {
+                    btn.disabled = false;
+                    btn.innerText = "Registrarme y Entrar";
+                    showToast("Error de registro: " + createError.message, true);
+                }
             }
         };
 
@@ -688,7 +775,7 @@
                     const userRef = doc(db, "users", user.uid);
                     const userSnap = await getDoc(userRef);
                     let role = 'cliente';
-                    let userName = document.getElementById('name-input').value.trim();
+                    let userName = document.getElementById('reg-name') ? document.getElementById('reg-name').value.trim() : '';
 
                     if (!userSnap.exists()) {
                         await setDoc(userRef, { phone: user.email.replace('@motorescateobr.com',''), name: userName, role: 'cliente', created: new Date().toISOString() });
@@ -704,6 +791,10 @@
 
                     // ENRUTAMIENTO POST-LOGIN
                     if (role === 'admin' || role === 'socio' || role === 'taller') {
+                        // Forzar cambio visual a la URL del taller
+                        if (!window.location.search.includes('taller26')) {
+                            history.replaceState(null, '', '?taller26');
+                        }
                         document.getElementById('app-admin').classList.remove('hidden');
                         document.getElementById('app-admin').classList.add('flex');
                         document.getElementById('admin-phone-display').innerText = "+52 " + user.email.replace('@motorescateobr.com','');
