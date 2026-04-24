@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOTO RESCATE OBR | Plataforma Integral</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: { extend: { colors: { asfalto: '#1A1A1A', naranja: '#FF6B00' } } }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #1A1A1A; color: white; -webkit-tap-highlight-color: transparent; }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .tab-active { color: #FF6B00; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #FF6B00; border-radius: 10px; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        
+        /* SOS Button Pulse */
+        @keyframes pulse-sos {
+            0% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.7); }
+            70% { box-shadow: 0 0 0 40px rgba(255, 107, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0); }
+        }
+        .btn-sos-huge { animation: pulse-sos 2s infinite; }
+        
+        /* Animación para carga */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
+    </style>
+</head>
+<body class="pb-20 bg-asfalto">
+
+    <!-- TOAST NOTIFICATIONS -->
+    <div id="status-toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[100] hidden transition-all duration-300 w-[90%] max-w-sm">
+        <div class="bg-naranja text-white px-6 py-3 rounded-full shadow-2xl flex items-center space-x-3 font-bold text-sm">
+            <i id="toast-icon" class="fas fa-info-circle text-lg"></i>
+            <span id="status-msg">Mensaje</span>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         VISTA 0: LANDING (DISEÑO MEJORADO)
+         ========================================== -->
+    <div id="view-landing" class="min-h-screen flex flex-col items-center justify-center p-6 bg-gradient-to-b from-asfalto via-black to-[#3a1800] relative overflow-hidden">
+        <!-- Luces Decorativas de Fondo -->
+        <div class="absolute top-[-10%] left-[-20%] w-96 h-96 bg-naranja/10 rounded-full blur-[100px] pointer-events-none"></div>
+        <div class="absolute bottom-[10%] right-[-20%] w-96 h-96 bg-red-600/10 rounded-full blur-[100px] pointer-events-none"></div>
+        
+        <img src="logo.png" alt="OBR" class="w-32 mb-8 z-10 drop-shadow-[0_0_20px_rgba(255,107,0,0.5)]" onerror="this.src='https://via.placeholder.com/150/FF6B00/FFFFFF?text=OBR'">
+        
+        <div class="z-10 flex flex-col items-center w-full max-w-sm animate-fade-in">
+            <p class="text-naranja font-black tracking-widest text-[10px] mb-6 uppercase border border-naranja/30 px-4 py-1 rounded-full bg-naranja/10">Asistencia Vial 24/7</p>
+            
+            <!-- BOTÓN SOS PRINCIPAL -->
+            <button onclick="startFlow('sos')" class="btn-sos-huge w-60 h-60 rounded-full bg-naranja border-[10px] border-white/10 text-white flex flex-col items-center justify-center shadow-[0_0_40px_rgba(255,107,0,0.5)] transition-all active:scale-95 mb-10">
+                <i class="fas fa-tools text-5xl mb-2 drop-shadow-lg"></i>
+                <span class="font-black text-3xl uppercase italic leading-none drop-shadow-md">Solicitar</span>
+                <span class="font-black text-4xl uppercase italic drop-shadow-md">Auxilio</span>
+            </button>
+
+            <!-- ACCESOS A CLIENTES -->
+            <div class="w-full space-y-3">
+                <button onclick="startFlow('moto')" class="w-full bg-white/5 hover:bg-white/10 border border-white/10 p-4 rounded-2xl flex items-center justify-between transition-all active:scale-95 backdrop-blur-md group">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-12 h-12 bg-naranja/20 rounded-full flex items-center justify-center text-naranja group-hover:scale-110 transition-transform"><i class="fas fa-motorcycle text-xl"></i></div>
+                        <div class="text-left">
+                            <p class="text-sm font-black uppercase text-white tracking-wider">Seguir mi servicio</p>
+                            <p class="text-[10px] text-gray-400 font-medium">Estado de reparación en taller</p>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right text-gray-600"></i>
+                </button>
+
+                <button onclick="startFlow('tienda')" class="w-full bg-white/5 hover:bg-white/10 border border-white/10 p-4 rounded-2xl flex items-center justify-between transition-all active:scale-95 backdrop-blur-md group">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-12 h-12 bg-naranja/20 rounded-full flex items-center justify-center text-naranja group-hover:scale-110 transition-transform"><i class="fas fa-shopping-bag text-xl"></i></div>
+                        <div class="text-left">
+                            <p class="text-sm font-black uppercase text-white tracking-wider">Comprar Refacciones</p>
+                            <p class="text-[10px] text-gray-400 font-medium">Catálogo de productos OBR</p>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right text-gray-600"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         VISTA 1: REGISTRO Y LOGIN (SMS)
+         ========================================== -->
+    <div id="view-login" class="min-h-screen hidden flex-col items-center justify-center p-6 bg-asfalto">
+        <h1 id="login-title" class="text-3xl font-black mb-1 text-center italic tracking-tighter">MOTO RESCATE</h1>
+        <p id="login-subtitle" class="text-naranja font-bold tracking-widest text-sm mb-8 text-center uppercase">SISTEMA INTEGRAL</p>
+        
+        <div class="w-full max-w-sm space-y-4">
+            <!-- ALERTA DE DOMINIO -->
+            <div id="auth-error-alert" class="hidden glass border-red-500/50 p-4 rounded-xl text-xs text-red-200 mb-4 bg-red-900/30">
+                <p class="font-bold text-red-500 mb-1 text-sm"><i class="fas fa-exclamation-triangle mr-1"></i> Entorno Restringido</p>
+                <p>Firebase requiere un servidor web seguro. Para saltar esto en modo de prueba, ingresa el número de test configurado en tu consola.</p>
+            </div>
+
+            <!-- CONTENEDOR RECAPTCHA -->
+            <div id="recaptcha-container"></div>
+            
+            <div id="phone-step" class="glass p-6 rounded-3xl shadow-xl animate-fade-in">
+                
+                <!-- Campo Nombre (Solo visible en flujo SOS) -->
+                <div id="name-container" class="hidden mb-4">
+                    <label class="text-[10px] text-gray-500 font-bold uppercase tracking-widest ml-1">Tu Nombre Completo</label>
+                    <input id="name-input" type="text" placeholder="Ej. Juan Pérez" class="w-full bg-white/5 border-b-2 border-white/10 p-3 mt-1 focus:outline-none focus:border-naranja text-lg transition-all">
+                </div>
+
+                <label class="text-[10px] text-gray-500 font-bold uppercase tracking-widest ml-1">Número Celular</label>
+                <!-- Input de Teléfono con +52 Fijo -->
+                <div class="flex items-center bg-white/5 border-b-2 border-white/10 mt-1 mb-6 focus-within:border-naranja transition-all">
+                    <span class="p-3 text-naranja font-black tracking-widest bg-black/20 border-r border-white/10">+52</span>
+                    <input id="phone-input" type="tel" maxlength="10" placeholder="0000000000" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="w-full bg-transparent p-3 outline-none text-xl tracking-widest text-white">
+                </div>
+
+                <button id="btn-send-otp" onclick="sendOTP()" class="w-full bg-naranja hover:bg-orange-600 p-4 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-naranja/20 transition-all active:scale-95">Continuar</button>
+                <button onclick="cancelLogin()" class="w-full text-center text-[10px] text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white">Cancelar y Volver</button>
+            </div>
+
+            <div id="otp-step" class="hidden glass p-6 rounded-3xl shadow-xl animate-fade-in">
+                <p class="text-sm text-center text-gray-300 mb-4">Código de seguridad SMS enviado a <br><b id="display-phone-verif" class="text-naranja tracking-widest"></b></p>
+                <input id="otp-input" type="number" placeholder="000000" class="w-full bg-white/5 border-b-2 border-white/10 p-3 mb-6 focus:outline-none focus:border-naranja text-center text-3xl tracking-[0.5em] font-black">
+                <button id="btn-verify-otp" onclick="verifyOTP()" class="w-full bg-white text-asfalto p-4 rounded-xl font-black uppercase tracking-widest transition-all active:scale-95">Verificar y Entrar</button>
+                <button onclick="location.reload()" class="w-full text-[10px] text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white">Cambiar número</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         VISTA 1.5: FORMULARIO DETALLE DE AUXILIO (CONTINUACIÓN INVISIBLE)
+         ========================================== -->
+    <div id="view-sos-form" class="min-h-screen hidden flex-col items-center p-6 bg-asfalto pt-10">
+        <div class="w-full max-w-md animate-fade-in">
+            <h2 class="text-3xl font-black italic uppercase text-naranja mb-2">Detalles de la falla</h2>
+            <p class="text-xs text-gray-400 mb-6">Tu GPS se ha capturado. Ayuda a nuestro mecánico a saber qué herramienta llevar.</p>
+
+            <div class="glass p-6 rounded-3xl space-y-5">
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1"><i class="fas fa-map-marker-alt text-naranja mr-1"></i> Ubicación GPS</label>
+                    <div class="w-full bg-black/40 border border-white/5 p-3 mt-1 rounded-xl text-sm text-green-400 font-bold flex items-center justify-between">
+                        <span id="gps-status-text">Capturando coordenadas...</span>
+                        <i id="gps-status-icon" class="fas fa-spinner fa-spin"></i>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1"><i class="fas fa-wrench text-naranja mr-1"></i> Falla Detectada (Obligatorio)</label>
+                    <textarea id="sos-falla" rows="3" placeholder="Ej. Se ponchó la llanta trasera, no arranca, tira aceite..." class="w-full bg-white/5 border border-white/10 p-3 mt-1 rounded-xl focus:outline-none focus:border-naranja text-sm transition-all resize-none"></textarea>
+                </div>
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1"><i class="fas fa-camera text-naranja mr-1"></i> Foto o Video (Max 2 min)</label>
+                    <input type="file" id="sos-media" accept="image/*,video/*" class="w-full bg-white/5 border border-white/10 p-2 mt-1 rounded-xl text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-black file:uppercase file:bg-naranja file:text-white hover:file:bg-orange-600 transition-all">
+                </div>
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1"><i class="fas fa-phone text-naranja mr-1"></i> Teléfono Adicional (Opcional)</label>
+                    <input id="sos-extra-phone" type="tel" placeholder="Por si se apaga tu celular" class="w-full bg-white/5 border border-white/10 p-3 mt-1 rounded-xl focus:outline-none focus:border-naranja text-sm transition-all">
+                </div>
+
+                <button id="btn-submit-sos" onclick="submitFinalSOS()" class="w-full bg-red-600 hover:bg-red-700 p-4 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-red-600/30 transition-all active:scale-95 mt-4">
+                    Enviar Unidad de Rescate
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         VISTA 2: APLICACIÓN CLIENTE (SOLO CLIENTES)
+         ========================================== -->
+    <div id="app-client" class="hidden pb-24">
+        <header class="p-5 flex justify-between items-center bg-asfalto/90 backdrop-blur-md sticky top-0 z-40 border-b border-white/5">
+            <div>
+                <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Mi Perfil</p>
+                <h2 id="client-name-display" class="font-black text-white">Cargando...</h2>
+            </div>
+            <button onclick="logout()" class="w-10 h-10 rounded-full glass flex items-center justify-center text-red-500 active:scale-95"><i class="fas fa-sign-out-alt"></i></button>
+        </header>
+
+        <main class="p-4 max-w-lg mx-auto space-y-8 animate-fade-in">
+            <section id="c-view-inicio" class="c-view space-y-6">
+                <!-- Banner Promocional -->
+                <div class="w-full aspect-[21/9] bg-gradient-to-r from-orange-900 to-naranja rounded-3xl p-6 relative overflow-hidden shadow-xl shadow-naranja/10">
+                    <div class="relative z-10">
+                        <span class="bg-black/50 text-white text-[8px] px-2 py-1 rounded font-black uppercase tracking-widest">Promoción</span>
+                        <h3 class="text-2xl font-black italic mt-2 mb-1">SERVICIO PREVENTIVO</h3>
+                        <p class="text-xs opacity-90 mb-3">Agenda hoy y obtén revisión gratis.</p>
+                        <a href="https://wa.me/526311551533" target="_blank" class="bg-white text-naranja text-[10px] px-4 py-2 rounded-full font-black uppercase">Agendar ahora</a>
+                    </div>
+                    <i class="fas fa-tools absolute -right-4 -bottom-4 text-8xl text-black/20 -rotate-12"></i>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div onclick="startNormalSOSInsideApp()" class="glass p-5 rounded-3xl text-center active:scale-95 transition-transform cursor-pointer border-naranja/30 shadow-[0_0_15px_rgba(255,107,0,0.1)]">
+                        <div class="w-12 h-12 bg-naranja/20 text-naranja rounded-full flex items-center justify-center mx-auto mb-3"><i class="fas fa-life-ring text-xl"></i></div>
+                        <p class="text-xs font-black uppercase">Auxilio Vial</p>
+                    </div>
+                    <div onclick="switchClientView('c-view-moto')" class="glass p-5 rounded-3xl text-center active:scale-95 transition-transform cursor-pointer hover:bg-white/5">
+                        <div class="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-3"><i class="fas fa-motorcycle text-xl"></i></div>
+                        <p class="text-xs font-black uppercase">Mi Moto</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SEGUIMIENTO DE MOTO Y SOS ACTIVO -->
+            <section id="c-view-moto" class="c-view hidden space-y-6">
+                <h2 class="text-2xl font-black italic uppercase text-center">Tus Servicios</h2>
+                
+                <!-- Alerta Activa SOS -->
+                <div id="active-sos-card" class="hidden bg-red-900/30 border border-red-500 p-6 rounded-3xl relative overflow-hidden animate-fade-in">
+                    <div class="flex items-center space-x-3 mb-2">
+                        <i class="fas fa-ambulance text-red-500 text-2xl animate-pulse"></i>
+                        <h3 class="font-black text-white uppercase italic">Unidad en Camino</h3>
+                    </div>
+                    <p class="text-xs text-gray-300 mb-4">Tu reporte de rescate está activo. El taller OBR ha recibido tu GPS y detalles de la falla.</p>
+                    <a href="https://wa.me/526311551533" class="inline-block bg-white text-red-600 text-[10px] px-4 py-2 rounded-full font-black uppercase">Contactar Taller Urgente</a>
+                </div>
+
+                <div class="glass p-8 rounded-[2.5rem] relative overflow-hidden border border-white/10 shadow-2xl">
+                    <div class="absolute top-0 right-0 bg-naranja/20 text-naranja px-4 py-1 rounded-bl-2xl text-[10px] font-black uppercase">Orden Taller</div>
+                    <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-2">Folio de Recepción</p>
+                    <p class="font-black text-3xl mb-8">#OBR-902</p>
+                    <div class="relative h-1.5 bg-white/10 rounded-full flex justify-between items-center mb-8">
+                        <div class="h-full absolute bg-naranja rounded-full transition-all duration-1000" style="width: 50%"></div>
+                        <div class="z-10 w-5 h-5 rounded-full bg-naranja border-4 border-asfalto shadow-[0_0_10px_#FF6B00]"></div>
+                        <div class="z-10 w-5 h-5 rounded-full bg-naranja border-4 border-asfalto shadow-[0_0_10px_#FF6B00]"></div>
+                        <div class="z-10 w-5 h-5 rounded-full bg-asfalto border-4 border-white/20"></div>
+                        <div class="z-10 w-5 h-5 rounded-full bg-asfalto border-4 border-white/20"></div>
+                    </div>
+                    <div class="grid grid-cols-4 text-[9px] text-center font-black uppercase tracking-tighter text-gray-600">
+                        <div class="text-naranja">Recibida</div><div class="text-naranja">Mecánica</div><div>Pruebas</div><div>Lista</div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="c-view-tienda" class="c-view hidden space-y-6">
+                <h2 class="text-2xl font-black italic uppercase text-center">Refacciones</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="glass rounded-3xl p-4 flex flex-col justify-between hover:bg-white/5 transition-colors">
+                        <div class="w-full aspect-square bg-white/5 rounded-2xl mb-3 flex items-center justify-center"><i class="fas fa-oil-can text-4xl text-gray-600"></i></div>
+                        <p class="text-xs font-black uppercase leading-tight mb-1">Aceite Motul 5100</p>
+                        <p class="text-naranja font-black text-lg mb-3">$250</p>
+                        <button onclick="window.open('https://wa.me/526311551533?text=Hola, quiero comprar Aceite Motul 5100')" class="w-full bg-white/10 hover:bg-white/20 p-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Pedir por WA</button>
+                    </div>
+                    <div class="glass rounded-3xl p-4 flex flex-col justify-between hover:bg-white/5 transition-colors">
+                        <div class="w-full aspect-square bg-white/5 rounded-2xl mb-3 flex items-center justify-center"><i class="fas fa-battery-full text-4xl text-gray-600"></i></div>
+                        <p class="text-xs font-black uppercase leading-tight mb-1">Batería Gel 12V</p>
+                        <p class="text-naranja font-black text-lg mb-3">$680</p>
+                        <button onclick="window.open('https://wa.me/526311551533?text=Hola, quiero comprar Batería 12V')" class="w-full bg-white/10 hover:bg-white/20 p-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Pedir por WA</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <nav class="fixed bottom-0 w-full glass border-t border-white/5 flex justify-around p-4 z-50 bg-asfalto/90 backdrop-blur-lg">
+            <button onclick="switchClientView('c-view-inicio')" class="c-nav-btn tab-active flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all"><i class="fas fa-home text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest">Inicio</span></button>
+            <button onclick="switchClientView('c-view-tienda')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all"><i class="fas fa-shopping-bag text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest">Tienda</span></button>
+            <button onclick="switchClientView('c-view-moto')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all"><i class="fas fa-motorcycle text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest">Mi Moto</span></button>
+        </nav>
+    </div>
+
+    <!-- ==========================================
+         VISTA 3: APLICACIÓN ADMIN / TALLER (PRIVADA)
+         ========================================== -->
+    <div id="app-admin" class="hidden pb-24 border-t-4 border-naranja">
+        <header class="p-5 flex justify-between items-center bg-asfalto sticky top-0 z-40 border-b border-naranja/20">
+            <div>
+                <p class="text-[10px] text-naranja font-black uppercase tracking-widest flex items-center"><i class="fas fa-shield-alt mr-1"></i> Panel Taller</p>
+                <h2 id="admin-phone-display" class="font-bold text-white text-sm">Cargando...</h2>
+            </div>
+            <button onclick="logout()" class="w-10 h-10 rounded-full border border-red-500/30 flex items-center justify-center text-red-500"><i class="fas fa-sign-out-alt"></i></button>
+        </header>
+
+        <main class="p-4 max-w-lg mx-auto space-y-6 animate-fade-in">
+            <section id="a-view-pos" class="a-view space-y-4">
+                <div class="flex justify-between items-end mb-4">
+                    <h3 class="text-2xl font-black italic uppercase">Caja / POS</h3>
+                    <button onclick="showAdminCorte()" class="bg-naranja/10 text-naranja border border-naranja/20 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest">Ver Corte Diario</button>
+                </div>
+                <div class="bg-white/5 border border-white/10 p-5 rounded-3xl space-y-4 shadow-xl">
+                    <div>
+                        <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">Concepto de Venta</label>
+                        <input id="admin-pos-desc" type="text" placeholder="Ej: Servicio mayor y balatas" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 mt-1 focus:outline-none focus:border-naranja transition-colors">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">Total Cobrado ($)</label>
+                            <input id="admin-pos-total" type="number" placeholder="0.00" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 mt-1 focus:outline-none focus:border-naranja font-black text-naranja">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest ml-1">Costo Insumos ($)</label>
+                            <input id="admin-pos-costo" type="number" placeholder="0.00" class="w-full bg-asfalto p-4 rounded-xl border border-red-500/30 mt-1 focus:outline-none focus:border-red-500 text-red-400 font-bold">
+                        </div>
+                    </div>
+                    <button onclick="adminRegistrarVenta()" class="w-full bg-naranja hover:bg-orange-600 p-4 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-naranja/20 mt-2 active:scale-95 transition-all">Registrar e Imprimir Ticket</button>
+                </div>
+                <div class="mt-8">
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 px-2">Ventas de Hoy</p>
+                    <div id="admin-pos-history" class="space-y-2 max-h-60 overflow-y-auto hide-scroll"></div>
+                </div>
+            </section>
+
+            <section id="a-view-alertas" class="a-view hidden space-y-4">
+                <h3 class="text-2xl font-black italic uppercase">Alertas SOS</h3>
+                <p class="text-xs text-gray-400">Clientes solicitando auxilio vial en tiempo real.</p>
+                <div id="admin-sos-list" class="space-y-4">
+                    <div class="p-8 border border-dashed border-white/10 rounded-3xl text-center text-gray-600">
+                        <i class="fas fa-check-circle text-3xl mb-2"></i>
+                        <p class="text-xs uppercase font-bold tracking-widest">Sin emergencias activas</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <nav class="fixed bottom-0 w-full bg-asfalto border-t border-naranja/20 flex justify-around p-4 z-50">
+            <button onclick="switchAdminView('a-view-pos')" class="a-nav-btn tab-active flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-naranja"><i class="fas fa-cash-register text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest">Ventas</span></button>
+            <button onclick="switchAdminView('a-view-alertas')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-red-500"><i class="fas fa-exclamation-triangle text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest">SOS</span></button>
+        </nav>
+    </div>
+
+    <!-- MODAL ADMIN: CORTE DE CAJA -->
+    <div id="modal-corte-admin" class="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+        <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-naranja/30 shadow-[0_0_50px_rgba(255,107,0,0.1)]">
+            <button onclick="toggleModal('modal-corte-admin', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400"><i class="fas fa-times"></i></button>
+            <h2 class="text-xl font-black mb-6 text-center text-white italic uppercase tracking-widest">Resumen Financiero</h2>
+            <div id="admin-corte-results" class="space-y-3 text-sm"></div>
+            <button onclick="toggleModal('modal-corte-admin', false)" class="w-full bg-white text-black p-4 rounded-xl font-black mt-8 uppercase tracking-widest">Cerrar</button>
+        </div>
+    </div>
+
+    <!-- FIREBASE INTEGRATION -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, RecaptchaVerifier, signInWithPhoneNumber, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getDatabase, ref as dbRef, set as rtdbSet, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
+
+        // CREDENCIALES
+        const firebaseConfig = {
+            apiKey: "AIzaSyCO5ngYh7JYlMJ-PnWqXq142Kj-Umylods",
+            authDomain: "motocheck-15c61.firebaseapp.com",
+            databaseURL: "https://motocheck-15c61-default-rtdb.firebaseio.com",
+            projectId: "motocheck-15c61",
+            storageBucket: "motocheck-15c61.firebasestorage.app",
+            messagingSenderId: "444725574222",
+            appId: "1:444725574222:web:db1055eef17e1a5ddee11f",
+            measurementId: "G-ZSGSYH5CTV"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const rtdb = getDatabase(app);
+        const storage = getStorage(app);
+        const analytics = getAnalytics(app);
+
+        // Variables Globales
+        window.isLocalMockMode = false;
+        window.userIntent = 'inicio'; // Qué quería hacer el usuario (sos, moto, tienda, admin)
+        const MOCK_ADMIN_PHONE = "+526311551533";
+        let tempSOSGps = { lat: null, lng: null };
+
+        // ------------------ INTERCEPTOR DE URL (ADMIN OCULTO) ------------------
+        if (window.location.search.includes('taller26')) {
+            startFlow('admin');
+        }
+
+        // ------------------ UTILIDADES UI ------------------
+        window.showToast = function(msg, isError = false) {
+            const t = document.getElementById('status-toast');
+            document.getElementById('status-msg').innerText = msg;
+            const icon = document.getElementById('toast-icon');
+            if(isError) {
+                t.firstElementChild.classList.replace('bg-naranja', 'bg-red-600');
+                icon.className = 'fas fa-exclamation-triangle text-lg';
+            } else {
+                t.firstElementChild.classList.replace('bg-red-600', 'bg-naranja');
+                icon.className = 'fas fa-check-circle text-lg';
+            }
+            t.classList.remove('hidden');
+            setTimeout(() => t.classList.add('hidden'), 4000);
+        };
+
+        window.toggleModal = (id, s) => document.getElementById(id).classList.toggle('hidden', !s);
+
+        // ------------------ NAVEGACIÓN INICIAL ------------------
+        window.startFlow = (intent) => {
+            window.userIntent = intent;
+            document.getElementById('view-landing').classList.add('hidden');
+            document.getElementById('view-login').classList.remove('hidden');
+            document.getElementById('view-login').classList.add('flex');
+
+            if (intent === 'sos') {
+                document.getElementById('login-title').innerText = "AUXILIO VIAL";
+                document.getElementById('login-subtitle').innerText = "DETALLES RÁPIDOS";
+                document.getElementById('name-container').classList.remove('hidden');
+            } else if (intent === 'admin') {
+                document.getElementById('login-title').innerText = "ACCESO TALLER";
+                document.getElementById('login-subtitle').innerText = "ADMINISTRACIÓN OBR";
+                document.getElementById('name-container').classList.add('hidden');
+            } else {
+                document.getElementById('login-title').innerText = "BIENVENIDO";
+                document.getElementById('login-subtitle').innerText = "ACCESO CLIENTES";
+                document.getElementById('name-container').classList.add('hidden');
+            }
+        };
+
+        window.cancelLogin = () => {
+            document.getElementById('view-login').classList.add('hidden');
+            document.getElementById('view-login').classList.remove('flex');
+            document.getElementById('view-landing').classList.remove('hidden');
+            // Removemos el parámetro si lo había
+            if(window.location.search) history.replaceState(null, '', window.location.pathname);
+        };
+
+        window.switchClientView = (id) => {
+            document.querySelectorAll('.c-view').forEach(v => v.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+            document.querySelectorAll('.c-nav-btn').forEach(b => b.classList.remove('tab-active', 'text-naranja'));
+            const btn = Array.from(document.querySelectorAll('.c-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
+            if(btn) btn.classList.add('tab-active');
+        };
+
+        window.switchAdminView = (id) => {
+            document.querySelectorAll('.a-view').forEach(v => v.classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+            document.querySelectorAll('.a-nav-btn').forEach(b => b.classList.remove('tab-active'));
+            const btn = Array.from(document.querySelectorAll('.a-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
+            if(btn) btn.classList.add('tab-active');
+        };
+
+        // ------------------ AUTH FLOW ------------------
+        let recaptchaVerifier;
+
+        window.sendOTP = async function() {
+            const rawPhone = document.getElementById('phone-input').value.trim();
+            const name = document.getElementById('name-input').value.trim();
+            const btn = document.getElementById('btn-send-otp');
+            document.getElementById('auth-error-alert').classList.add('hidden');
+
+            if (rawPhone.length !== 10) return showToast("El número debe tener exactamente 10 dígitos", true);
+            if (window.userIntent === 'sos' && name === "") return showToast("Por favor ingresa tu nombre", true);
+
+            const phone = "+52" + rawPhone; 
+
+            if (window.location.protocol === 'file:' || window.location.hostname.includes('usercontent.goog')) {
+                if(phone === MOCK_ADMIN_PHONE) {
+                    window.isLocalMockMode = true;
+                    document.getElementById('view-login').classList.add('hidden');
+                    document.getElementById('app-admin').classList.remove('hidden');
+                    document.getElementById('admin-phone-display').innerText = phone + " (Local)";
+                    adminLoadSales();
+                    adminListenSOS();
+                    return;
+                } else {
+                    document.getElementById('auth-error-alert').classList.remove('hidden');
+                    return showToast("Bloqueo de seguridad de Firebase", true);
+                }
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando...';
+
+            try {
+                if (!recaptchaVerifier) recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { 'size': 'invisible' });
+                const confirmationResult = await signInWithPhoneNumber(auth, phone, recaptchaVerifier);
+                window.confirmationResult = confirmationResult;
+                
+                document.getElementById('phone-step').classList.add('hidden');
+                document.getElementById('otp-step').classList.remove('hidden');
+                document.getElementById('display-phone-verif').innerText = phone;
+                showToast("Código SMS Enviado");
+
+            } catch (error) {
+                btn.disabled = false;
+                btn.innerText = "Continuar";
+                showToast("Error de conexión. Intenta de nuevo", true);
+                if (recaptchaVerifier) { recaptchaVerifier.clear(); recaptchaVerifier = null; }
+            }
+        };
+
+        window.verifyOTP = async function() {
+            const code = document.getElementById('otp-input').value.trim();
+            const btn = document.getElementById('btn-verify-otp');
+            if (code.length < 6) return showToast("Ingresa los 6 números", true);
+
+            btn.disabled = true;
+            btn.innerText = "Validando...";
+
+            try {
+                await window.confirmationResult.confirm(code);
+            } catch (error) {
+                btn.disabled = false;
+                btn.innerText = "Verificar y Entrar";
+                showToast("Código incorrecto", true);
+            }
+        };
+
+        window.logout = () => {
+            if(window.isLocalMockMode) location.reload();
+            else signOut(auth).then(() => location.reload());
+        };
+
+        onAuthStateChanged(auth, async (user) => {
+            if(window.isLocalMockMode || !user) return; 
+
+            document.getElementById('view-login').classList.add('hidden');
+            document.getElementById('view-landing').classList.add('hidden');
+            
+            try {
+                const userRef = doc(db, "users", user.uid);
+                const userSnap = await getDoc(userRef);
+                let role = 'cliente';
+                let userName = document.getElementById('name-input').value.trim() || 'Cliente OBR';
+
+                if (!userSnap.exists()) {
+                    await setDoc(userRef, { phone: user.phoneNumber, name: userName, role: 'cliente', created: new Date().toISOString() });
+                } else {
+                    role = userSnap.data().role;
+                    if(userSnap.data().name) userName = userSnap.data().name;
+                }
+
+                if (role === 'admin' || role === 'socio' || role === 'taller') {
+                    document.getElementById('app-admin').classList.remove('hidden');
+                    document.getElementById('admin-phone-display').innerText = user.phoneNumber;
+                    adminLoadSales();
+                    adminListenSOS();
+                } else {
+                    // Routing post-login basado en userIntent
+                    if (window.userIntent === 'sos') {
+                        launchSOSForm(userName);
+                    } else {
+                        document.getElementById('app-client').classList.remove('hidden');
+                        document.getElementById('client-name-display').innerText = userName;
+                        
+                        if(window.userIntent === 'tienda') switchClientView('c-view-tienda');
+                        else if(window.userIntent === 'moto') switchClientView('c-view-moto');
+                        else switchClientView('c-view-inicio');
+                    }
+                }
+            } catch (e) { showToast("Error cargando perfil", true); }
+        });
+
+        // ------------------ FLUJO SOS CONTINUACIÓN INVISIBLE ------------------
+        function launchSOSForm(userName) {
+            document.getElementById('view-sos-form').classList.remove('hidden');
+            document.getElementById('view-sos-form').classList.add('flex');
+            
+            // Auto-capturar GPS
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    tempSOSGps.lat = pos.coords.latitude;
+                    tempSOSGps.lng = pos.coords.longitude;
+                    document.getElementById('gps-status-text').innerText = "GPS Capturado con éxito";
+                    document.getElementById('gps-status-text').classList.replace('text-green-400', 'text-naranja');
+                    document.getElementById('gps-status-icon').className = "fas fa-check-circle text-naranja";
+                }, (err) => {
+                    document.getElementById('gps-status-text').innerText = "Error GPS: Necesitamos permisos";
+                    document.getElementById('gps-status-text').classList.replace('text-green-400', 'text-red-500');
+                    document.getElementById('gps-status-icon').className = "fas fa-exclamation-triangle text-red-500";
+                    showToast("Por favor permite el acceso al GPS", true);
+                });
+            }
+        }
+
+        window.startNormalSOSInsideApp = () => {
+            document.getElementById('app-client').classList.add('hidden');
+            window.userIntent = 'sos';
+            launchSOSForm(document.getElementById('client-name-display').innerText);
+        }
+
+        window.submitFinalSOS = async function() {
+            const falla = document.getElementById('sos-falla').value.trim();
+            const extraPhone = document.getElementById('sos-extra-phone').value.trim();
+            const fileInput = document.getElementById('sos-media');
+            const btn = document.getElementById('btn-submit-sos');
+
+            if (!falla) return showToast("Por favor describe la falla detectada", true);
+            if (!tempSOSGps.lat) return showToast("Aún no tenemos tu GPS. Revisa tus permisos.", true);
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando Alerta...';
+
+            let mediaUrl = "";
+            
+            try {
+                // Si hay archivo, subir a Storage
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    if (file.size > 20 * 1024 * 1024) { 
+                        btn.disabled = false; btn.innerText = "Enviar Unidad de Rescate";
+                        return showToast("El archivo es muy pesado (Max 20MB)", true);
+                    }
+                    const storageRef = sRef(storage, `rescates/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
+                    await uploadBytes(storageRef, file);
+                    mediaUrl = await getDownloadURL(storageRef);
+                }
+
+                // Guardar en Firestore Historial
+                const rescateData = {
+                    uid: auth.currentUser.uid,
+                    phone: auth.currentUser.phoneNumber,
+                    extraPhone: extraPhone,
+                    falla: falla,
+                    mediaUrl: mediaUrl,
+                    lat: tempSOSGps.lat,
+                    lng: tempSOSGps.lng,
+                    status: 'activo',
+                    timestamp: Date.now()
+                };
+                await addDoc(collection(db, "rescates"), rescateData);
+
+                // Enviar a Realtime DB para alerta de Taller en Vivo
+                await rtdbSet(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), rescateData);
+
+                showToast("¡Unidad OBR en camino!");
+                
+                // Transición a la app cliente (Seguimiento)
+                document.getElementById('view-sos-form').classList.add('hidden');
+                document.getElementById('view-sos-form').classList.remove('flex');
+                document.getElementById('app-client').classList.remove('hidden');
+                switchClientView('c-view-moto');
+                document.getElementById('active-sos-card').classList.remove('hidden');
+
+            } catch (e) {
+                console.error(e);
+                btn.disabled = false;
+                btn.innerText = "Enviar Unidad de Rescate";
+                showToast("Error de conexión. Intenta de nuevo.", true);
+            }
+        };
+
+        // ------------------ FUNCIONES ADMIN / TALLER ------------------
+        window.adminRegistrarVenta = async function() {
+            const desc = document.getElementById('admin-pos-desc').value.trim();
+            const total = parseFloat(document.getElementById('admin-pos-total').value);
+            const costo = parseFloat(document.getElementById('admin-pos-costo').value || 0);
+
+            if(!desc || isNaN(total)) return showToast("Faltan datos de venta", true);
+
+            try {
+                const sellerId = auth.currentUser ? auth.currentUser.uid : 'admin-local-test';
+                await addDoc(collection(db, "ventas"), { desc, total, costo, fecha: new Date().toISOString(), seller: sellerId });
+                showToast("Venta Registrada Exitosamente");
+                
+                document.getElementById('admin-pos-desc').value = "";
+                document.getElementById('admin-pos-total').value = "";
+                document.getElementById('admin-pos-costo').value = "";
+                adminLoadSales();
+                window.open(`https://wa.me/?text=${encodeURIComponent(`*MOTO RESCATE OBR*\nTicket de Venta\n----------------\nServicio: ${desc}\nTotal: $${total}\n----------------\n¡Gracias por su visita!`)}`);
+            } catch (e) { showToast("Error al guardar venta", true); }
+        };
+
+        async function adminLoadSales() {
+            const container = document.getElementById('admin-pos-history');
+            container.innerHTML = "<p class='text-[10px] text-gray-500 italic text-center'>Cargando base de datos...</p>";
+            try {
+                const querySnapshot = await getDocs(collection(db, "ventas"));
+                container.innerHTML = "";
+                let count = 0;
+                querySnapshot.forEach(doc => {
+                    const v = doc.data();
+                    container.innerHTML += `
+                        <div class="bg-white/5 p-4 rounded-2xl flex justify-between items-center mb-2 border border-white/5">
+                            <div>
+                                <p class="text-xs font-black uppercase text-gray-300">${v.desc}</p>
+                                <p class="text-[8px] text-gray-500">${new Date(v.fecha).toLocaleDateString()}</p>
+                            </div>
+                            <b class="text-naranja tracking-tighter">$${v.total}</b>
+                        </div>`;
+                    count++;
+                });
+                if(count === 0) container.innerHTML = "<p class='text-xs text-center text-gray-600 mt-4'>No hay ventas registradas hoy.</p>";
+            } catch (e) { container.innerHTML = "<p class='text-[10px] text-red-500 text-center uppercase tracking-widest mt-4'>Base de datos protegida.</p>"; }
+        }
+
+        window.showAdminCorte = async function() {
+            let tVenta = 0, tCosto = 0;
+            try {
+                const snap = await getDocs(collection(db, "ventas"));
+                snap.forEach(d => { tVenta += d.data().total; tCosto += d.data().costo; });
+            } catch (e) {}
+
+            const renta = 1500;
+            const uNeta = (tVenta - tCosto) - renta;
+            const taller = renta + (uNeta > 0 ? uNeta * 0.4 : 0);
+            const socios = uNeta > 0 ? uNeta * 0.3 : 0;
+
+            document.getElementById('admin-corte-results').innerHTML = `
+                <div class="flex justify-between items-center py-2 border-b border-white/10"><span>Ingreso Bruto:</span><b class="text-lg">$${tVenta.toFixed(2)}</b></div>
+                <div class="flex justify-between items-center py-2 text-red-400"><span>Costo Refacciones:</span><b>-$${tCosto.toFixed(2)}</b></div>
+                <div class="flex justify-between items-center py-2 text-red-400 border-b border-white/10 mb-4"><span>Reserva Fija (Renta):</span><b>-$${renta.toFixed(2)}</b></div>
+                
+                <div class="bg-black/50 p-5 rounded-2xl border border-naranja/30">
+                    <div class="flex justify-between items-center text-naranja font-black uppercase text-lg mb-2"><span>Caja Taller:</span><b>$${taller.toFixed(2)}</b></div>
+                    <div class="flex justify-between items-center text-xs text-gray-400 mt-2"><span>Socio A (30%):</span><b>$${socios.toFixed(2)}</b></div>
+                    <div class="flex justify-between items-center text-xs text-gray-400 mt-1"><span>Socio B (30%):</span><b>$${socios.toFixed(2)}</b></div>
+                </div>
+            `;
+            toggleModal('modal-corte-admin', true);
+        };
+
+        function adminListenSOS() {
+            const list = document.getElementById('admin-sos-list');
+            try {
+                onValue(dbRef(rtdb, 'sos_alerts'), (snapshot) => {
+                    list.innerHTML = '';
+                    let hasAlerts = false;
+                    snapshot.forEach((child) => {
+                        hasAlerts = true;
+                        const alert = child.val();
+                        const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${alert.lat},${alert.lng}`;
+                        
+                        let mediaHtml = "";
+                        if(alert.mediaUrl) {
+                            mediaHtml = `<a href="${alert.mediaUrl}" target="_blank" class="w-full block bg-white/10 hover:bg-white/20 transition-colors text-center py-2 rounded-xl text-[10px] font-bold uppercase mt-2 border border-white/20"><i class="fas fa-camera mr-1 text-naranja"></i> Ver Evidencia Adjunta</a>`;
+                        }
+
+                        list.innerHTML += `
+                            <div class="bg-red-900/20 border border-red-500 p-5 rounded-3xl relative overflow-hidden shadow-xl shadow-red-900/20">
+                                <div class="absolute top-0 right-0 bg-red-600 text-white text-[8px] font-black uppercase px-3 py-1 rounded-bl-xl shadow-lg">Emergencia Activa</div>
+                                
+                                <p class="font-black text-white text-lg mt-2 tracking-widest">${alert.phone}</p>
+                                <p class="text-[10px] text-gray-400 mb-3 font-bold"><i class="fas fa-clock mr-1"></i> ${new Date(alert.timestamp).toLocaleTimeString()}</p>
+                                
+                                <div class="bg-black/40 p-4 rounded-xl mb-3 border border-white/5">
+                                    <p class="text-[10px] text-naranja font-black uppercase tracking-widest mb-1">Detalle del Reporte:</p>
+                                    <p class="text-xs text-white leading-relaxed">"${alert.falla}"</p>
+                                    ${alert.extraPhone ? `<p class="text-[10px] text-gray-300 mt-3 pt-3 border-t border-white/5"><i class="fas fa-phone-alt text-naranja mr-1"></i> Tel. Alterno: <b class="tracking-widest">${alert.extraPhone}</b></p>` : ''}
+                                </div>
+
+                                <div class="flex space-x-2">
+                                    <a href="${mapsUrl}" target="_blank" class="flex-1 bg-red-600 hover:bg-red-700 text-white text-center py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"><i class="fas fa-map-marker-alt mr-1"></i> Abrir GPS</a>
+                                    <a href="https://wa.me/${alert.phone.replace('+','')}" target="_blank" class="w-12 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded-xl text-xl transition-all"><i class="fab fa-whatsapp"></i></a>
+                                </div>
+                                ${mediaHtml}
+                            </div>`;
+                    });
+                    if(!hasAlerts) {
+                        list.innerHTML = `<div class="p-8 border border-dashed border-white/10 rounded-3xl text-center text-gray-600"><i class="fas fa-check-circle text-3xl mb-2"></i><p class="text-[10px] uppercase font-black tracking-widest">Sin emergencias activas</p></div>`;
+                    }
+                });
+            } catch(e) {}
+        }
+    </script>
+</body>
+</html>
