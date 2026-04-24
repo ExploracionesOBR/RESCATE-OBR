@@ -102,8 +102,8 @@
         <p id="login-subtitle" class="text-naranja font-bold tracking-widest text-sm mb-8 text-center uppercase">SISTEMA INTEGRAL</p>
         
         <div class="w-full max-w-sm space-y-4">
-            <!-- ALERTA DE DOMINIO -->
-            <div id="auth-error-alert" class="hidden glass border-red-500/50 p-4 rounded-xl text-xs text-red-200 mb-4 bg-red-900/30">
+            <!-- ALERTA DE DOMINIO Y ERRORES DE AUTH -->
+            <div id="auth-error-alert" class="hidden glass border-red-500/50 p-4 rounded-xl text-xs text-red-200 mb-4 bg-red-900/30 animate-fade-in">
                 <p class="font-bold text-red-500 mb-1 text-sm"><i class="fas fa-exclamation-triangle mr-1"></i> Problema de Seguridad</p>
                 <p id="auth-error-text">Firebase requiere un servidor web seguro. Para saltar esto en modo de prueba, ingresa el número de test configurado en tu consola.</p>
             </div>
@@ -436,7 +436,6 @@
         };
 
         // ------------------ AUTH FLOW ------------------
-        let recaptchaVerifier;
 
         window.sendOTP = async function() {
             const rawPhone = document.getElementById('phone-input').value.trim();
@@ -469,8 +468,12 @@
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Conectando...';
 
             try {
-                if (!recaptchaVerifier) recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { 'size': 'invisible' });
-                const confirmationResult = await signInWithPhoneNumber(auth, phone, recaptchaVerifier);
+                if (!window.recaptchaVerifier) {
+                    document.getElementById('recaptcha-container').innerHTML = ''; // Limpieza del DOM
+                    window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { 'size': 'invisible' });
+                }
+                
+                const confirmationResult = await signInWithPhoneNumber(auth, phone, window.recaptchaVerifier);
                 window.confirmationResult = confirmationResult;
                 
                 document.getElementById('phone-step').classList.add('hidden');
@@ -490,11 +493,20 @@
                     showToast("Dominio no autorizado", true);
                 } else if (error.code === 'auth/unauthorized-domain') {
                     showToast("Agrega exploracionesobr.github.io a Firebase", true);
+                } else if (error.code === 'auth/operation-not-allowed') {
+                    document.getElementById('auth-error-alert').classList.remove('hidden');
+                    document.getElementById('auth-error-alert').innerHTML = `<p class="font-bold text-red-500 mb-1 text-sm"><i class="fas fa-exclamation-triangle mr-1"></i> Región SMS bloqueada</p><p>Ve a Firebase > Authentication > Configuración > Política de región de SMS. Selecciona "Permitir solo a las regiones seleccionadas" y agrega <b>México (+52)</b>.</p>`;
+                    showToast("Región de SMS bloqueada en Firebase", true);
                 } else {
                     showToast("Fallo SMS: " + error.message, true);
                 }
                 
-                if (recaptchaVerifier) { recaptchaVerifier.clear(); recaptchaVerifier = null; }
+                // LIMPIEZA PROFUNDA DE RECAPTCHA PARA EVITAR "ALREADY RENDERED"
+                if (window.recaptchaVerifier) { 
+                    try { window.recaptchaVerifier.clear(); } catch(e) {}
+                    window.recaptchaVerifier = null; 
+                    document.getElementById('recaptcha-container').innerHTML = ''; // Vaciar basura del HTML
+                }
             }
         };
 
