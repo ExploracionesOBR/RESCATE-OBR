@@ -1000,7 +1000,13 @@
             else if (intent === 'rastreo_publico') { showView('view-public-tracking'); } 
             else if (intent === 'inicio') { cancelFlow(); } 
             else {
-                if(auth.currentUser && intent === 'sos') { launchSOSForm(auth.currentUser.displayName || ''); return; }
+                if(auth.currentUser && intent === 'sos') {
+                    if (window.currentUserDoc && ['admin','socio','taller','mecanico'].includes(window.currentUserDoc.role)) {
+                        showView('app-admin'); return; // Bloquear a admins de pedir SOS
+                    }
+                    launchSOSForm(window.currentUserDoc ? window.currentUserDoc.name : ''); 
+                    return; 
+                }
                 showView('view-login');
                 if (intent === 'sos') {
                     document.getElementById('login-title').innerText = "NUEVO AUXILIO VIAL";
@@ -1449,15 +1455,19 @@
 
             let mediaUrl = "";
             const rawPhoneSOS = auth.currentUser.email ? auth.currentUser.email.replace('@motorescateobr.com','') : (auth.currentUser.phoneNumber ? auth.currentUser.phoneNumber.replace('+52', '') : '');
-            const truePhone = "+52" + rawPhoneSOS;
+            const truePhone = window.currentUserDoc ? window.currentUserDoc.phone : ("+52" + rawPhoneSOS);
             
             try {
                 if (fileInput.files.length > 0) {
-                    const file = fileInput.files[0];
-                    if (file.size > 20 * 1024 * 1024) { btn.disabled = false; btn.innerHTML = origHtml; return showToast("Archivo muy pesado (Max 20MB)", true); }
-                    const stRef = sRef(storage, `rescates/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
-                    await uploadBytes(stRef, file);
-                    mediaUrl = await getDownloadURL(stRef);
+                    try {
+                        const file = fileInput.files[0];
+                        if (file.size > 20 * 1024 * 1024) { btn.disabled = false; btn.innerHTML = origHtml; return showToast("Archivo muy pesado (Max 20MB)", true); }
+                        const stRef = sRef(storage, `rescates/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
+                        await uploadBytes(stRef, file);
+                        mediaUrl = await getDownloadURL(stRef);
+                    } catch(uploadErr) {
+                        console.warn("Upload de imagen omitido", uploadErr);
+                    }
                 }
 
                 let finalFalla = `[${servName}] ${falla}`;
@@ -1470,8 +1480,8 @@
                     extraPhone: extraPhone,
                     falla: finalFalla,
                     mediaUrl: mediaUrl,
-                    lat: tempSOSGps.lat,
-                    lng: tempSOSGps.lng,
+                    lat: tempSOSGps.lat || null,
+                    lng: tempSOSGps.lng || null,
                     manualAddress: manualAddress,
                     status: 'pending',
                     tallerStatus: 'recibida',
@@ -1486,8 +1496,10 @@
                 switchClientView('c-view-moto');
                 listenToMySOS(); 
             } catch (e) {
+                console.error(e);
+                showToast("Error de conexión. Intenta de nuevo.", true);
+            } finally {
                 btn.disabled = false; btn.innerHTML = origHtml;
-                showToast("Error de conexión.", true);
             }
         };
 
@@ -1868,6 +1880,33 @@
         window.adminCreateCoupon = function() {
             showToast("Cupón creado. Se podrá canjear en WhatsApp.", false);
         };
+
+        window.adminUploadPromoVideo = async function() {
+            const fileInput = document.getElementById('promo-video-upload');
+            if (fileInput.files.length === 0) return showToast("Selecciona un video", true);
+            
+            const btn = document.querySelector('#promo-video-upload').nextElementSibling;
+            const origHtml = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Subiendo...';
+            
+            try {
+                const file = fileInput.files[0];
+                if(file.size > 50 * 1024 * 1024) { btn.disabled = false; btn.innerHTML = origHtml; return showToast("Video muy pesado (Max 50MB)", true); }
+                const stRef = sRef(storage, `promos/${Date.now()}_${file.name}`);
+                await uploadBytes(stRef, file);
+                const url = await getDownloadURL(stRef);
+                
+                globalSettings.promoVideoUrl = url;
+                await setDoc(doc(db, "settings", "general"), globalSettings, {merge: true});
+                showToast("Banner de video actualizado");
+                fileInput.value = '';
+                loadPublicStore();
+            } catch(e) {
+                showToast("Error al subir video", true);
+            } finally {
+                btn.disabled = false; btn.innerHTML = origHtml;
+            }
+        }
 
         async function adminLoadPromosSelect() {
             try {
