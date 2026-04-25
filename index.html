@@ -444,7 +444,7 @@
 
         <main class="p-4 lg:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in w-full">
             
-            <!-- CAJA / POS (SISTEMA DE TICKET PROFESIONAL) -->
+            <!-- CAJA / POS -->
             <section id="a-view-pos" class="a-view space-y-4">
                 <div class="flex justify-between items-end mb-4">
                     <h3 class="text-2xl lg:text-3xl font-black italic uppercase text-white">Terminal <span class="text-naranja">Caja POS</span></h3>
@@ -452,7 +452,6 @@
                 </div>
                 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <!-- Buscador y Agregado Rápido -->
                     <div class="lg:col-span-2 space-y-6">
                         <div class="bg-white/5 p-6 rounded-3xl border border-white/10 shadow-xl">
                             <h4 class="text-naranja font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-box-open mr-2"></i>1. Agregar desde Almacén</h4>
@@ -474,8 +473,7 @@
                         </div>
                     </div>
 
-                    <!-- El Ticket -->
-                    <div class="bg-gradient-to-b from-black to-asfalto p-6 rounded-3xl border border-naranja/40 shadow-[0_0_30px_rgba(255,107,0,0.15)] flex flex-col h-full min-h-[400px]">
+                    <div class="bg-gradient-to-br from-black to-asfalto p-6 rounded-3xl border border-naranja/40 shadow-[0_0_30px_rgba(255,107,0,0.15)] flex flex-col h-full min-h-[400px]">
                         <h4 class="text-white font-black text-sm uppercase tracking-widest mb-4 border-b border-white/10 pb-2 text-center"><i class="fas fa-receipt mr-2 text-gray-400"></i>Ticket Actual</h4>
                         
                         <div id="pos-ticket-list" class="flex-grow overflow-y-auto hide-scroll space-y-3 mb-4 min-h-[150px]">
@@ -549,7 +547,7 @@
                 <div id="admin-inventory-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6"></div>
             </section>
 
-            <!-- PROMOS -->
+            <!-- PROMOS Y VIDEO BANNER -->
             <section id="a-view-promos" class="a-view hidden space-y-6">
                 <h3 class="text-2xl font-black italic uppercase text-white">Panel de <span class="text-purple-400">Promociones</span></h3>
                 
@@ -579,7 +577,12 @@
                                 <option value="catalogo">Solo Catálogo App</option>
                             </select>
                         </div>
-                        <button onclick="adminCreateCoupon()" class="w-full bg-white/10 hover:bg-white/20 p-3 rounded-xl font-black uppercase text-xs tracking-widest text-white border border-white/10 transition-all">Crear Cupón</button>
+                        <button onclick="adminCreateCoupon()" class="w-full bg-white/10 hover:bg-white/20 p-3 rounded-xl font-black uppercase text-xs tracking-widest text-white border border-white/10 transition-all mb-8">Crear Cupón</button>
+
+                        <!-- CARGA DE VIDEO PROMOCIONAL -->
+                        <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2 mt-6"><i class="fas fa-video mr-1"></i> Video Banner (Catálogo)</p>
+                        <input type="file" id="promo-video-upload" accept="video/*" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-xs text-gray-400 file:bg-purple-600 file:text-white file:border-0 file:rounded-md file:px-3 file:py-1 mb-3">
+                        <button onclick="adminUploadPromoVideo()" class="w-full bg-purple-600 hover:bg-purple-500 p-3 rounded-xl font-black uppercase tracking-widest text-white border border-white/10 transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)]">Subir Video a Catálogo</button>
                     </div>
                 </div>
             </section>
@@ -779,9 +782,16 @@
         let globalSettings = { 
             schedule: { 0:{o:8,c:20}, 1:{o:8,c:20}, 2:{o:8,c:20}, 3:{o:8,c:20}, 4:{o:8,c:20}, 5:{o:8,c:20}, 6:{o:8,c:20} }, 
             centerLat: 27.44692583648708, centerLng: -109.94388280415251, radiusKm: 15,
-            priceMode: 'fijo', rescueBase: 100, rescueKmBase: 50, rescueKmRate: 10, membershipPrice: 100
+            priceMode: 'fijo', rescueBase: 100, rescueKmBase: 50, rescueKmRate: 10, membershipPrice: 100, promoVideoUrl: ''
         };
         
+        // Bloqueo de Pestaña para SOS Activo
+        window.addEventListener('beforeunload', function (e) {
+            if (window.currentStatus === 'pending' || window.currentStatus === 'accepted') {
+                e.preventDefault(); e.returnValue = 'Tienes un servicio en curso. ¿Seguro que deseas salir?';
+            }
+        });
+
         // Mapas
         let adminGeoMap = null;
         let adminGeoCircle = null;
@@ -857,6 +867,7 @@
                     if(data.rescueKmBase) globalSettings.rescueKmBase = data.rescueKmBase;
                     if(data.rescueKmRate) globalSettings.rescueKmRate = data.rescueKmRate;
                     if(data.membershipPrice) globalSettings.membershipPrice = data.membershipPrice;
+                    if(data.promoVideoUrl) globalSettings.promoVideoUrl = data.promoVideoUrl;
                 }
                 
                 const now = new Date();
@@ -904,7 +915,7 @@
                             subtitleEl.innerText = "Catálogo OBR (Recibe mañana)";
                             subtitleEl.className = "text-[10px] text-gray-400 font-medium";
                         } else {
-                            let totalMins = (diffHrs * 60) + diffMins + 60; 
+                            let totalMins = (diffHrs * 60) + diffMins + 60; // 1 hr margen
                             let delivHrs = Math.floor(totalMins / 60);
                             let delivMins = totalMins % 60;
                             let tStr = (delivHrs > 0 ? `${delivHrs}h ` : '') + (delivMins > 0 ? `${delivMins}m` : '');
@@ -936,6 +947,7 @@
                 let html = "";
                 const isMem = (auth.currentUser && window.currentUserDoc && window.currentUserDoc.role === 'membresia');
                 const memPriceVal = globalSettings.membershipPrice || 100;
+                let activeItemsCount = 0;
                 
                 if (!isMem) {
                     html += `<div class="col-span-2 md:col-span-3 lg:col-span-4 bg-gradient-to-r from-yellow-600 to-yellow-500 p-4 rounded-2xl text-center shadow-[0_0_15px_rgba(234,179,8,0.3)] cursor-pointer active:scale-95 transition-transform border border-yellow-400" onclick="window.open('https://wa.me/526311551533?text=Quiero%20adquirir%20la%20Membresía%20OBR')">
@@ -947,6 +959,7 @@
                 snap.forEach(doc => {
                     const p = doc.data();
                     if(p.stock > 0) {
+                        activeItemsCount++;
                         let basePrice = isMem && p.priceMember ? p.priceMember : p.pricePublic;
                         let displayPrice = basePrice;
                         let strikeHtml = "";
@@ -967,6 +980,26 @@
                         </div>`;
                     }
                 });
+
+                if(activeItemsCount === 0) {
+                    html += `<div class="col-span-2 md:col-span-3 lg:col-span-4 flex flex-col items-center justify-center p-10 text-center glass rounded-3xl mt-4 border border-white/5">
+                        <img src="https://images.unsplash.com/photo-1558981806-ec527fa84c39?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60" class="w-32 h-32 lg:w-48 lg:h-48 object-cover rounded-full mb-6 opacity-30 grayscale" alt="Próximamente">
+                        <h3 class="text-2xl font-black italic uppercase text-naranja mb-2">¡Próximamente!</h3>
+                        <p class="text-gray-400 text-sm mb-6">Estamos surtiendo nuestro catálogo de refacciones.</p>
+                        <div class="flex flex-col lg:flex-row gap-4">
+                            <a href="tel:6311551533" class="bg-naranja hover:bg-orange-600 px-6 py-3 rounded-xl text-white font-black text-xs shadow-lg transition-colors"><i class="fas fa-phone mr-2"></i>631 155 1533</a>
+                            <a href="tel:6441106011" class="bg-naranja hover:bg-orange-600 px-6 py-3 rounded-xl text-white font-black text-xs shadow-lg transition-colors"><i class="fas fa-phone mr-2"></i>644 110 6011</a>
+                        </div>
+                    </div>`;
+                }
+
+                if(globalSettings.promoVideoUrl) {
+                    html += `<div class="col-span-2 md:col-span-3 lg:col-span-4 mt-8 w-full">
+                        <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-2 text-center">Novedades OBR</p>
+                        <video src="${globalSettings.promoVideoUrl}" autoplay loop muted playsinline class="w-full h-40 lg:h-64 object-cover rounded-3xl border border-white/10 shadow-[0_0_20px_rgba(255,107,0,0.15)]"></video>
+                    </div>`;
+                }
+
                 if(grid) grid.innerHTML = html;
                 if(cGrid) cGrid.innerHTML = html;
             } catch(e) {}
@@ -1114,7 +1147,7 @@
             finally { btn.innerHTML = originalHtml; btn.disabled = false; }
         };
 
-        // ------------------ AUTH FLOW Y SEGURIDAD ------------------
+        // ------------------ AUTH FLOW Y SEGURIDAD PRIMERA VEZ ------------------
         window.checkUserExists = async function() {
             const rawPhone = document.getElementById('phone-input').value.trim();
             if (rawPhone.length !== 10) return showToast("Celular de 10 dígitos", true);
@@ -1220,7 +1253,6 @@
                     let isMembresia = false;
                     let dbData = null;
 
-                    // Aislamiento Try-Catch para DB para evitar pantalla negra en errores de permisos
                     try {
                         const userRef = doc(db, "users", user.uid);
                         const userSnap = await getDoc(userRef);
@@ -1230,15 +1262,13 @@
                         } else {
                             dbData = userSnap.data();
                             
-                            // FORZAR SEGURIDAD SI LA CLAVE ES LA TEMPORAL
                             if(dbData.pwd === '123456' && dbData.role !== 'cliente') {
                                 hideAllViews();
                                 showView('view-force-setup');
                                 document.getElementById('force-name').value = dbData.name || '';
-                                return; // Frena el flujo hasta que cambien la clave
+                                return; 
                             }
 
-                            // Si viene de URL de Taller
                             if (window.location.search.includes('taller26') && dbData.role !== 'admin') {
                                 try { await setDoc(userRef, { role: 'admin' }, { merge: true }); } catch(err){}
                                 role = 'admin';
@@ -1246,7 +1276,6 @@
                                 role = dbData.role || 'cliente';
                                 isMembresia = (role === 'membresia');
                                 
-                                // Verificación de Caducidad de Membresía
                                 if (role === 'membresia' && dbData.membresiaExp) {
                                     const now = Date.now();
                                     const daysLeft = (dbData.membresiaExp - now) / (1000 * 60 * 60 * 24);
@@ -1275,11 +1304,12 @@
                         try { if (!window.location.search.includes('taller26')) history.replaceState(null, '', '?taller26'); } catch(e) {}
                         showView('app-admin');
                         document.getElementById('admin-phone-display').innerText = "+52 " + rawPhone;
+                        adminRefreshConfigUI();
+                        adminLoadSales();
                         adminLoadInventory();
                         adminLoadPromosSelect();
                         adminListenSOS();
                         adminListenServices();
-                        // Refrescar UI configs se delega al botón de pestaña
                     } else if (role === 'suspendido') {
                         showToast("Tu cuenta ha sido suspendida. Contacta a soporte.", true);
                         logout();
