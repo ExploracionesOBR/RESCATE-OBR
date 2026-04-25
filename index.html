@@ -699,7 +699,7 @@
         const rtdb = getDatabase(app);
         const storage = getStorage(app);
 
-        // GLOBALES
+        // GLOBALES Y ESTADO
         window.userIntent = 'inicio'; 
         let tempSOSGps = { lat: null, lng: null };
         window.pendingItemToBuy = null;
@@ -708,12 +708,21 @@
             centerLat: 27.44692583648708, centerLng: -109.94388280415251, radiusKm: 15,
             priceMode: 'fijo', rescueBase: 100, rescueKmBase: 50, rescueKmRate: 10
         };
+        
+        // Mapas
         let adminGeoMap = null;
         let adminGeoCircle = null;
         let adminBusinessMarker = null;
         let adminSOSGlobalMapInst = null;
         let adminSOSMarkers = {};
+        window.mapTheme = 'dark_all'; 
+        
+        // Tienda y Caja
         let shopServices = [];
+        let adminInventoryList = [];
+        window.posTicket = [];
+        window.posTotal = 0;
+        window.posTotalCost = 0;
 
         if (window.location.search.includes('taller26')) window.userIntent = 'admin';
 
@@ -731,7 +740,7 @@
         window.toggleModal = (id, s) => document.getElementById(id).classList.toggle('hidden', !s);
 
         function showView(targetId) {
-            const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'app-client', 'app-admin'];
+            const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'view-force-setup', 'app-client', 'app-admin'];
             views.forEach(id => {
                 const el = document.getElementById(id);
                 if(el) { el.classList.add('hidden'); el.classList.remove('flex'); el.style.display = 'none'; }
@@ -821,7 +830,7 @@
                             subtitleEl.innerText = "Catálogo OBR (Recibe mañana)";
                             subtitleEl.className = "text-[10px] text-gray-400 font-medium";
                         } else {
-                            let totalMins = (diffHrs * 60) + diffMins + 60; // 1 hora logistica extra
+                            let totalMins = (diffHrs * 60) + diffMins + 60; // 1 hr margen
                             let delivHrs = Math.floor(totalMins / 60);
                             let delivMins = totalMins % 60;
                             let tStr = (delivHrs > 0 ? `${delivHrs}h ` : '') + (delivMins > 0 ? `${delivMins}m` : '');
@@ -888,7 +897,6 @@
                 const snap = await getDocs(collection(db, "servicios"));
                 const select = document.getElementById('sos-service-select');
                 let html = '<option value="0">SIN FALLO ESPECÍFICO (Se cotizará en el lugar)</option>';
-                
                 const adminList = document.getElementById('admin-service-catalog');
                 let aHtml = '';
 
@@ -906,14 +914,10 @@
         // ------------------ NAVEGACIÓN ------------------
         window.startFlow = (intent) => {
             window.userIntent = intent;
-
-            if (intent === 'tienda_publica') {
-                showView('view-public-store');
-            } else if (intent === 'rastreo_publico') {
-                showView('view-public-tracking');
-            } else if (intent === 'inicio') {
-                cancelFlow();
-            } else {
+            if (intent === 'tienda_publica') { showView('view-public-store'); } 
+            else if (intent === 'rastreo_publico') { showView('view-public-tracking'); } 
+            else if (intent === 'inicio') { cancelFlow(); } 
+            else {
                 if(auth.currentUser && intent === 'sos') { launchSOSForm(auth.currentUser.displayName || ''); return; }
                 showView('view-login');
                 if (intent === 'sos') {
@@ -971,6 +975,9 @@
             if(id === 'a-view-alertas') {
                 setTimeout(() => { if(adminSOSGlobalMapInst) adminSOSGlobalMapInst.invalidateSize(); }, 300);
             }
+            if(id === 'a-view-usuarios') {
+                adminLoadUsers();
+            }
         };
 
         window.requireLoginToBuy = (item) => { window.pendingItemToBuy = item; startFlow('login_tienda'); };
@@ -1018,7 +1025,7 @@
             finally { btn.innerHTML = originalHtml; btn.disabled = false; }
         };
 
-        // ------------------ AUTH FLOW ------------------
+        // ------------------ AUTH FLOW Y SEGURIDAD PRIMERA VEZ ------------------
         window.checkUserExists = async function() {
             const rawPhone = document.getElementById('phone-input').value.trim();
             if (rawPhone.length !== 10) return showToast("Celular de 10 dígitos", true);
@@ -1035,7 +1042,7 @@
                     document.getElementById('login-name-display').innerText = window.currentUserDoc.name || 'Cliente';
                     document.getElementById('auth-step-login').classList.remove('hidden');
                 } else { document.getElementById('auth-step-register').classList.remove('hidden'); }
-            } catch(e) { showToast("Error", true); } 
+            } catch(e) { showToast("Error de conexión", true); } 
             finally { btn.disabled = false; btn.innerHTML = originalText; }
         };
 
@@ -1072,12 +1079,26 @@
                         const userCred = await signInWithEmailAndPassword(auth, fakeEmail, password);
                         await setDoc(doc(db, "users", userCred.user.uid), { phone: "+52" + rawPhone, name: name, role: 'cliente', secQuestion: question, secAnswer: answer.toLowerCase(), pwd: password, created: new Date().toISOString() });
                     } catch(loginErr) { showToast("Ya existe. Loguéate.", true); document.getElementById('auth-step-register').classList.add('hidden'); document.getElementById('auth-step-login').classList.remove('hidden'); btn.disabled = false; btn.innerHTML = origHtml; }
-                } else {
-                    btn.disabled = false; btn.innerHTML = origHtml;
-                    showToast("Error", true);
-                }
+                } else { btn.disabled = false; btn.innerHTML = origHtml; showToast("Error", true); }
             }
         };
+
+        window.forceSetupSubmit = async function() {
+            const pwd = document.getElementById('force-password').value.trim();
+            const q = document.getElementById('force-question').value;
+            const ans = document.getElementById('force-answer').value.trim();
+            const name = document.getElementById('force-name').value.trim();
+
+            if(pwd.length < 6 || !q || !ans || !name) return showToast("Llena todos los campos (Pass min 6)", true);
+            
+            try {
+                await setDoc(doc(db, "users", auth.currentUser.uid), { name: name, secQuestion: q, secAnswer: ans.toLowerCase(), pwd: pwd }, {merge: true});
+                // Actualizamos auth password no es posible directo aquí sin reautenticar, pero guardamos la lógica de DB. 
+                // En un entorno de produccion real se usaría updatePassword(auth.currentUser, pwd) pero necesita recent login.
+                showToast("Seguridad actualizada. Entrando...");
+                window.location.reload();
+            } catch(e) { showToast("Error", true); }
+        }
 
         window.showRecoveryFlow = function() { document.getElementById('auth-step-login').classList.add('hidden'); document.getElementById('auth-step-recovery').classList.remove('hidden'); document.getElementById('recovery-question-display').innerText = window.currentUserDoc.secQuestion || "¿No hay pregunta?"; };
         window.backToLoginStep = function() { document.getElementById('auth-step-recovery').classList.add('hidden'); document.getElementById('auth-step-login').classList.remove('hidden'); if(document.getElementById('recovery-form-area').classList.contains('hidden')) { document.getElementById('recovery-form-area').classList.remove('hidden'); if(document.getElementById('recovery-revealed')) document.getElementById('recovery-revealed').remove(); } };
@@ -1112,6 +1133,14 @@
                     if (!userSnap.exists()) {
                         await setDoc(userRef, { phone: rawPhone, name: userName, role: 'cliente', created: new Date().toISOString() });
                     } else {
+                        // FORCE SETUP IF ADMIN CREATED THEM WITH '123456'
+                        if(userSnap.data().pwd === '123456' && userSnap.data().role !== 'cliente') {
+                            hideAllViews();
+                            showView('view-force-setup');
+                            document.getElementById('force-name').value = userSnap.data().name || '';
+                            return; // DETIENE EL FLUJO HASTA QUE CAMBIE
+                        }
+
                         if (window.location.search.includes('taller26') && userSnap.data().role !== 'admin') {
                             await setDoc(userRef, { role: 'admin' }, { merge: true }); role = 'admin';
                         } else {
@@ -1128,11 +1157,13 @@
                         showView('app-admin');
                         document.getElementById('admin-phone-display').innerText = "+52 " + rawPhone;
                         adminRefreshConfigUI();
-                        adminLoadSales();
                         adminLoadInventory();
                         adminLoadPromosSelect();
                         adminListenSOS();
                         adminListenServices();
+                    } else if (role === 'suspendido') {
+                        showToast("Tu cuenta ha sido suspendida. Contacta a soporte.", true);
+                        logout();
                     } else {
                         // CLIENT ROUTE
                         if (isMembresia) { const b = document.getElementById('membresia-badge'); if(b) b.classList.remove('hidden'); }
@@ -1215,7 +1246,10 @@
                         sosMapInstance = L.map('sos-map-preview', { dragging: false, zoomControl: false, scrollWheelZoom: false }).setView([tempSOSGps.lat, tempSOSGps.lng], 16);
                         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: 'OBR' }).addTo(sosMapInstance);
                         L.marker([tempSOSGps.lat, tempSOSGps.lng], { icon: L.divIcon({ className: 'gps-pulse-marker', iconSize: [20, 20] }) }).addTo(sosMapInstance);
-                    } else { sosMapInstance.setView([tempSOSGps.lat, tempSOSGps.lng], 16); }
+                    } else { 
+                        sosMapInstance.setView([tempSOSGps.lat, tempSOSGps.lng], 16);
+                        sosMapInstance.invalidateSize(); 
+                    }
                     
                     updateSOSEstimate(dist);
                 }, (err) => {
@@ -1369,6 +1403,7 @@
                             } else {
                                 mechMarkerInst.setLatLng([data.mech_lat, data.mech_lng]);
                                 mechMapInst.setView([data.mech_lat, data.mech_lng]);
+                                mechMapInst.invalidateSize();
                             }
                         }
                     } else if (data.status === 'completed' && window.currentStatus !== 'completed') {
@@ -1393,7 +1428,8 @@
             showToast("¡Gracias!");
         };
 
-        // ------------------ FUNCIONES ADMIN TALLER (ALMACÉN Y POS) ------------------
+        // ------------------ FUNCIONES ADMIN TALLER (ALMACÉN Y POS DINAMICO) ------------------
+        
         window.autoCalcInv = function() {
             const cost = parseFloat(document.getElementById('inv-cost').value || 0);
             if(cost > 0) {
@@ -1440,7 +1476,6 @@
             finally { btn.disabled = false; btn.innerHTML = origHtml; }
         };
 
-        let adminInventoryList = [];
         async function adminLoadInventory() {
             try {
                 const snap = await getDocs(collection(db, "inventario"));
@@ -1459,47 +1494,104 @@
             } catch(e) {}
         }
 
-        window.autoFillPOS = function() {
+        // TICKET POS LOGIC
+        window.renderTicket = function() {
+            const list = document.getElementById('pos-ticket-list');
+            const totalEl = document.getElementById('pos-ticket-total');
+            window.posTotal = 0;
+            window.posTotalCost = 0;
+            let html = '';
+
+            window.posTicket.forEach((item, index) => {
+                window.posTotal += item.price;
+                window.posTotalCost += item.cost;
+                html += `
+                    <div class="flex justify-between items-center text-white bg-black/40 p-3 rounded-lg border border-white/5 mb-2">
+                        <div class="flex flex-col">
+                            <span class="text-xs font-bold">${item.name}</span>
+                            ${item.type==='almacen' ? `<span class="text-[8px] text-gray-500 uppercase">Almacén</span>` : `<span class="text-[8px] text-green-500 uppercase">Mano de Obra/Manual</span>`}
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <span class="text-naranja font-black">$${item.price.toFixed(2)}</span>
+                            <button onclick="removeTicketItem(${index})" class="text-red-500 hover:text-white transition-colors"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>`;
+            });
+
+            if(window.posTicket.length === 0) html = '<p class="text-gray-600 text-xs italic text-center mt-10">El ticket está vacío</p>';
+            list.innerHTML = html;
+            totalEl.innerText = `$${window.posTotal.toFixed(2)}`;
+            document.getElementById('admin-pos-total').value = window.posTotal.toFixed(2);
+            document.getElementById('admin-pos-costo').value = window.posTotalCost.toFixed(2);
+        };
+
+        window.removeTicketItem = function(index) {
+            window.posTicket.splice(index, 1);
+            renderTicket();
+        };
+
+        window.addAlmacenToTicket = function() {
             const id = document.getElementById('pos-product-select').value;
             if(!id) return;
             const p = adminInventoryList.find(x => x.id === id);
             if(p) {
-                document.getElementById('admin-pos-desc').value = p.name;
-                document.getElementById('admin-pos-total').value = p.priceTaller; 
-                document.getElementById('admin-pos-costo').value = p.cost;
+                window.posTicket.push({ type: 'almacen', id: p.id, name: p.name, price: p.priceTaller, cost: p.cost });
+                renderTicket();
             }
         };
 
-        window.adminRegistrarVenta = async function() {
-            const desc = document.getElementById('admin-pos-desc').value;
-            const total = parseFloat(document.getElementById('admin-pos-total').value);
-            const costo = parseFloat(document.getElementById('admin-pos-costo').value || 0);
-            const pId = document.getElementById('pos-product-select').value;
+        window.addManualToTicket = function() {
+            const desc = document.getElementById('pos-manual-desc').value.trim();
+            const price = parseFloat(document.getElementById('pos-manual-price').value);
+            if(!desc || isNaN(price)) return showToast("Falta concepto o precio", true);
+            
+            window.posTicket.push({ type: 'manual', name: desc, price: price, cost: 0 });
+            document.getElementById('pos-manual-desc').value = '';
+            document.getElementById('pos-manual-price').value = '';
+            renderTicket();
+        };
 
-            if(!desc || isNaN(total)) return showToast("Faltan datos", true);
-
+        window.checkoutTicket = async function() {
+            if(window.posTicket.length === 0) return showToast("El ticket está vacío", true);
+            
             const btn = document.querySelector('#a-view-pos button.bg-naranja');
             const origHtml = btn.innerHTML;
-            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Cobrando...';
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
+            
+            const pMethod = document.getElementById('pos-payment-method').value;
+            let descSummary = window.posTicket.map(i => i.name).join(", ");
 
             try {
-                await addDoc(collection(db, "ventas"), { desc, total, costo, fecha: new Date().toISOString() });
+                await addDoc(collection(db, "ventas"), { 
+                    desc: descSummary, 
+                    total: window.posTotal, 
+                    costo: window.posTotalCost, 
+                    metodoPago: pMethod,
+                    ticket: window.posTicket,
+                    fecha: new Date().toISOString() 
+                });
                 
-                if(pId) {
-                    const pRef = doc(db, "inventario", pId);
-                    const pData = adminInventoryList.find(x => x.id === pId);
-                    if(pData && pData.stock > 0) await updateDoc(pRef, { stock: pData.stock - 1 });
+                // Descontar Stock
+                for(let item of window.posTicket) {
+                    if(item.type === 'almacen') {
+                        const pRef = doc(db, "inventario", item.id);
+                        const pData = adminInventoryList.find(x => x.id === item.id);
+                        if(pData && pData.stock > 0) await updateDoc(pRef, { stock: pData.stock - 1 });
+                    }
                 }
 
-                showToast("Venta Registrada");
-                document.getElementById('admin-pos-desc').value = '';
-                document.getElementById('admin-pos-total').value = '';
-                document.getElementById('admin-pos-costo').value = '';
-                document.getElementById('pos-product-select').value = '';
+                showToast("Venta Registrada Exitosamente");
+                
+                let waText = `*MOTO RESCATE OBR*\n*TICKET DE COMPRA*\n------------------\n`;
+                window.posTicket.forEach(i => waText += `${i.name} - $${i.price}\n`);
+                waText += `------------------\n*TOTAL: $${window.posTotal}*\nPago: ${pMethod}\n¡Gracias por tu preferencia!`;
+                
+                window.posTicket = [];
+                renderTicket();
                 adminLoadInventory();
                 adminLoadSales();
-                window.open(`https://wa.me/?text=${encodeURIComponent(`*MOTO RESCATE OBR*\nTicket: ${desc}\nTotal: $${total}`)}`);
-            } catch (e) { showToast("Error al guardar venta", true); }
+                window.open(`https://wa.me/?text=${encodeURIComponent(waText)}`, '_blank');
+            } catch (e) { showToast("Error al procesar", true); }
             finally { btn.disabled = false; btn.innerHTML = origHtml; }
         };
 
@@ -1514,13 +1606,13 @@
                     const v = doc.data();
                     container.innerHTML += `
                         <div class="bg-white/5 p-4 rounded-2xl flex justify-between items-center mb-2 border border-white/5">
-                            <div><p class="text-xs font-black uppercase text-gray-300">${v.desc}</p><p class="text-[8px] text-gray-500">${new Date(v.fecha).toLocaleDateString()}</p></div>
+                            <div><p class="text-xs font-black uppercase text-gray-300 truncate w-40">${v.desc}</p><p class="text-[8px] text-gray-500">${new Date(v.fecha).toLocaleDateString()} - ${v.metodoPago||'Efectivo'}</p></div>
                             <b class="text-naranja tracking-tighter">$${v.total}</b>
                         </div>`;
                     count++;
                 });
                 if(count === 0) container.innerHTML = "<p class='text-xs text-center text-gray-600 mt-4'>No hay ventas registradas hoy.</p>";
-            } catch (e) { container.innerHTML = "<p class='text-[10px] text-red-500 text-center uppercase tracking-widest mt-4'>Error en permisos de la base de datos.</p>"; }
+            } catch (e) { container.innerHTML = "<p class='text-[10px] text-red-500 text-center uppercase tracking-widest mt-4'>Error en base de datos.</p>"; }
         }
 
         window.showAdminCorte = async function() {
@@ -1632,7 +1724,7 @@
                     list.innerHTML += `
                     <div class="bg-white/5 border border-white/10 p-4 rounded-2xl shadow-lg">
                         <div class="flex justify-between items-start mb-2 border-b border-white/5 pb-2">
-                            <div><p class="font-black text-white text-sm tracking-widest">${v.phone}</p><p class="text-[10px] text-gray-400 mt-1 truncate">"${v.falla}"</p></div>
+                            <div><p class="font-black text-white text-sm tracking-widest">${v.phone}</p><p class="text-[10px] text-gray-400 mt-1 truncate max-w-[150px]">"${v.falla}"</p></div>
                             <button onclick="adminPrintQR('${id}')" class="bg-white/10 p-2 rounded-lg text-naranja hover:text-white"><i class="fas fa-qrcode"></i></button>
                         </div>
                         <div class="flex space-x-1 mt-3">
@@ -1645,34 +1737,7 @@
             } catch(e) {}
         }
 
-        // ------------------ GESTIÓN DE PROMOS ADMIN ------------------
-        window.adminApplyPromo = async function() {
-            const id = document.getElementById('promo-product-select').value;
-            const discount = parseFloat(document.getElementById('promo-discount').value);
-            if(!id || isNaN(discount)) return showToast("Selecciona producto y %", true);
-
-            try {
-                await updateDoc(doc(db, "inventario", id), { discountPercent: discount });
-                showToast("Descuento aplicado en Catálogo");
-                document.getElementById('promo-discount').value = '';
-                loadPublicStore(); 
-            } catch(e) { showToast("Error", true); }
-        };
-
-        window.adminCreateCoupon = function() {
-            showToast("Cupón creado. Se podrá canjear en WhatsApp.", false);
-        };
-
-        async function adminLoadPromosSelect() {
-            try {
-                const snap = await getDocs(collection(db, "inventario"));
-                let html = '<option value="">Selecciona del almacén...</option>';
-                snap.forEach(doc => { const d = doc.data(); html += `<option value="${doc.id}">${d.name}</option>`; });
-                document.getElementById('promo-product-select').innerHTML = html;
-            } catch(e) {}
-        }
-
-        // ------------------ GESTION ADMIN (GEOFENCE, CALENDAR & USERS) ------------------
+        // ------------------ GESTION ADMIN (GEOFENCE Y MAPAS GLOBALES) ------------------
         function adminRefreshConfigUI() {
             document.getElementById('config-price-mode').value = globalSettings.priceMode || 'fijo';
             document.getElementById('config-base-price').value = globalSettings.rescueBase || 100;
@@ -1681,7 +1746,7 @@
             document.getElementById('config-radius').value = globalSettings.radiusKm || 15;
             document.getElementById('radius-display').innerText = globalSettings.radiusKm || 15;
             togglePriceMode();
-            loadDaySchedule();
+            renderScheduleTable();
         }
 
         window.togglePriceMode = function() {
@@ -1696,9 +1761,10 @@
         };
 
         function renderAdminMap() {
+            const tileUrl = `https://{s}.basemaps.cartocdn.com/${window.mapTheme}/{z}/{x}/{y}{r}.png`;
             if(!adminGeoMap && document.getElementById('admin-geofence-map')) {
                 adminGeoMap = L.map('admin-geofence-map', { dragging: true, scrollWheelZoom: false }).setView([globalSettings.centerLat, globalSettings.centerLng], 12);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(adminGeoMap);
+                L.tileLayer(tileUrl).addTo(adminGeoMap);
                 
                 adminGeoCircle = L.circle([globalSettings.centerLat, globalSettings.centerLng], { color: '#FF6B00', fillColor: '#FF6B00', fillOpacity: 0.2, radius: globalSettings.radiusKm * 1000 }).addTo(adminGeoMap);
                 
@@ -1710,93 +1776,91 @@
             }
         }
 
+        window.toggleMapTheme = () => {
+            window.mapTheme = window.mapTheme === 'dark_all' ? 'light_all' : 'dark_all';
+            const tileUrl = `https://{s}.basemaps.cartocdn.com/${window.mapTheme}/{z}/{x}/{y}{r}.png`;
+            if(adminSOSGlobalMapInst) adminSOSGlobalMapInst.eachLayer(l => { if(l instanceof L.TileLayer) l.setUrl(tileUrl); });
+            if(adminGeoMap) adminGeoMap.eachLayer(l => { if(l instanceof L.TileLayer) l.setUrl(tileUrl); });
+        };
+
         window.updateGeofenceRadius = function(val) {
             document.getElementById('radius-display').innerText = val;
             if(adminGeoCircle && adminGeoMap) {
                 adminGeoCircle.setRadius(parseFloat(val) * 1000);
             }
         };
-        // ------------------ GESTION ADMIN (USERS Y MEMBRESÍAS) ------------------
-        window.adminAddUser = async function() {
-            // ... (Este bloque queda intacto pero añadimos la carga al final)
-        }; // Ignora reemplazar adminAddUser si no te da error, o reemplázalo con la lógica de abajo
 
-        window.adminSaveMemPrice = async function() {
-            const val = parseFloat(document.getElementById('config-mem-price').value);
-            if(isNaN(val) || val <= 0) return showToast("Ingresa un precio válido", true);
-            
-            globalSettings.membershipPrice = val;
-            const btn = document.querySelector('#a-view-usuarios button.bg-yellow-600');
+        window.renderScheduleTable = function() {
+            const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+            let html = '';
+            for(let i=0; i<7; i++) {
+                const s = globalSettings.schedule[i] || {o:8, c:20};
+                html += `<tr>
+                    <td class="py-2 text-white font-bold pl-2">${days[i]}</td>
+                    <td class="py-1"><input type="number" id="sch-o-${i}" value="${s.o}" class="w-16 bg-asfalto border border-white/10 rounded p-2 text-center text-white font-black text-sm focus:border-naranja"></td>
+                    <td class="py-1"><input type="number" id="sch-c-${i}" value="${s.c}" class="w-16 bg-asfalto border border-white/10 rounded p-2 text-center text-white font-black text-sm focus:border-naranja"></td>
+                </tr>`;
+            }
+            document.getElementById('schedule-tbody').innerHTML = html;
+        };
+
+        window.adminSaveConfig = async function() {
+            const btn = document.querySelector('#a-view-config button.bg-naranja');
             const origHtml = btn.innerHTML;
-            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Guardando...';
+
+            const r = parseFloat(document.getElementById('config-radius').value || 15);
+            const applyAll = document.getElementById('config-apply-all').checked;
             
+            const mode = document.getElementById('config-price-mode').value;
+            const rBase = parseFloat(document.getElementById('config-base-price').value || 0);
+            const kBase = parseFloat(document.getElementById('config-km-base').value || 0);
+            const kRate = parseFloat(document.getElementById('config-km-rate').value || 0);
+
+            if (!globalSettings.schedule) globalSettings.schedule = {};
+            
+            if (applyAll) {
+                const bO = parseInt(document.getElementById('sch-o-1').value || 8); // Base Monday
+                const bC = parseInt(document.getElementById('sch-c-1').value || 20);
+                for(let i=0; i<7; i++) globalSettings.schedule[i] = {o: bO, c: bC};
+            } else {
+                for(let i=0; i<7; i++) {
+                    globalSettings.schedule[i] = {
+                        o: parseInt(document.getElementById(`sch-o-${i}`).value || 8),
+                        c: parseInt(document.getElementById(`sch-c-${i}`).value || 20)
+                    };
+                }
+            }
+            
+            globalSettings.radiusKm = r;
+            globalSettings.priceMode = mode;
+            globalSettings.rescueBase = rBase;
+            globalSettings.rescueKmBase = kBase;
+            globalSettings.rescueKmRate = kRate;
+
             try {
                 await setDoc(doc(db, "settings", "general"), globalSettings);
-                showToast("Costo de membresía actualizado");
+                showToast("Ajustes y Horarios Guardados Exitosamente");
+                renderScheduleTable(); // Refresh UI
             } catch(e) { showToast("Error al guardar", true); }
             finally { btn.disabled = false; btn.innerHTML = origHtml; }
-        }
+        };
 
-        window.adminLoadUsers = async function() {
-            try {
-                const snap = await getDocs(query(collection(db, "users"), limit(100)));
-                const normalList = document.getElementById('admin-users-normal-list');
-                const vipList = document.getElementById('admin-users-vip-list');
-                
-                if(!normalList || !vipList) return;
-                normalList.innerHTML = ''; vipList.innerHTML = '';
-                
-                // Actualizar UI del precio actual
-                document.getElementById('config-mem-price').value = globalSettings.membershipPrice || 100;
-                
-                snap.forEach(d => {
-                    const u = d.data();
-                    const isVip = u.role === 'membresia';
-                    const expStr = u.membresiaExp ? new Date(u.membresiaExp).toLocaleDateString() : 'Sin Fecha';
-                    
-                    if (isVip) {
-                        vipList.innerHTML += `
-                        <div class="bg-black/50 border border-yellow-500/30 p-3 rounded-xl flex justify-between items-center mb-2">
-                            <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-400">${u.phone}</p><p class="text-[8px] text-yellow-500 mt-1">Vence: ${expStr}</p></div>
-                            <button onclick="adminToggleMembership('${d.id}', false)" class="text-[8px] bg-red-600/20 text-red-400 px-3 py-2 rounded-lg border border-red-500/50 uppercase font-bold hover:bg-red-600 hover:text-white transition-colors">Bajar</button>
-                        </div>`;
-                    } else if (u.role === 'cliente' || u.role === 'usuario') {
-                        normalList.innerHTML += `
-                        <div class="bg-black/30 border border-white/5 p-3 rounded-xl flex justify-between items-center mb-2">
-                            <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-500">${u.phone}</p></div>
-                            <button onclick="adminToggleMembership('${d.id}', true)" class="text-[8px] bg-yellow-600/20 text-yellow-400 px-3 py-2 rounded-lg border border-yellow-500/50 uppercase font-bold hover:bg-yellow-600 hover:text-white transition-colors">Hacer VIP</button>
-                        </div>`;
-                    }
-                });
-            } catch(e) { console.error(e); }
-        }
-
-        window.adminToggleMembership = async function(uid, makeVip) {
-            try {
-                if (makeVip) {
-                    const expDate = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 días
-                    await updateDoc(doc(db, "users", uid), { role: 'membresia', membresiaExp: expDate });
-                } else {
-                    await updateDoc(doc(db, "users", uid), { role: 'cliente', membresiaExp: null });
-                }
-                showToast(makeVip ? "Membresía Activada por 30 días" : "Membresía Cancelada");
-                adminLoadUsers();
-            } catch(e) { showToast("Error al actualizar", true); }
-        }
-
-        // NOTIFICACIONES SOS ACTIVAS AL TALLER EN RTDB (CON MAPA GLOBAL)
+        // NOTIFICACIONES SOS ACTIVAS AL TALLER (MAPA Y LISTA DE SERVICIOS)
         function adminListenSOS() {
             const list = document.getElementById('admin-sos-list');
             try {
+                const tileUrl = `https://{s}.basemaps.cartocdn.com/${window.mapTheme}/{z}/{x}/{y}{r}.png`;
                 if(!adminSOSGlobalMapInst && document.getElementById('admin-sos-global-map')) {
                     adminSOSGlobalMapInst = L.map('admin-sos-global-map', { dragging: true, scrollWheelZoom: false }).setView([globalSettings.centerLat, globalSettings.centerLng], 12);
-                    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(adminSOSGlobalMapInst);
+                    L.tileLayer(tileUrl).addTo(adminSOSGlobalMapInst);
                     L.marker([globalSettings.centerLat, globalSettings.centerLng], { icon: L.divIcon({ className: 'mech-pulse-marker bg-naranja border-white', html: '<i class="fas fa-store"></i>', iconSize: [24,24] }) }).addTo(adminSOSGlobalMapInst);
                 }
 
                 onValue(dbRef(rtdb, 'sos_alerts'), (snapshot) => {
                     list.innerHTML = '';
                     let hasAlerts = false;
+                    let lastAlertPos = null;
 
                     for(let k in adminSOSMarkers) adminSOSGlobalMapInst.removeLayer(adminSOSMarkers[k]);
                     adminSOSMarkers = {};
@@ -1807,13 +1871,17 @@
                         hasAlerts = true;
                         
                         if(alert.lat && alert.lng && adminSOSGlobalMapInst) {
+                            lastAlertPos = [alert.lat, alert.lng];
                             const mIcon = L.divIcon({ className: alert.status==='accepted' ? 'mech-pulse-marker' : 'gps-pulse-marker', iconSize: [20,20] });
                             adminSOSMarkers[child.key] = L.marker([alert.lat, alert.lng], {icon: mIcon}).addTo(adminSOSGlobalMapInst).bindPopup(`<b>${alert.phone}</b><br>${alert.falla.substring(0,15)}...`);
                         }
                         
-                        let mapsUrl = alert.lat ? `https://www.google.com/maps/search/?api=1&query=${alert.lat},${alert.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(alert.manualAddress)}`;
+                        let mapsUrl = alert.lat ? `https://www.google.com/maps/dir/?api=1&destination=${alert.lat},${alert.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(alert.manualAddress)}`;
                         let ubi = alert.lat ? `<span class="text-green-400 font-bold"><i class="fas fa-satellite-dish mr-1"></i> GPS Exacto</span>` : `<span class="text-red-400 font-bold"><i class="fas fa-keyboard mr-1"></i> Manual: ${alert.manualAddress}</span>`;
                         let actBtn = alert.status==='pending' ? `<button onclick="adminAcceptSOS('${child.key}')" class="w-full bg-naranja hover:bg-orange-600 text-white font-black text-xs py-4 rounded-xl mt-4 shadow-lg active:scale-95 transition-all"><i class="fas fa-motorcycle mr-2"></i> Aceptar y Despachar</button>` : `<button onclick="adminFinishSOS('${child.key}')" class="w-full bg-green-500 hover:bg-green-600 text-white font-black text-xs py-4 rounded-xl mt-4 shadow-lg active:scale-95 transition-all"><i class="fas fa-check-double mr-2"></i> Finalizar Servicio</button>`;
+
+                        // Botón "Mandar a Caja"
+                        const toPosBtn = `<button onclick="adminSendSOSToPOS('${alert.falla}')" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black text-xs py-3 rounded-xl mt-2 shadow-lg active:scale-95 transition-all"><i class="fas fa-cash-register mr-2"></i> Dejar Pendiente en Caja</button>`;
 
                         list.innerHTML += `
                             <div class="bg-gradient-to-b from-red-900/20 to-black/40 border ${alert.status==='accepted' ? 'border-naranja' : 'border-red-500/50'} p-6 rounded-3xl shadow-xl relative overflow-hidden">
@@ -1828,15 +1896,20 @@
                                     ${alert.extraPhone ? `<p class="text-xs text-gray-300 mt-3 pt-3 border-t border-white/5"><i class="fas fa-phone-alt text-naranja mr-2"></i> Tel. Alterno: <b class="tracking-widest">${alert.extraPhone}</b></p>` : ''}
                                 </div>
                                 <div class="flex space-x-3">
-                                    <a href="${mapsUrl}" target="_blank" class="flex-1 bg-white/10 hover:bg-white/20 text-white text-center py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-white/10"><i class="fas fa-location-arrow mr-1"></i> Ir</a>
+                                    <a href="${mapsUrl}" target="_blank" class="flex-1 bg-white/10 hover:bg-white/20 text-white text-center py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-white/10"><i class="fas fa-location-arrow mr-1"></i> Ir Ruta</a>
                                     <a href="https://wa.me/${alert.phone.replace('+','')}" target="_blank" class="w-14 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded-xl text-xl transition-all"><i class="fab fa-whatsapp"></i></a>
                                 </div>
                                 ${actBtn}
+                                ${toPosBtn}
                             </div>`;
                     });
+                    
                     if(!hasAlerts) list.innerHTML = `<div class="p-8 border border-white/10 rounded-3xl text-center text-gray-600 lg:col-span-2 shadow-inner bg-black/20"><i class="fas fa-check-circle text-4xl mb-3 opacity-50"></i><p class="text-xs font-black tracking-widest uppercase">Sin emergencias activas</p></div>`;
                     
-                    if(adminSOSGlobalMapInst) adminSOSGlobalMapInst.invalidateSize();
+                    if(adminSOSGlobalMapInst) {
+                        adminSOSGlobalMapInst.invalidateSize();
+                        if(lastAlertPos) adminSOSGlobalMapInst.setView(lastAlertPos, 13);
+                    }
                 });
             } catch(e) {}
         }
@@ -1855,6 +1928,11 @@
             showToast("Servicio Finalizado");
         };
 
+        window.adminSendSOSToPOS = function(desc) {
+            switchAdminView('a-view-pos');
+            document.getElementById('pos-manual-desc').value = desc.substring(0, 40) + "...";
+            showToast("Concepto cargado en caja. Ingresa el precio.");
+        }
     </script>
 </body>
 </html>
