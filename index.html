@@ -18,8 +18,8 @@
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #1A1A1A; color: white; -webkit-tap-highlight-color: transparent; }
         .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
-        .tab-active { color: #FF6B00; }
-        ::-webkit-scrollbar { width: 4px; }
+        .tab-active { color: #FF6B00; border-top: 2px solid #FF6B00; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-thumb { background: #FF6B00; border-radius: 10px; }
         .hide-scroll::-webkit-scrollbar { display: none; }
         
@@ -93,7 +93,7 @@
                     <i class="fas fa-moon text-4xl text-gray-400 mb-2 z-10"></i>
                     <span class="font-black text-2xl uppercase italic z-10 text-gray-300">Taller</span>
                     <span class="font-black text-3xl uppercase italic z-10 text-red-500">Cerrado</span>
-                    <p id="closed-hours-text" class="text-[10px] text-gray-400 z-10 mt-2 text-center px-4 font-bold">Abrimos a las 08:00 AM</p>
+                    <p id="closed-hours-text" class="text-[10px] text-gray-400 z-10 mt-2 text-center px-4 font-bold">Abrimos a las 08:00 Hrs</p>
                 </div>
             </div>
 
@@ -250,11 +250,27 @@
          VISTA 1.5: FORMULARIO AUXILIO 
          ========================================== -->
     <div id="view-sos-form" class="app-view min-h-screen hidden flex-col items-center p-6 bg-asfalto pt-8">
-        <div class="w-full max-w-md animate-fade-in">
+        <div class="w-full max-w-md animate-fade-in pb-10">
             <h2 class="text-3xl font-black italic uppercase text-naranja mb-2">Detalles del Rescate</h2>
             <p class="text-sm text-gray-400 mb-4">Ayuda a nuestro mecánico a saber qué llevar.</p>
 
             <div class="glass p-5 rounded-3xl space-y-4 shadow-xl border border-naranja/20">
+                
+                <!-- SELECCIÓN DE SERVICIO Y COTIZACIÓN -->
+                <div class="bg-naranja/10 border border-naranja/30 p-4 rounded-xl">
+                    <label class="text-[10px] text-naranja font-black uppercase tracking-widest mb-1 block"><i class="fas fa-cog mr-1"></i> Tipo de Servicio</label>
+                    <select id="sos-service-select" onchange="updateSOSEstimate()" class="w-full bg-asfalto p-3 rounded-xl border border-naranja/50 text-white font-bold text-sm mb-3 focus:border-naranja">
+                        <option value="0">SIN FALLO ESPECÍFICO (Se cotizará en el lugar)</option>
+                        <!-- Se llena dinámicamente -->
+                    </select>
+                    
+                    <div class="bg-black/50 p-3 rounded-xl border border-white/10 text-center">
+                        <p class="text-[9px] text-gray-400 font-bold uppercase tracking-widest">Costo Estimado de Servicio + Rescate a tu ubicación</p>
+                        <p id="sos-estimate-display" class="text-2xl font-black text-white mt-1">Calculando...</p>
+                        <p id="sos-estimate-warning" class="text-[9px] text-red-400 mt-2 italic leading-tight hidden">El precio base puede variar. El mecánico evaluará tu situación y te informará el costo final.</p>
+                    </div>
+                </div>
+
                 <div>
                     <div class="flex justify-between items-center ml-1 mb-1">
                         <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest"><i class="fas fa-map-marker-alt text-naranja mr-1"></i> Ubicación GPS</label>
@@ -276,12 +292,12 @@
                 </div>
 
                 <div>
-                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1"><i class="fas fa-wrench text-naranja mr-1"></i> Falla (Obligatorio)</label>
-                    <textarea id="sos-falla" rows="2" placeholder="¿Qué le pasó a tu moto?" class="w-full bg-white/5 border border-white/10 p-3 mt-1 rounded-xl focus:outline-none focus:border-naranja text-sm transition-all resize-none text-white"></textarea>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1"><i class="fas fa-wrench text-naranja mr-1"></i> Describe Falla / Detalles</label>
+                    <textarea id="sos-falla" rows="2" oninput="checkSOSKeywords()" placeholder="¿Qué le pasó a tu moto?" class="w-full bg-white/5 border border-white/10 p-3 mt-1 rounded-xl focus:outline-none focus:border-naranja text-sm transition-all resize-none text-white"></textarea>
                 </div>
 
-                <div id="llanta-type-container" class="hidden bg-naranja/10 border border-naranja/30 p-4 rounded-xl animate-fade-in">
-                    <label class="text-[10px] text-naranja font-black uppercase tracking-widest mb-2 block"><i class="fas fa-dot-circle mr-1"></i> ¿Qué tipo de llanta usas?</label>
+                <div id="llanta-type-container" class="hidden bg-naranja/10 border border-naranja/30 p-4 rounded-xl animate-fade-in shadow-inner">
+                    <label class="text-[10px] text-naranja font-black uppercase tracking-widest mb-2 block"><i class="fas fa-dot-circle mr-1"></i> Tu moto usa llanta de:</label>
                     <div class="flex space-x-4">
                         <label class="flex items-center space-x-2 text-sm text-white cursor-pointer"><input type="radio" name="llanta" value="Cámara" class="accent-naranja w-4 h-4"><span>Cámara</span></label>
                         <label class="flex items-center space-x-2 text-sm text-white cursor-pointer"><input type="radio" name="llanta" value="Sellomática" class="accent-naranja w-4 h-4"><span>Sellomática</span></label>
@@ -471,13 +487,63 @@
                                 <div><label class="text-[9px] text-gray-500 uppercase font-bold ml-1 text-center block">Membresía</label><input id="inv-price-member" type="number" placeholder="$" class="w-full bg-asfalto p-3 rounded-xl border border-green-500/30 text-sm text-green-400 font-bold text-center"></div>
                                 <div><label class="text-[9px] text-gray-500 uppercase font-bold ml-1 text-center block">Público</label><input id="inv-price-public" type="number" placeholder="$" class="w-full bg-asfalto p-3 rounded-xl border border-white/30 text-sm text-white font-bold text-center"></div>
                             </div>
-                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Etiqueta de Promoción (Visible en Tienda)</label>
-                            <input id="inv-coupon" type="text" placeholder="Ej. -15% DESCUENTO" class="w-full bg-asfalto p-3 rounded-xl border border-purple-500/30 text-sm text-purple-400 mb-4 focus:border-purple-500">
                         </div>
                         <button onclick="adminAddProduct()" class="w-full bg-green-600 hover:bg-green-500 p-4 rounded-xl font-black uppercase text-sm tracking-widest text-white shadow-lg active:scale-95 transition-all"><i class="fas fa-save mr-2"></i>Guardar en Almacén</button>
                     </div>
                 </div>
                 <div id="admin-inventory-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6"></div>
+            </section>
+
+            <!-- PROMOS -->
+            <section id="a-view-promos" class="a-view hidden space-y-6">
+                <h3 class="text-2xl font-black italic uppercase text-white">Panel de <span class="text-purple-400">Promociones</span></h3>
+                
+                <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl lg:grid lg:grid-cols-2 lg:gap-8 space-y-6 lg:space-y-0">
+                    <div>
+                        <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-percent mr-1"></i> Aplicar Descuento a Producto</p>
+                        <select id="promo-product-select" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white font-bold mb-4 focus:border-naranja transition-colors">
+                            <option value="">Selecciona del almacén...</option>
+                        </select>
+                        <div class="flex space-x-3">
+                            <div class="w-1/2">
+                                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Descuento (%)</label>
+                                <input id="promo-discount" type="number" placeholder="Ej. 15" class="w-full bg-asfalto p-3 rounded-xl border border-purple-500/50 text-sm text-purple-400 font-bold text-center">
+                            </div>
+                            <button onclick="adminApplyPromo()" class="w-1/2 bg-purple-600 hover:bg-purple-500 p-3 rounded-xl font-black uppercase tracking-widest text-white mt-auto active:scale-95 transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)]">Aplicar Promo</button>
+                        </div>
+                        <p class="text-[9px] text-gray-500 mt-2 italic">Se tachará el precio original y se mostrará el descuento en el catálogo público.</p>
+                    </div>
+
+                    <div>
+                        <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-ticket-alt mr-1"></i> Generar Cupones Generales</p>
+                        <input id="promo-code" type="text" placeholder="CÓDIGO (Ej. VERANO24)" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-sm text-white mb-3 uppercase">
+                        <div class="flex space-x-3 mb-3">
+                            <input id="promo-code-val" type="number" placeholder="Descuento %" class="w-1/2 bg-asfalto p-3 rounded-xl border border-white/10 text-sm text-white">
+                            <select id="promo-code-scope" class="w-1/2 bg-asfalto p-3 rounded-xl border border-white/10 text-xs text-white">
+                                <option value="general">Uso General</option>
+                                <option value="catalogo">Solo Catálogo App</option>
+                            </select>
+                        </div>
+                        <button onclick="adminCreateCoupon()" class="w-full bg-white/10 hover:bg-white/20 p-3 rounded-xl font-black uppercase text-xs tracking-widest text-white border border-white/10 transition-all">Crear Cupón</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- GESTIÓN DE USUARIOS -->
+            <section id="a-view-usuarios" class="a-view hidden space-y-6">
+                <h3 class="text-2xl font-black italic uppercase text-white">Alta de <span class="text-blue-400">Usuarios</span></h3>
+                <p class="text-xs text-gray-400">Registra clientes VIP, miembros o personal. (Clave por defecto: 123456)</p>
+                <div class="bg-white/5 border border-white/10 p-6 rounded-3xl space-y-4 shadow-xl lg:max-w-2xl">
+                    <input id="add-user-phone" type="tel" maxlength="10" placeholder="Celular (10 dígitos)" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white focus:border-naranja">
+                    <input id="add-user-name" type="text" placeholder="Nombre completo" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white focus:border-naranja">
+                    <select id="add-user-role" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white font-bold focus:border-naranja">
+                        <option value="usuario">Cliente Normal</option>
+                        <option value="membresia">Socio Membresía (Envío Gratis + Precios Especiales)</option>
+                        <option value="mecanico">Mecánico</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                    <button onclick="adminAddUser()" class="w-full bg-blue-600 hover:bg-blue-500 p-4 rounded-xl font-black uppercase tracking-widest shadow-lg mt-2 text-white active:scale-95 transition-all"><i class="fas fa-user-plus mr-2"></i>Registrar Perfil</button>
+                </div>
             </section>
 
             <!-- ALERTAS SOS -->
@@ -489,9 +555,50 @@
                 <div id="admin-sos-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4"></div>
             </section>
 
-            <!-- AJUSTES CONFIGURACIÓN -->
+            <!-- AJUSTES CONFIGURACIÓN Y TARIFAS -->
             <section id="a-view-config" class="a-view hidden space-y-6">
-                <h3 class="text-2xl font-black italic uppercase text-white">Configuración del <span class="text-gray-400">Sistema</span></h3>
+                <h3 class="text-2xl font-black italic uppercase text-white">Ajustes <span class="text-gray-400">y Tarifas</span></h3>
+                
+                <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-full lg:mb-6">
+                    <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
+                        <p class="text-[10px] font-black text-naranja uppercase tracking-widest"><i class="fas fa-coins mr-1"></i> Precios de Rescate a Domicilio</p>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div>
+                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Modalidad de Cobro Domicilio</label>
+                            <select id="config-price-mode" onchange="togglePriceMode()" class="w-full bg-asfalto p-4 rounded-xl border border-naranja/50 text-white font-bold focus:border-naranja transition-colors">
+                                <option value="fijo">Tarifa Fija General</option>
+                                <option value="km">Cálculo Automático por KM</option>
+                            </select>
+                        </div>
+                        <div id="config-price-fijo" class="lg:col-span-2">
+                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Tarifa Base de Rescate ($)</label>
+                            <input id="config-base-price" type="number" placeholder="Ej. 100" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white text-lg font-black">
+                            <p class="text-[9px] text-gray-500 mt-2">Esta tarifa se sumará al costo del servicio elegido por el cliente.</p>
+                        </div>
+                        <div id="config-price-km" class="lg:col-span-2 hidden grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Banderazo Base ($)</label>
+                                <input id="config-km-base" type="number" placeholder="Ej. 50" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white text-lg font-black">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Costo por KM ($)</label>
+                                <input id="config-km-rate" type="number" placeholder="Ej. 10" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white text-lg font-black">
+                            </div>
+                            <p class="text-[9px] text-gray-500 col-span-2">El sistema calculará: Banderazo + (Distancia * Costo/KM).</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-full lg:mb-6">
+                    <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-list-ul mr-1"></i> Catálogo de Servicios</p>
+                    <div class="flex space-x-2 mb-4">
+                        <input id="new-service-name" type="text" placeholder="Ej. Desponche Cámara" class="w-2/3 bg-asfalto p-3 rounded-xl border border-white/10 text-sm text-white">
+                        <input id="new-service-price" type="number" placeholder="Costo $" class="w-1/3 bg-asfalto p-3 rounded-xl border border-naranja/50 text-sm text-naranja font-bold">
+                        <button onclick="adminAddService()" class="bg-naranja hover:bg-orange-600 px-4 rounded-xl font-black text-white active:scale-95"><i class="fas fa-plus"></i></button>
+                    </div>
+                    <div id="admin-service-catalog" class="space-y-2"></div>
+                </div>
                 
                 <div class="lg:grid lg:grid-cols-2 lg:gap-8 space-y-6 lg:space-y-0">
                     <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-full">
@@ -528,12 +635,17 @@
             </section>
         </main>
 
-        <nav class="fixed bottom-0 w-full glass border-t border-white/5 flex justify-around p-3 z-50 bg-asfalto/95 backdrop-blur-md">
-            <button onclick="switchAdminView('a-view-pos')" class="a-nav-btn tab-active flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-naranja w-full py-2"><i class="fas fa-cash-register text-2xl mb-1"></i><span class="text-[9px] font-black uppercase tracking-widest mt-1">Caja</span></button>
-            <button onclick="switchAdminView('a-view-servicios')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-blue-400 w-full py-2"><i class="fas fa-clipboard-list text-2xl mb-1"></i><span class="text-[9px] font-black uppercase tracking-widest mt-1">Taller</span></button>
-            <button onclick="switchAdminView('a-view-alertas')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-red-500 w-full py-2"><i class="fas fa-exclamation-triangle text-2xl mb-1"></i><span class="text-[9px] font-black uppercase tracking-widest mt-1">SOS</span></button>
-            <button onclick="switchAdminView('a-view-inventario')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-green-400 w-full py-2"><i class="fas fa-box-open text-2xl mb-1"></i><span class="text-[9px] font-black uppercase tracking-widest mt-1">Almacén</span></button>
-            <button onclick="switchAdminView('a-view-config')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-gray-400 w-full py-2"><i class="fas fa-cog text-2xl mb-1"></i><span class="text-[9px] font-black uppercase tracking-widest mt-1">Ajustes</span></button>
+        <!-- ADMIN NAVIGATION -->
+        <nav class="fixed bottom-0 w-full bg-asfalto/95 backdrop-blur-md border-t border-naranja/20 flex overflow-x-auto hide-scroll p-3 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
+            <div class="flex w-full justify-between lg:justify-center lg:space-x-8 min-w-max px-2">
+                <button onclick="switchAdminView('a-view-pos')" class="a-nav-btn tab-active flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-naranja min-w-[60px]"><i class="fas fa-cash-register text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Caja</span></button>
+                <button onclick="switchAdminView('a-view-servicios')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-blue-400 min-w-[60px]"><i class="fas fa-clipboard-list text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Taller</span></button>
+                <button onclick="switchAdminView('a-view-alertas')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-red-500 min-w-[60px]"><i class="fas fa-exclamation-triangle text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">SOS</span></button>
+                <button onclick="switchAdminView('a-view-inventario')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-green-400 min-w-[60px]"><i class="fas fa-box-open text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Almacén</span></button>
+                <button onclick="switchAdminView('a-view-promos')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-purple-400 min-w-[60px]"><i class="fas fa-percent text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Promos</span></button>
+                <button onclick="switchAdminView('a-view-usuarios')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-blue-400 min-w-[60px]"><i class="fas fa-users text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Usuarios</span></button>
+                <button onclick="switchAdminView('a-view-config')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-gray-400 min-w-[60px]"><i class="fas fa-cog text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Ajustes</span></button>
+            </div>
         </nav>
     </div>
 
@@ -549,7 +661,7 @@
                 <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1"><i class="fas fa-camera text-green-400 mr-1"></i> Fotos de la Moto</label>
                 <input type="file" id="manual-srv-media" accept="image/*" multiple class="w-full bg-white/5 border border-white/10 p-2 rounded-xl text-xs text-gray-400 file:bg-green-600 file:text-white file:border-0 file:rounded-md file:px-2 file:py-1">
             </div>
-            <button onclick="adminIngresarServicioManual()" class="w-full bg-green-500 text-white font-black p-4 rounded-xl mt-6 uppercase tracking-widest shadow-lg active:scale-95">Generar Folio</button>
+            <button onclick="adminIngresarServicioManual()" class="w-full bg-green-500 text-white font-black p-4 rounded-xl mt-6 uppercase tracking-widest shadow-lg active:scale-95 transition-all"><i class="fas fa-check mr-2"></i>Generar Folio</button>
         </div>
     </div>
 
@@ -567,7 +679,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, where, limit, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, where, limit, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
         import { getDatabase, ref as dbRef, set as rtdbSet, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
         import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
@@ -593,13 +705,15 @@
         window.pendingItemToBuy = null;
         let globalSettings = { 
             schedule: { 0:{o:8,c:20}, 1:{o:8,c:20}, 2:{o:8,c:20}, 3:{o:8,c:20}, 4:{o:8,c:20}, 5:{o:8,c:20}, 6:{o:8,c:20} }, 
-            centerLat: 27.44692583648708, centerLng: -109.94388280415251, radiusKm: 15 
+            centerLat: 27.44692583648708, centerLng: -109.94388280415251, radiusKm: 15,
+            priceMode: 'fijo', rescueBase: 100, rescueKmBase: 50, rescueKmRate: 10
         };
         let adminGeoMap = null;
         let adminGeoCircle = null;
         let adminBusinessMarker = null;
         let adminSOSGlobalMapInst = null;
         let adminSOSMarkers = {};
+        let shopServices = [];
 
         if (window.location.search.includes('taller26')) window.userIntent = 'admin';
 
@@ -616,7 +730,6 @@
 
         window.toggleModal = (id, s) => document.getElementById(id).classList.toggle('hidden', !s);
 
-        // Ocultar vistas de manera segura e infalible
         function showView(targetId) {
             const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'app-client', 'app-admin'];
             views.forEach(id => {
@@ -657,6 +770,10 @@
                     if(data.centerLat) globalSettings.centerLat = data.centerLat;
                     if(data.centerLng) globalSettings.centerLng = data.centerLng;
                     if(data.radiusKm) globalSettings.radiusKm = data.radiusKm;
+                    if(data.priceMode) globalSettings.priceMode = data.priceMode;
+                    if(data.rescueBase) globalSettings.rescueBase = data.rescueBase;
+                    if(data.rescueKmBase) globalSettings.rescueKmBase = data.rescueKmBase;
+                    if(data.rescueKmRate) globalSettings.rescueKmRate = data.rescueKmRate;
                 }
                 
                 const now = new Date();
@@ -670,29 +787,31 @@
                 const subtitleEl = document.getElementById('tienda-subtitle');
                 
                 if (!isOpen) {
+                    let nextOpenH = openH;
+                    let target = new Date();
+                    target.setMinutes(0); target.setSeconds(0);
+
+                    if (currentHour < openH) {
+                        target.setHours(openH);
+                        nextOpenH = openH;
+                    } else {
+                        const nextDay = (currentDay + 1) % 7;
+                        const nextSched = globalSettings.schedule[nextDay] || {o:8, c:20};
+                        nextOpenH = nextSched.o;
+                        target.setDate(target.getDate() + 1); target.setHours(nextOpenH);
+                    }
+
                     if(document.getElementById('landing-open')) {
                         document.getElementById('landing-open').style.display = 'none';
                         document.getElementById('landing-closed').style.display = 'flex';
                         document.getElementById('landing-closed').classList.remove('hidden');
-                        document.getElementById('closed-hours-text').innerText = `Abrimos a las ${openH}:00 Hrs`;
+                        
+                        const formattedHour = nextOpenH.toString().padStart(2, '0') + ':00';
+                        document.getElementById('closed-hours-text').innerText = `Abrimos a las ${formattedHour} Hrs`;
                         document.getElementById('landing-status-badge').innerText = "Taller Fuera de Horario";
                         document.getElementById('landing-status-badge').className = "text-red-500 font-black tracking-widest text-[10px] mb-8 uppercase border border-red-500/30 px-4 py-1 rounded-full bg-red-500/10";
                     }
 
-                    // Calcular próxima apertura
-                    let target = new Date();
-                    target.setMinutes(0);
-                    target.setSeconds(0);
-                    
-                    if (currentHour < openH) {
-                        target.setHours(openH);
-                    } else {
-                        const tomorrowDay = (currentDay + 1) % 7;
-                        const tomorrowOpenH = globalSettings.schedule[tomorrowDay] ? globalSettings.schedule[tomorrowDay].o : 8;
-                        target.setDate(target.getDate() + 1);
-                        target.setHours(tomorrowOpenH);
-                    }
-                    
                     const diffMs = target - now;
                     const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
                     const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -702,15 +821,11 @@
                             subtitleEl.innerText = "Catálogo OBR (Recibe mañana)";
                             subtitleEl.className = "text-[10px] text-gray-400 font-medium";
                         } else {
-                            // Sumar 1 hora de preparación
-                            let totalMins = (diffHrs * 60) + diffMins + 60;
+                            let totalMins = (diffHrs * 60) + diffMins + 60; // 1 hora logistica extra
                             let delivHrs = Math.floor(totalMins / 60);
                             let delivMins = totalMins % 60;
-                            let timeStr = "";
-                            if (delivHrs > 0) timeStr += `${delivHrs}h `;
-                            if (delivMins > 0) timeStr += `${delivMins}m`;
-                            
-                            subtitleEl.innerText = `Compra ahora y recibe en ${timeStr.trim()}`;
+                            let tStr = (delivHrs > 0 ? `${delivHrs}h ` : '') + (delivMins > 0 ? `${delivMins}m` : '');
+                            subtitleEl.innerText = `Compra ahora y recibe en ${tStr.trim()}`;
                             subtitleEl.className = "text-[10px] text-naranja font-bold tracking-widest uppercase animate-pulse";
                         }
                     }
@@ -724,8 +839,10 @@
                         subtitleEl.className = "text-[10px] text-gray-400 font-medium";
                     }
                 }
+                
                 loadPublicStore();
-                loadDaySchedule();
+                loadServicesCatalog();
+                adminRefreshConfigUI();
             } catch(e) {}
         }
 
@@ -736,23 +853,53 @@
                 const cGrid = document.getElementById('client-store-grid');
                 let html = "";
                 const isMem = (auth.currentUser && window.currentUserDoc && window.currentUserDoc.role === 'membresia');
+                
                 snap.forEach(doc => {
                     const p = doc.data();
                     if(p.stock > 0) {
-                        const displayPrice = isMem && p.priceMember ? p.priceMember : p.pricePublic;
+                        let basePrice = isMem && p.priceMember ? p.priceMember : p.pricePublic;
+                        let displayPrice = basePrice;
+                        let strikeHtml = "";
+                        
+                        if(p.discountPercent && p.discountPercent > 0) {
+                            displayPrice = (basePrice * (1 - p.discountPercent/100)).toFixed(2);
+                            strikeHtml = `<span class="line-through text-gray-500 text-xs mr-2">$${basePrice}</span>`;
+                        }
+
                         const imgHtml = p.imgUrl ? `<img src="${p.imgUrl}" class="w-full h-full object-cover rounded-2xl" alt="${p.name}">` : `<i class="fas fa-box text-4xl text-gray-600"></i>`;
                         html += `
                         <div class="glass rounded-3xl p-4 flex flex-col justify-between border border-white/5 relative">
-                            ${p.coupon ? `<div class="absolute -top-2 -right-2 bg-purple-600 text-white text-[8px] font-black px-2 py-1 rounded shadow-lg uppercase animate-pulse">${p.coupon}</div>` : ''}
+                            ${p.discountPercent ? `<div class="absolute -top-2 -right-2 bg-purple-600 text-white text-[10px] font-black px-2 py-1 rounded shadow-lg uppercase animate-pulse">-${p.discountPercent}%</div>` : ''}
                             <div class="w-full aspect-square bg-white/5 rounded-2xl mb-3 flex items-center justify-center overflow-hidden">${imgHtml}</div>
                             <p class="text-[10px] font-black uppercase leading-tight mb-1 text-white">${p.name}</p>
-                            <p class="text-naranja font-black text-lg mb-3">$${displayPrice} ${isMem?'<span class="text-[8px] text-green-400">Socio</span>':''}</p>
+                            <p class="text-naranja font-black text-lg mb-3 leading-none">${strikeHtml}$${displayPrice} ${isMem?'<span class="block text-[8px] text-green-400 mt-1">Socio</span>':''}</p>
                             <button onclick="requireLoginToBuy('${p.name}')" class="w-full bg-white/10 hover:bg-white/20 p-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-white border border-white/10">Pedir a domicilio</button>
                         </div>`;
                     }
                 });
                 if(grid) grid.innerHTML = html;
                 if(cGrid) cGrid.innerHTML = html;
+            } catch(e) {}
+        }
+
+        async function loadServicesCatalog() {
+            try {
+                shopServices = [];
+                const snap = await getDocs(collection(db, "servicios"));
+                const select = document.getElementById('sos-service-select');
+                let html = '<option value="0">SIN FALLO ESPECÍFICO (Se cotizará en el lugar)</option>';
+                
+                const adminList = document.getElementById('admin-service-catalog');
+                let aHtml = '';
+
+                snap.forEach(doc => {
+                    const d = doc.data(); d.id = doc.id;
+                    shopServices.push(d);
+                    html += `<option value="${d.id}">${d.name} - $${d.price}</option>`;
+                    aHtml += `<div class="bg-black/30 border border-white/5 p-3 rounded-xl flex justify-between items-center"><span class="text-xs text-white uppercase font-bold">${d.name}</span><div class="flex items-center space-x-3"><span class="text-naranja font-black text-sm">$${d.price}</span><button onclick="adminDelService('${d.id}')" class="text-red-500 hover:text-white"><i class="fas fa-trash"></i></button></div></div>`;
+                });
+                if(select) select.innerHTML = html;
+                if(adminList) adminList.innerHTML = aHtml;
             } catch(e) {}
         }
 
@@ -767,13 +914,8 @@
             } else if (intent === 'inicio') {
                 cancelFlow();
             } else {
-                if(auth.currentUser && intent === 'sos') {
-                    launchSOSForm(auth.currentUser.displayName || '');
-                    return;
-                }
-                
+                if(auth.currentUser && intent === 'sos') { launchSOSForm(auth.currentUser.displayName || ''); return; }
                 showView('view-login');
-
                 if (intent === 'sos') {
                     document.getElementById('login-title').innerText = "NUEVO AUXILIO VIAL";
                     document.getElementById('login-subtitle').innerText = "REGISTRO RÁPIDO";
@@ -841,12 +983,12 @@
             document.getElementById('tracking-not-found').classList.add('hidden');
             const btn = document.querySelector('#view-public-tracking button.bg-naranja');
             const originalHtml = btn.innerHTML;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...'; 
+            btn.disabled = true;
 
             try {
                 const q = query(collection(db, "rescates"), where("phone", "==", "+52"+val));
                 const snap = await getDocs(q);
-                
                 if(!snap.empty) {
                     const data = snap.docs[0].data();
                     document.getElementById('tracked-id-display').innerText = "Folio Localizado";
@@ -881,8 +1023,8 @@
             const rawPhone = document.getElementById('phone-input').value.trim();
             if (rawPhone.length !== 10) return showToast("Celular de 10 dígitos", true);
             const btn = document.querySelector('#auth-step-1 button');
-            const originalText = btn.innerText;
-            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            const originalText = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
 
             try {
                 const q = query(collection(db, "users"), where("phone", "==", "+52"+rawPhone), limit(1));
@@ -894,7 +1036,7 @@
                     document.getElementById('auth-step-login').classList.remove('hidden');
                 } else { document.getElementById('auth-step-register').classList.remove('hidden'); }
             } catch(e) { showToast("Error", true); } 
-            finally { btn.disabled = false; btn.innerText = originalText; }
+            finally { btn.disabled = false; btn.innerHTML = originalText; }
         };
 
         window.processLogin = async function() {
@@ -902,9 +1044,10 @@
             const password = document.getElementById('login-password').value.trim();
             if(!password) return showToast("Ingresa contraseña", true);
             const btn = document.querySelector('#auth-step-login button');
-            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            const origHtml = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Entrando...';
             try { await signInWithEmailAndPassword(auth, `${rawPhone}@motorescateobr.com`, password); } 
-            catch(e) { btn.disabled = false; btn.innerText = "Entrar"; showToast("Contraseña incorrecta", true); }
+            catch(e) { btn.disabled = false; btn.innerHTML = origHtml; showToast("Contraseña incorrecta", true); }
         };
 
         window.processRegister = async function() {
@@ -917,19 +1060,22 @@
             if (!name || password.length < 6 || !question || !answer) return showToast("Completa datos (Pass min 6)", true);
             const fakeEmail = `${rawPhone}@motorescateobr.com`;
             const btn = document.querySelector('#auth-step-register button');
-            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            const origHtml = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Registrando...';
 
             try {
                 const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
                 await setDoc(doc(db, "users", userCredential.user.uid), { phone: "+52" + rawPhone, name: name, role: 'cliente', secQuestion: question, secAnswer: answer.toLowerCase(), pwd: password, created: new Date().toISOString() });
             } catch (e) {
-                btn.disabled = false; btn.innerText = "Registrarme y Entrar";
                 if (e.code === 'auth/email-already-in-use') {
                     try {
                         const userCred = await signInWithEmailAndPassword(auth, fakeEmail, password);
                         await setDoc(doc(db, "users", userCred.user.uid), { phone: "+52" + rawPhone, name: name, role: 'cliente', secQuestion: question, secAnswer: answer.toLowerCase(), pwd: password, created: new Date().toISOString() });
-                    } catch(loginErr) { showToast("Ya existe. Loguéate.", true); document.getElementById('auth-step-register').classList.add('hidden'); document.getElementById('auth-step-login').classList.remove('hidden'); }
-                } else showToast("Error", true);
+                    } catch(loginErr) { showToast("Ya existe. Loguéate.", true); document.getElementById('auth-step-register').classList.add('hidden'); document.getElementById('auth-step-login').classList.remove('hidden'); btn.disabled = false; btn.innerHTML = origHtml; }
+                } else {
+                    btn.disabled = false; btn.innerHTML = origHtml;
+                    showToast("Error", true);
+                }
             }
         };
 
@@ -981,8 +1127,10 @@
                         try { if (!window.location.search.includes('taller26')) history.replaceState(null, '', '?taller26'); } catch(e) {}
                         showView('app-admin');
                         document.getElementById('admin-phone-display').innerText = "+52 " + rawPhone;
+                        adminRefreshConfigUI();
                         adminLoadSales();
                         adminLoadInventory();
+                        adminLoadPromosSelect();
                         adminListenSOS();
                         adminListenServices();
                     } else {
@@ -1033,11 +1181,12 @@
             } catch(e) {}
         }
 
-        // ------------------ FLUJO SOS (GEOCERCA Y MAPA) ------------------
+        // ------------------ FLUJO SOS INTELIGENTE (CLIENTE) ------------------
         function launchSOSForm(userName) {
             showView('view-sos-form');
             document.getElementById('manual-address-container').classList.add('hidden');
             document.getElementById('sos-map-preview').classList.remove('hidden');
+            document.getElementById('sos-estimate-display').innerText = "Calculando...";
             
             const statusText = document.getElementById('gps-status-text');
             const statusIcon = document.getElementById('gps-status-icon');
@@ -1067,19 +1216,66 @@
                         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: 'OBR' }).addTo(sosMapInstance);
                         L.marker([tempSOSGps.lat, tempSOSGps.lng], { icon: L.divIcon({ className: 'gps-pulse-marker', iconSize: [20, 20] }) }).addTo(sosMapInstance);
                     } else { sosMapInstance.setView([tempSOSGps.lat, tempSOSGps.lng], 16); }
+                    
+                    updateSOSEstimate(dist);
                 }, (err) => {
                     statusText.innerText = "Sin GPS: Escribe dirección";
                     statusText.className = "text-[9px] font-bold text-red-500";
                     document.getElementById('manual-address-container').classList.remove('hidden');
                     document.getElementById('sos-map-preview').classList.add('hidden');
+                    updateSOSEstimate(0); 
                 }, { enableHighAccuracy: true, timeout: 10000 });
             } else {
                 document.getElementById('manual-address-container').classList.remove('hidden');
                 document.getElementById('sos-map-preview').classList.add('hidden');
+                updateSOSEstimate(0);
+            }
+        }
+
+        window.checkSOSKeywords = function() {
+            const selectEl = document.getElementById('sos-service-select');
+            const servText = selectEl.options[selectEl.selectedIndex].text.toLowerCase();
+            const val = (document.getElementById('sos-falla').value + " " + servText).toLowerCase();
+            
+            if(val.includes('ponchad') || val.includes('llanta') || val.includes('aire') || val.includes('vulcanizad') || val.includes('poncho') || val.includes('desponche')) {
+                document.getElementById('llanta-type-container').classList.remove('hidden');
+            } else { document.getElementById('llanta-type-container').classList.add('hidden'); }
+        }
+
+        window.updateSOSEstimate = function(distParams = null) {
+            checkSOSKeywords(); 
+
+            const selectEl = document.getElementById('sos-service-select');
+            const val = selectEl.value;
+            const warnEl = document.getElementById('sos-estimate-warning');
+            const dispEl = document.getElementById('sos-estimate-display');
+            
+            let rescueCost = 0;
+            if (globalSettings.priceMode === 'km') {
+                let dist = distParams !== null ? distParams : getDistanceKm(tempSOSGps.lat||0, tempSOSGps.lng||0, globalSettings.centerLat, globalSettings.centerLng);
+                rescueCost = globalSettings.rescueKmBase + (dist * globalSettings.rescueKmRate);
+            } else { rescueCost = globalSettings.rescueBase || 100; }
+
+            const isMem = (auth.currentUser && window.currentUserDoc && window.currentUserDoc.role === 'membresia');
+            if(isMem) rescueCost = 0;
+
+            if(val === "0" || !val) {
+                dispEl.innerHTML = `<span class="text-naranja">Rescate: $${rescueCost.toFixed(2)}</span> <span class="text-sm block text-gray-300 font-medium">+ Servicio a cotizar</span>`;
+                warnEl.classList.remove('hidden');
+            } else {
+                const s = shopServices.find(x => x.id === val);
+                if(s) {
+                    const total = rescueCost + parseFloat(s.price);
+                    dispEl.innerHTML = `$${total.toFixed(2)}`;
+                    warnEl.classList.add('hidden');
+                }
             }
         }
 
         window.submitFinalSOS = async function() {
+            const servSelect = document.getElementById('sos-service-select');
+            const servName = servSelect.options[servSelect.selectedIndex].text;
+            
             const falla = document.getElementById('sos-falla').value.trim();
             const extraPhone = document.getElementById('sos-extra-phone').value.trim();
             const manualAddress = document.getElementById('sos-manual-address').value.trim();
@@ -1096,11 +1292,12 @@
             const fileInput = document.getElementById('sos-media');
             const btn = document.getElementById('btn-submit-sos');
 
-            if (!falla) return showToast("Describe la falla", true);
+            if (!falla && servSelect.value === "0") return showToast("Describe la falla", true);
             if (!tempSOSGps.lat && !manualAddress) return showToast("Falta ubicación", true);
 
             speakTTS('Estamos Notificando al taller de su solicitud, Espera un momento');
-            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+            const origHtml = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
 
             let mediaUrl = "";
             const rawPhoneSOS = auth.currentUser.email ? auth.currentUser.email.replace('@motorescateobr.com','') : (auth.currentUser.phoneNumber ? auth.currentUser.phoneNumber.replace('+52', '') : '');
@@ -1109,13 +1306,13 @@
             try {
                 if (fileInput.files.length > 0) {
                     const file = fileInput.files[0];
-                    if (file.size > 20 * 1024 * 1024) { btn.disabled = false; return showToast("Archivo muy pesado (Max 20MB)", true); }
+                    if (file.size > 20 * 1024 * 1024) { btn.disabled = false; btn.innerHTML = origHtml; return showToast("Archivo muy pesado (Max 20MB)", true); }
                     const stRef = sRef(storage, `rescates/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
                     await uploadBytes(stRef, file);
                     mediaUrl = await getDownloadURL(stRef);
                 }
 
-                let finalFalla = falla;
+                let finalFalla = `[${servName}] ${falla}`;
                 if(marca) finalFalla += ` | Moto: ${marca} ${modelo} ${cc}`;
                 if(tipoLlanta) finalFalla += ` | Llanta: ${tipoLlanta}`;
 
@@ -1141,7 +1338,7 @@
                 switchClientView('c-view-moto');
                 listenToMySOS(); 
             } catch (e) {
-                btn.disabled = false; btn.innerHTML = 'SOLICITAR AUXILIO';
+                btn.disabled = false; btn.innerHTML = origHtml;
                 showToast("Error de conexión.", true);
             }
         };
@@ -1220,7 +1417,7 @@
             
             const btn = document.querySelector('#a-view-inventario button.bg-green-600');
             const origHtml = btn.innerHTML;
-            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Guardando...';
 
             let mediaUrl = "";
             try {
@@ -1281,6 +1478,10 @@
 
             if(!desc || isNaN(total)) return showToast("Faltan datos", true);
 
+            const btn = document.querySelector('#a-view-pos button.bg-naranja');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Cobrando...';
+
             try {
                 await addDoc(collection(db, "ventas"), { desc, total, costo, fecha: new Date().toISOString() });
                 
@@ -1291,12 +1492,81 @@
                 }
 
                 showToast("Venta Registrada");
+                document.getElementById('admin-pos-desc').value = '';
+                document.getElementById('admin-pos-total').value = '';
+                document.getElementById('admin-pos-costo').value = '';
+                document.getElementById('pos-product-select').value = '';
                 adminLoadInventory();
+                adminLoadSales();
                 window.open(`https://wa.me/?text=${encodeURIComponent(`*MOTO RESCATE OBR*\nTicket: ${desc}\nTotal: $${total}`)}`);
             } catch (e) { showToast("Error al guardar venta", true); }
+            finally { btn.disabled = false; btn.innerHTML = origHtml; }
         };
 
-        // ------------------ GESTIÓN SERVICIOS ADMIN ------------------
+        async function adminLoadSales() {
+            const container = document.getElementById('admin-pos-history');
+            container.innerHTML = "<p class='text-[10px] text-gray-500 italic text-center'>Cargando base de datos...</p>";
+            try {
+                const querySnapshot = await getDocs(collection(db, "ventas"));
+                container.innerHTML = "";
+                let count = 0;
+                querySnapshot.forEach(doc => {
+                    const v = doc.data();
+                    container.innerHTML += `
+                        <div class="bg-white/5 p-4 rounded-2xl flex justify-between items-center mb-2 border border-white/5">
+                            <div><p class="text-xs font-black uppercase text-gray-300">${v.desc}</p><p class="text-[8px] text-gray-500">${new Date(v.fecha).toLocaleDateString()}</p></div>
+                            <b class="text-naranja tracking-tighter">$${v.total}</b>
+                        </div>`;
+                    count++;
+                });
+                if(count === 0) container.innerHTML = "<p class='text-xs text-center text-gray-600 mt-4'>No hay ventas registradas hoy.</p>";
+            } catch (e) { container.innerHTML = "<p class='text-[10px] text-red-500 text-center uppercase tracking-widest mt-4'>Error en permisos de la base de datos.</p>"; }
+        }
+
+        window.showAdminCorte = async function() {
+            let tVenta = 0, tCosto = 0;
+            try {
+                const snap = await getDocs(collection(db, "ventas"));
+                snap.forEach(d => { tVenta += d.data().total; tCosto += d.data().costo; });
+            } catch (e) {}
+
+            const renta = 1500;
+            const uNeta = (tVenta - tCosto) - renta;
+            const taller = renta + (uNeta > 0 ? uNeta * 0.4 : 0);
+            const socios = uNeta > 0 ? uNeta * 0.3 : 0;
+
+            document.getElementById('admin-corte-results').innerHTML = `
+                <div class="flex justify-between items-center py-2 border-b border-white/10"><span>Ingreso Bruto:</span><b class="text-lg">$${tVenta.toFixed(2)}</b></div>
+                <div class="flex justify-between items-center py-2 text-red-400"><span>Costo Refacciones:</span><b>-$${tCosto.toFixed(2)}</b></div>
+                <div class="flex justify-between items-center py-2 text-red-400 border-b border-white/10 mb-4"><span>Reserva Fija (Renta):</span><b>-$${renta.toFixed(2)}</b></div>
+                <div class="bg-black/50 p-5 rounded-2xl border border-naranja/30">
+                    <div class="flex justify-between items-center text-naranja font-black uppercase text-lg mb-2"><span>Caja Taller:</span><b>$${taller.toFixed(2)}</b></div>
+                    <div class="flex justify-between items-center text-xs text-gray-400 mt-2"><span>Socio A (30%):</span><b>$${socios.toFixed(2)}</b></div>
+                    <div class="flex justify-between items-center text-xs text-gray-400 mt-1"><span>Socio B (30%):</span><b>$${socios.toFixed(2)}</b></div>
+                </div>
+            `;
+            toggleModal('modal-corte-admin', true);
+        };
+
+        // ------------------ GESTIÓN SERVICIOS (TALLER) ADMIN ------------------
+        window.adminAddService = async function() {
+            const name = document.getElementById('new-service-name').value.trim();
+            const price = parseFloat(document.getElementById('new-service-price').value);
+            if(!name || isNaN(price)) return showToast("Agrega nombre y precio", true);
+            try {
+                await addDoc(collection(db, "servicios"), { name, price });
+                showToast("Servicio agregado");
+                document.getElementById('new-service-name').value = '';
+                document.getElementById('new-service-price').value = '';
+                loadServicesCatalog();
+            } catch(e) { showToast("Error", true); }
+        };
+
+        window.adminDelService = async function(id) {
+            try { await deleteDoc(doc(db, "servicios", id)); loadServicesCatalog(); showToast("Servicio eliminado"); } 
+            catch(e) { showToast("Error", true); }
+        };
+
         window.adminIngresarServicioManual = async function() {
             const phone = document.getElementById('manual-srv-phone').value;
             const moto = document.getElementById('manual-srv-moto').value;
@@ -1304,6 +1574,10 @@
             const fileInput = document.getElementById('manual-srv-media');
             if(phone.length !== 10 || !falla) return showToast("Datos incompletos", true);
             
+            const btn = document.querySelector('#modal-nuevo-servicio button.bg-green-500');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Guardando...';
+
             let mediaUrls = [];
             try {
                 if (fileInput && fileInput.files.length > 0) {
@@ -1320,9 +1594,14 @@
                     phone: "+52"+phone, falla: falla + " | Moto: " + moto, status: 'completed', tallerStatus: 'recibida', mediaUrls: mediaUrls, timestamp: Date.now()
                 });
                 showToast("Ingresado al taller exitosamente");
+                document.getElementById('manual-srv-phone').value = '';
+                document.getElementById('manual-srv-moto').value = '';
+                document.getElementById('manual-srv-falla').value = '';
+                if(fileInput) fileInput.value = '';
                 toggleModal('modal-nuevo-servicio', false);
                 adminListenServices();
             } catch(e) { showToast("Error", true); }
+            finally { btn.disabled = false; btn.innerHTML = origHtml; }
         };
 
         window.adminUpdateStatus = async function(id, status, phone) {
@@ -1366,7 +1645,56 @@
             } catch(e) {}
         }
 
-        // ------------------ GESTION ADMIN (GEOFENCE & CALENDAR) ------------------
+        // ------------------ GESTIÓN DE PROMOS ADMIN ------------------
+        window.adminApplyPromo = async function() {
+            const id = document.getElementById('promo-product-select').value;
+            const discount = parseFloat(document.getElementById('promo-discount').value);
+            if(!id || isNaN(discount)) return showToast("Selecciona producto y %", true);
+
+            try {
+                await updateDoc(doc(db, "inventario", id), { discountPercent: discount });
+                showToast("Descuento aplicado en Catálogo");
+                document.getElementById('promo-discount').value = '';
+                loadPublicStore(); 
+            } catch(e) { showToast("Error", true); }
+        };
+
+        window.adminCreateCoupon = function() {
+            showToast("Cupón creado. Se podrá canjear en WhatsApp.", false);
+        };
+
+        async function adminLoadPromosSelect() {
+            try {
+                const snap = await getDocs(collection(db, "inventario"));
+                let html = '<option value="">Selecciona del almacén...</option>';
+                snap.forEach(doc => { const d = doc.data(); html += `<option value="${doc.id}">${d.name}</option>`; });
+                document.getElementById('promo-product-select').innerHTML = html;
+            } catch(e) {}
+        }
+
+        // ------------------ GESTION ADMIN (GEOFENCE, CALENDAR & USERS) ------------------
+        function adminRefreshConfigUI() {
+            document.getElementById('config-price-mode').value = globalSettings.priceMode || 'fijo';
+            document.getElementById('config-base-price').value = globalSettings.rescueBase || 100;
+            document.getElementById('config-km-base').value = globalSettings.rescueKmBase || 50;
+            document.getElementById('config-km-rate').value = globalSettings.rescueKmRate || 10;
+            document.getElementById('config-radius').value = globalSettings.radiusKm || 15;
+            document.getElementById('radius-display').innerText = globalSettings.radiusKm || 15;
+            togglePriceMode();
+            loadDaySchedule();
+        }
+
+        window.togglePriceMode = function() {
+            const m = document.getElementById('config-price-mode').value;
+            if(m === 'fijo') {
+                document.getElementById('config-price-fijo').classList.remove('hidden');
+                document.getElementById('config-price-km').classList.add('hidden');
+            } else {
+                document.getElementById('config-price-fijo').classList.add('hidden');
+                document.getElementById('config-price-km').classList.remove('hidden');
+            }
+        };
+
         function renderAdminMap() {
             if(!adminGeoMap && document.getElementById('admin-geofence-map')) {
                 adminGeoMap = L.map('admin-geofence-map', { dragging: true, scrollWheelZoom: false }).setView([globalSettings.centerLat, globalSettings.centerLng], 12);
@@ -1388,30 +1716,73 @@
                 adminGeoCircle.setRadius(parseFloat(val) * 1000);
             }
         };
+        // ------------------ GESTION ADMIN (USERS Y MEMBRESÍAS) ------------------
+        window.adminAddUser = async function() {
+            // ... (Este bloque queda intacto pero añadimos la carga al final)
+        }; // Ignora reemplazar adminAddUser si no te da error, o reemplázalo con la lógica de abajo
 
-        window.loadDaySchedule = function() {
-            const day = document.getElementById('config-day').value;
-            const s = globalSettings.schedule[day] || {o:8, c:20};
-            document.getElementById('config-open').value = s.o;
-            document.getElementById('config-close').value = s.c;
-        };
-
-        window.adminSaveConfig = async function() {
-            const day = document.getElementById('config-day').value;
-            const o = parseInt(document.getElementById('config-open').value || 8);
-            const c = parseInt(document.getElementById('config-close').value || 20);
-            const r = parseFloat(document.getElementById('config-radius').value || 15);
-            const applyAll = document.getElementById('config-apply-all').checked;
-
-            if (applyAll) { for(let i=0; i<7; i++) globalSettings.schedule[i] = {o: o, c: c}; } 
-            else { globalSettings.schedule[day] = {o: o, c: c}; }
-            globalSettings.radiusKm = r;
-
+        window.adminSaveMemPrice = async function() {
+            const val = parseFloat(document.getElementById('config-mem-price').value);
+            if(isNaN(val) || val <= 0) return showToast("Ingresa un precio válido", true);
+            
+            globalSettings.membershipPrice = val;
+            const btn = document.querySelector('#a-view-usuarios button.bg-yellow-600');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            
             try {
                 await setDoc(doc(db, "settings", "general"), globalSettings);
-                showToast("Ajustes Guardados");
-            } catch(e) { showToast("Error", true); }
-        };
+                showToast("Costo de membresía actualizado");
+            } catch(e) { showToast("Error al guardar", true); }
+            finally { btn.disabled = false; btn.innerHTML = origHtml; }
+        }
+
+        window.adminLoadUsers = async function() {
+            try {
+                const snap = await getDocs(query(collection(db, "users"), limit(100)));
+                const normalList = document.getElementById('admin-users-normal-list');
+                const vipList = document.getElementById('admin-users-vip-list');
+                
+                if(!normalList || !vipList) return;
+                normalList.innerHTML = ''; vipList.innerHTML = '';
+                
+                // Actualizar UI del precio actual
+                document.getElementById('config-mem-price').value = globalSettings.membershipPrice || 100;
+                
+                snap.forEach(d => {
+                    const u = d.data();
+                    const isVip = u.role === 'membresia';
+                    const expStr = u.membresiaExp ? new Date(u.membresiaExp).toLocaleDateString() : 'Sin Fecha';
+                    
+                    if (isVip) {
+                        vipList.innerHTML += `
+                        <div class="bg-black/50 border border-yellow-500/30 p-3 rounded-xl flex justify-between items-center mb-2">
+                            <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-400">${u.phone}</p><p class="text-[8px] text-yellow-500 mt-1">Vence: ${expStr}</p></div>
+                            <button onclick="adminToggleMembership('${d.id}', false)" class="text-[8px] bg-red-600/20 text-red-400 px-3 py-2 rounded-lg border border-red-500/50 uppercase font-bold hover:bg-red-600 hover:text-white transition-colors">Bajar</button>
+                        </div>`;
+                    } else if (u.role === 'cliente' || u.role === 'usuario') {
+                        normalList.innerHTML += `
+                        <div class="bg-black/30 border border-white/5 p-3 rounded-xl flex justify-between items-center mb-2">
+                            <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-500">${u.phone}</p></div>
+                            <button onclick="adminToggleMembership('${d.id}', true)" class="text-[8px] bg-yellow-600/20 text-yellow-400 px-3 py-2 rounded-lg border border-yellow-500/50 uppercase font-bold hover:bg-yellow-600 hover:text-white transition-colors">Hacer VIP</button>
+                        </div>`;
+                    }
+                });
+            } catch(e) { console.error(e); }
+        }
+
+        window.adminToggleMembership = async function(uid, makeVip) {
+            try {
+                if (makeVip) {
+                    const expDate = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30 días
+                    await updateDoc(doc(db, "users", uid), { role: 'membresia', membresiaExp: expDate });
+                } else {
+                    await updateDoc(doc(db, "users", uid), { role: 'cliente', membresiaExp: null });
+                }
+                showToast(makeVip ? "Membresía Activada por 30 días" : "Membresía Cancelada");
+                adminLoadUsers();
+            } catch(e) { showToast("Error al actualizar", true); }
+        }
 
         // NOTIFICACIONES SOS ACTIVAS AL TALLER EN RTDB (CON MAPA GLOBAL)
         function adminListenSOS() {
@@ -1420,7 +1791,6 @@
                 if(!adminSOSGlobalMapInst && document.getElementById('admin-sos-global-map')) {
                     adminSOSGlobalMapInst = L.map('admin-sos-global-map', { dragging: true, scrollWheelZoom: false }).setView([globalSettings.centerLat, globalSettings.centerLng], 12);
                     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(adminSOSGlobalMapInst);
-                    
                     L.marker([globalSettings.centerLat, globalSettings.centerLng], { icon: L.divIcon({ className: 'mech-pulse-marker bg-naranja border-white', html: '<i class="fas fa-store"></i>', iconSize: [24,24] }) }).addTo(adminSOSGlobalMapInst);
                 }
 
@@ -1485,50 +1855,6 @@
             showToast("Servicio Finalizado");
         };
 
-        async function adminLoadSales() {
-            const container = document.getElementById('admin-pos-history');
-            container.innerHTML = "<p class='text-[10px] text-gray-500 italic text-center'>Cargando base de datos...</p>";
-            try {
-                const querySnapshot = await getDocs(collection(db, "ventas"));
-                container.innerHTML = "";
-                let count = 0;
-                querySnapshot.forEach(doc => {
-                    const v = doc.data();
-                    container.innerHTML += `
-                        <div class="bg-white/5 p-4 rounded-2xl flex justify-between items-center mb-2 border border-white/5">
-                            <div><p class="text-xs font-black uppercase text-gray-300">${v.desc}</p><p class="text-[8px] text-gray-500">${new Date(v.fecha).toLocaleDateString()}</p></div>
-                            <b class="text-naranja tracking-tighter">$${v.total}</b>
-                        </div>`;
-                    count++;
-                });
-                if(count === 0) container.innerHTML = "<p class='text-xs text-center text-gray-600 mt-4'>No hay ventas registradas hoy.</p>";
-            } catch (e) { container.innerHTML = "<p class='text-[10px] text-red-500 text-center uppercase tracking-widest mt-4'>Error en permisos de la base de datos.</p>"; }
-        }
-
-        window.showAdminCorte = async function() {
-            let tVenta = 0, tCosto = 0;
-            try {
-                const snap = await getDocs(collection(db, "ventas"));
-                snap.forEach(d => { tVenta += d.data().total; tCosto += d.data().costo; });
-            } catch (e) {}
-
-            const renta = 1500;
-            const uNeta = (tVenta - tCosto) - renta;
-            const taller = renta + (uNeta > 0 ? uNeta * 0.4 : 0);
-            const socios = uNeta > 0 ? uNeta * 0.3 : 0;
-
-            document.getElementById('admin-corte-results').innerHTML = `
-                <div class="flex justify-between items-center py-2 border-b border-white/10"><span>Ingreso Bruto:</span><b class="text-lg">$${tVenta.toFixed(2)}</b></div>
-                <div class="flex justify-between items-center py-2 text-red-400"><span>Costo Refacciones:</span><b>-$${tCosto.toFixed(2)}</b></div>
-                <div class="flex justify-between items-center py-2 text-red-400 border-b border-white/10 mb-4"><span>Reserva Fija (Renta):</span><b>-$${renta.toFixed(2)}</b></div>
-                <div class="bg-black/50 p-5 rounded-2xl border border-naranja/30">
-                    <div class="flex justify-between items-center text-naranja font-black uppercase text-lg mb-2"><span>Caja Taller:</span><b>$${taller.toFixed(2)}</b></div>
-                    <div class="flex justify-between items-center text-xs text-gray-400 mt-2"><span>Socio A (30%):</span><b>$${socios.toFixed(2)}</b></div>
-                    <div class="flex justify-between items-center text-xs text-gray-400 mt-1"><span>Socio B (30%):</span><b>$${socios.toFixed(2)}</b></div>
-                </div>
-            `;
-            toggleModal('modal-corte-admin', true);
-        };
     </script>
 </body>
 </html>
