@@ -2756,7 +2756,7 @@
                     }
                     
                     if(adminSOSGlobalMapInst) {
-                        adminSOSGlobalMapInst.invalidateSize();
+                        setTimeout(() => adminSOSGlobalMapInst.invalidateSize(), 200);
                         if(lastAlertPos) adminSOSGlobalMapInst.setView(lastAlertPos, 13);
                     }
                 });
