@@ -1,3 +1,96 @@
+Aquí tienes el archivo **`styles.css` completo y actualizado**. Reemplaza tu versión anterior por este contenido.
+
+```css
+:root {
+    --bg: #1A1A1A;
+    --text: #ffffff;
+    --glass-bg: rgba(255,255,255,0.05);
+    --border: rgba(255,255,255,0.1);
+}
+.light-mode {
+    --bg: #f5f5f5;
+    --text: #1A1A1A;
+    --glass-bg: rgba(0,0,0,0.05);
+    --border: rgba(0,0,0,0.1);
+}
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+.glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+}
+.tab-active { color: #FF6B00; border-top: 2px solid #FF6B00; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-thumb { background: #FF6B00; border-radius: 10px; }
+.hide-scroll::-webkit-scrollbar { display: none; }
+
+@keyframes pulse-sos {
+    0% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.7); transform: scale(1); }
+    50% { transform: scale(1.05); }
+    70% { box-shadow: 0 0 0 50px rgba(255, 107, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0); transform: scale(1); }
+}
+.btn-sos-huge { animation: pulse-sos 2s infinite; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+
+.gps-pulse-marker {
+    width: 20px; height: 20px;
+    background-color: #FF6B00;
+    border-radius: 50%;
+    box-shadow: 0 0 0 rgba(255, 107, 0, 0.7);
+    animation: pulse-sos 1.5s infinite;
+    border: 3px solid white;
+}
+.mech-pulse-marker {
+    width: 26px; height: 26px;
+    background-color: #22c55e;
+    border-radius: 50%;
+    box-shadow: 0 0 0 rgba(34, 197, 94, 0.7);
+    animation: pulse-sos 1.5s infinite;
+    border: 3px solid white;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 12px;
+}
+.obr-pin-marker { background: transparent; border: none; box-shadow: none; }
+.obr-pin-icon {
+    width: 32px; height: 32px;
+    background: #FF6B00;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 2px solid white;
+    display: flex; align-items: center; justify-content: center;
+    animation: pulse-sos 2s infinite;
+}
+.obr-pin-icon i { transform: rotate(45deg); color: white; font-size: 14px; }
+
+/* Ajustes responsive */
+@media (max-width: 768px) {
+    .glass { backdrop-filter: blur(6px); }
+    .btn-sos-huge { width: 70vw; height: 70vw; }
+    .app-view { padding: 1rem; }
+    .hide-on-mobile { display: none; }
+}
+@media (min-width: 1024px) {
+    .max-w-7xl { max-width: 80rem; }
+    .lg\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+
+/* Tema automático para mapas */
+.leaflet-tile-pane { filter: var(--map-filter, none); }
+.light-mode .leaflet-tile-pane { filter: grayscale(30%); }
+```
+
+Ahora procedo con el archivo **`app.js`** completo. Dado que es muy extenso, lo entregaré en el siguiente mensaje. Por favor, confirma que deseas continuar con el `app.js`.Ahora te entrego el archivo **`app.js` completo y actualizado** con todas las correcciones y mejoras implementadas. Reemplaza tu versión anterior por este contenido.
+
+```javascript
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, where, limit, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -64,6 +157,7 @@ window.showToast = (msg, isError = false) => {
 };
 window.toggleModal = (id, show) => document.getElementById(id).classList.toggle('hidden', !show);
 
+// Carga de archivos con progreso
 const uploadFile = (file, path) => {
     return new Promise((resolve, reject) => {
         const storageRef = sRef(storage, path);
@@ -75,6 +169,7 @@ const uploadFile = (file, path) => {
     });
 };
 
+// Obtener distancia en km
 function getDistanceKm(lat1, lon1, lat2, lon2) {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -83,6 +178,7 @@ function getDistanceKm(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Aplicar tema
 function applyTheme() {
     const mode = globalSettings.themeMode || 'dark';
     if (mode === 'auto') {
@@ -92,6 +188,21 @@ function applyTheme() {
     }
 }
 
+// TTS (Text-to-Speech)
+function speakTTS(text) {
+    if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'es-MX';
+        utterance.rate = 0.9;
+        const voices = window.speechSynthesis.getVoices();
+        const femaleVoice = voices.find(v => v.lang.includes('es') && (v.name.toLowerCase().includes('mujer') || v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('paulina')));
+        if(femaleVoice) utterance.voice = femaleVoice;
+        window.speechSynthesis.speak(utterance);
+    }
+}
+if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+
+// Cargar configuración global
 async function loadGlobalSettings() {
     const snap = await getDoc(doc(db, 'settings', 'general'));
     if (snap.exists()) Object.assign(globalSettings, snap.data());
@@ -101,6 +212,7 @@ async function loadGlobalSettings() {
     loadServicesCatalog();
 }
 
+// Actualizar estado del landing
 function updateLandingStatus() {
     const now = new Date();
     const day = now.getDay();
@@ -117,6 +229,7 @@ function updateLandingStatus() {
     }
 }
 
+// Cargar tienda pública
 async function loadPublicStore() {
     const snap = await getDocs(collection(db, "inventario"));
     const grid = document.getElementById('public-store-grid');
@@ -141,6 +254,7 @@ async function loadPublicStore() {
     if (cGrid) cGrid.innerHTML = html;
 }
 
+// Cargar catálogo de servicios
 async function loadServicesCatalog() {
     try {
         shopServices = [];
@@ -156,7 +270,7 @@ async function loadServicesCatalog() {
     } catch (e) {}
 }
 
-// POS
+// Funciones POS (Caja)
 window.openCaja = () => toggleModal('modal-caja', true);
 window.confirmOpenCaja = () => {
     const fondo = parseFloat(document.getElementById('caja-fondo-input').value) || 0;
@@ -189,7 +303,7 @@ window.confirmRetiro = () => {
     showToast(`Retiro: $${monto.toFixed(2)}`);
 };
 
-// Chat
+// Chat y mensajería
 window.openChat = (uid, isClient = false) => {
     activeChatUid = uid;
     toggleModal('modal-chat', true);
@@ -217,7 +331,7 @@ window.sendMessage = () => {
 };
 window.closeChat = () => { toggleModal('modal-chat', false); if (chatUnsubscribe) chatUnsubscribe(); };
 
-// Autenticación y flujo
+// Flujo principal de autenticación
 onAuthStateChanged(auth, async user => {
     document.getElementById('loading-screen').classList.add('hidden');
     if (!user) return loadGlobalSettings(), showView('view-landing');
@@ -241,7 +355,7 @@ onAuthStateChanged(auth, async user => {
         loadChatList();
     } else {
         showView('app-client');
-        document.getElementById('client-name-display').innerText = window.currentUserDoc.name;
+        document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
         const crown = document.getElementById('client-crown-icon');
         if (window.currentUserDoc.role === 'membresia') {
             crown.classList.remove('hidden');
@@ -255,7 +369,9 @@ onAuthStateChanged(auth, async user => {
                     crown.classList.add('hidden');
                 }
             }
-        } else crown.classList.add('hidden');
+        } else {
+            crown.classList.add('hidden');
+        }
         loadClientHistory();
         listenToMySOS();
         loadClientCitas();
@@ -263,6 +379,7 @@ onAuthStateChanged(auth, async user => {
     }
 });
 
+// Mostrar una vista específica
 function showView(targetId) {
     const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'view-force-setup', 'app-client', 'app-admin'];
     views.forEach(id => {
@@ -274,6 +391,7 @@ function showView(targetId) {
     window.fixMaps?.();
 }
 
+// Arreglar mapas tras mostrar vista
 window.fixMaps = () => {
     setTimeout(() => {
         if(adminGeoMap) adminGeoMap.invalidateSize();
@@ -283,6 +401,7 @@ window.fixMaps = () => {
     }, 300);
 };
 
+// Navegación y flujo de inicio
 window.startFlow = (intent) => {
     window.userIntent = intent;
     if (intent === 'tienda_publica') showView('view-public-store');
@@ -294,6 +413,11 @@ window.startFlow = (intent) => {
                 showView('app-admin'); return;
             }
             if(intent === 'sos') { launchSOSForm(window.currentUserDoc.name); return; }
+            if(intent === 'login_tienda') {
+                const msg = `Hola. Me interesa comprar: ${window.pendingItemToBuy}`;
+                window.open(`https://wa.me/526311551533?text=${encodeURIComponent(msg)}`, '_self');
+                window.pendingItemToBuy = null; return;
+            }
         }
         showView('view-login');
     }
@@ -305,8 +429,11 @@ window.cancelFlow = () => {
     ['auth-step-1','auth-step-login','auth-step-register','auth-step-recovery'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
     document.getElementById('auth-step-1')?.classList.remove('hidden');
     document.getElementById('phone-input').value = '';
+    if(document.getElementById('login-password')) document.getElementById('login-password').value = '';
+    if(document.getElementById('reg-password')) document.getElementById('reg-password').value = '';
 };
 
+// Cambio de pestañas cliente
 window.switchClientView = (id) => {
     document.querySelectorAll('.c-view').forEach(v => v.classList.add('hidden'));
     document.getElementById(id).classList.remove('hidden');
@@ -316,12 +443,14 @@ window.switchClientView = (id) => {
     window.fixMaps?.();
 };
 
+// Cambio de pestañas admin
 window.switchAdminView = (id) => {
     document.querySelectorAll('.a-view').forEach(v => v.classList.add('hidden'));
     document.getElementById(id).classList.remove('hidden');
     document.querySelectorAll('.a-nav-btn').forEach(b => b.classList.remove('tab-active'));
     const btn = Array.from(document.querySelectorAll('.a-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
     if(btn) btn.classList.add('tab-active');
+    
     if(id === 'a-view-config') { adminRefreshConfigUI(); renderAdminMap(); }
     if(id === 'a-view-usuarios') adminLoadUsers();
     if(id === 'a-view-promos') adminLoadLoyalty();
@@ -331,7 +460,7 @@ window.switchAdminView = (id) => {
     window.fixMaps?.();
 };
 
-// ===================== AUTENTICACIÓN =====================
+// ===================== AUTENTICACIÓN Y REGISTRO =====================
 window.checkUserExists = async () => {
     const rawPhone = document.getElementById('phone-input').value.trim();
     if (rawPhone.length !== 10) return showToast("Celular de 10 dígitos", true);
@@ -356,8 +485,9 @@ window.processLogin = async () => {
     if(!password) return showToast("Ingresa contraseña", true);
     const btn = document.querySelector('#auth-step-login button');
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Entrando...';
-    try { await signInWithEmailAndPassword(auth, `${rawPhone}@motorescateobr.com`, password); } 
-    catch(e) { showToast("Contraseña incorrecta", true); } 
+    try { 
+        await signInWithEmailAndPassword(auth, `${rawPhone}@motorescateobr.com`, password); 
+    } catch(e) { showToast("Contraseña incorrecta", true); } 
     finally { btn.disabled = false; btn.innerHTML = 'Entrar'; }
 };
 
@@ -372,11 +502,12 @@ window.processRegister = async () => {
     const btn = document.querySelector('#auth-step-register button');
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Registrando...';
     try {
-        const userCred = await createUserWithEmailAndPassword(auth, fakeEmail, password);
-        await setDoc(doc(db, "users", userCred.user.uid), { phone: "+52" + rawPhone, name, role: 'cliente', secQuestion: question, secAnswer: answer.toLowerCase(), pwd: password, created: new Date().toISOString() });
+        const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
+        await setDoc(doc(db, "users", userCredential.user.uid), { phone: "+52" + rawPhone, name, role: 'cliente', secQuestion: question, secAnswer: answer.toLowerCase(), pwd: password, created: new Date().toISOString() });
     } catch (e) {
         if (e.code === 'auth/email-already-in-use') {
-            try { await signInWithEmailAndPassword(auth, fakeEmail, password); } catch(loginErr) {}
+            try { await signInWithEmailAndPassword(auth, fakeEmail, password); } 
+            catch(loginErr) { showToast("Ya existe. Inicia sesión.", true); }
         } else showToast("Error en registro", true);
     }
     finally { btn.disabled = false; btn.innerHTML = 'Registrarme y Entrar'; }
@@ -387,13 +518,13 @@ window.forceSetupSubmit = async () => {
     const q = document.getElementById('force-question').value;
     const ans = document.getElementById('force-answer').value.trim();
     const name = document.getElementById('force-name').value.trim();
-    if(pwd.length < 6 || !q || !ans || !name) return showToast("Llena todos los campos", true);
+    if(pwd.length < 6 || !q || !ans || !name) return showToast("Llena todos los campos (Pass min 6)", true);
     const btn = document.querySelector('#view-force-setup button.bg-blue-600');
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Guardando...';
     try {
         await setDoc(doc(db, "users", auth.currentUser.uid), { name, secQuestion: q, secAnswer: ans.toLowerCase(), pwd }, {merge: true});
-        showToast("Seguridad actualizada");
-        window.location.reload();
+        showToast("Seguridad actualizada. Entrando...");
+        setTimeout(() => window.location.reload(), 1000);
     } catch(e) { showToast("Error", true); btn.disabled = false; btn.innerHTML = 'Guardar y Entrar'; }
 };
 
@@ -412,7 +543,8 @@ window.processRecovery = () => {
     if(!realAnswer) return showToast("Sin pregunta configurada", true);
     if(answer === realAnswer) {
         const pwd = window.currentUserDoc.pwd;
-        document.getElementById('recovery-form-area').innerHTML = `<div class="animate-fade-in mb-6 bg-black/50 border border-green-500 p-6 rounded-2xl text-center">
+        const area = document.getElementById('recovery-form-area');
+        area.innerHTML = `<div class="animate-fade-in mb-6 bg-black/50 border border-green-500 p-6 rounded-2xl text-center">
             <p class="text-[10px] font-black text-green-400 mb-2">Contraseña Recuperada</p>
             <p class="font-black text-3xl text-white tracking-widest bg-white/5 py-3 rounded-xl border border-white/10">${pwd}</p>
         </div>`;
@@ -421,7 +553,7 @@ window.processRecovery = () => {
 
 window.logout = () => signOut(auth).then(() => window.location.href = window.location.pathname);
 
-// ===================== SOS =====================
+// ===================== SOS Y RESCATE =====================
 function launchSOSForm(userName) {
     showView('view-sos-form');
     document.getElementById('manual-address-container').classList.add('hidden');
@@ -429,6 +561,7 @@ function launchSOSForm(userName) {
     document.getElementById('sos-map-preview').classList.remove('hidden');
     document.getElementById('sos-estimate-display').innerText = "Calculando...";
     document.getElementById('gps-status-text').innerText = "Buscando...";
+    
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
             tempSOSGps.lat = pos.coords.latitude;
@@ -442,6 +575,7 @@ function launchSOSForm(userName) {
             }
             document.getElementById('gps-status-text').innerText = "GPS Establecido";
             document.getElementById('gps-status-text').className = "text-[9px] font-bold text-green-400";
+            
             if(!sosMapInstance) {
                 sosMapInstance = L.map('sos-map-preview', { dragging: false, zoomControl: false, scrollWheelZoom: false }).setView([tempSOSGps.lat, tempSOSGps.lng], 16);
                 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: 'OBR' }).addTo(sosMapInstance);
@@ -477,8 +611,10 @@ window.updateSOSEstimate = function(dist = null) {
         for(let r of ranges) { if(d <= r.km) { rescueCost = r.price; matched = true; break; } }
         if(!matched && ranges.length > 0) rescueCost = ranges[ranges.length-1].price + Math.max(0, (d - ranges[ranges.length-1].km)) * (globalSettings.rescueKmExtra||0);
     } else rescueCost = globalSettings.rescueBase || 100;
+    
     const isMem = auth.currentUser && window.currentUserDoc?.role === 'membresia';
     if(isMem) rescueCost = 0;
+    
     if(selectEl.value === "0") dispEl.innerHTML = `<span class="text-naranja">Rescate: $${rescueCost.toFixed(2)}</span>`;
     else {
         const s = shopServices.find(x => x.id === selectEl.value);
@@ -494,9 +630,12 @@ window.submitFinalSOS = async () => {
     const btn = document.getElementById('btn-submit-sos');
     if (!falla && servSelect.value === "0") return showToast("Describe la falla", true);
     if (!tempSOSGps.lat && !manualAddress) return showToast("Falta ubicación", true);
+    
+    speakTTS('Estamos notificando al taller para su solicitud. Espere un momento.');
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
     let mediaUrl = "";
     const truePhone = window.currentUserDoc?.phone || ("+52" + (auth.currentUser.email?.replace('@motorescateobr.com','') || ''));
+    
     try {
         if (fileInput.files.length > 0) mediaUrl = await uploadFile(fileInput.files[0], `rescates/${auth.currentUser.uid}/${Date.now()}_${fileInput.files[0].name}`);
         const rData = {
@@ -512,7 +651,7 @@ window.submitFinalSOS = async () => {
         showView('app-client');
         switchClientView('c-view-moto');
         listenToMySOS();
-    } catch (e) { showToast("Error de conexión", true); }
+    } catch (e) { showToast("Error de conexión", true); } 
     finally { btn.disabled = false; btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>'; }
 };
 
@@ -540,7 +679,6 @@ function listenToMySOS() {
 
 window.openSOSDetailClient = function() {
     toggleModal('modal-sos-detail', true);
-    // Cargar datos del SOS propio
     if(auth.currentUser) {
         onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), (snap) => {
             if(snap.exists()) {
@@ -552,6 +690,7 @@ window.openSOSDetailClient = function() {
     }
 };
 
+// ===================== ENCUESTA =====================
 window.setRating = r => {
     window.currentRating = r;
     const stars = document.getElementById('star-rating').children;
@@ -567,7 +706,7 @@ window.submitSurvey = async () => {
     showToast("¡Gracias!");
 };
 
-// ===================== TALLER =====================
+// ===================== TALLER Y SERVICIOS =====================
 async function adminListenServices() {
     const snap = await getDocs(query(collection(db, "rescates"), limit(50)));
     const list = document.getElementById('admin-services-list');
@@ -578,7 +717,8 @@ async function adminListenServices() {
         if(!v.tallerStatus || v.tallerStatus === 'entregada' || v.status !== 'completed') return;
         list.innerHTML += `<div class="bg-white/5 border border-white/10 p-4 rounded-2xl cursor-pointer hover:bg-white/10 transition" onclick="openDetalleServicio('${d.id}')">
             <div class="flex justify-between"><span class="font-black text-white">${v.phone}</span><span class="text-[10px] font-black uppercase text-blue-400">${v.tallerStatus}</span></div>
-            <p class="text-[10px] text-gray-400 mt-1 truncate">${v.falla}</p></div>`;
+            <p class="text-[10px] text-gray-400 mt-1 truncate">${v.falla}</p>
+        </div>`;
     });
     if(list.innerHTML === '') list.innerHTML = '<p class="text-gray-600 text-xs text-center">Sin motos en taller</p>';
 }
@@ -631,7 +771,9 @@ async function adminLoadCitas() {
     snap.forEach(d => {
         const c = d.data();
         list.innerHTML += `<div class="bg-white/5 p-3 rounded-xl text-xs text-white cursor-pointer" onclick="openCitaDetail('${d.id}')">
-            <p><b>${c.fecha} ${c.hora}</b> - ${c.moto}</p><p>${c.trabajo}</p></div>`;
+            <p><b>${c.fecha} ${c.hora}</b> - ${c.moto}</p>
+            <p>${c.trabajo}</p>
+        </div>`;
     });
 }
 
@@ -639,6 +781,7 @@ window.openCitaDetail = async (id) => {
     const snap = await getDoc(doc(db, "citas", id));
     if(!snap.exists()) return;
     const c = snap.data();
+    // Aquí se podrían mostrar más detalles o permitir edición
     showToast(`Cita: ${c.fecha} ${c.hora} - ${c.trabajo}`);
 };
 
@@ -653,7 +796,7 @@ async function loadClientCitas() {
     });
 }
 
-// ===================== TIENDA =====================
+// ===================== TIENDA Y CARRITO =====================
 window.addToCart = (name, price) => {
     window.cart.push({name, price: parseFloat(price)});
     updateCartUI();
@@ -669,7 +812,7 @@ window.updateCartUI = () => {
 window.removeFromCart = i => { window.cart.splice(i,1); updateCartUI(); };
 window.checkoutCart = () => {
     if(!window.cart.length) return showToast("Carrito vacío", true);
-    let msg = "Hola, quiero pedir:\n";
+    let msg = "Hola, quiero pedir los siguientes productos:\n";
     window.cart.forEach(item => msg += `- ${item.name}: $${item.price}\n`);
     msg += `Total: $${window.cart.reduce((s,i)=>s+i.price,0)}`;
     window.open(`https://wa.me/526311551533?text=${encodeURIComponent(msg)}`, '_blank');
@@ -685,7 +828,7 @@ window.sendContactFromModal = () => {
     window.open(`https://wa.me/526311551533?text=${encodeURIComponent(`Hola, soy ${name}${phone ? ' ('+phone+')' : ''}. ${msg}`)}`, '_blank');
 };
 
-// ===================== POS TICKET Y VENTAS =====================
+// ===================== POS: TICKET Y COBRO =====================
 window.renderTicket = () => {
     const list = document.getElementById('pos-ticket-list');
     const totalEl = document.getElementById('pos-ticket-total');
@@ -754,6 +897,7 @@ window.checkoutTicket = async () => {
     finally { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Cobrar Ticket'; }
 };
 
+// ===================== VENTAS Y CORTE =====================
 let adminSalesCache = {};
 async function adminLoadSales() {
     const container = document.getElementById('admin-pos-history');
@@ -870,16 +1014,22 @@ window.generateAIDescription = async () => {
         showToast("Descripción generada");
     }, 600);
 };
+window.autoCalcInv = () => {
+    const cost = parseFloat(document.getElementById('inv-cost').value) || 0;
+    if(cost > 0) {
+        document.getElementById('inv-price-taller').value = (cost * 1.5).toFixed(2);
+        document.getElementById('inv-price-member').value = (cost * 1.6).toFixed(2);
+        document.getElementById('inv-price-public').value = (cost * 1.8).toFixed(2);
+    }
+};
 
-// ===================== PROMOS =====================
+// ===================== PROMOS Y LEALTAD =====================
 window.adminApplyPromo = async () => {
     const id = document.getElementById('promo-product-select').value;
     const type = document.getElementById('promo-type').value;
     const discount = parseFloat(document.getElementById('promo-discount').value);
-    const audience = document.getElementById('promo-audience').value;
     if(!id || isNaN(discount)) return showToast("Selecciona producto y valor", true);
     const updateData = type === 'percent' ? { discountPercent: discount, discountFixed: null } : { discountFixed: discount, discountPercent: null };
-    updateData.promoAudience = audience;
     await updateDoc(doc(db, "inventario", id), updateData);
     showToast("Descuento aplicado");
     loadPublicStore();
@@ -910,7 +1060,7 @@ window.adminLoadLoyalty = async () => {
         const data = d.data();
         list.innerHTML += `<div class="flex justify-between items-center bg-black/40 p-3 rounded-xl mb-2">
             <div><p class="text-xs font-black text-white">${data.codigo} ${data.active ? '<span class="text-green-400">Activo</span>' : '<span class="text-red-400">Pausado</span>'}</p>
-            <p class="text-[9px] text-gray-400">Para: ${data.audience === 'both' ? 'VIP y General' : data.audience === 'vip' ? 'Solo VIP' : 'Solo General'} | Cond: ${data.condicion} | Premio: ${data.tipoRecompensa === 'desc_porc' ? '% Desc.' : data.tipoRecompensa === 'desc_fijo' ? '$ Fijo' : 'Servicio'} ${data.valorRecompensa} | Usos: ${data.usos||0}/${data.maxUsos>0 ? data.maxUsos : '∞'}</p></div>
+            <p class="text-[9px] text-gray-400">Para: ${data.audience === 'both' ? 'VIP y General' : data.audience === 'vip' ? 'Solo VIP' : 'Solo General'} | Premio: ${data.tipoRecompensa === 'desc_porc' ? '% Desc.' : data.tipoRecompensa === 'desc_fijo' ? '$ Fijo' : 'Servicio'} ${data.valorRecompensa} | Usos: ${data.usos||0}/${data.maxUsos>0 ? data.maxUsos : '∞'}</p></div>
             <button onclick="adminToggleLoyalty('${d.id}', ${!data.active})" class="text-white"><i class="fas ${data.active ? 'fa-pause' : 'fa-play'}"></i></button>
             <button onclick="adminDelLoyalty('${d.id}')" class="text-red-500"><i class="fas fa-trash"></i></button></div>`;
     });
@@ -918,7 +1068,7 @@ window.adminLoadLoyalty = async () => {
 window.adminToggleLoyalty = async (id, st) => { await updateDoc(doc(db, "promociones", id), { active: st }); adminLoadLoyalty(); };
 window.adminDelLoyalty = async (id) => { await deleteDoc(doc(db, "promociones", id)); adminLoadLoyalty(); };
 
-// ===================== CONFIGURACIÓN =====================
+// ===================== CONFIGURACIÓN Y AJUSTES =====================
 function adminRefreshConfigUI() {
     const tbody = document.getElementById('schedule-tbody');
     if(tbody) {
@@ -1021,7 +1171,7 @@ window.adminLoadUsers = async () => {
     snap.forEach(d => {
         const u = d.data();
         if(['admin','mecanico','taller','socio'].includes(u.role)) {
-            staff.innerHTML += `<div class="bg-white/5 p-3 rounded-xl flex justify-between items-center mb-2 cursor-pointer" onclick="openUserDetail('${d.id}')">
+            staff.innerHTML += `<div class="bg-blue-900/20 border border-blue-500/30 p-3 rounded-xl flex justify-between items-center mb-2 cursor-pointer" onclick="openUserDetail('${d.id}')">
                 <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-blue-400 uppercase">${u.role}</p></div>
                 <div class="text-right"><p class="text-yellow-400 text-xs"><i class="fas fa-star"></i> 5.0</p></div></div>`;
         } else if(u.role === 'membresia') {
@@ -1045,16 +1195,38 @@ window.openUserDetail = async uid => {
     const u = (await getDoc(doc(db, "users", uid))).data();
     document.getElementById('ud-name').innerText = u.name;
     document.getElementById('ud-phone').innerText = u.phone;
+    // Cargar historial del usuario
+    const q = query(collection(db, "rescates"), where("uid", "==", uid), limit(10));
+    const snap = await getDocs(q);
+    const historyDiv = document.getElementById('ud-history');
+    if(historyDiv) {
+        historyDiv.innerHTML = '';
+        snap.forEach(doc => {
+            const d = doc.data();
+            historyDiv.innerHTML += `<div class="bg-black/20 p-2 rounded text-xs text-white">${d.falla?.substring(0,30)} - ${new Date(d.timestamp).toLocaleDateString()}</div>`;
+        });
+    }
     toggleModal('modal-user-detail', true);
 };
 
 // ===================== ESTADÍSTICAS =====================
 window.loadStats = async () => {
-    const snap = await getDocs(collection(db, "ventas"));
+    const fromDate = document.getElementById('stats-from')?.value;
+    const toDate = document.getElementById('stats-to')?.value;
+    let qRef = collection(db, "ventas");
+    let constraints = [];
+    if(fromDate) constraints.push(where("fecha", ">=", new Date(fromDate).toISOString()));
+    if(toDate) constraints.push(where("fecha", "<=", new Date(toDate + "T23:59:59")));
+    const snap = await getDocs(constraints.length ? query(qRef, ...constraints) : qRef);
     const salesByDay = {};
+    let productosVendidos = {};
     snap.forEach(d => {
-        const date = new Date(d.data().fecha).toLocaleDateString();
-        salesByDay[date] = (salesByDay[date]||0) + d.data().total;
+        const v = d.data();
+        const date = new Date(v.fecha).toLocaleDateString();
+        salesByDay[date] = (salesByDay[date]||0) + v.total;
+        (v.ticket||[]).forEach(item => {
+            productosVendidos[item.name] = (productosVendidos[item.name]||0) + 1;
+        });
     });
     const labels = Object.keys(salesByDay).slice(-14);
     const data = Object.values(salesByDay).slice(-14);
@@ -1063,6 +1235,9 @@ window.loadStats = async () => {
         if(statsChartInstance) statsChartInstance.destroy();
         statsChartInstance = new Chart(ctx, { type: 'bar', data: { labels, datasets: [{ label: 'Ingresos ($)', data, backgroundColor: '#FF6B00' }] } });
     }
+    const topProductos = Object.entries(productosVendidos).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([name, qty])=>`<li>${name}: ${qty} vendidos</li>`).join('');
+    const statsExtra = document.getElementById('stats-extra');
+    if(statsExtra) statsExtra.innerHTML = `<h4 class="text-sm font-black mt-4">Productos más vendidos</h4><ul class="text-xs text-gray-300">${topProductos}</ul>`;
 };
 window.exportCSV = async type => {
     let csv = '';
@@ -1070,6 +1245,10 @@ window.exportCSV = async type => {
         const snap = await getDocs(collection(db, "ventas"));
         csv = "Fecha,Descripción,Total\n";
         snap.forEach(d => { const v = d.data(); csv += `${new Date(v.fecha).toLocaleDateString()},"${v.desc}",${v.total}\n`; });
+    } else if(type === 'inventario') {
+        const snap = await getDocs(collection(db, "inventario"));
+        csv = "Nombre,Stock,Precio Público\n";
+        snap.forEach(d => { const p = d.data(); csv += `"${p.name}",${p.stock},${p.pricePublic}\n`; });
     }
     const blob = new Blob([csv], {type: 'text/csv'});
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${type}_${Date.now()}.csv`; a.click();
@@ -1079,10 +1258,11 @@ window.exportStatsPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18); doc.text("MOTO RESCATE OBR - Reporte Estadístico", 14, 22);
     doc.setFontSize(12); doc.text(`Fecha: ${new Date().toLocaleString()}`, 14, 32);
+    // Se pueden añadir más detalles
     doc.save(`reporte_${new Date().toISOString().slice(0,10)}.pdf`);
 };
 
-// ===================== VIDEO, CHAT, QR, FIRMA =====================
+// ===================== VIDEO SEMANAL =====================
 function renderVideoScheduleDays() {
     const container = document.getElementById('video-schedule-days');
     if (!container) return;
@@ -1129,6 +1309,7 @@ window.saveVideoSchedule = async function() {
     loadPublicStore();
 };
 
+// ===================== CHAT LIST (ADMIN) =====================
 async function loadChatList() {
     const list = document.getElementById('chat-list-items');
     if (!list) return;
@@ -1141,7 +1322,9 @@ async function loadChatList() {
         if (d.uid) {
             active = true;
             list.innerHTML += `<div onclick="openChatFromList('${d.uid}')" class="bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10">
-                <p class="text-sm font-bold text-white">${d.clientName || 'Cliente'}</p><p class="text-[10px] text-gray-400 truncate">${d.falla}</p></div>`;
+                <p class="text-sm font-bold text-white">${d.clientName || 'Cliente'}</p>
+                <p class="text-[10px] text-gray-400 truncate">${d.falla}</p>
+            </div>`;
         }
     });
     if (btn) btn.classList.toggle('hidden', !active);
@@ -1149,6 +1332,7 @@ async function loadChatList() {
 }
 window.openChatFromList = (uid) => { toggleModal('modal-chat-list', false); openChat(uid, false); };
 
+// ===================== SOS DETALLE (ADMIN) =====================
 function adminListenSOS() {
     onValue(dbRef(rtdb, 'sos_alerts'), (snap) => {
         const list = document.getElementById('admin-sos-list');
@@ -1166,11 +1350,28 @@ function adminListenSOS() {
                     <p class="text-sm text-white mt-1">${val.falla}</p>
                     <div class="flex space-x-2 mt-3">
                         <button onclick="adminMoveToWorkshop('${uid}', '${val.phone}', '${val.falla?.replace(/'/g, "\\'") || ''}')" class="bg-blue-600 text-white text-[10px] px-3 py-1 rounded-lg font-black uppercase">A Taller</button>
-                        <button onclick="openChat('${uid}', false)" class="bg-green-600 text-white text-[10px] px-3 py-1 rounded-lg font-black uppercase">Chat</button>
+                        <button onclick="openChat('${uid}', false)" class="bg-green-600 text-white text-[10px] px-3 py-1 rounded-lg font-black uppercase"><i class="fas fa-comment-dots"></i></button>
                         <button onclick="openSOSDetail('${uid}')" class="bg-yellow-600 text-white text-[10px] px-3 py-1 rounded-lg font-black uppercase">Ver</button>
                     </div></div>`;
             }
         });
+        // Agregar marcadores al mapa
+        if(adminSOSGlobalMapInst) {
+            // Limpiar marcadores anteriores
+            for(let key in adminSOSMarkers) {
+                adminSOSGlobalMapInst.removeLayer(adminSOSMarkers[key]);
+            }
+            adminSOSMarkers = {};
+            Object.entries(data).forEach(([uid, val]) => {
+                if(val.lat && val.lng) {
+                    if(val.status === 'accepted') {
+                        adminSOSMarkers[uid] = L.marker([val.lat, val.lng], { icon: L.divIcon({ className: 'mech-pulse-marker', html: '🏍️', iconSize: [24,24] }) }).addTo(adminSOSGlobalMapInst);
+                    } else {
+                        adminSOSMarkers[uid] = L.marker([val.lat, val.lng], { icon: L.divIcon({ className: 'gps-pulse-marker', html: '⚠️', iconSize: [24,24] }) }).addTo(adminSOSGlobalMapInst);
+                    }
+                }
+            });
+        }
     });
 }
 window.filterSOS = (filter) => {
@@ -1203,6 +1404,7 @@ function renderSOSGlobalMap() {
     }, 300);
 }
 
+// ===================== QR E IMPRESIÓN =====================
 window.adminPrintQR = (id) => {
     document.getElementById('qr-ticket-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=OBR-${id.slice(0,6)}`;
     document.getElementById('qr-ticket-id').innerText = `OBR-${id.slice(0,6)}`;
@@ -1214,9 +1416,12 @@ window.printQRTicket = () => {
     win.document.write(`<html><head><title>Folio OBR</title><style>body{font-family:sans-serif;background:#fff;color:#000;padding:20px;max-width:300px;margin:0 auto;text-align:center;}</style></head><body>${printContent}<script>setTimeout(()=>window.print(),500);<\/script></body></html>`);
 };
 
+// ===================== TIENDA Y CONTACTO =====================
 window.filterStore = () => {
     const term = document.getElementById('store-search').value.toLowerCase();
-    document.querySelectorAll('#public-store-grid > div').forEach(card => card.style.display = card.innerText.toLowerCase().includes(term) ? '' : 'none');
+    document.querySelectorAll('#public-store-grid > div').forEach(card => {
+        card.style.display = card.innerText.toLowerCase().includes(term) ? '' : 'none';
+    });
 };
 window.sendContact = () => {
     const name = document.getElementById('contact-name')?.value.trim() || '';
@@ -1241,9 +1446,44 @@ window.searchServiceStatus = async () => {
     } catch(e) { showToast("Datos incorrectos", true); }
 };
 
-// Inicialización
+// ===================== FIRMA DIGITAL =====================
+window.openSignatureModal = (docId) => {
+    window.signatureDocId = docId;
+    toggleModal('modal-signature', true);
+    const canvas = document.getElementById('signature-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let drawing = false;
+    canvas.onmousedown = () => drawing = true;
+    canvas.onmouseup = () => drawing = false;
+    canvas.onmousemove = (e) => {
+        if (!drawing) return;
+        ctx.fillStyle = 'black';
+        ctx.beginPath();
+        ctx.arc(e.offsetX, e.offsetY, 2, 0, 2 * Math.PI);
+        ctx.fill();
+    };
+};
+window.clearSignature = () => {
+    const canvas = document.getElementById('signature-canvas');
+    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+};
+window.saveSignature = async () => {
+    const canvas = document.getElementById('signature-canvas');
+    const dataUrl = canvas.toDataURL('image/png');
+    const blob = await (await fetch(dataUrl)).blob();
+    const url = await uploadFile(blob, `signatures/${window.signatureDocId}.png`);
+    await updateDoc(doc(db, "rescates", window.signatureDocId), { signatureUrl: url });
+    toggleModal('modal-signature', false);
+    showToast("Firma guardada");
+};
+
+// ===================== INICIALIZACIÓN =====================
 window.addEventListener('load', () => {
-    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
 });
 
-console.log("🚀 OBR v3.0 cargado correctamente");
+console.log("🚀 OBR v4.0 cargado correctamente con TTS y mejoras visuales");
+```
