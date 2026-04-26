@@ -213,7 +213,6 @@
         <p id="login-subtitle" class="text-naranja font-bold tracking-widest text-sm lg:text-lg mb-8 lg:mb-12 text-center uppercase z-10">SISTEMA INTEGRAL</p>
         
         <div class="w-full max-w-sm lg:max-w-lg space-y-4 z-10">
-            <!-- PASO 1 -->
             <div id="auth-step-1" class="glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-white/5">
                 <label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Número Celular (10 dígitos)</label>
                 <div class="flex items-center bg-white/5 border border-white/10 mt-1 rounded-xl focus-within:border-naranja transition-all overflow-hidden mb-6">
@@ -224,7 +223,6 @@
                 <button onclick="startFlow('inicio')" class="w-full text-center text-[10px] lg:text-xs text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white transition-colors p-2">Cancelar y Volver</button>
             </div>
 
-            <!-- PASO 2 LOGIN -->
             <div id="auth-step-login" class="hidden glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-white/5">
                 <div class="flex items-center space-x-4 mb-6 bg-white/5 p-4 rounded-xl border border-white/10">
                     <div class="w-12 h-12 bg-naranja/20 rounded-full flex items-center justify-center text-naranja text-xl"><i class="fas fa-user"></i></div>
@@ -236,7 +234,6 @@
                 <button onclick="showRecoveryFlow()" class="w-full text-center text-[11px] lg:text-sm text-naranja font-black tracking-widest hover:text-white transition-colors underline underline-offset-4 py-2">¿Olvidaste tu contraseña?</button>
             </div>
 
-            <!-- PASO 2 REGISTRO -->
             <div id="auth-step-register" class="hidden glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-white/5">
                 <p class="text-naranja font-black uppercase tracking-widest text-sm lg:text-base mb-6 border-b border-white/10 pb-3"><i class="fas fa-user-plus mr-1"></i> Completar Registro</p>
                 <div class="space-y-5">
@@ -255,7 +252,6 @@
                 <button onclick="processRegister()" class="w-full bg-green-600 hover:bg-green-500 p-4 lg:p-5 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 text-white text-lg lg:text-xl mt-8 transition-all">Registrarme y Entrar</button>
             </div>
 
-            <!-- PASO 3 RECUPERACIÓN -->
             <div id="auth-step-recovery" class="hidden glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-naranja/50">
                 <p class="text-naranja font-black uppercase tracking-widest text-sm lg:text-base mb-6 border-b border-white/10 pb-3"><i class="fas fa-unlock-alt mr-1"></i> Recuperar Acceso</p>
                 <div id="recovery-form-area">
@@ -326,7 +322,7 @@
                                 <label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest"><i class="fas fa-map-marker-alt text-naranja mr-1"></i> Ubicación GPS</label>
                                 <span id="gps-status-text" class="text-[9px] lg:text-[10px] font-bold text-gray-400">Buscando...</span>
                             </div>
-                            <div id="sos-map-preview" class="h-40 lg:h-56 w-full bg-black/50 rounded-2xl border border-white/10 relative z-0 flex items-center justify-center overflow-hidden">
+                            <div id="sos-map-preview" class="h-40 lg:h-56 w-full bg-white rounded-2xl border border-white/10 relative z-0 flex items-center justify-center overflow-hidden">
                                 <i id="gps-status-icon" class="fas fa-satellite fa-spin text-naranja text-3xl"></i>
                             </div>
                             <div id="manual-address-container" class="hidden mt-3">
@@ -422,7 +418,7 @@
                         <h3 class="font-black text-white uppercase italic">Rescate Solicitado</h3>
                     </div>
                     <p id="sos-status-desc-client" class="text-xs text-gray-300 mb-4">El taller OBR ha recibido tu ubicación y detalles de la falla.</p>
-                    <div id="mechanic-live-map" class="h-32 w-full bg-black/50 rounded-xl mb-4 border border-red-500/30 hidden z-0"></div>
+                    <div id="mechanic-live-map" class="h-32 w-full bg-white rounded-xl mb-4 border border-red-500/30 hidden z-0"></div>
                     
                     <div id="client-sos-actions" class="flex space-x-2 mt-4">
                         <a href="https://wa.me/526311551533" class="flex-1 bg-white hover:bg-gray-200 text-red-600 text-center text-[10px] px-4 py-3 rounded-xl font-black uppercase transition-colors"><i class="fab fa-whatsapp mr-1 text-sm"></i> WhatsApp</a>
@@ -691,7 +687,7 @@
                     <button onclick="toggleMapTheme()" class="bg-white/10 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase border border-white/10 hover:bg-white/20 transition-all"><i class="fas fa-adjust mr-2"></i>Tema Mapa</button>
                 </div>
                 <div class="bg-white/5 border border-white/10 p-4 rounded-3xl shadow-xl">
-                    <div id="admin-sos-global-map" class="w-full h-64 lg:h-96 bg-black/50 rounded-2xl z-0 border border-red-500/20"></div>
+                    <div id="admin-sos-global-map" class="w-full h-64 lg:h-96 bg-white rounded-2xl z-0 border border-red-500/20"></div>
                 </div>
                 <div id="admin-sos-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4"></div>
             </section>
@@ -709,16 +705,23 @@
                             <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Modalidad de Cobro Domicilio</label>
                             <select id="config-price-mode" onchange="togglePriceMode()" class="w-full bg-asfalto p-4 rounded-xl border border-naranja/50 text-white font-bold focus:border-naranja transition-colors">
                                 <option value="fijo">Tarifa Fija General</option>
-                                <option value="km">Cálculo Automático por KM</option>
+                                <option value="km">Cálculo Automático por Rangos de KM</option>
                             </select>
                         </div>
                         <div id="config-price-fijo" class="lg:col-span-2">
                             <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Tarifa Base de Rescate ($)</label>
                             <input id="config-base-price" type="number" placeholder="Ej. 100" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white text-lg font-black">
                         </div>
-                        <div id="config-price-km" class="lg:col-span-2 hidden grid grid-cols-2 gap-4">
-                            <div><label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Banderazo Base ($)</label><input id="config-km-base" type="number" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white text-lg font-black"></div>
-                            <div><label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Costo por KM ($)</label><input id="config-km-rate" type="number" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white text-lg font-black"></div>
+                        <div id="config-price-km" class="lg:col-span-2 hidden bg-black/40 p-4 rounded-xl border border-white/5">
+                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-2"><i class="fas fa-list-ol mr-1"></i> Tabla de Rangos por KM</label>
+                            <div id="km-ranges-list" class="space-y-2 mb-3"></div>
+                            <div class="flex space-x-2">
+                                <input id="new-km-limit" type="number" step="0.1" placeholder="Hasta KM (Ej. 3)" class="w-1/2 bg-asfalto p-3 rounded-xl border border-white/10 text-white text-sm focus:border-naranja">
+                                <input id="new-km-price" type="number" placeholder="Precio $ (Ej. 20)" class="w-1/2 bg-asfalto p-3 rounded-xl border border-white/10 text-white text-sm focus:border-naranja">
+                                <button onclick="adminAddKmRange()" class="bg-naranja hover:bg-orange-600 px-4 rounded-xl font-black text-white transition-colors active:scale-95"><i class="fas fa-plus"></i></button>
+                            </div>
+                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mt-4 mb-2"><i class="fas fa-plus-circle mr-1"></i> Precio x KM Extra (Si supera el máximo)</label>
+                            <input id="config-km-extra" type="number" placeholder="Ej. 10" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-white text-sm font-black focus:border-naranja">
                         </div>
                     </div>
                 </div>
@@ -736,7 +739,7 @@
                 <div class="lg:grid lg:grid-cols-2 lg:gap-8 space-y-6 lg:space-y-0">
                     <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-full">
                         <p class="text-[10px] font-black text-naranja uppercase tracking-widest border-b border-white/5 pb-2 mb-4"><i class="fas fa-draw-polygon mr-1"></i> Zona de Cobertura GPS</p>
-                        <div id="admin-geofence-map" class="flex-grow min-h-[250px] w-full bg-black/50 rounded-xl z-0 border border-white/10 mb-4"></div>
+                        <div id="admin-geofence-map" class="flex-grow min-h-[250px] w-full bg-white rounded-xl z-0 border border-white/10 mb-4"></div>
                         <div class="bg-black/40 p-4 rounded-xl border border-white/5 mt-auto">
                             <label class="text-xs font-bold text-gray-300 flex justify-between mb-2"><span>Radio de Servicio:</span> <span class="text-naranja"><span id="radius-display">15</span> Km</span></label>
                             <input id="config-radius" type="range" min="1" max="50" step="0.5" value="15" class="w-full accent-naranja cursor-pointer" oninput="updateGeofenceRadius(this.value)">
@@ -880,11 +883,11 @@
         window.pendingItemToBuy = null;
         let globalSettings = { 
             schedule: { 0:{o:8,c:20}, 1:{o:8,c:20}, 2:{o:8,c:20}, 3:{o:8,c:20}, 4:{o:8,c:20}, 5:{o:8,c:20}, 6:{o:8,c:20} }, 
-            centerLat: 27.44692583648708, centerLng: -109.94388280415251, radiusKm: 15,
-            priceMode: 'fijo', rescueBase: 100, rescueKmBase: 50, rescueKmRate: 10, membershipPrice: 100, promoVideoUrl: ''
+            centerLat: 27.446859188217104, centerLng: -109.94386134566669, radiusKm: 15,
+            priceMode: 'km', rescueBase: 100, rescueKmExtra: 10, membershipPrice: 100, promoVideoUrl: '',
+            rescueKmRanges: [{km: 3, price: 20}, {km: 3.5, price: 25}, {km: 4, price: 30}, {km: 4.5, price: 35}]
         };
         
-        // Bloqueo de Pestaña para SOS Activo
         window.addEventListener('beforeunload', function (e) {
             if (window.currentStatus === 'pending' || window.currentStatus === 'accepted') {
                 e.preventDefault(); e.returnValue = 'Tienes un servicio en curso. ¿Seguro que deseas salir?';
@@ -897,7 +900,7 @@
         let adminBusinessMarker = null;
         let adminSOSGlobalMapInst = null;
         let adminSOSMarkers = {};
-        window.mapTheme = 'dark_all'; 
+        window.mapTheme = 'light_all'; 
         
         // Tienda y Caja
         let shopServices = [];
@@ -1013,8 +1016,8 @@
                     if(data.radiusKm) globalSettings.radiusKm = data.radiusKm;
                     if(data.priceMode) globalSettings.priceMode = data.priceMode;
                     if(data.rescueBase) globalSettings.rescueBase = data.rescueBase;
-                    if(data.rescueKmBase) globalSettings.rescueKmBase = data.rescueKmBase;
-                    if(data.rescueKmRate) globalSettings.rescueKmRate = data.rescueKmRate;
+                    if(data.rescueKmRanges) globalSettings.rescueKmRanges = data.rescueKmRanges;
+                    if(data.rescueKmExtra !== undefined) globalSettings.rescueKmExtra = data.rescueKmExtra;
                     if(data.membershipPrice) globalSettings.membershipPrice = data.membershipPrice;
                     if(data.promoVideoUrl) globalSettings.promoVideoUrl = data.promoVideoUrl;
                 }
@@ -1085,6 +1088,7 @@
                 
                 loadPublicStore();
                 loadServicesCatalog();
+                adminRefreshConfigUI();
             } catch(e) {}
         }
 
@@ -1544,7 +1548,7 @@
 
                     if(!sosMapInstance) {
                         sosMapInstance = L.map('sos-map-preview', { dragging: false, zoomControl: false, scrollWheelZoom: false }).setView([tempSOSGps.lat, tempSOSGps.lng], 16);
-                        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: 'OBR' }).addTo(sosMapInstance);
+                        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: 'OBR' }).addTo(sosMapInstance);
                         L.marker([tempSOSGps.lat, tempSOSGps.lng], { icon: L.divIcon({ className: 'gps-pulse-marker', iconSize: [20, 20] }) }).addTo(sosMapInstance);
                     } else { 
                         sosMapInstance.setView([tempSOSGps.lat, tempSOSGps.lng], 16);
@@ -1558,6 +1562,7 @@
                     document.getElementById('manual-address-container').classList.remove('hidden');
                     document.getElementById('sos-map-preview').classList.add('hidden');
                     updateSOSEstimate(0); 
+                    showToast("Por favor, permite el acceso a tu ubicación en tu navegador.", true);
                 }, { enableHighAccuracy: true, timeout: 10000 });
             } else {
                 document.getElementById('manual-address-container').classList.remove('hidden');
@@ -1587,7 +1592,21 @@
             let rescueCost = 0;
             if (globalSettings.priceMode === 'km') {
                 let dist = distParams !== null ? distParams : getDistanceKm(tempSOSGps.lat||0, tempSOSGps.lng||0, globalSettings.centerLat, globalSettings.centerLng);
-                rescueCost = globalSettings.rescueKmBase + (dist * globalSettings.rescueKmRate);
+                let ranges = globalSettings.rescueKmRanges || [];
+                ranges.sort((a,b) => a.km - b.km);
+                let matched = false;
+                for(let r of ranges) {
+                    if(dist <= r.km) { rescueCost = r.price; matched = true; break; }
+                }
+                if(!matched) {
+                    if(ranges.length > 0) {
+                        let maxRange = ranges[ranges.length - 1];
+                        let extra = dist - maxRange.km;
+                        rescueCost = maxRange.price + (extra > 0 ? (extra * (globalSettings.rescueKmExtra||0)) : 0);
+                    } else {
+                        rescueCost = dist * (globalSettings.rescueKmExtra||0);
+                    }
+                }
             } else { rescueCost = globalSettings.rescueBase || 100; }
 
             const isMem = (auth.currentUser && window.currentUserDoc && window.currentUserDoc.role === 'membresia');
@@ -1713,7 +1732,7 @@
                             document.getElementById('mechanic-live-map').classList.remove('hidden');
                             if(!mechMapInst) {
                                 mechMapInst = L.map('mechanic-live-map', { dragging: false, zoomControl: false }).setView([data.mech_lat, data.mech_lng], 14);
-                                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(mechMapInst);
+                                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(mechMapInst);
                                 mechMarkerInst = L.marker([data.mech_lat, data.mech_lng], { icon: L.divIcon({ className: 'mech-pulse-marker', html: '<i class="fas fa-wrench"></i>', iconSize: [24,24] }) }).addTo(mechMapInst);
                             } else {
                                 mechMarkerInst.setLatLng([data.mech_lat, data.mech_lng]);
@@ -1781,14 +1800,14 @@
         window.adminAddProduct = async function() {
             const name = document.getElementById('inv-name').value.trim();
             const desc = document.getElementById('inv-desc').value.trim();
-            const stock = parseInt(document.getElementById('inv-stock').value);
-            const cost = parseFloat(document.getElementById('inv-cost').value);
-            const priceTaller = parseFloat(document.getElementById('inv-price-taller').value);
-            const priceMember = parseFloat(document.getElementById('inv-price-member').value);
-            const pricePublic = parseFloat(document.getElementById('inv-price-public').value);
+            const stock = parseInt(document.getElementById('inv-stock').value) || 0;
+            const cost = parseFloat(document.getElementById('inv-cost').value) || 0;
+            const priceTaller = parseFloat(document.getElementById('inv-price-taller').value) || cost;
+            const priceMember = parseFloat(document.getElementById('inv-price-member').value) || cost;
+            const pricePublic = parseFloat(document.getElementById('inv-price-public').value) || cost;
             const fileInput = document.getElementById('inv-image');
             
-            if(!name || isNaN(stock) || isNaN(cost) || isNaN(pricePublic)) return showToast("Llena los campos base", true);
+            if(!name) return showToast("Falta el Nombre Comercial", true);
             
             const btn = document.querySelector('#a-view-inventario button.bg-green-600');
             const origHtml = btn.innerHTML;
@@ -1796,7 +1815,7 @@
 
             let mediaUrl = "";
             try {
-                if (fileInput.files.length > 0) {
+                if (fileInput && fileInput.files && fileInput.files.length > 0) {
                     const file = fileInput.files[0];
                     if(file.size > 5 * 1024 * 1024) { btn.disabled = false; btn.innerHTML = origHtml; return showToast("Imagen muy pesada", true); }
                     const stRef = sRef(storage, `inventario/${Date.now()}_${file.name}`);
@@ -1804,14 +1823,14 @@
                     mediaUrl = await getDownloadURL(stRef);
                 }
 
-                await addDoc(collection(db, "inventario"), { name, desc, stock, cost, priceTaller: priceTaller||cost, priceMember: priceMember||cost, pricePublic: pricePublic, imgUrl: mediaUrl, timestamp: Date.now() });
-                showToast("Producto agregado");
+                await addDoc(collection(db, "inventario"), { name, desc, stock, cost, priceTaller, priceMember, pricePublic, imgUrl: mediaUrl, timestamp: Date.now() });
+                showToast("Producto agregado al almacén");
                 
                 document.getElementById('inv-name').value = ''; document.getElementById('inv-desc').value = ''; document.getElementById('inv-stock').value = ''; document.getElementById('inv-cost').value = '';
                 document.getElementById('inv-price-taller').value = ''; document.getElementById('inv-price-member').value = ''; document.getElementById('inv-price-public').value = '';
-                fileInput.value = '';
+                if(fileInput) fileInput.value = '';
                 adminLoadInventory();
-            } catch(e) { showToast("Error al agregar", true); }
+            } catch(e) { showToast("Error al agregar producto", true); }
             finally { btn.disabled = false; btn.innerHTML = origHtml; }
         };
 
@@ -2023,7 +2042,7 @@
 
             let mediaUrls = [];
             try {
-                if (fileInput && fileInput.files.length > 0) {
+                if (fileInput && fileInput.files && fileInput.files.length > 0) {
                     for(let i=0; i<fileInput.files.length; i++) {
                         const f = fileInput.files[i];
                         if(f.size > 10 * 1024 * 1024) continue;
@@ -2242,14 +2261,45 @@
         }
 
         // ------------------ GESTION ADMIN (GEOFENCE Y MAPAS GLOBALES) ------------------
+        window.adminAddKmRange = function() {
+            const limit = parseFloat(document.getElementById('new-km-limit').value);
+            const price = parseFloat(document.getElementById('new-km-price').value);
+            if(isNaN(limit) || isNaN(price)) return showToast("Agrega KM y Precio", true);
+            if(!globalSettings.rescueKmRanges) globalSettings.rescueKmRanges = [];
+            globalSettings.rescueKmRanges.push({km: limit, price: price});
+            document.getElementById('new-km-limit').value = '';
+            document.getElementById('new-km-price').value = '';
+            renderKmRanges();
+        };
+
+        window.adminDelKmRange = function(index) {
+            globalSettings.rescueKmRanges.splice(index, 1);
+            renderKmRanges();
+        };
+
+        window.renderKmRanges = function() {
+            const list = document.getElementById('km-ranges-list');
+            if(!globalSettings.rescueKmRanges) globalSettings.rescueKmRanges = [];
+            globalSettings.rescueKmRanges.sort((a,b)=> a.km - b.km);
+            let html = '';
+            globalSettings.rescueKmRanges.forEach((r, i) => {
+                html += `<div class="flex justify-between items-center bg-white/5 border border-white/10 p-2 rounded-lg text-xs mb-2">
+                    <span class="text-white">Hasta <b class="text-naranja">${r.km} KM</b> = $${r.price}</span>
+                    <button onclick="adminDelKmRange(${i})" class="text-red-500 hover:text-white"><i class="fas fa-trash"></i></button>
+                </div>`;
+            });
+            if(globalSettings.rescueKmRanges.length === 0) html = '<p class="text-[10px] text-gray-500 italic">Sin rangos definidos.</p>';
+            if(list) list.innerHTML = html;
+        };
+
         function adminRefreshConfigUI() {
-            document.getElementById('config-price-mode').value = globalSettings.priceMode || 'fijo';
+            document.getElementById('config-price-mode').value = globalSettings.priceMode || 'km';
             document.getElementById('config-base-price').value = globalSettings.rescueBase || 100;
-            document.getElementById('config-km-base').value = globalSettings.rescueKmBase || 50;
-            document.getElementById('config-km-rate').value = globalSettings.rescueKmRate || 10;
+            document.getElementById('config-km-extra').value = globalSettings.rescueKmExtra || 10;
             document.getElementById('config-radius').value = globalSettings.radiusKm || 15;
             document.getElementById('radius-display').innerText = globalSettings.radiusKm || 15;
             togglePriceMode();
+            renderKmRanges();
             renderScheduleTable();
         }
 
@@ -2318,8 +2368,7 @@
             
             const mode = document.getElementById('config-price-mode').value;
             const rBase = parseFloat(document.getElementById('config-base-price').value || 0);
-            const kBase = parseFloat(document.getElementById('config-km-base').value || 0);
-            const kRate = parseFloat(document.getElementById('config-km-rate').value || 0);
+            const kExtra = parseFloat(document.getElementById('config-km-extra').value || 0);
 
             if (!globalSettings.schedule) globalSettings.schedule = {};
             
@@ -2339,8 +2388,8 @@
             globalSettings.radiusKm = r;
             globalSettings.priceMode = mode;
             globalSettings.rescueBase = rBase;
-            globalSettings.rescueKmBase = kBase;
-            globalSettings.rescueKmRate = kRate;
+            globalSettings.rescueKmExtra = kExtra;
+            // globalSettings.rescueKmRanges is already updated via adminAddKmRange array
 
             try {
                 await setDoc(doc(db, "settings", "general"), globalSettings);
@@ -2401,7 +2450,7 @@
                                     ${alert.mediaUrl ? `<a href="${alert.mediaUrl}" target="_blank" class="block w-full text-center bg-white/10 text-white text-[10px] uppercase font-bold py-2 rounded-lg mt-3 border border-white/20"><i class="fas fa-image mr-1 text-naranja"></i> Ver Foto Adjunta</a>` : ''}
                                 </div>
                                 <div class="flex space-x-3 mb-2">
-                                    <a href="${mapsUrl}" target="_blank" class="flex-1 bg-white/10 hover:bg-white/20 text-white text-center py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-white/10"><i class="fas fa-location-arrow mr-1"></i> Ruta</a>
+                                    <a href="${mapsUrl}" target="_blank" class="flex-1 bg-white/10 hover:bg-white/20 text-white text-center py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-white/10"><i class="fas fa-location-arrow mr-1"></i> Ir Ruta</a>
                                     <a href="https://wa.me/${alert.phone.replace('+','')}" target="_blank" class="w-14 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded-xl text-xl transition-all"><i class="fab fa-whatsapp"></i></a>
                                 </div>
                                 ${chatBtn}
