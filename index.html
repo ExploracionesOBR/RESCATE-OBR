@@ -474,28 +474,27 @@
                 </div>
                 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div class="lg:col-span-2 space-y-6">
+                    <div class="space-y-6">
                         <div class="bg-white/5 p-6 rounded-3xl border border-white/10 shadow-xl">
                             <h4 class="text-naranja font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-user-tag mr-2"></i>1. Vincular Cliente (Opcional)</h4>
-                            <input id="pos-customer-phone" type="tel" maxlength="10" placeholder="Celular Cliente (Para Lealtad y Promociones)" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 focus:border-naranja text-white transition-colors">
+                            <input id="pos-customer-phone" type="tel" maxlength="10" placeholder="Celular Cliente" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 focus:border-naranja text-white transition-colors">
                         </div>
-
                         <div class="bg-white/5 p-6 rounded-3xl border border-white/10 shadow-xl">
-                            <h4 class="text-naranja font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-box-open mr-2"></i>2. Agregar desde Almacén</h4>
-                            <div class="flex flex-col lg:flex-row gap-3">
-                                <select id="pos-product-select" class="w-full lg:w-3/4 bg-asfalto p-4 rounded-xl border border-white/10 text-white font-bold focus:border-naranja transition-colors">
-                                    <option value="">Selecciona un producto/servicio...</option>
-                                </select>
-                                <button onclick="addAlmacenToTicket()" class="w-full lg:w-1/4 bg-white/10 hover:bg-white/20 text-white font-black uppercase rounded-xl p-4 transition-colors"><i class="fas fa-plus mr-1"></i> Añadir</button>
-                            </div>
+                            <h4 class="text-naranja font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-box-open mr-2"></i>2. Almacén OBR</h4>
+                            <select id="pos-product-select" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white font-bold focus:border-naranja transition-colors mb-3">
+                                <option value="">Selecciona refacción...</option>
+                            </select>
+                            <button onclick="addAlmacenToTicket()" class="w-full bg-white/10 hover:bg-white/20 text-white font-black uppercase rounded-xl p-4 transition-colors"><i class="fas fa-plus mr-1"></i> Añadir</button>
                         </div>
+                    </div>
 
-                        <div class="bg-white/5 p-6 rounded-3xl border border-white/10 shadow-xl">
-                            <h4 class="text-naranja font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-wrench mr-2"></i>3. Mano de Obra / Cargos Extra</h4>
-                            <div class="flex flex-col lg:flex-row gap-3">
-                                <input id="pos-manual-desc" type="text" placeholder="Concepto (Ej. Desponche, Mano de obra...)" class="w-full lg:w-1/2 bg-asfalto p-4 rounded-xl border border-white/10 focus:border-naranja text-white">
-                                <input id="pos-manual-price" type="number" placeholder="Precio $" class="w-full lg:w-1/4 bg-asfalto p-4 rounded-xl border border-naranja/50 text-naranja font-black">
-                                <button onclick="addManualToTicket()" class="w-full lg:w-1/4 bg-white/10 hover:bg-white/20 text-white font-black uppercase rounded-xl p-4 transition-colors"><i class="fas fa-plus mr-1"></i> Añadir</button>
+                    <div class="space-y-6">
+                        <div class="bg-white/5 p-6 rounded-3xl border border-white/10 shadow-xl h-full flex flex-col">
+                            <h4 class="text-naranja font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-wrench mr-2"></i>3. Mano de Obra / Extras</h4>
+                            <div class="flex flex-col gap-4 mt-auto">
+                                <input id="pos-manual-desc" type="text" placeholder="Concepto (Ej. Desponche...)" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 focus:border-naranja text-white">
+                                <input id="pos-manual-price" type="number" placeholder="Precio $" class="w-full bg-asfalto p-4 rounded-xl border border-naranja/50 text-naranja font-black text-xl">
+                                <button onclick="addManualToTicket()" class="w-full bg-white/10 hover:bg-white/20 text-white font-black uppercase rounded-xl p-4 transition-colors"><i class="fas fa-plus mr-1"></i> Añadir Cargo</button>
                             </div>
                         </div>
                     </div>
@@ -510,24 +509,21 @@
                         
                         <div class="border-t border-dashed border-white/20 pt-4 mt-auto relative z-10">
                             <div class="flex justify-between items-end mb-4">
-                                <span class="text-gray-400 font-bold uppercase tracking-widest text-xs">Total a Cobrar</span>
+                                <span class="text-gray-400 font-bold uppercase tracking-widest text-xs">Total</span>
                                 <span id="pos-ticket-total" class="text-3xl font-black text-naranja tracking-tighter">$0.00</span>
                             </div>
-                            
                             <select id="pos-payment-method" class="w-full bg-asfalto border border-white/10 text-white p-3 rounded-xl font-bold mb-4">
                                 <option value="Efectivo">Efectivo</option>
-                                <option value="Tarjeta">Tarjeta de Crédito/Débito</option>
-                                <option value="Transferencia">Transferencia Bancaria</option>
+                                <option value="Tarjeta">Tarjeta/Transferencia</option>
                             </select>
-
                             <button onclick="checkoutTicket()" class="w-full bg-naranja hover:bg-orange-600 p-4 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-naranja/20 active:scale-95 transition-all text-white text-lg"><i class="fas fa-check-circle mr-2"></i>Cobrar Ticket</button>
                         </div>
                     </div>
                 </div>
 
                 <div class="mt-8">
-                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 px-2"><i class="fas fa-history mr-1"></i> Ventas Registradas Hoy</p>
-                    <div id="admin-pos-history" class="space-y-2 max-h-60 overflow-y-auto hide-scroll pr-2"></div>
+                    <p class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 px-2"><i class="fas fa-history mr-1"></i> Ventas Registradas Hoy (Clic para detalles)</p>
+                    <div id="admin-pos-history" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto hide-scroll pr-2"></div>
                 </div>
             </section>
 
@@ -593,47 +589,66 @@
                             <option value="">Selecciona del almacén...</option>
                         </select>
                         <div class="flex space-x-3">
-                            <div class="w-1/2">
-                                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Descuento (%)</label>
+                            <div class="w-1/3">
+                                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Tipo</label>
+                                <select id="promo-type" class="w-full bg-asfalto p-3 rounded-xl border border-purple-500/50 text-sm text-white focus:border-purple-400">
+                                    <option value="percent">% Desc.</option>
+                                    <option value="fixed">Precio Fijo $</option>
+                                </select>
+                            </div>
+                            <div class="w-1/3">
+                                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Valor</label>
                                 <input id="promo-discount" type="number" placeholder="Ej. 15" class="w-full bg-asfalto p-3 rounded-xl border border-purple-500/50 text-sm text-purple-400 font-bold text-center">
                             </div>
-                            <button onclick="adminApplyPromo()" class="w-1/2 bg-purple-600 hover:bg-purple-500 p-3 rounded-xl font-black uppercase tracking-widest text-white mt-auto active:scale-95 transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)]">Aplicar Promo</button>
+                            <button onclick="adminApplyPromo()" class="w-1/3 bg-purple-600 hover:bg-purple-500 p-3 rounded-xl font-black uppercase tracking-widest text-white mt-auto active:scale-95 transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)]">Aplicar</button>
                         </div>
                         <p class="text-[9px] text-gray-500 mt-2 italic">Se tachará el precio original y se mostrará el descuento en el catálogo público.</p>
                     </div>
 
                     <div>
-                        <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-ticket-alt mr-1"></i> Generar Cupones Generales</p>
-                        <input id="promo-code" type="text" placeholder="CÓDIGO (Ej. VERANO24)" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-sm text-white mb-3 uppercase">
-                        <div class="flex space-x-3 mb-3">
-                            <input id="promo-code-val" type="number" placeholder="Descuento %" class="w-1/2 bg-asfalto p-3 rounded-xl border border-white/10 text-sm text-white">
-                            <select id="promo-code-scope" class="w-1/2 bg-asfalto p-3 rounded-xl border border-white/10 text-xs text-white">
-                                <option value="general">Uso General</option>
-                                <option value="catalogo">Solo Catálogo App</option>
-                            </select>
-                        </div>
-                        <button onclick="adminCreateCoupon()" class="w-full bg-white/10 hover:bg-white/20 p-3 rounded-xl font-black uppercase text-xs tracking-widest text-white border border-white/10 transition-all mb-8">Crear Cupón</button>
-
-                        <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2 mt-6"><i class="fas fa-video mr-1"></i> Video Banner (Catálogo)</p>
+                        <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-video mr-1"></i> Video Banner (Catálogo)</p>
                         <input type="file" id="promo-video-upload" accept="video/*" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-xs text-gray-400 file:bg-purple-600 file:text-white file:border-0 file:rounded-md file:px-3 file:py-1 mb-3">
                         <button onclick="adminUploadPromoVideo()" class="w-full bg-purple-600 hover:bg-purple-500 p-3 rounded-xl font-black uppercase tracking-widest text-white border border-white/10 transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)]">Subir Video a Catálogo</button>
                     </div>
                     
-                    <!-- PROGRAMA DE LEALTAD -->
+                    <!-- PROGRAMA DE LEALTAD Y CUPONES -->
                     <div class="lg:col-span-2 bg-gradient-to-r from-blue-900/40 to-asfalto border border-blue-500/30 p-6 rounded-3xl shadow-xl mt-4">
-                        <h4 class="text-blue-400 font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-handshake mr-2"></i>Programa de Lealtad (VIP)</h4>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <h4 class="text-blue-400 font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-handshake mr-2"></i>Programa de Lealtad y Códigos VIP</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                             <div>
-                                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Condición (Ej. 3 visitas)</label>
-                                <input id="loyalty-condition" type="text" placeholder="Ej. 3 servicios en 1 mes" class="w-full bg-black/50 p-4 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
+                                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Código Corto</label>
+                                <div class="flex">
+                                    <input id="loyalty-code" type="text" placeholder="Ej. VIP10" class="w-full bg-black/50 p-3 rounded-l-xl border border-white/10 text-sm text-white focus:border-blue-500 uppercase">
+                                    <button onclick="document.getElementById('loyalty-code').value = 'PROMO' + Math.floor(Math.random()*10000)" class="bg-blue-600 px-3 rounded-r-xl active:scale-95 transition-transform"><i class="fas fa-random text-white"></i></button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Condición Historial</label>
+                                <select id="loyalty-condition" class="w-full bg-black/50 p-3 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
+                                    <option value="none">Sin condición (Cualquiera)</option>
+                                    <option value="1_servicios">1 servicio completado</option>
+                                    <option value="3_servicios">3 servicios completados</option>
+                                    <option value="5_servicios">5 servicios completados</option>
+                                </select>
                             </div>
                             <div>
                                 <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Recompensa</label>
-                                <input id="loyalty-reward" type="text" placeholder="Ej. Desponche Gratis" class="w-full bg-black/50 p-4 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
+                                <div class="flex space-x-1">
+                                    <select id="loyalty-reward-type" class="w-1/2 bg-black/50 p-3 rounded-xl border border-white/10 text-xs text-white focus:border-blue-500">
+                                        <option value="desc_porc">% Desc.</option>
+                                        <option value="desc_fijo">$ Fijo</option>
+                                        <option value="servicio">Servicio</option>
+                                    </select>
+                                    <input id="loyalty-reward-val" type="text" placeholder="Valor" class="w-1/2 bg-black/50 p-3 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
+                                </div>
                             </div>
                             <div class="flex items-end">
-                                <button onclick="adminSaveLoyalty()" class="w-full bg-blue-600 hover:bg-blue-500 p-4 rounded-xl font-black uppercase text-xs tracking-widest text-white transition-all shadow-lg active:scale-95"><i class="fas fa-check-circle mr-1"></i> Activar Programa</button>
+                                <button onclick="adminSaveLoyalty()" class="w-full bg-blue-600 hover:bg-blue-500 p-3 rounded-xl font-black uppercase text-xs tracking-widest text-white transition-all shadow-lg active:scale-95"><i class="fas fa-plus mr-1"></i> Activar Promo</button>
                             </div>
+                        </div>
+                        
+                        <div id="admin-loyalty-list" class="space-y-2 max-h-40 overflow-y-auto hide-scroll pt-4 border-t border-white/10 mt-2">
+                            <!-- JS Renders Promos Here -->
                         </div>
                     </div>
                 </div>
@@ -641,7 +656,7 @@
 
             <!-- GESTIÓN DE USUARIOS Y MEMBRESÍAS -->
             <section id="a-view-usuarios" class="a-view hidden space-y-6">
-                <h3 class="text-2xl font-black italic uppercase text-white">Usuarios y <span class="text-yellow-400">Membresías</span></h3>
+                <h3 class="text-2xl font-black italic uppercase text-white">Usuarios y <span class="text-yellow-400">Equipo</span></h3>
                 
                 <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl lg:max-w-2xl">
                     <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-crown mr-1"></i> Costo Mensual de Membresía</p>
@@ -652,23 +667,31 @@
                     <p class="text-[9px] text-gray-500 mt-2">Afecta solo a nuevas contrataciones y renovaciones.</p>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-96">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Columna Normal -->
+                    <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-[500px]">
                         <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-users mr-1"></i> Clientes Estándar</p>
                         <div id="admin-users-normal-list" class="space-y-3 overflow-y-auto hide-scroll flex-grow pr-2"></div>
                     </div>
                     
-                    <div class="bg-gradient-to-br from-yellow-900/20 to-black/40 border border-yellow-500/30 p-6 rounded-3xl shadow-xl flex flex-col h-96 relative overflow-hidden">
+                    <!-- Columna VIP -->
+                    <div class="bg-gradient-to-br from-yellow-900/20 to-black/40 border border-yellow-500/30 p-6 rounded-3xl shadow-xl flex flex-col h-[500px] relative overflow-hidden">
                         <div class="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-full blur-[40px] pointer-events-none"></div>
-                        <p class="text-[10px] font-black text-yellow-400 uppercase tracking-widest mb-4 border-b border-white/5 pb-2 z-10"><i class="fas fa-crown mr-1"></i> Socios con Membresía</p>
+                        <p class="text-[10px] font-black text-yellow-400 uppercase tracking-widest mb-4 border-b border-white/5 pb-2 z-10"><i class="fas fa-crown mr-1"></i> Socios VIP</p>
                         <div id="admin-users-vip-list" class="space-y-3 overflow-y-auto hide-scroll flex-grow z-10 pr-2"></div>
+                    </div>
+
+                    <!-- Columna Equipo -->
+                    <div class="bg-gradient-to-br from-blue-900/20 to-black/40 border border-blue-500/30 p-6 rounded-3xl shadow-xl flex flex-col h-[500px] relative overflow-hidden">
+                        <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4 border-b border-white/5 pb-2 z-10"><i class="fas fa-wrench mr-1"></i> Equipo OBR (Podium)</p>
+                        <div id="admin-users-staff-list" class="space-y-3 overflow-y-auto hide-scroll flex-grow z-10 pr-2"></div>
                     </div>
                 </div>
 
                 <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl lg:max-w-2xl mt-6">
                     <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-user-plus mr-1"></i> Nueva Alta Manual</p>
-                    <input id="add-user-phone" type="tel" maxlength="10" placeholder="Celular (10 dígitos)" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-white focus:border-naranja mb-3 text-sm">
-                    <input id="add-user-name" type="text" placeholder="Nombre completo" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-white focus:border-naranja mb-3 text-sm">
+                    <input id="add-user-phone" type="tel" maxlength="10" autocomplete="off" placeholder="Celular (10 dígitos)" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-white focus:border-naranja mb-3 text-sm">
+                    <input id="add-user-name" type="text" autocomplete="off" placeholder="Nombre completo" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-white focus:border-naranja mb-3 text-sm">
                     <select id="add-user-role" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-white font-bold focus:border-naranja text-sm">
                         <option value="cliente">Cliente Normal</option>
                         <option value="membresia">Socio VIP (Membresía)</option>
@@ -680,7 +703,7 @@
                 </div>
             </section>
 
-            <!-- ALERTAS SOS (CON MAPA GLOBAL Y CHAT) -->
+            <!-- ALERTAS SOS -->
             <section id="a-view-alertas" class="a-view hidden flex-col h-full space-y-4">
                 <div class="flex justify-between items-center mb-2">
                     <h3 class="text-2xl font-black italic uppercase">Mapa de <span class="text-red-500">Emergencias</span></h3>
@@ -692,77 +715,77 @@
                 <div id="admin-sos-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4"></div>
             </section>
 
-            <!-- AJUSTES CONFIGURACIÓN Y TARIFAS -->
+            <!-- AJUSTES CONFIGURACIÓN Y TARIFAS (DIVIDIDO EN 3 COLUMNAS) -->
             <section id="a-view-config" class="a-view hidden space-y-6">
                 <h3 class="text-2xl font-black italic uppercase text-white">Ajustes <span class="text-gray-400">y Tarifas</span></h3>
                 
-                <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-full lg:mb-6">
-                    <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
-                        <p class="text-[10px] font-black text-naranja uppercase tracking-widest"><i class="fas fa-coins mr-1"></i> Precios de Rescate a Domicilio</p>
-                    </div>
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- COL 1: PRECIOS Y TARIFAS -->
+                    <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col space-y-4 h-full">
+                        <p class="text-[10px] font-black text-naranja uppercase tracking-widest border-b border-white/5 pb-2"><i class="fas fa-coins mr-1"></i> Rescate a Domicilio</p>
                         <div>
-                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Modalidad de Cobro Domicilio</label>
-                            <select id="config-price-mode" onchange="togglePriceMode()" class="w-full bg-asfalto p-4 rounded-xl border border-naranja/50 text-white font-bold focus:border-naranja transition-colors">
+                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Modalidad de Cobro</label>
+                            <select id="config-price-mode" onchange="togglePriceMode()" class="w-full bg-asfalto p-3 rounded-xl border border-naranja/50 text-white font-bold focus:border-naranja transition-colors">
                                 <option value="fijo">Tarifa Fija General</option>
-                                <option value="km">Cálculo Automático por Rangos de KM</option>
+                                <option value="km">Cálculo Automático por KM</option>
                             </select>
                         </div>
-                        <div id="config-price-fijo" class="lg:col-span-2">
-                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Tarifa Base de Rescate ($)</label>
-                            <input id="config-base-price" type="number" placeholder="Ej. 100" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white text-lg font-black">
+                        <div id="config-price-fijo">
+                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Tarifa Base ($)</label>
+                            <input id="config-base-price" type="number" placeholder="Ej. 100" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-white text-lg font-black">
                         </div>
-                        <div id="config-price-km" class="lg:col-span-2 hidden bg-black/40 p-4 rounded-xl border border-white/5">
-                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-2"><i class="fas fa-list-ol mr-1"></i> Tabla de Rangos por KM</label>
-                            <div id="km-ranges-list" class="space-y-2 mb-3"></div>
+                        <div id="config-price-km" class="hidden bg-black/40 p-4 rounded-xl border border-white/5 flex-grow">
+                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-2"><i class="fas fa-list-ol mr-1"></i> Tabla de Rangos</label>
+                            <div id="km-ranges-list" class="space-y-2 mb-3 max-h-32 overflow-y-auto hide-scroll"></div>
                             <div class="flex space-x-2">
-                                <input id="new-km-limit" type="number" step="0.1" placeholder="Hasta KM (Ej. 3)" class="w-1/2 bg-asfalto p-3 rounded-xl border border-white/10 text-white text-sm focus:border-naranja">
-                                <input id="new-km-price" type="number" placeholder="Precio $ (Ej. 20)" class="w-1/2 bg-asfalto p-3 rounded-xl border border-white/10 text-white text-sm focus:border-naranja">
-                                <button onclick="adminAddKmRange()" class="bg-naranja hover:bg-orange-600 px-4 rounded-xl font-black text-white transition-colors active:scale-95"><i class="fas fa-plus"></i></button>
+                                <input id="new-km-limit" type="number" step="0.1" placeholder="Max KM" class="w-1/2 bg-asfalto p-2 rounded-xl border border-white/10 text-white text-xs focus:border-naranja">
+                                <input id="new-km-price" type="number" placeholder="Precio $" class="w-1/2 bg-asfalto p-2 rounded-xl border border-white/10 text-white text-xs focus:border-naranja">
+                                <button onclick="adminAddKmRange()" class="bg-naranja hover:bg-orange-600 px-3 rounded-xl font-black text-white transition-colors active:scale-95"><i class="fas fa-plus"></i></button>
                             </div>
-                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mt-4 mb-2"><i class="fas fa-plus-circle mr-1"></i> Precio x KM Extra (Si supera el máximo)</label>
-                            <input id="config-km-extra" type="number" placeholder="Ej. 10" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-white text-sm font-black focus:border-naranja">
+                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mt-4 mb-2"><i class="fas fa-plus-circle mr-1"></i> Costo por KM Extra</label>
+                            <input id="config-km-extra" type="number" placeholder="Ej. 10" class="w-full bg-asfalto p-2 rounded-xl border border-white/10 text-white text-sm font-black focus:border-naranja">
                         </div>
                     </div>
-                </div>
 
-                <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-full lg:mb-6">
-                    <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-list-ul mr-1"></i> Catálogo de Servicios</p>
-                    <div class="flex space-x-2 mb-4">
-                        <input id="new-service-name" type="text" placeholder="Ej. Desponche Cámara" class="w-2/3 bg-asfalto p-3 rounded-xl border border-white/10 text-sm text-white">
-                        <input id="new-service-price" type="number" placeholder="Costo $" class="w-1/3 bg-asfalto p-3 rounded-xl border border-naranja/50 text-sm text-naranja font-bold">
-                        <button onclick="adminAddService()" class="bg-naranja hover:bg-orange-600 px-4 rounded-xl font-black text-white active:scale-95"><i class="fas fa-plus"></i></button>
+                    <!-- COL 2: CATÁLOGO Y HORARIOS -->
+                    <div class="space-y-6 flex flex-col h-full">
+                        <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex-grow">
+                            <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-list-ul mr-1"></i> Catálogo de Servicios</p>
+                            <div class="flex space-x-2 mb-4">
+                                <input id="new-service-name" type="text" placeholder="Ej. Desponche..." class="w-2/3 bg-asfalto p-2 rounded-xl border border-white/10 text-xs text-white">
+                                <input id="new-service-price" type="number" placeholder="$" class="w-1/3 bg-asfalto p-2 rounded-xl border border-naranja/50 text-xs text-naranja font-bold">
+                                <button onclick="adminAddService()" class="bg-naranja hover:bg-orange-600 px-3 rounded-xl font-black text-white active:scale-95"><i class="fas fa-plus"></i></button>
+                            </div>
+                            <div id="admin-service-catalog" class="space-y-2 max-h-32 overflow-y-auto hide-scroll"></div>
+                        </div>
+
+                        <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl">
+                            <p class="text-[10px] font-black text-naranja uppercase tracking-widest border-b border-white/5 pb-2 mb-3"><i class="fas fa-calendar-alt mr-1"></i> Horarios Semanales</p>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-[10px] text-left border-collapse">
+                                    <thead><tr class="text-gray-400 uppercase tracking-widest border-b border-white/10"><th class="pb-1 pl-1">Día</th><th class="pb-1">Abre</th><th class="pb-1">Cierra</th></tr></thead>
+                                    <tbody id="schedule-tbody" class="text-white font-bold divide-y divide-white/5"></tbody>
+                                </table>
+                            </div>
+                            <label class="flex items-center space-x-2 text-[10px] text-white w-full mt-3 cursor-pointer bg-black/40 p-2 rounded-xl border border-white/5">
+                                <input type="checkbox" id="config-apply-all" class="accent-naranja w-3 h-3">
+                                <span class="font-bold">Igualar Lun-Dom</span>
+                            </label>
+                        </div>
                     </div>
-                    <div id="admin-service-catalog" class="space-y-2"></div>
-                </div>
-                
-                <div class="lg:grid lg:grid-cols-2 lg:gap-8 space-y-6 lg:space-y-0">
+
+                    <!-- COL 3: MAPA Y GEOCERCA -->
                     <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-full">
-                        <p class="text-[10px] font-black text-naranja uppercase tracking-widest border-b border-white/5 pb-2 mb-4"><i class="fas fa-draw-polygon mr-1"></i> Zona de Cobertura GPS</p>
-                        <div id="admin-geofence-map" class="flex-grow min-h-[250px] w-full bg-white rounded-xl z-0 border border-white/10 mb-4"></div>
+                        <div class="flex justify-between items-center border-b border-white/5 pb-2 mb-4">
+                            <p class="text-[10px] font-black text-naranja uppercase tracking-widest"><i class="fas fa-draw-polygon mr-1"></i> Zona de Cobertura</p>
+                            <p class="text-[8px] text-gray-500 italic">Arrastra el pin para ajustar ubicación</p>
+                        </div>
+                        <div id="admin-geofence-map" class="flex-grow min-h-[300px] w-full bg-white rounded-xl z-0 border border-white/10 mb-4"></div>
                         <div class="bg-black/40 p-4 rounded-xl border border-white/5 mt-auto">
                             <label class="text-xs font-bold text-gray-300 flex justify-between mb-2"><span>Radio de Servicio:</span> <span class="text-naranja"><span id="radius-display">15</span> Km</span></label>
                             <input id="config-radius" type="range" min="1" max="50" step="0.5" value="15" class="w-full accent-naranja cursor-pointer" oninput="updateGeofenceRadius(this.value)">
                         </div>
-                    </div>
-
-                    <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col justify-between overflow-hidden">
-                        <div>
-                            <p class="text-[10px] font-black text-naranja uppercase tracking-widest border-b border-white/5 pb-2 mb-4"><i class="fas fa-calendar-alt mr-1"></i> Horarios Semanales</p>
-                            <div class="overflow-x-auto">
-                                <table class="w-full text-xs text-left border-collapse">
-                                    <thead><tr class="text-gray-400 uppercase tracking-widest border-b border-white/10"><th class="pb-2 pl-2">Día</th><th class="pb-2">Apertura</th><th class="pb-2">Cierre</th></tr></thead>
-                                    <tbody id="schedule-tbody" class="text-white font-bold divide-y divide-white/5">
-                                        <!-- JS Renders this -->
-                                    </tbody>
-                                </table>
-                            </div>
-                            <label class="flex items-center space-x-3 text-sm text-white w-full mt-4 cursor-pointer bg-black/40 p-4 rounded-xl border border-white/5 transition-colors hover:bg-black/60">
-                                <input type="checkbox" id="config-apply-all" class="accent-naranja w-5 h-5">
-                                <span class="font-bold">Igualar Horario Lunes a Todos</span>
-                            </label>
-                        </div>
-                        <button onclick="adminSaveConfig()" class="w-full bg-naranja hover:bg-orange-600 p-4 rounded-xl font-black uppercase tracking-widest text-white mt-6 shadow-lg active:scale-95 transition-transform"><i class="fas fa-save mr-2"></i>Guardar Cambios</button>
+                        <button onclick="adminSaveConfig()" class="w-full bg-naranja hover:bg-orange-600 p-4 rounded-xl font-black uppercase tracking-widest text-white mt-4 shadow-lg active:scale-95 transition-transform"><i class="fas fa-save mr-2"></i>Guardar Ajustes</button>
                     </div>
                 </div>
             </section>
@@ -806,6 +829,27 @@
             <h2 class="text-xl font-black mb-6 text-center text-white italic uppercase tracking-widest">Resumen Financiero</h2>
             <div id="admin-corte-results" class="space-y-3 text-sm"></div>
             <button onclick="toggleModal('modal-corte-admin', false)" class="w-full bg-white text-black p-4 rounded-xl font-black mt-8 uppercase tracking-widest">Cerrar</button>
+        </div>
+    </div>
+
+    <!-- MODAL DETALLE DE VENTA / TICKET -->
+    <div id="modal-sale-details" class="fixed inset-0 bg-black/95 z-[150] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+        <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-white/20 shadow-[0_0_50px_rgba(255,255,255,0.1)]" id="print-ticket-area">
+            <button onclick="toggleModal('modal-sale-details', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 no-print hover:bg-white/20 transition-all"><i class="fas fa-times"></i></button>
+            <div class="text-center mb-6">
+                <i class="fas fa-motorcycle text-3xl text-naranja mb-2"></i>
+                <h2 class="text-lg font-black text-white italic uppercase tracking-widest">Ticket OBR</h2>
+                <p class="text-[10px] text-gray-400" id="sale-detail-date"></p>
+            </div>
+            <div id="sale-detail-content" class="space-y-2 text-sm text-gray-300 border-t border-b border-dashed border-white/20 py-4 mb-4"></div>
+            <div class="flex justify-between items-end mb-6">
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-widest">Total</span>
+                <span id="sale-detail-total" class="text-2xl font-black text-naranja tracking-tighter"></span>
+            </div>
+            <div class="flex space-x-2 no-print" id="sale-detail-actions">
+                <button onclick="printTicket()" class="flex-1 bg-white/10 hover:bg-white/20 p-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-white transition-all"><i class="fas fa-file-pdf mr-1"></i> PDF / Imprimir</button>
+                <button id="btn-wa-ticket" class="flex-1 bg-green-500 hover:bg-green-600 p-3 rounded-xl font-black uppercase text-[10px] tracking-widest text-white transition-all"><i class="fab fa-whatsapp mr-1"></i> WhatsApp</button>
+            </div>
         </div>
     </div>
 
@@ -1120,6 +1164,9 @@
                         if(p.discountPercent && p.discountPercent > 0) {
                             displayPrice = (basePrice * (1 - p.discountPercent/100)).toFixed(2);
                             strikeHtml = `<span class="line-through text-gray-500 text-xs mr-2">$${basePrice}</span>`;
+                        } else if (p.discountFixed && p.discountFixed > 0) {
+                            displayPrice = p.discountFixed.toFixed(2);
+                            strikeHtml = `<span class="line-through text-gray-500 text-xs mr-2">$${basePrice}</span>`;
                         }
 
                         const imgHtml = p.imgUrl ? `<img src="${p.imgUrl}" class="w-full h-full object-cover rounded-2xl" alt="${p.name}">` : `<i class="fas fa-box text-4xl text-gray-600"></i>`;
@@ -1253,6 +1300,9 @@
             }
             if(id === 'a-view-usuarios') {
                 adminLoadUsers();
+            }
+            if(id === 'a-view-promos') {
+                adminLoadLoyalty();
             }
         };
 
@@ -1771,20 +1821,37 @@
             const origVal = descEl.value;
             descEl.value = "Generando magia con IA...";
             
-            try {
-                const apiKey = ""; 
-                const prompt = `Actúa como un experto en marketing de refacciones de motos. Escribe una descripción comercial corta y súper atractiva (máximo 20 palabras) para el producto: "${name}". No uses comillas.`;
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-                });
-                const result = await response.json();
-                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                descEl.value = text ? text.trim() : origVal;
-            } catch(e) {
-                descEl.value = origVal;
-                showToast("Error de IA. Escribe manual.", true);
+            const apiKey = ""; 
+            const prompt = `Actúa como un experto en marketing de refacciones de motos. Escribe una descripción comercial corta y súper atractiva (máximo 20 palabras) para el producto: "${name}". No uses comillas.`;
+            const payload = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] });
+
+            let retries = 5;
+            let delays = [1000, 2000, 4000, 8000, 16000];
+            
+            for(let i=0; i<=retries; i++) {
+                try {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: payload
+                    });
+                    
+                    if(response.ok) {
+                        const result = await response.json();
+                        const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                        descEl.value = text ? text.trim() : origVal;
+                        showToast("Descripción generada con éxito.");
+                        return;
+                    }
+                    if (i === retries) throw new Error("Max retries reached");
+                } catch(e) {
+                    if(i === retries) {
+                        descEl.value = origVal;
+                        showToast("Error de IA. Por favor, escribe manual.", true);
+                        return;
+                    }
+                }
+                await new Promise(r => setTimeout(r, delays[i] || 1000));
             }
         };
 
@@ -1802,6 +1869,7 @@
             const desc = document.getElementById('inv-desc').value.trim();
             const stock = parseInt(document.getElementById('inv-stock').value) || 0;
             const cost = parseFloat(document.getElementById('inv-cost').value) || 0;
+            
             const priceTaller = parseFloat(document.getElementById('inv-price-taller').value) || cost;
             const priceMember = parseFloat(document.getElementById('inv-price-member').value) || cost;
             const pricePublic = parseFloat(document.getElementById('inv-price-public').value) || cost;
@@ -1879,8 +1947,8 @@
             if(window.posTicket.length === 0) html = '<p class="text-gray-600 text-xs italic text-center mt-10">El ticket está vacío</p>';
             list.innerHTML = html;
             totalEl.innerText = `$${window.posTotal.toFixed(2)}`;
-            document.getElementById('admin-pos-total').value = window.posTotal.toFixed(2);
-            document.getElementById('admin-pos-costo').value = window.posTotalCost.toFixed(2);
+            if(document.getElementById('admin-pos-total')) document.getElementById('admin-pos-total').value = window.posTotal.toFixed(2);
+            if(document.getElementById('admin-pos-costo')) document.getElementById('admin-pos-costo').value = window.posTotalCost.toFixed(2);
         };
 
         window.removeTicketItem = function(index) {
@@ -1921,7 +1989,7 @@
             let descSummary = window.posTicket.map(i => i.name).join(", ");
 
             try {
-                await addDoc(collection(db, "ventas"), { 
+                const saleData = { 
                     desc: descSummary, 
                     total: window.posTotal, 
                     costo: window.posTotalCost, 
@@ -1929,7 +1997,8 @@
                     clienteCel: customerPhone ? "+52" + customerPhone : null,
                     ticket: window.posTicket,
                     fecha: new Date().toISOString() 
-                });
+                };
+                const docRef = await addDoc(collection(db, "ventas"), saleData);
                 
                 // Descontar Stock
                 for(let item of window.posTicket) {
@@ -1942,25 +2011,19 @@
 
                 showToast("Venta Registrada Exitosamente");
                 
-                let waText = `*MOTO RESCATE OBR*\n*TICKET DE COMPRA*\n------------------\n`;
-                window.posTicket.forEach(i => waText += `${i.name} - $${i.price}\n`);
-                waText += `------------------\n*TOTAL: $${window.posTotal}*\nPago: ${pMethod}\n¡Gracias por tu preferencia!`;
-                
                 window.posTicket = [];
                 document.getElementById('pos-customer-phone').value = '';
                 renderTicket();
                 adminLoadInventory();
                 adminLoadSales();
                 
-                if(customerPhone.length === 10) {
-                    window.open(`https://wa.me/52${customerPhone}?text=${encodeURIComponent(waText)}`, '_blank');
-                } else {
-                    window.open(`https://wa.me/?text=${encodeURIComponent(waText)}`, '_blank');
-                }
+                openSaleDetails(docRef.id, saleData);
+                
             } catch (e) { showToast("Error al procesar", true); }
             finally { btn.disabled = false; btn.innerHTML = origHtml; }
         };
 
+        window.adminSalesCache = {};
         async function adminLoadSales() {
             const container = document.getElementById('admin-pos-history');
             container.innerHTML = "<p class='text-[10px] text-gray-500 italic text-center'>Cargando base de datos...</p>";
@@ -1970,20 +2033,55 @@
                 let count = 0;
                 querySnapshot.forEach(doc => {
                     const v = doc.data();
+                    window.adminSalesCache[doc.id] = v;
                     container.innerHTML += `
-                        <div class="bg-white/5 p-4 rounded-2xl flex justify-between items-center mb-2 border border-white/5">
+                        <div onclick="openSaleDetails('${doc.id}', window.adminSalesCache['${doc.id}'])" class="bg-white/5 p-4 rounded-2xl flex justify-between items-center mb-2 border border-white/5 cursor-pointer hover:bg-white/10 transition-colors shadow-md">
                             <div>
-                                <p class="text-xs font-black uppercase text-gray-300 truncate w-40">${v.desc}</p>
+                                <p class="text-xs font-black uppercase text-gray-300 truncate w-32 md:w-48">${v.desc}</p>
                                 <p class="text-[8px] text-gray-500">${new Date(v.fecha).toLocaleDateString()} - ${v.metodoPago||'Efectivo'}</p>
                                 ${v.clienteCel ? `<p class="text-[8px] text-blue-400 mt-1"><i class="fas fa-user mr-1"></i>${v.clienteCel}</p>` : ''}
                             </div>
-                            <b class="text-naranja tracking-tighter">$${v.total}</b>
+                            <b class="text-naranja tracking-tighter">$${v.total.toFixed(2)}</b>
                         </div>`;
                     count++;
                 });
                 if(count === 0) container.innerHTML = "<p class='text-xs text-center text-gray-600 mt-4'>No hay ventas registradas hoy.</p>";
             } catch (e) { container.innerHTML = "<p class='text-[10px] text-red-500 text-center uppercase tracking-widest mt-4'>Error en base de datos.</p>"; }
         }
+
+        window.openSaleDetails = function(id, data = null) {
+            if(!data) { showToast("Cargando detalles...", false); return; }
+            document.getElementById('sale-detail-date').innerText = new Date(data.fecha).toLocaleString();
+            let contentHtml = '';
+            (data.ticket || []).forEach(item => {
+                contentHtml += `<div class="flex justify-between items-center py-1"><span>${item.name}</span><span class="text-white font-bold">$${item.price.toFixed(2)}</span></div>`;
+            });
+            if(!data.ticket || data.ticket.length===0) contentHtml = `<div class="text-center py-2">${data.desc}</div>`;
+            
+            contentHtml += `<div class="text-[10px] text-gray-500 mt-3 pt-2 border-t border-white/10 text-right uppercase tracking-widest">Método: ${data.metodoPago || 'Efectivo'}</div>`;
+            if(data.clienteCel) contentHtml += `<div class="text-[10px] text-blue-400 text-right tracking-widest">Cliente: ${data.clienteCel}</div>`;
+            
+            document.getElementById('sale-detail-content').innerHTML = contentHtml;
+            document.getElementById('sale-detail-total').innerText = `$${data.total.toFixed(2)}`;
+            
+            const btnWa = document.getElementById('btn-wa-ticket');
+            btnWa.onclick = () => {
+                let waText = `*MOTO RESCATE OBR*\n*TICKET DE COMPRA*\n------------------\n`;
+                (data.ticket || []).forEach(i => waText += `${i.name} - $${i.price}\n`);
+                if(!data.ticket) waText += `${data.desc} - $${data.total}\n`;
+                waText += `------------------\n*TOTAL: $${data.total}*\nPago: ${data.metodoPago||'Efectivo'}\n¡Gracias por tu preferencia!`;
+                if(data.clienteCel) window.open(`https://wa.me/${data.clienteCel.replace('+','')}?text=${encodeURIComponent(waText)}`, '_blank');
+                else window.open(`https://wa.me/?text=${encodeURIComponent(waText)}`, '_blank');
+            };
+            
+            toggleModal('modal-sale-details', true);
+        };
+
+        window.printTicket = function() {
+            const printContent = document.getElementById('print-ticket-area').innerHTML;
+            const win = window.open('', '_blank');
+            win.document.write(`<html><head><title>Ticket OBR</title><style>body{font-family:sans-serif;background:#fff;color:#000;padding:20px;max-width:300px;margin:0 auto;} .no-print{display:none;} .text-naranja{color:#FF6B00;} .text-white{color:#000;} .border-white\\/20{border-color:#ccc;} .text-gray-300{color:#333;}</style></head><body>${printContent}<script>setTimeout(()=>window.print(), 500);<\/script></body></html>`);
+        };
 
         window.showAdminCorte = async function() {
             let tVenta = 0, tCosto = 0;
@@ -2075,11 +2173,11 @@
             } catch(e) { showToast("Error", true); }
         };
 
-        window.adminPrintQR = function(id) {
-            document.getElementById('modal-qr-ticket').classList.remove('hidden');
-            document.getElementById('qr-ticket-id').innerText = "OBR-" + id.substring(0, 6).toUpperCase();
-            document.getElementById('qr-ticket-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=OBR-${id}`;
-        };
+        window.printQRTicket = function() {
+            const printContent = document.getElementById('print-qr-area').innerHTML;
+            const win = window.open('', '_blank');
+            win.document.write(`<html><head><title>Folio OBR</title><style>body{font-family:sans-serif;background:#fff;color:#000;padding:20px;max-width:300px;margin:0 auto;text-align:center;} .no-print{display:none;} .text-naranja{color:#FF6B00;}</style></head><body>${printContent}<script>setTimeout(()=>window.print(), 500);<\/script></body></html>`);
+        }
 
         async function adminListenServices() {
             try {
@@ -2087,34 +2185,106 @@
                 const snap = await getDocs(q);
                 const list = document.getElementById('admin-services-list');
                 list.innerHTML = '';
+                let count = 0;
                 snap.forEach(d => {
                     const v = d.data();
-                    if(v.tallerStatus === 'entregada') return; 
+                    if(!v.tallerStatus || v.tallerStatus === 'entregada' || v.tallerStatus === 'pendiente' || v.status !== 'completed') return; 
                     const id = d.id;
+                    count++;
                     list.innerHTML += `
-                    <div class="bg-white/5 border border-white/10 p-4 rounded-2xl shadow-lg">
+                    <div class="bg-white/5 border border-white/10 p-4 rounded-2xl shadow-lg relative overflow-hidden">
+                        <div class="absolute top-0 right-0 bg-blue-600 text-white px-2 py-0.5 rounded-bl-lg text-[8px] font-black uppercase">${v.tallerStatus}</div>
                         <div class="flex justify-between items-start mb-2 border-b border-white/5 pb-2">
                             <div><p class="font-black text-white text-sm tracking-widest">${v.phone}</p><p class="text-[10px] text-gray-400 mt-1 truncate max-w-[150px]">"${v.falla}"</p></div>
                             <button onclick="adminPrintQR('${id}')" class="bg-white/10 p-2 rounded-lg text-naranja hover:text-white"><i class="fas fa-qrcode"></i></button>
                         </div>
                         <div class="flex space-x-1 mt-3">
-                            <button onclick="adminUpdateStatus('${id}', 'mecanica', '${v.phone}')" class="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white text-[8px] font-black uppercase py-2 rounded-md ${v.tallerStatus==='mecanica'?'ring-2 ring-white':''}">Mecánica</button>
-                            <button onclick="adminUpdateStatus('${id}', 'pruebas', '${v.phone}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-[8px] font-black uppercase py-2 rounded-md ${v.tallerStatus==='pruebas'?'ring-2 ring-white':''}">Pruebas</button>
-                            <button onclick="adminUpdateStatus('${id}', 'lista', '${v.phone}')" class="flex-1 bg-green-600 hover:bg-green-500 text-white text-[8px] font-black uppercase py-2 rounded-md ${v.tallerStatus==='lista'?'ring-2 ring-white':''}">Lista</button>
+                            <button onclick="adminUpdateStatusModal('${id}', 'mecanica', '${v.phone}')" class="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white text-[8px] font-black uppercase py-2 rounded-md ${v.tallerStatus==='mecanica'?'ring-2 ring-white':''}">Mecánica</button>
+                            <button onclick="adminUpdateStatusModal('${id}', 'pruebas', '${v.phone}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white text-[8px] font-black uppercase py-2 rounded-md ${v.tallerStatus==='pruebas'?'ring-2 ring-white':''}">Pruebas</button>
+                            <button onclick="adminUpdateStatusModal('${id}', 'lista', '${v.phone}')" class="flex-1 bg-green-600 hover:bg-green-500 text-white text-[8px] font-black uppercase py-2 rounded-md ${v.tallerStatus==='lista'?'ring-2 ring-white':''}">Lista</button>
                         </div>
                     </div>`;
                 });
+                if(count === 0) list.innerHTML = `<div class="col-span-1 md:col-span-3 p-8 border border-white/10 rounded-3xl text-center text-gray-600"><p class="text-xs font-black tracking-widest uppercase">Sin motos en taller</p></div>`;
             } catch(e) {}
         }
 
-        // ------------------ GESTIÓN DE PROMOS Y LEALTAD ADMIN ------------------
-        window.adminApplyPromo = async function() {
-            const id = document.getElementById('promo-product-select').value;
-            const discount = parseFloat(document.getElementById('promo-discount').value);
-            if(!id || isNaN(discount)) return showToast("Selecciona producto y %", true);
+        window.adminUpdateStatusModal = function(id, status, phone) {
+            document.getElementById('upd-status-id').value = id;
+            document.getElementById('upd-status-val').value = status;
+            document.getElementById('upd-status-phone').value = phone;
+            document.getElementById('upd-status-title').innerText = "Pasar a " + status;
+            document.getElementById('upd-status-comments').value = '';
+            document.getElementById('upd-status-media').value = '';
+            toggleModal('modal-update-status', true);
+        };
+
+        window.confirmUpdateStatus = async function() {
+            const id = document.getElementById('upd-status-id').value;
+            const status = document.getElementById('upd-status-val').value;
+            const phone = document.getElementById('upd-status-phone').value;
+            const comments = document.getElementById('upd-status-comments').value.trim();
+            const fileInput = document.getElementById('upd-status-media');
+            
+            const btn = document.querySelector('#modal-update-status button.bg-blue-600');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
 
             try {
-                await updateDoc(doc(db, "inventario", id), { discountPercent: discount });
+                let mediaUrl = "";
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    const stRef = sRef(storage, `workshop/${id}/${Date.now()}_${file.name}`);
+                    await uploadBytes(stRef, file);
+                    mediaUrl = await getDownloadURL(stRef);
+                }
+
+                await updateDoc(doc(db, "rescates", id), { tallerStatus: status });
+                
+                if (comments || mediaUrl) {
+                    const newEventRef = push(dbRef(rtdb, `workshop_timeline/${id}`));
+                    await rtdbSet(newEventRef, { text: comments || "Cambio de estatus", media: mediaUrl, status: status, ts: Date.now() });
+                }
+
+                showToast("Estado actualizado y cliente notificado");
+                toggleModal('modal-update-status', false);
+                adminListenServices();
+            } catch(e) { showToast("Error al actualizar", true); }
+            finally { btn.disabled = false; btn.innerHTML = origHtml; }
+        };
+
+        window.adminMoveToWorkshop = async function(dbUid, phone, falla) {
+            try {
+                const q = query(collection(db, "rescates"), where("uid", "==", dbUid), where("status", "!=", "completed"), limit(1));
+                const snap = await getDocs(q);
+                if(!snap.empty) {
+                    const docId = snap.docs[0].id;
+                    await updateDoc(doc(db, "rescates", docId), { status: 'completed', tallerStatus: 'recibida' });
+                    update(dbRef(rtdb, 'sos_alerts/' + dbUid), { status: 'completed' });
+                    showToast("Moto ingresada a Taller");
+                    switchAdminView('a-view-servicios');
+                } else {
+                    await addDoc(collection(db, "rescates"), { uid: dbUid, phone: phone, falla: falla, status: 'completed', tallerStatus: 'recibida', timestamp: Date.now() });
+                    update(dbRef(rtdb, 'sos_alerts/' + dbUid), { status: 'completed' });
+                    showToast("Moto ingresada a Taller");
+                    switchAdminView('a-view-servicios');
+                }
+            } catch(e) { showToast("Error", true); }
+        };
+
+        // ------------------ GESTIÓN DE PROMOS ADMIN ------------------
+        window.adminApplyPromo = async function() {
+            const id = document.getElementById('promo-product-select').value;
+            const type = document.getElementById('promo-type').value;
+            const discount = parseFloat(document.getElementById('promo-discount').value);
+            if(!id || isNaN(discount)) return showToast("Selecciona producto y valor", true);
+
+            try {
+                if (type === 'percent') {
+                    await updateDoc(doc(db, "inventario", id), { discountPercent: discount, discountFixed: null });
+                } else {
+                    await updateDoc(doc(db, "inventario", id), { discountFixed: discount, discountPercent: null });
+                }
                 showToast("Descuento aplicado en Catálogo");
                 document.getElementById('promo-discount').value = '';
                 loadPublicStore(); 
@@ -2125,14 +2295,60 @@
             showToast("Cupón creado. Se podrá canjear en WhatsApp.", false);
         };
 
-        window.adminSaveLoyalty = function() {
+        window.adminSaveLoyalty = async function() {
+            const code = document.getElementById('loyalty-code').value.trim();
             const cond = document.getElementById('loyalty-condition').value;
-            const rew = document.getElementById('loyalty-reward').value;
-            if(!cond || !rew) return showToast("Llena condición y recompensa", true);
-            showToast("Programa de lealtad activado para clientes VIP.");
-            document.getElementById('loyalty-condition').value = '';
-            document.getElementById('loyalty-reward').value = '';
+            const rewType = document.getElementById('loyalty-reward-type').value;
+            const rewVal = document.getElementById('loyalty-reward-val').value.trim();
+            
+            if(!code || !rewVal) return showToast("Falta código o valor de recompensa", true);
+            
+            const btn = document.querySelector('#a-view-promos button.bg-blue-600');
+            const origHtml = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+            try {
+                await addDoc(collection(db, "promociones"), { 
+                    codigo: code, condicion: cond, tipoRecompensa: rewType, valorRecompensa: rewVal, active: true, created: Date.now() 
+                });
+                showToast("Programa / Código activado.");
+                document.getElementById('loyalty-code').value = '';
+                document.getElementById('loyalty-reward-val').value = '';
+                adminLoadLoyalty();
+            } catch(e) { showToast("Error al guardar", true); }
+            finally { btn.disabled = false; btn.innerHTML = origHtml; }
         };
+
+        window.adminLoadLoyalty = async function() {
+            try {
+                const snap = await getDocs(collection(db, "promociones"));
+                const list = document.getElementById('admin-loyalty-list');
+                if(!list) return;
+                list.innerHTML = '';
+                snap.forEach(d => {
+                    const data = d.data();
+                    const st = data.active ? '<span class="text-green-400">Activo</span>' : '<span class="text-red-400">Pausado</span>';
+                    list.innerHTML += `
+                    <div class="flex justify-between items-center bg-black/40 border border-white/10 p-3 rounded-xl mb-2">
+                        <div>
+                            <p class="text-xs font-black text-white uppercase tracking-widest">${data.codigo} ${st}</p>
+                            <p class="text-[9px] text-gray-400">Condición: ${data.condicion} | Recompensa: ${data.tipoRecompensa} ${data.valorRecompensa}</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="adminToggleLoyalty('${d.id}', ${!data.active})" class="text-white hover:text-blue-400 transition-colors"><i class="fas ${data.active?'fa-play':'fa-pause'}"></i></button>
+                            <button onclick="adminDelLoyalty('${d.id}')" class="text-red-500 hover:text-white transition-colors"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>`;
+                });
+            } catch(e) {}
+        }
+
+        window.adminToggleLoyalty = async function(id, st) {
+            try { await updateDoc(doc(db, "promociones", id), {active: st}); adminLoadLoyalty(); } catch(e){}
+        }
+        window.adminDelLoyalty = async function(id) {
+            try { await deleteDoc(doc(db, "promociones", id)); showToast("Eliminado"); adminLoadLoyalty(); } catch(e){}
+        }
 
         window.adminUploadPromoVideo = async function() {
             const fileInput = document.getElementById('promo-video-upload');
@@ -2219,24 +2435,30 @@
                 const snap = await getDocs(query(collection(db, "users"), limit(100)));
                 const normalList = document.getElementById('admin-users-normal-list');
                 const vipList = document.getElementById('admin-users-vip-list');
+                const staffList = document.getElementById('admin-users-staff-list');
                 
-                if(!normalList || !vipList) return;
-                normalList.innerHTML = ''; vipList.innerHTML = '';
+                if(!normalList || !vipList || !staffList) return;
+                normalList.innerHTML = ''; vipList.innerHTML = ''; staffList.innerHTML = '';
                 
                 document.getElementById('config-mem-price').value = globalSettings.membershipPrice || 100;
                 
                 snap.forEach(d => {
                     const u = d.data();
-                    const isVip = u.role === 'membresia';
-                    const expStr = u.membresiaExp ? new Date(u.membresiaExp).toLocaleDateString() : 'Sin Fecha';
                     
-                    if (isVip) {
+                    if (u.role === 'admin' || u.role === 'mecanico' || u.role === 'taller' || u.role === 'socio') {
+                        staffList.innerHTML += `
+                        <div class="bg-blue-900/20 border border-blue-500/30 p-3 rounded-xl flex justify-between items-center mb-2">
+                            <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-blue-400 uppercase tracking-widest">${u.role}</p></div>
+                            <div class="text-right"><p class="text-yellow-400 text-xs"><i class="fas fa-star"></i> 5.0</p><p class="text-[8px] text-gray-500">Valoración</p></div>
+                        </div>`;
+                    } else if (u.role === 'membresia') {
+                        const expStr = u.membresiaExp ? new Date(u.membresiaExp).toLocaleDateString() : 'Sin Fecha';
                         vipList.innerHTML += `
                         <div class="bg-black/50 border border-yellow-500/30 p-3 rounded-xl flex justify-between items-center mb-2">
                             <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-400">${u.phone}</p><p class="text-[8px] text-yellow-500 mt-1">Vence: ${expStr}</p></div>
                             <button onclick="adminToggleMembership('${d.id}', false)" class="text-[8px] bg-red-600/20 text-red-400 px-3 py-2 rounded-lg border border-red-500/50 uppercase font-bold hover:bg-red-600 hover:text-white transition-colors">Bajar</button>
                         </div>`;
-                    } else if (u.role === 'cliente' || u.role === 'usuario') {
+                    } else {
                         normalList.innerHTML += `
                         <div class="bg-black/30 border border-white/5 p-3 rounded-xl flex justify-between items-center mb-2">
                             <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-500">${u.phone}</p></div>
@@ -2261,6 +2483,34 @@
         }
 
         // ------------------ GESTION ADMIN (GEOFENCE Y MAPAS GLOBALES) ------------------
+        window.toggleMapTheme = () => {
+            window.mapTheme = window.mapTheme === 'dark_all' ? 'light_all' : 'dark_all';
+            const tileUrl = `https://{s}.basemaps.cartocdn.com/${window.mapTheme}/{z}/{x}/{y}{r}.png`;
+            if(adminSOSGlobalMapInst) adminSOSGlobalMapInst.eachLayer(l => { if(l instanceof L.TileLayer) l.setUrl(tileUrl); });
+            if(adminGeoMap) adminGeoMap.eachLayer(l => { if(l instanceof L.TileLayer) l.setUrl(tileUrl); });
+        };
+
+        window.updateGeofenceRadius = function(val) {
+            document.getElementById('radius-display').innerText = val;
+            if(adminGeoCircle && adminGeoMap) {
+                adminGeoCircle.setRadius(parseFloat(val) * 1000);
+            }
+        };
+
+        window.renderScheduleTable = function() {
+            const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+            let html = '';
+            for(let i=0; i<7; i++) {
+                const s = globalSettings.schedule[i] || {o:8, c:20};
+                html += `<tr>
+                    <td class="py-2 text-white font-bold pl-2">${days[i]}</td>
+                    <td class="py-1"><input type="number" id="sch-o-${i}" value="${s.o}" class="w-16 bg-asfalto border border-white/10 rounded p-2 text-center text-white font-black text-sm focus:border-naranja"></td>
+                    <td class="py-1"><input type="number" id="sch-c-${i}" value="${s.c}" class="w-16 bg-asfalto border border-white/10 rounded p-2 text-center text-white font-black text-sm focus:border-naranja"></td>
+                </tr>`;
+            }
+            document.getElementById('schedule-tbody').innerHTML = html;
+        };
+
         window.adminAddKmRange = function() {
             const limit = parseFloat(document.getElementById('new-km-limit').value);
             const price = parseFloat(document.getElementById('new-km-price').value);
@@ -2303,61 +2553,6 @@
             renderScheduleTable();
         }
 
-        window.togglePriceMode = function() {
-            const m = document.getElementById('config-price-mode').value;
-            if(m === 'fijo') {
-                document.getElementById('config-price-fijo').classList.remove('hidden');
-                document.getElementById('config-price-km').classList.add('hidden');
-            } else {
-                document.getElementById('config-price-fijo').classList.add('hidden');
-                document.getElementById('config-price-km').classList.remove('hidden');
-            }
-        };
-
-        function renderAdminMap() {
-            const tileUrl = `https://{s}.basemaps.cartocdn.com/${window.mapTheme}/{z}/{x}/{y}{r}.png`;
-            if(!adminGeoMap && document.getElementById('admin-geofence-map')) {
-                adminGeoMap = L.map('admin-geofence-map', { dragging: true, scrollWheelZoom: false }).setView([globalSettings.centerLat, globalSettings.centerLng], 12);
-                L.tileLayer(tileUrl).addTo(adminGeoMap);
-                
-                adminGeoCircle = L.circle([globalSettings.centerLat, globalSettings.centerLng], { color: '#FF6B00', fillColor: '#FF6B00', fillOpacity: 0.2, radius: globalSettings.radiusKm * 1000 }).addTo(adminGeoMap);
-                
-                adminBusinessMarker = L.marker([globalSettings.centerLat, globalSettings.centerLng], {
-                    icon: L.divIcon({ className: 'mech-pulse-marker bg-naranja border-white', html: '<i class="fas fa-store"></i>', iconSize: [24,24] })
-                }).addTo(adminGeoMap);
-            } else if (adminGeoMap) {
-                adminGeoMap.invalidateSize();
-            }
-        }
-
-        window.toggleMapTheme = () => {
-            window.mapTheme = window.mapTheme === 'dark_all' ? 'light_all' : 'dark_all';
-            const tileUrl = `https://{s}.basemaps.cartocdn.com/${window.mapTheme}/{z}/{x}/{y}{r}.png`;
-            if(adminSOSGlobalMapInst) adminSOSGlobalMapInst.eachLayer(l => { if(l instanceof L.TileLayer) l.setUrl(tileUrl); });
-            if(adminGeoMap) adminGeoMap.eachLayer(l => { if(l instanceof L.TileLayer) l.setUrl(tileUrl); });
-        };
-
-        window.updateGeofenceRadius = function(val) {
-            document.getElementById('radius-display').innerText = val;
-            if(adminGeoCircle && adminGeoMap) {
-                adminGeoCircle.setRadius(parseFloat(val) * 1000);
-            }
-        };
-
-        window.renderScheduleTable = function() {
-            const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-            let html = '';
-            for(let i=0; i<7; i++) {
-                const s = globalSettings.schedule[i] || {o:8, c:20};
-                html += `<tr>
-                    <td class="py-2 text-white font-bold pl-2">${days[i]}</td>
-                    <td class="py-1"><input type="number" id="sch-o-${i}" value="${s.o}" class="w-16 bg-asfalto border border-white/10 rounded p-2 text-center text-white font-black text-sm focus:border-naranja"></td>
-                    <td class="py-1"><input type="number" id="sch-c-${i}" value="${s.c}" class="w-16 bg-asfalto border border-white/10 rounded p-2 text-center text-white font-black text-sm focus:border-naranja"></td>
-                </tr>`;
-            }
-            document.getElementById('schedule-tbody').innerHTML = html;
-        };
-
         window.adminSaveConfig = async function() {
             const btn = document.querySelector('#a-view-config button.bg-naranja');
             const origHtml = btn.innerHTML;
@@ -2389,7 +2584,6 @@
             globalSettings.priceMode = mode;
             globalSettings.rescueBase = rBase;
             globalSettings.rescueKmExtra = kExtra;
-            // globalSettings.rescueKmRanges is already updated via adminAddKmRange array
 
             try {
                 await setDoc(doc(db, "settings", "general"), globalSettings);
@@ -2399,7 +2593,85 @@
             finally { btn.disabled = false; btn.innerHTML = origHtml; }
         };
 
+        function renderAdminMap() {
+            const tileUrl = `https://{s}.basemaps.cartocdn.com/${window.mapTheme}/{z}/{x}/{y}{r}.png`;
+            if(!adminGeoMap && document.getElementById('admin-geofence-map')) {
+                adminGeoMap = L.map('admin-geofence-map', { dragging: true, scrollWheelZoom: false }).setView([globalSettings.centerLat, globalSettings.centerLng], 12);
+                L.tileLayer(tileUrl).addTo(adminGeoMap);
+                
+                adminGeoCircle = L.circle([globalSettings.centerLat, globalSettings.centerLng], { color: '#FF6B00', fillColor: '#FF6B00', fillOpacity: 0.2, radius: globalSettings.radiusKm * 1000 }).addTo(adminGeoMap);
+                
+                adminBusinessMarker = L.marker([globalSettings.centerLat, globalSettings.centerLng], {
+                    draggable: true,
+                    icon: L.divIcon({ className: 'mech-pulse-marker bg-naranja border-white', html: '<i class="fas fa-store"></i>', iconSize: [24,24] })
+                }).addTo(adminGeoMap);
+
+                adminBusinessMarker.on('dragend', function(event) {
+                    const position = adminBusinessMarker.getLatLng();
+                    globalSettings.centerLat = position.lat;
+                    globalSettings.centerLng = position.lng;
+                    adminGeoCircle.setLatLng(position);
+                    adminGeoMap.panTo(position);
+                    showToast("¡Ubicación del Taller ajustada! Presiona Guardar Ajustes.");
+                });
+            } else if (adminGeoMap) {
+                adminGeoMap.invalidateSize();
+            }
+        }
+
         // NOTIFICACIONES SOS ACTIVAS AL TALLER (MAPA Y LISTA DE SERVICIOS)
+        window.adminSOSDataCache = {};
+        let sosDetailMapInst = null;
+        let sosDetailMarker = null;
+
+        window.openSOSDetail = function(uid) {
+            const data = window.adminSOSDataCache[uid];
+            if(!data) return;
+            document.getElementById('sos-detail-title').innerText = "Cliente: " + data.phone;
+            document.getElementById('sos-detail-falla').innerText = data.falla;
+            
+            if(data.mediaUrl) {
+                document.getElementById('sos-detail-media-container').classList.remove('hidden');
+                document.getElementById('sos-detail-img').src = data.mediaUrl;
+            } else {
+                document.getElementById('sos-detail-media-container').classList.add('hidden');
+            }
+
+            const actionsDiv = document.getElementById('sos-detail-actions');
+            const clientName = data.clientName || 'amigo';
+            const myName = window.currentUserDoc ? window.currentUserDoc.name : 'Mecánico';
+            const waMsg = `Hola ${clientName}, soy ${myName} tu mecánico asignado y me encuentro en camino hacia tu ubicación, puedes seguir de cerca mi trayecto desde la APP.`;
+            const mapsUrl = data.lat ? `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.manualAddress)}`;
+
+            actionsDiv.innerHTML = `
+                <a href="${mapsUrl}" target="_blank" class="flex-1 bg-white/10 hover:bg-white/20 text-white text-center py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-white/10"><i class="fas fa-location-arrow mr-1"></i> Ir a Ruta</a>
+                <a href="https://wa.me/${data.phone.replace('+','')}?text=${encodeURIComponent(waMsg)}" target="_blank" class="w-14 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded-xl text-xl transition-all shadow-lg active:scale-95"><i class="fab fa-whatsapp"></i></a>
+            `;
+
+            toggleModal('modal-sos-detail', true);
+
+            setTimeout(() => {
+                if(data.lat && data.lng) {
+                    if(!sosDetailMapInst) {
+                        sosDetailMapInst = L.map('sos-detail-map', { dragging: true }).setView([data.lat, data.lng], 15);
+                        L.tileLayer(`https://{s}.basemaps.cartocdn.com/${window.mapTheme}/{z}/{x}/{y}{r}.png`).addTo(sosDetailMapInst);
+                        sosDetailMarker = L.marker([data.lat, data.lng], { icon: L.divIcon({ className: 'gps-pulse-marker', iconSize: [20,20] }) }).addTo(sosDetailMapInst);
+                    } else {
+                        sosDetailMapInst.setView([data.lat, data.lng], 15);
+                        sosDetailMarker.setLatLng([data.lat, data.lng]);
+                        sosDetailMapInst.invalidateSize();
+                    }
+                } else {
+                    if(sosDetailMapInst) { sosDetailMapInst.remove(); sosDetailMapInst = null; }
+                    document.getElementById('sos-detail-map').innerHTML = `<div class="flex items-center justify-center h-full text-gray-500 font-bold text-xs uppercase tracking-widest"><i class="fas fa-keyboard mr-2 text-red-500"></i> Sin GPS (Dirección manual)</div>`;
+                }
+            }, 300);
+        };
+
+        window.closeSOSDetail = function() {
+            toggleModal('modal-sos-detail', false);
+        };
+
         function adminListenSOS() {
             const list = document.getElementById('admin-sos-list');
             try {
@@ -2415,6 +2687,9 @@
                     let hasAlerts = false;
                     let lastAlertPos = null;
 
+                    const noMsg = document.getElementById('no-active-services-msg');
+                    if(noMsg) noMsg.classList.add('hidden');
+
                     for(let k in adminSOSMarkers) adminSOSGlobalMapInst.removeLayer(adminSOSMarkers[k]);
                     adminSOSMarkers = {};
 
@@ -2423,18 +2698,33 @@
                         if(alert.status === 'completed') return; 
                         hasAlerts = true;
                         
+                        window.adminSOSDataCache[child.key] = alert;
+
                         if(alert.lat && alert.lng && adminSOSGlobalMapInst) {
                             lastAlertPos = [alert.lat, alert.lng];
-                            const mIcon = L.divIcon({ className: alert.status==='accepted' ? 'mech-pulse-marker' : 'gps-pulse-marker', iconSize: [20,20] });
-                            adminSOSMarkers[child.key] = L.marker([alert.lat, alert.lng], {icon: mIcon}).addTo(adminSOSGlobalMapInst).bindPopup(`<b>${alert.phone}</b><br>${alert.falla.substring(0,15)}...`);
+                            const mIcon = L.divIcon({ className: 'gps-pulse-marker', iconSize: [20,20] });
+                            adminSOSMarkers[`client_${child.key}`] = L.marker([alert.lat, alert.lng], {icon: mIcon}).addTo(adminSOSGlobalMapInst).bindPopup(`<b>${alert.phone}</b><br>${alert.falla.substring(0,15)}...`);
+                        }
+
+                        if(alert.status === 'accepted' && alert.mech_lat && alert.mech_lng && adminSOSGlobalMapInst) {
+                            let minutes = alert.acceptedAt ? Math.floor((Date.now() - alert.acceptedAt)/60000) : 0;
+                            const mechIcon = L.divIcon({ className: 'mech-pulse-marker', html: '<i class="fas fa-motorcycle"></i>', iconSize: [24,24] });
+                            adminSOSMarkers[`mech_${child.key}`] = L.marker([alert.mech_lat, alert.mech_lng], {icon: mechIcon}).addTo(adminSOSGlobalMapInst).bindPopup(`<b>${alert.mech_name || 'Mecánico'}</b><br>En camino: ${minutes} min`);
                         }
                         
                         let mapsUrl = alert.lat ? `https://www.google.com/maps/dir/?api=1&destination=${alert.lat},${alert.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(alert.manualAddress)}`;
                         let ubi = alert.lat ? `<span class="text-green-400 font-bold"><i class="fas fa-satellite-dish mr-1"></i> GPS Exacto</span>` : `<span class="text-red-400 font-bold"><i class="fas fa-keyboard mr-1"></i> Manual: ${alert.manualAddress}</span>`;
-                        let actBtn = alert.status==='pending' ? `<button onclick="adminAcceptSOS('${child.key}')" class="w-full bg-naranja hover:bg-orange-600 text-white font-black text-xs py-4 rounded-xl mt-4 shadow-lg active:scale-95 transition-all"><i class="fas fa-motorcycle mr-2"></i> Aceptar y Despachar</button>` : `<button onclick="adminFinishSOS('${child.key}')" class="w-full bg-green-500 hover:bg-green-600 text-white font-black text-xs py-4 rounded-xl mt-4 shadow-lg active:scale-95 transition-all"><i class="fas fa-check-double mr-2"></i> Finalizar Servicio</button>`;
+                        
+                        const clientName = alert.clientName || 'amigo';
+                        const myName = window.currentUserDoc ? window.currentUserDoc.name : 'Mecánico';
+                        const waMsg = `Hola ${clientName}, soy ${myName} tu mecánico asignado y me encuentro en camino hacia tu ubicación, puedes seguir de cerca mi trayecto desde la APP.`;
+                        
+                        let actBtn = alert.status==='pending' ? `<button onclick="adminAcceptSOS('${child.key}', '${clientName}')" class="w-full bg-naranja hover:bg-orange-600 text-white font-black text-xs py-4 rounded-xl mt-4 shadow-lg active:scale-95 transition-all"><i class="fas fa-motorcycle mr-2"></i> Aceptar y Despachar</button>` : `<button onclick="adminFinishSOS('${child.key}')" class="w-full bg-green-500 hover:bg-green-600 text-white font-black text-xs py-4 rounded-xl mt-4 shadow-lg active:scale-95 transition-all"><i class="fas fa-check-double mr-2"></i> Finalizar Servicio</button>`;
 
-                        const toPosBtn = `<button onclick="adminSendSOSToPOS('${alert.falla}', '${alert.phone}')" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black text-xs py-3 rounded-xl mt-2 shadow-lg active:scale-95 transition-all flex items-center justify-center"><i class="fas fa-cash-register mr-2"></i> Mandar a Caja</button>`;
+                        const toTallerBtn = alert.status==='accepted' ? `<button onclick="adminMoveToWorkshop('${child.key}', '${alert.phone}', '${alert.falla.replace(/'/g,"")}')" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-black text-xs py-3 rounded-xl mt-2 shadow-lg active:scale-95 transition-all flex items-center justify-center"><i class="fas fa-arrow-right mr-2"></i> Mandar a Taller Activo</button>` : '';
                         const chatBtn = `<button onclick="openChat('${child.key}')" class="w-full bg-white/10 hover:bg-white/20 text-white font-black text-xs py-3 rounded-xl mt-2 shadow-lg active:scale-95 transition-all border border-white/10 flex items-center justify-center"><i class="fas fa-comment-dots mr-2"></i> Abrir Chat</button>`;
+                        
+                        const detailsBtn = `<button onclick="openSOSDetail('${child.key}')" class="w-full bg-blue-900/40 hover:bg-blue-900/60 text-blue-400 font-black text-xs py-3 rounded-xl mt-2 shadow-lg active:scale-95 transition-all border border-blue-500/30 flex items-center justify-center"><i class="fas fa-search-plus mr-2"></i> Ver Detalles y Mapa</button>`;
 
                         list.innerHTML += `
                             <div class="bg-gradient-to-b from-red-900/20 to-black/40 border ${alert.status==='accepted' ? 'border-naranja' : 'border-red-500/50'} p-6 rounded-3xl shadow-xl relative overflow-hidden">
@@ -2446,20 +2736,24 @@
                                     <p class="text-sm text-white leading-relaxed mb-3">${ubi}</p>
                                     <p class="text-[10px] text-naranja font-black uppercase mb-1 border-t border-white/10 pt-3">Detalle del Reporte:</p>
                                     <p class="text-sm text-white leading-relaxed font-semibold">"${alert.falla}"</p>
-                                    ${alert.extraPhone ? `<p class="text-xs text-gray-300 mt-3 pt-3 border-t border-white/5"><i class="fas fa-phone-alt text-naranja mr-2"></i> Tel. Alterno: <b class="tracking-widest">${alert.extraPhone}</b></p>` : ''}
-                                    ${alert.mediaUrl ? `<a href="${alert.mediaUrl}" target="_blank" class="block w-full text-center bg-white/10 text-white text-[10px] uppercase font-bold py-2 rounded-lg mt-3 border border-white/20"><i class="fas fa-image mr-1 text-naranja"></i> Ver Foto Adjunta</a>` : ''}
                                 </div>
                                 <div class="flex space-x-3 mb-2">
                                     <a href="${mapsUrl}" target="_blank" class="flex-1 bg-white/10 hover:bg-white/20 text-white text-center py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-white/10"><i class="fas fa-location-arrow mr-1"></i> Ir Ruta</a>
-                                    <a href="https://wa.me/${alert.phone.replace('+','')}" target="_blank" class="w-14 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded-xl text-xl transition-all"><i class="fab fa-whatsapp"></i></a>
+                                    <a href="https://wa.me/${alert.phone.replace('+','')}?text=${encodeURIComponent(waMsg)}" target="_blank" class="w-14 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded-xl text-xl transition-all"><i class="fab fa-whatsapp"></i></a>
                                 </div>
                                 ${chatBtn}
+                                ${detailsBtn}
                                 ${actBtn}
-                                ${toPosBtn}
+                                ${toTallerBtn}
                             </div>`;
                     });
                     
-                    if(!hasAlerts) list.innerHTML = `<div class="p-8 border border-white/10 rounded-3xl text-center text-gray-600 lg:col-span-2 shadow-inner bg-black/20"><i class="fas fa-check-circle text-4xl mb-3 opacity-50"></i><p class="text-xs font-black tracking-widest uppercase">Sin emergencias activas</p></div>`;
+                    if(!hasAlerts) {
+                        list.innerHTML = `<div class="p-8 border border-white/10 rounded-3xl text-center text-gray-600 lg:col-span-2 shadow-inner bg-black/20"><i class="fas fa-check-circle text-4xl mb-3 opacity-50"></i><p class="text-xs font-black tracking-widest uppercase">Sin emergencias activas</p></div>`;
+                        if(noMsg && (!document.getElementById('active-workshop-card') || document.getElementById('active-workshop-card').classList.contains('hidden'))) {
+                            noMsg.classList.remove('hidden');
+                        }
+                    }
                     
                     if(adminSOSGlobalMapInst) {
                         adminSOSGlobalMapInst.invalidateSize();
@@ -2469,19 +2763,37 @@
             } catch(e) {}
         }
         
-        window.adminAcceptSOS = function(clientUid) {
+        let mechWatchId = null;
+        window.adminAcceptSOS = function(clientUid, clientName) {
             if (navigator.geolocation) {
+                const myName = window.currentUserDoc ? window.currentUserDoc.name : 'Mecánico';
                 navigator.geolocation.getCurrentPosition((pos) => {
-                    update(dbRef(rtdb, 'sos_alerts/' + clientUid), { status: 'accepted', mech_lat: pos.coords.latitude, mech_lng: pos.coords.longitude });
+                    update(dbRef(rtdb, 'sos_alerts/' + clientUid), { 
+                        status: 'accepted', 
+                        mech_lat: pos.coords.latitude, 
+                        mech_lng: pos.coords.longitude,
+                        mech_name: myName,
+                        acceptedAt: Date.now()
+                    });
                     showToast("Despachada con éxito");
+                    
+                    if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
+                    mechWatchId = navigator.geolocation.watchPosition((newPos) => {
+                        update(dbRef(rtdb, 'sos_alerts/' + clientUid), {
+                            mech_lat: newPos.coords.latitude, 
+                            mech_lng: newPos.coords.longitude
+                        });
+                    });
+
                 }, () => { showToast("Error GPS", true); });
             }
         };
 
         window.adminFinishSOS = function(clientUid) {
+            if(mechWatchId) { navigator.geolocation.clearWatch(mechWatchId); mechWatchId = null; }
             update(dbRef(rtdb, 'sos_alerts/' + clientUid), { status: 'completed' });
-            rtdbSet(dbRef(rtdb, 'sos_chats/' + clientUid), null); // Borrar chat
-            showToast("Servicio Finalizado y Chat borrado.");
+            rtdbSet(dbRef(rtdb, 'sos_chats/' + clientUid), null);
+            showToast("Servicio Finalizado.");
         };
 
         window.adminSendSOSToPOS = function(desc, phone) {
@@ -2489,7 +2801,46 @@
             document.getElementById('pos-manual-desc').value = desc.substring(0, 40) + "...";
             document.getElementById('pos-customer-phone').value = phone.replace('+52', '');
             showToast("Datos cargados en caja. Ingresa el precio.");
-        }
+        };
+
+        window.adminLoadUsers = async function() {
+            try {
+                const snap = await getDocs(query(collection(db, "users"), limit(100)));
+                const normalList = document.getElementById('admin-users-normal-list');
+                const vipList = document.getElementById('admin-users-vip-list');
+                const staffList = document.getElementById('admin-users-staff-list');
+                
+                if(!normalList || !vipList || !staffList) return;
+                normalList.innerHTML = ''; vipList.innerHTML = ''; staffList.innerHTML = '';
+                
+                document.getElementById('config-mem-price').value = globalSettings.membershipPrice || 100;
+                
+                snap.forEach(d => {
+                    const u = d.data();
+                    
+                    if (u.role === 'admin' || u.role === 'mecanico' || u.role === 'taller' || u.role === 'socio') {
+                        staffList.innerHTML += `
+                        <div class="bg-blue-900/20 border border-blue-500/30 p-3 rounded-xl flex justify-between items-center mb-2">
+                            <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-blue-400 uppercase tracking-widest">${u.role}</p></div>
+                            <div class="text-right"><p class="text-yellow-400 text-xs"><i class="fas fa-star"></i> 5.0</p><p class="text-[8px] text-gray-500">Valoración</p></div>
+                        </div>`;
+                    } else if (u.role === 'membresia') {
+                        const expStr = u.membresiaExp ? new Date(u.membresiaExp).toLocaleDateString() : 'Sin Fecha';
+                        vipList.innerHTML += `
+                        <div class="bg-black/50 border border-yellow-500/30 p-3 rounded-xl flex justify-between items-center mb-2">
+                            <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-400">${u.phone}</p><p class="text-[8px] text-yellow-500 mt-1">Vence: ${expStr}</p></div>
+                            <button onclick="adminToggleMembership('${d.id}', false)" class="text-[8px] bg-red-600/20 text-red-400 px-3 py-2 rounded-lg border border-red-500/50 uppercase font-bold hover:bg-red-600 hover:text-white transition-colors">Bajar</button>
+                        </div>`;
+                    } else {
+                        normalList.innerHTML += `
+                        <div class="bg-black/30 border border-white/5 p-3 rounded-xl flex justify-between items-center mb-2">
+                            <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-500">${u.phone}</p></div>
+                            <button onclick="adminToggleMembership('${d.id}', true)" class="text-[8px] bg-yellow-600/20 text-yellow-400 px-3 py-2 rounded-lg border border-yellow-500/50 uppercase font-bold hover:bg-yellow-600 hover:text-white transition-colors">Hacer VIP</button>
+                        </div>`;
+                    }
+                });
+            } catch(e) { console.error(e); }
+        };
     </script>
 </body>
 </html>
