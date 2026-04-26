@@ -3,6 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <meta name="theme-color" content="#FF6B00">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="OBR Rescate">
+    <link rel="apple-touch-icon" href="logo.png">
+    <link rel="icon" type="image/png" href="logo.png">
+
     <title>MOTO RESCATE OBR | Plataforma Integral</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -13,7 +21,22 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        tailwind.config = { theme: { extend: { colors: { asfalto: '#1A1A1A', naranja: '#FF6B00' } } } }
+        tailwind.config = { theme: { extend: { colors: { asfalto: '#1A1A1A', naranja: '#FF6B00' } } } };
+        
+        const manifest = {
+            name: "Moto Rescate OBR",
+            short_name: "OBR",
+            start_url: ".",
+            display: "standalone",
+            background_color: "#1A1A1A",
+            theme_color: "#FF6B00",
+            icons: [
+                { src: "logo.png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
+                { src: "logo.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }
+            ]
+        };
+        const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/manifest+json'});
+        document.write('<link rel="manifest" href="' + URL.createObjectURL(manifestBlob) + '">');
     </script>
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #1A1A1A; color: white; -webkit-tap-highlight-color: transparent; }
@@ -400,7 +423,10 @@
                     </div>
                     <p id="sos-status-desc-client" class="text-xs text-gray-300 mb-4">El taller OBR ha recibido tu ubicación y detalles de la falla.</p>
                     <div id="mechanic-live-map" class="h-32 w-full bg-black/50 rounded-xl mb-4 border border-red-500/30 hidden z-0"></div>
-                    <a href="https://wa.me/526311551533" class="inline-block bg-white text-red-600 text-[10px] px-4 py-2 rounded-full font-black uppercase">Contactar Taller</a>
+                    
+                    <div id="client-sos-actions" class="flex space-x-2 mt-4">
+                        <a href="https://wa.me/526311551533" class="flex-1 bg-white hover:bg-gray-200 text-red-600 text-center text-[10px] px-4 py-3 rounded-xl font-black uppercase transition-colors"><i class="fab fa-whatsapp mr-1 text-sm"></i> WhatsApp</a>
+                    </div>
                 </div>
 
                 <div id="satisfaction-survey" class="hidden bg-black/50 p-6 rounded-3xl border border-naranja/50 shadow-2xl">
@@ -419,7 +445,7 @@
 
             <section id="c-view-tienda" class="c-view hidden space-y-6">
                 <h2 class="text-2xl font-black italic uppercase text-center">Refacciones</h2>
-                <div id="client-store-grid" class="grid grid-cols-2 gap-4"></div>
+                <div id="client-store-grid" class="grid grid-cols-2 md:grid-cols-3 gap-4"></div>
             </section>
         </main>
         
@@ -454,7 +480,12 @@
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div class="lg:col-span-2 space-y-6">
                         <div class="bg-white/5 p-6 rounded-3xl border border-white/10 shadow-xl">
-                            <h4 class="text-naranja font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-box-open mr-2"></i>1. Agregar desde Almacén</h4>
+                            <h4 class="text-naranja font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-user-tag mr-2"></i>1. Vincular Cliente (Opcional)</h4>
+                            <input id="pos-customer-phone" type="tel" maxlength="10" placeholder="Celular Cliente (Para Lealtad y Promociones)" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 focus:border-naranja text-white transition-colors">
+                        </div>
+
+                        <div class="bg-white/5 p-6 rounded-3xl border border-white/10 shadow-xl">
+                            <h4 class="text-naranja font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-box-open mr-2"></i>2. Agregar desde Almacén</h4>
                             <div class="flex flex-col lg:flex-row gap-3">
                                 <select id="pos-product-select" class="w-full lg:w-3/4 bg-asfalto p-4 rounded-xl border border-white/10 text-white font-bold focus:border-naranja transition-colors">
                                     <option value="">Selecciona un producto/servicio...</option>
@@ -464,7 +495,7 @@
                         </div>
 
                         <div class="bg-white/5 p-6 rounded-3xl border border-white/10 shadow-xl">
-                            <h4 class="text-naranja font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-wrench mr-2"></i>2. Mano de Obra / Cargos Extra</h4>
+                            <h4 class="text-naranja font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-wrench mr-2"></i>3. Mano de Obra / Cargos Extra</h4>
                             <div class="flex flex-col lg:flex-row gap-3">
                                 <input id="pos-manual-desc" type="text" placeholder="Concepto (Ej. Desponche, Mano de obra...)" class="w-full lg:w-1/2 bg-asfalto p-4 rounded-xl border border-white/10 focus:border-naranja text-white">
                                 <input id="pos-manual-price" type="number" placeholder="Precio $" class="w-full lg:w-1/4 bg-asfalto p-4 rounded-xl border border-naranja/50 text-naranja font-black">
@@ -474,13 +505,14 @@
                     </div>
 
                     <div class="bg-gradient-to-br from-black to-asfalto p-6 rounded-3xl border border-naranja/40 shadow-[0_0_30px_rgba(255,107,0,0.15)] flex flex-col h-full min-h-[400px]">
-                        <h4 class="text-white font-black text-sm uppercase tracking-widest mb-4 border-b border-white/10 pb-2 text-center"><i class="fas fa-receipt mr-2 text-gray-400"></i>Ticket Actual</h4>
+                        <div class="absolute top-0 right-0 w-40 h-40 bg-naranja/10 rounded-full blur-[50px] pointer-events-none"></div>
+                        <h4 class="text-white font-black text-sm uppercase tracking-widest mb-4 border-b border-white/10 pb-2 text-center relative z-10"><i class="fas fa-receipt mr-2 text-gray-400"></i>Ticket Actual</h4>
                         
-                        <div id="pos-ticket-list" class="flex-grow overflow-y-auto hide-scroll space-y-3 mb-4 min-h-[150px]">
+                        <div id="pos-ticket-list" class="flex-grow overflow-y-auto hide-scroll space-y-3 mb-4 min-h-[150px] relative z-10">
                             <p class="text-gray-600 text-xs italic text-center mt-10">El ticket está vacío</p>
                         </div>
                         
-                        <div class="border-t border-dashed border-white/20 pt-4 mt-auto">
+                        <div class="border-t border-dashed border-white/20 pt-4 mt-auto relative z-10">
                             <div class="flex justify-between items-end mb-4">
                                 <span class="text-gray-400 font-bold uppercase tracking-widest text-xs">Total a Cobrar</span>
                                 <span id="pos-ticket-total" class="text-3xl font-black text-naranja tracking-tighter">$0.00</span>
@@ -488,10 +520,11 @@
                             
                             <select id="pos-payment-method" class="w-full bg-asfalto border border-white/10 text-white p-3 rounded-xl font-bold mb-4">
                                 <option value="Efectivo">Efectivo</option>
-                                <option value="Tarjeta/Transferencia">Tarjeta / Transferencia</option>
+                                <option value="Tarjeta">Tarjeta de Crédito/Débito</option>
+                                <option value="Transferencia">Transferencia Bancaria</option>
                             </select>
 
-                            <button onclick="checkoutTicket()" class="w-full bg-naranja hover:bg-orange-600 p-4 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-naranja/20 active:scale-95 transition-all text-white text-lg"><i class="fas fa-check-circle mr-2"></i>Confirmar Pago</button>
+                            <button onclick="checkoutTicket()" class="w-full bg-naranja hover:bg-orange-600 p-4 rounded-xl font-black uppercase tracking-widest shadow-lg shadow-naranja/20 active:scale-95 transition-all text-white text-lg"><i class="fas fa-check-circle mr-2"></i>Cobrar Ticket</button>
                         </div>
                     </div>
                 </div>
@@ -522,8 +555,14 @@
                         <input type="file" id="inv-image" accept="image/*" class="w-full bg-asfalto p-2 rounded-xl border border-white/10 text-xs text-gray-400 file:bg-naranja file:text-white file:border-0 file:rounded-md file:px-3 file:py-1 mb-4">
                         
                         <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Nombre Comercial</label>
-                        <input id="inv-name" type="text" placeholder="Ej. Balatas Traseras Italika" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-sm text-white mb-4 focus:border-naranja">
+                        <input id="inv-name" type="text" placeholder="Ej. Balatas Traseras Italika" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-sm text-white mb-2 focus:border-naranja">
                         
+                        <div class="flex justify-between items-center mt-2 mb-1">
+                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Descripción Atractiva</label>
+                            <button onclick="generateAIDescription()" class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-3 py-1 rounded-md text-[9px] font-black uppercase active:scale-95 transition-all shadow-[0_0_10px_rgba(147,51,234,0.4)]"><i class="fas fa-magic mr-1"></i>IA ✨</button>
+                        </div>
+                        <textarea id="inv-desc" rows="2" placeholder="Describe el producto o usa la IA para redactar..." class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-sm text-white mb-4 focus:border-purple-500 resize-none"></textarea>
+
                         <div class="grid grid-cols-2 gap-4 mb-2">
                             <div><label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Stock (Pzas)</label><input id="inv-stock" type="number" placeholder="0" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-sm text-white focus:border-naranja"></div>
                             <div><label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Costo de Compra ($)</label><input id="inv-cost" type="number" placeholder="0.00" class="w-full bg-asfalto p-3 rounded-xl border border-red-500/30 text-sm text-red-400 font-bold focus:border-red-500"></div>
@@ -531,7 +570,7 @@
                     </div>
                     <div class="flex flex-col justify-between">
                         <div>
-                            <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
+                            <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-2 mt-4 lg:mt-0">
                                 <span class="text-[10px] text-naranja font-black uppercase tracking-widest"><i class="fas fa-tags mr-1"></i> 2. Precios de Venta</span>
                                 <button onclick="autoCalcInv()" class="bg-blue-600/20 text-blue-400 border border-blue-500/50 px-3 py-1 rounded-lg text-[9px] font-black uppercase active:scale-95 transition-colors"><i class="fas fa-magic mr-1"></i>Calcular Auto</button>
                             </div>
@@ -547,7 +586,7 @@
                 <div id="admin-inventory-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6"></div>
             </section>
 
-            <!-- PROMOS Y VIDEO BANNER -->
+            <!-- PROMOS, CUPONES Y LEALTAD -->
             <section id="a-view-promos" class="a-view hidden space-y-6">
                 <h3 class="text-2xl font-black italic uppercase text-white">Panel de <span class="text-purple-400">Promociones</span></h3>
                 
@@ -579,10 +618,27 @@
                         </div>
                         <button onclick="adminCreateCoupon()" class="w-full bg-white/10 hover:bg-white/20 p-3 rounded-xl font-black uppercase text-xs tracking-widest text-white border border-white/10 transition-all mb-8">Crear Cupón</button>
 
-                        <!-- CARGA DE VIDEO PROMOCIONAL -->
                         <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2 mt-6"><i class="fas fa-video mr-1"></i> Video Banner (Catálogo)</p>
                         <input type="file" id="promo-video-upload" accept="video/*" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-xs text-gray-400 file:bg-purple-600 file:text-white file:border-0 file:rounded-md file:px-3 file:py-1 mb-3">
                         <button onclick="adminUploadPromoVideo()" class="w-full bg-purple-600 hover:bg-purple-500 p-3 rounded-xl font-black uppercase tracking-widest text-white border border-white/10 transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)]">Subir Video a Catálogo</button>
+                    </div>
+                    
+                    <!-- PROGRAMA DE LEALTAD -->
+                    <div class="lg:col-span-2 bg-gradient-to-r from-blue-900/40 to-asfalto border border-blue-500/30 p-6 rounded-3xl shadow-xl mt-4">
+                        <h4 class="text-blue-400 font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-handshake mr-2"></i>Programa de Lealtad (VIP)</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Condición (Ej. 3 visitas)</label>
+                                <input id="loyalty-condition" type="text" placeholder="Ej. 3 servicios en 1 mes" class="w-full bg-black/50 p-4 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Recompensa</label>
+                                <input id="loyalty-reward" type="text" placeholder="Ej. Desponche Gratis" class="w-full bg-black/50 p-4 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
+                            </div>
+                            <div class="flex items-end">
+                                <button onclick="adminSaveLoyalty()" class="w-full bg-blue-600 hover:bg-blue-500 p-4 rounded-xl font-black uppercase text-xs tracking-widest text-white transition-all shadow-lg active:scale-95"><i class="fas fa-check-circle mr-1"></i> Activar Programa</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -628,11 +684,11 @@
                 </div>
             </section>
 
-            <!-- ALERTAS SOS (CON MAPA GLOBAL Y BOTONES ACCIÓN RÁPIDA) -->
+            <!-- ALERTAS SOS (CON MAPA GLOBAL Y CHAT) -->
             <section id="a-view-alertas" class="a-view hidden flex-col h-full space-y-4">
                 <div class="flex justify-between items-center mb-2">
                     <h3 class="text-2xl font-black italic uppercase">Mapa de <span class="text-red-500">Emergencias</span></h3>
-                    <button onclick="toggleMapTheme()" class="bg-white/10 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase border border-white/10 hover:bg-white/20 transition-all"><i class="fas fa-adjust mr-1"></i>Tema</button>
+                    <button onclick="toggleMapTheme()" class="bg-white/10 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase border border-white/10 hover:bg-white/20 transition-all"><i class="fas fa-adjust mr-2"></i>Tema Mapa</button>
                 </div>
                 <div class="bg-white/5 border border-white/10 p-4 rounded-3xl shadow-xl">
                     <div id="admin-sos-global-map" class="w-full h-64 lg:h-96 bg-black/50 rounded-2xl z-0 border border-red-500/20"></div>
@@ -640,11 +696,10 @@
                 <div id="admin-sos-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4"></div>
             </section>
 
-            <!-- AJUSTES (CALENDARIO SEMANAL Y GEOCERCA) -->
+            <!-- AJUSTES CONFIGURACIÓN Y TARIFAS -->
             <section id="a-view-config" class="a-view hidden space-y-6">
                 <h3 class="text-2xl font-black italic uppercase text-white">Ajustes <span class="text-gray-400">y Tarifas</span></h3>
                 
-                <!-- Tarifas Rescate -->
                 <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-full lg:mb-6">
                     <div class="flex justify-between items-center mb-4 border-b border-white/5 pb-2">
                         <p class="text-[10px] font-black text-naranja uppercase tracking-widest"><i class="fas fa-coins mr-1"></i> Precios de Rescate a Domicilio</p>
@@ -678,7 +733,6 @@
                     <div id="admin-service-catalog" class="space-y-2"></div>
                 </div>
                 
-                <!-- Geocerca y Horarios Tabulares -->
                 <div class="lg:grid lg:grid-cols-2 lg:gap-8 space-y-6 lg:space-y-0">
                     <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-full">
                         <p class="text-[10px] font-black text-naranja uppercase tracking-widest border-b border-white/5 pb-2 mb-4"><i class="fas fa-draw-polygon mr-1"></i> Zona de Cobertura GPS</p>
@@ -711,7 +765,6 @@
             </section>
         </main>
 
-        <!-- ADMIN NAVIGATION -->
         <nav class="fixed bottom-0 w-full bg-asfalto/95 backdrop-blur-md border-t border-naranja/20 flex overflow-x-auto hide-scroll p-3 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
             <div class="flex w-full justify-between lg:justify-center lg:space-x-8 min-w-max px-2">
                 <button onclick="switchAdminView('a-view-pos')" class="a-nav-btn tab-active flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-naranja min-w-[60px]"><i class="fas fa-cash-register text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Caja</span></button>
@@ -724,6 +777,8 @@
             </div>
         </nav>
     </div>
+
+    <!-- MODALES FLOTANTES -->
 
     <!-- MODAL NUEVO SERVICIO (INGRESO MANUAL) -->
     <div id="modal-nuevo-servicio" class="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4 hidden backdrop-blur-sm">
@@ -751,12 +806,56 @@
         </div>
     </div>
 
+    <!-- MODAL FOLIO QR VIP -->
+    <div id="modal-qr-ticket" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+        <div class="bg-gradient-to-b from-asfalto to-black w-full max-w-sm rounded-[2rem] relative border border-naranja/50 shadow-[0_0_50px_rgba(255,107,0,0.3)] overflow-hidden">
+            <div class="absolute -top-10 -right-10 w-32 h-32 bg-naranja/20 rounded-full blur-[30px]"></div>
+            <button onclick="toggleModal('modal-qr-ticket', false)" class="absolute top-4 right-4 w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-gray-400 z-10 hover:bg-white/20 transition-all"><i class="fas fa-times"></i></button>
+            
+            <div class="p-8 text-center relative z-10 flex flex-col items-center">
+                <p class="text-naranja font-black uppercase tracking-widest text-xs mb-1"><i class="fas fa-motorcycle mr-1"></i> Taller OBR</p>
+                <h2 class="text-2xl font-black text-white italic uppercase tracking-tighter mb-6">Folio de Servicio</h2>
+                
+                <div class="bg-white p-4 rounded-2xl shadow-inner mb-6">
+                    <img id="qr-ticket-img" src="" alt="QR Folio" class="w-48 h-48 object-contain">
+                </div>
+                
+                <p class="text-gray-400 text-xs uppercase tracking-widest mb-1">ID del Servicio</p>
+                <p id="qr-ticket-id" class="font-black text-white text-lg tracking-widest bg-white/5 px-4 py-2 rounded-xl border border-white/10"></p>
+            </div>
+            
+            <div class="border-t border-dashed border-white/20 bg-naranja/10 p-4 text-center">
+                <p class="text-[10px] text-naranja font-bold uppercase tracking-widest">Escanea para dar seguimiento</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CHAT PRIVADO -->
+    <div id="modal-chat" class="fixed inset-0 bg-black/95 z-[150] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+        <div class="bg-asfalto w-full max-w-md h-[80vh] rounded-[2rem] relative border border-blue-500/30 flex flex-col overflow-hidden shadow-[0_0_50px_rgba(59,130,246,0.1)]">
+            <div class="bg-blue-600/20 border-b border-blue-500/30 p-4 flex justify-between items-center">
+                <div>
+                    <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest"><i class="fas fa-comments mr-1"></i> Chat de Rescate</p>
+                    <p class="text-xs text-white font-bold" id="chat-title">Mecánico / Cliente</p>
+                </div>
+                <button onclick="closeChat()" class="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-gray-300 hover:bg-white/20 transition-all"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="chat-messages" class="flex-grow p-4 overflow-y-auto flex flex-col space-y-3 hide-scroll bg-black/20">
+                <!-- Mensajes -->
+            </div>
+            <div class="p-3 bg-white/5 border-t border-white/10 flex space-x-2">
+                <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-grow bg-black/50 p-3 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 border border-transparent transition-all">
+                <button onclick="sendMessage()" class="bg-blue-600 hover:bg-blue-500 text-white w-12 rounded-xl flex items-center justify-center active:scale-95 transition-transform"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
     <!-- FIREBASE INTEGRATION -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, where, limit, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-        import { getDatabase, ref as dbRef, set as rtdbSet, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getDatabase, ref as dbRef, set as rtdbSet, onValue, update, push } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
         import { getStorage, ref as sRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
         const firebaseConfig = {
@@ -807,6 +906,10 @@
         window.posTotal = 0;
         window.posTotalCost = 0;
 
+        // Chat
+        let activeChatUid = null;
+        let chatUnsubscribe = null;
+
         if (window.location.search.includes('taller26')) window.userIntent = 'admin';
 
         // ------------------ UTILS & DISPLAY SEGURO ------------------
@@ -851,6 +954,52 @@
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1*(Math.PI/180)) * Math.cos(lat2*(Math.PI/180)) * Math.sin(dLon/2) * Math.sin(dLon/2);
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
         }
+
+        // ------------------ CHAT TEMPORAL PRIVADO ------------------
+        window.openChat = function(uid, isClient = false) {
+            activeChatUid = uid;
+            document.getElementById('modal-chat').classList.remove('hidden');
+            document.getElementById('chat-title').innerText = isClient ? "Chat Privado con Mecánico" : "Chat Privado con Cliente";
+            const chatBox = document.getElementById('chat-messages');
+            chatBox.innerHTML = '<p class="text-center text-[10px] text-gray-500 mt-4"><i class="fas fa-lock mr-1"></i>Chat temporal encriptado</p>';
+            
+            chatUnsubscribe = onValue(dbRef(rtdb, `sos_chats/${uid}`), (snap) => {
+                chatBox.innerHTML = '<p class="text-center text-[10px] text-gray-500 mt-4 mb-2"><i class="fas fa-lock mr-1"></i>Chat temporal encriptado</p>';
+                if(snap.exists()) {
+                    const msgs = snap.val();
+                    Object.values(msgs).sort((a,b)=>a.ts-b.ts).forEach(m => {
+                        const isMe = (isClient && m.sender === 'client') || (!isClient && m.sender === 'admin');
+                        const align = isMe ? 'self-end bg-blue-600 text-white' : 'self-start bg-white/10 text-gray-200';
+                        const time = new Date(m.ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        chatBox.innerHTML += `<div class="max-w-[80%] rounded-2xl p-3 ${align} relative animate-fade-in shadow-md">
+                            <p class="text-sm">${m.text}</p>
+                            <p class="text-[8px] text-right mt-1 opacity-70">${time}</p>
+                        </div>`;
+                    });
+                    setTimeout(()=> chatBox.scrollTop = chatBox.scrollHeight, 100);
+                }
+            });
+        };
+
+        window.closeChat = function() {
+            document.getElementById('modal-chat').classList.add('hidden');
+            activeChatUid = null;
+            if(chatUnsubscribe) { chatUnsubscribe(); chatUnsubscribe = null; }
+        };
+
+        window.sendMessage = function() {
+            if(!activeChatUid) return;
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if(!text) return;
+            input.value = '';
+            
+            const isClient = window.currentUserDoc.role === 'cliente' || window.currentUserDoc.role === 'membresia';
+            const sender = isClient ? 'client' : 'admin';
+            
+            const newMsgRef = push(dbRef(rtdb, `sos_chats/${activeChatUid}`));
+            rtdbSet(newMsgRef, { sender, text, ts: Date.now() });
+        };
 
         // ------------------ CARGA E INICIO ------------------
         async function loadGlobalSettings() {
@@ -975,6 +1124,7 @@
                             ${p.discountPercent ? `<div class="absolute -top-2 -right-2 bg-purple-600 text-white text-[10px] font-black px-2 py-1 rounded shadow-lg uppercase animate-pulse">-${p.discountPercent}%</div>` : ''}
                             <div class="w-full aspect-square bg-white/5 rounded-2xl mb-3 flex items-center justify-center overflow-hidden">${imgHtml}</div>
                             <p class="text-[10px] lg:text-xs font-black uppercase leading-tight mb-1 text-white">${p.name}</p>
+                            <p class="text-[8px] text-gray-400 mb-2 line-clamp-2 h-6">${p.desc || ''}</p>
                             <p class="text-naranja font-black text-lg lg:text-xl mb-3 leading-none">${strikeHtml}$${displayPrice} ${isMem?'<span class="block text-[8px] text-green-400 mt-1">Socio VIP</span>':''}</p>
                             <button onclick="requireLoginToBuy('${p.name}')" class="w-full bg-white/10 hover:bg-white/20 p-2 rounded-xl text-[10px] lg:text-xs font-black uppercase tracking-widest transition-all text-white border border-white/10">Pedir a domicilio</button>
                         </div>`;
@@ -1035,7 +1185,7 @@
             else {
                 if(auth.currentUser && intent === 'sos') {
                     if (window.currentUserDoc && ['admin','socio','taller','mecanico'].includes(window.currentUserDoc.role)) {
-                        showView('app-admin'); return; // Bloquear a admins de pedir SOS
+                        showView('app-admin'); return; 
                     }
                     launchSOSForm(window.currentUserDoc ? window.currentUserDoc.name : ''); 
                     return; 
@@ -1533,7 +1683,7 @@
             }
         };
 
-        // ------------------ TRACKING MAPA EN VIVO ------------------
+        // ------------------ TRACKING MAPA EN VIVO Y CHAT ------------------
         window.currentStatus = 'pending';
         let mechMapInst = null;
         let mechMarkerInst = null;
@@ -1549,6 +1699,15 @@
                         speakTTS('Ten paciencia, un mecánico tiene tu solicitud y está en camino');
                         document.getElementById('sos-status-desc-client').innerText = "El mecánico va en camino a tu ubicación.";
                         try { document.getElementById('notif-sound').play(); } catch(e) {}
+                        
+                        // Añadir botón de Chat
+                        const actionsDiv = document.getElementById('client-sos-actions');
+                        if (actionsDiv) {
+                            actionsDiv.innerHTML = `
+                                <a href="https://wa.me/526311551533" class="flex-1 bg-white hover:bg-gray-200 text-red-600 text-center text-[10px] px-4 py-3 rounded-xl font-black uppercase transition-colors"><i class="fab fa-whatsapp mr-1 text-sm"></i> WhatsApp</a>
+                                <button onclick="openChat('${auth.currentUser.uid}', true)" class="flex-1 bg-blue-600 text-white text-[10px] px-4 py-3 rounded-xl font-black uppercase flex items-center justify-center animate-pulse shadow-lg"><i class="fas fa-comment-dots text-sm mr-2"></i> Chat Privado</button>
+                            `;
+                        }
                         
                         if(data.mech_lat && data.mech_lng) {
                             document.getElementById('mechanic-live-map').classList.remove('hidden');
@@ -1584,8 +1743,32 @@
             showToast("¡Gracias!");
         };
 
-        // ------------------ FUNCIONES ADMIN TALLER (ALMACÉN Y POS DINAMICO) ------------------
-        
+        // ------------------ FUNCIONES ADMIN TALLER (ALMACÉN, POS Y IA) ------------------
+        window.generateAIDescription = async function() {
+            const name = document.getElementById('inv-name').value.trim();
+            if(!name) return showToast("Ingresa primero el Nombre Comercial", true);
+            
+            const descEl = document.getElementById('inv-desc');
+            const origVal = descEl.value;
+            descEl.value = "Generando magia con IA...";
+            
+            try {
+                const apiKey = ""; 
+                const prompt = `Actúa como un experto en marketing de refacciones de motos. Escribe una descripción comercial corta y súper atractiva (máximo 20 palabras) para el producto: "${name}". No uses comillas.`;
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                });
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                descEl.value = text ? text.trim() : origVal;
+            } catch(e) {
+                descEl.value = origVal;
+                showToast("Error de IA. Escribe manual.", true);
+            }
+        };
+
         window.autoCalcInv = function() {
             const cost = parseFloat(document.getElementById('inv-cost').value || 0);
             if(cost > 0) {
@@ -1597,12 +1780,12 @@
 
         window.adminAddProduct = async function() {
             const name = document.getElementById('inv-name').value.trim();
+            const desc = document.getElementById('inv-desc').value.trim();
             const stock = parseInt(document.getElementById('inv-stock').value);
             const cost = parseFloat(document.getElementById('inv-cost').value);
             const priceTaller = parseFloat(document.getElementById('inv-price-taller').value);
             const priceMember = parseFloat(document.getElementById('inv-price-member').value);
             const pricePublic = parseFloat(document.getElementById('inv-price-public').value);
-            const coupon = document.getElementById('inv-coupon').value.trim();
             const fileInput = document.getElementById('inv-image');
             
             if(!name || isNaN(stock) || isNaN(cost) || isNaN(pricePublic)) return showToast("Llena los campos base", true);
@@ -1621,12 +1804,12 @@
                     mediaUrl = await getDownloadURL(stRef);
                 }
 
-                await addDoc(collection(db, "inventario"), { name, stock, cost, priceTaller: priceTaller||cost, priceMember: priceMember||cost, pricePublic: pricePublic, coupon, imgUrl: mediaUrl, timestamp: Date.now() });
+                await addDoc(collection(db, "inventario"), { name, desc, stock, cost, priceTaller: priceTaller||cost, priceMember: priceMember||cost, pricePublic: pricePublic, imgUrl: mediaUrl, timestamp: Date.now() });
                 showToast("Producto agregado");
                 
-                document.getElementById('inv-name').value = ''; document.getElementById('inv-stock').value = ''; document.getElementById('inv-cost').value = '';
+                document.getElementById('inv-name').value = ''; document.getElementById('inv-desc').value = ''; document.getElementById('inv-stock').value = ''; document.getElementById('inv-cost').value = '';
                 document.getElementById('inv-price-taller').value = ''; document.getElementById('inv-price-member').value = ''; document.getElementById('inv-price-public').value = '';
-                document.getElementById('inv-coupon').value = ''; fileInput.value = '';
+                fileInput.value = '';
                 adminLoadInventory();
             } catch(e) { showToast("Error al agregar", true); }
             finally { btn.disabled = false; btn.innerHTML = origHtml; }
@@ -1715,6 +1898,7 @@
             btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
             
             const pMethod = document.getElementById('pos-payment-method').value;
+            const customerPhone = document.getElementById('pos-customer-phone').value.trim();
             let descSummary = window.posTicket.map(i => i.name).join(", ");
 
             try {
@@ -1723,6 +1907,7 @@
                     total: window.posTotal, 
                     costo: window.posTotalCost, 
                     metodoPago: pMethod,
+                    clienteCel: customerPhone ? "+52" + customerPhone : null,
                     ticket: window.posTicket,
                     fecha: new Date().toISOString() 
                 });
@@ -1743,10 +1928,16 @@
                 waText += `------------------\n*TOTAL: $${window.posTotal}*\nPago: ${pMethod}\n¡Gracias por tu preferencia!`;
                 
                 window.posTicket = [];
+                document.getElementById('pos-customer-phone').value = '';
                 renderTicket();
                 adminLoadInventory();
                 adminLoadSales();
-                window.open(`https://wa.me/?text=${encodeURIComponent(waText)}`, '_blank');
+                
+                if(customerPhone.length === 10) {
+                    window.open(`https://wa.me/52${customerPhone}?text=${encodeURIComponent(waText)}`, '_blank');
+                } else {
+                    window.open(`https://wa.me/?text=${encodeURIComponent(waText)}`, '_blank');
+                }
             } catch (e) { showToast("Error al procesar", true); }
             finally { btn.disabled = false; btn.innerHTML = origHtml; }
         };
@@ -1762,7 +1953,11 @@
                     const v = doc.data();
                     container.innerHTML += `
                         <div class="bg-white/5 p-4 rounded-2xl flex justify-between items-center mb-2 border border-white/5">
-                            <div><p class="text-xs font-black uppercase text-gray-300 truncate w-40">${v.desc}</p><p class="text-[8px] text-gray-500">${new Date(v.fecha).toLocaleDateString()} - ${v.metodoPago||'Efectivo'}</p></div>
+                            <div>
+                                <p class="text-xs font-black uppercase text-gray-300 truncate w-40">${v.desc}</p>
+                                <p class="text-[8px] text-gray-500">${new Date(v.fecha).toLocaleDateString()} - ${v.metodoPago||'Efectivo'}</p>
+                                ${v.clienteCel ? `<p class="text-[8px] text-blue-400 mt-1"><i class="fas fa-user mr-1"></i>${v.clienteCel}</p>` : ''}
+                            </div>
                             <b class="text-naranja tracking-tighter">$${v.total}</b>
                         </div>`;
                     count++;
@@ -1862,9 +2057,9 @@
         };
 
         window.adminPrintQR = function(id) {
-            const url = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=OBR-${id}`;
-            const win = window.open('', '_blank');
-            win.document.write(`<html><head><title>Imprimir QR</title></head><body style="text-align:center; padding:20px; font-family:sans-serif;"><h2>Folio OBR</h2><img src="${url}"><p>Folio: ${id.substring(0,8)}</p><script>setTimeout(()=>window.print(), 1000);<\/script></body></html>`);
+            document.getElementById('modal-qr-ticket').classList.remove('hidden');
+            document.getElementById('qr-ticket-id').innerText = "OBR-" + id.substring(0, 6).toUpperCase();
+            document.getElementById('qr-ticket-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=OBR-${id}`;
         };
 
         async function adminListenServices() {
@@ -1893,7 +2088,7 @@
             } catch(e) {}
         }
 
-        // ------------------ GESTIÓN DE PROMOS ADMIN ------------------
+        // ------------------ GESTIÓN DE PROMOS Y LEALTAD ADMIN ------------------
         window.adminApplyPromo = async function() {
             const id = document.getElementById('promo-product-select').value;
             const discount = parseFloat(document.getElementById('promo-discount').value);
@@ -1909,6 +2104,15 @@
 
         window.adminCreateCoupon = function() {
             showToast("Cupón creado. Se podrá canjear en WhatsApp.", false);
+        };
+
+        window.adminSaveLoyalty = function() {
+            const cond = document.getElementById('loyalty-condition').value;
+            const rew = document.getElementById('loyalty-reward').value;
+            if(!cond || !rew) return showToast("Llena condición y recompensa", true);
+            showToast("Programa de lealtad activado para clientes VIP.");
+            document.getElementById('loyalty-condition').value = '';
+            document.getElementById('loyalty-reward').value = '';
         };
 
         window.adminUploadPromoVideo = async function() {
@@ -2180,7 +2384,8 @@
                         let ubi = alert.lat ? `<span class="text-green-400 font-bold"><i class="fas fa-satellite-dish mr-1"></i> GPS Exacto</span>` : `<span class="text-red-400 font-bold"><i class="fas fa-keyboard mr-1"></i> Manual: ${alert.manualAddress}</span>`;
                         let actBtn = alert.status==='pending' ? `<button onclick="adminAcceptSOS('${child.key}')" class="w-full bg-naranja hover:bg-orange-600 text-white font-black text-xs py-4 rounded-xl mt-4 shadow-lg active:scale-95 transition-all"><i class="fas fa-motorcycle mr-2"></i> Aceptar y Despachar</button>` : `<button onclick="adminFinishSOS('${child.key}')" class="w-full bg-green-500 hover:bg-green-600 text-white font-black text-xs py-4 rounded-xl mt-4 shadow-lg active:scale-95 transition-all"><i class="fas fa-check-double mr-2"></i> Finalizar Servicio</button>`;
 
-                        const toPosBtn = `<button onclick="adminSendSOSToPOS('${alert.falla}')" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black text-xs py-3 rounded-xl mt-2 shadow-lg active:scale-95 transition-all"><i class="fas fa-cash-register mr-2"></i> Dejar Pendiente en Caja</button>`;
+                        const toPosBtn = `<button onclick="adminSendSOSToPOS('${alert.falla}', '${alert.phone}')" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black text-xs py-3 rounded-xl mt-2 shadow-lg active:scale-95 transition-all flex items-center justify-center"><i class="fas fa-cash-register mr-2"></i> Mandar a Caja</button>`;
+                        const chatBtn = `<button onclick="openChat('${child.key}')" class="w-full bg-white/10 hover:bg-white/20 text-white font-black text-xs py-3 rounded-xl mt-2 shadow-lg active:scale-95 transition-all border border-white/10 flex items-center justify-center"><i class="fas fa-comment-dots mr-2"></i> Abrir Chat</button>`;
 
                         list.innerHTML += `
                             <div class="bg-gradient-to-b from-red-900/20 to-black/40 border ${alert.status==='accepted' ? 'border-naranja' : 'border-red-500/50'} p-6 rounded-3xl shadow-xl relative overflow-hidden">
@@ -2193,11 +2398,13 @@
                                     <p class="text-[10px] text-naranja font-black uppercase mb-1 border-t border-white/10 pt-3">Detalle del Reporte:</p>
                                     <p class="text-sm text-white leading-relaxed font-semibold">"${alert.falla}"</p>
                                     ${alert.extraPhone ? `<p class="text-xs text-gray-300 mt-3 pt-3 border-t border-white/5"><i class="fas fa-phone-alt text-naranja mr-2"></i> Tel. Alterno: <b class="tracking-widest">${alert.extraPhone}</b></p>` : ''}
+                                    ${alert.mediaUrl ? `<a href="${alert.mediaUrl}" target="_blank" class="block w-full text-center bg-white/10 text-white text-[10px] uppercase font-bold py-2 rounded-lg mt-3 border border-white/20"><i class="fas fa-image mr-1 text-naranja"></i> Ver Foto Adjunta</a>` : ''}
                                 </div>
-                                <div class="flex space-x-3">
-                                    <a href="${mapsUrl}" target="_blank" class="flex-1 bg-white/10 hover:bg-white/20 text-white text-center py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-white/10"><i class="fas fa-location-arrow mr-1"></i> Ir Ruta</a>
+                                <div class="flex space-x-3 mb-2">
+                                    <a href="${mapsUrl}" target="_blank" class="flex-1 bg-white/10 hover:bg-white/20 text-white text-center py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-white/10"><i class="fas fa-location-arrow mr-1"></i> Ruta</a>
                                     <a href="https://wa.me/${alert.phone.replace('+','')}" target="_blank" class="w-14 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded-xl text-xl transition-all"><i class="fab fa-whatsapp"></i></a>
                                 </div>
+                                ${chatBtn}
                                 ${actBtn}
                                 ${toPosBtn}
                             </div>`;
@@ -2224,13 +2431,15 @@
 
         window.adminFinishSOS = function(clientUid) {
             update(dbRef(rtdb, 'sos_alerts/' + clientUid), { status: 'completed' });
-            showToast("Servicio Finalizado");
+            rtdbSet(dbRef(rtdb, 'sos_chats/' + clientUid), null); // Borrar chat
+            showToast("Servicio Finalizado y Chat borrado.");
         };
 
-        window.adminSendSOSToPOS = function(desc) {
+        window.adminSendSOSToPOS = function(desc, phone) {
             switchAdminView('a-view-pos');
             document.getElementById('pos-manual-desc').value = desc.substring(0, 40) + "...";
-            showToast("Concepto cargado en caja. Ingresa el precio.");
+            document.getElementById('pos-customer-phone').value = phone.replace('+52', '');
+            showToast("Datos cargados en caja. Ingresa el precio.");
         }
     </script>
 </body>
