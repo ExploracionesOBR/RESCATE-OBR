@@ -68,8 +68,18 @@ body {
 }
 .obr-pin-icon i { transform: rotate(45deg); color: white; font-size: 14px; }
 
+/* Ajustes responsive */
 @media (max-width: 768px) {
     .glass { backdrop-filter: blur(6px); }
     .btn-sos-huge { width: 70vw; height: 70vw; }
     .app-view { padding: 1rem; }
+    .hide-on-mobile { display: none; }
 }
+@media (min-width: 1024px) {
+    .max-w-7xl { max-width: 80rem; }
+    .lg\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+
+/* Tema automático para mapas */
+.leaflet-tile-pane { filter: var(--map-filter, none); }
+.light-mode .leaflet-tile-pane { filter: grayscale(30%); }
