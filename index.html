@@ -14,16 +14,23 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap" rel="stylesheet">
-    
     <!-- LEAFLET MAPS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- NUEVAS LIBRERÍAS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
 
     <script>
         tailwind.config = { theme: { extend: { colors: { asfalto: '#1A1A1A', naranja: '#FF6B00' } } } };
         const manifest = {
-            name: "Moto Rescate OBR", short_name: "OBR", start_url: ".", display: "standalone",
-            background_color: "#1A1A1A", theme_color: "#FF6B00",
+            name: "Moto Rescate OBR",
+            short_name: "OBR",
+            start_url: ".",
+            display: "standalone",
+            background_color: "#1A1A1A",
+            theme_color: "#FF6B00",
             icons: [
                 { src: "logo.png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
                 { src: "logo.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }
@@ -33,25 +40,54 @@
         document.write('<link rel="manifest" href="' + URL.createObjectURL(manifestBlob) + '">');
     </script>
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #1A1A1A; color: white; -webkit-tap-highlight-color: transparent; }
-        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        :root {
+            --bg: #1A1A1A;
+            --text: #ffffff;
+            --glass-bg: rgba(255,255,255,0.05);
+            --border: rgba(255,255,255,0.1);
+        }
+        .light-mode {
+            --bg: #f5f5f5;
+            --text: #1A1A1A;
+            --glass-bg: rgba(0,0,0,0.05);
+            --border: rgba(0,0,0,0.1);
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .glass {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+        }
         .tab-active { color: #FF6B00; border-top: 2px solid #FF6B00; }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-thumb { background: #FF6B00; border-radius: 10px; }
         .hide-scroll::-webkit-scrollbar { display: none; }
-        @keyframes pulse-sos { 0% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.7); transform: scale(1); } 50% { transform: scale(1.05); } 70% { box-shadow: 0 0 0 50px rgba(255, 107, 0, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0); transform: scale(1); } }
+
+        @keyframes pulse-sos {
+            0% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.7); transform: scale(1); }
+            50% { transform: scale(1.05); }
+            70% { box-shadow: 0 0 0 50px rgba(255, 107, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0); transform: scale(1); }
+        }
         .btn-sos-huge { animation: pulse-sos 2s infinite; }
+
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+
         .gps-pulse-marker { width: 20px; height: 20px; background-color: #FF6B00; border-radius: 50%; box-shadow: 0 0 0 rgba(255, 107, 0, 0.7); animation: pulse-sos 1.5s infinite; border: 3px solid white; }
         .mech-pulse-marker { width: 26px; height: 26px; background-color: #22c55e; border-radius: 50%; box-shadow: 0 0 0 rgba(34, 197, 94, 0.7); animation: pulse-sos 1.5s infinite; border: 3px solid white; display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; }
     </style>
 </head>
-<body class="pb-20 bg-asfalto">
+<body class="pb-20">
 
     <audio id="notif-sound" src="https://actions.google.com/sounds/v1/alarms/ding.ogg" preload="auto"></audio>
 
-    <!-- TOAST NOTIFICATIONS -->
+    <!-- TOAST -->
     <div id="status-toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[3000] hidden transition-all duration-300 w-[90%] max-w-sm">
         <div class="bg-naranja text-white px-6 py-3 rounded-full shadow-2xl flex items-center space-x-3 font-bold text-sm">
             <i id="toast-icon" class="fas fa-info-circle text-lg"></i>
@@ -59,20 +95,25 @@
         </div>
     </div>
 
+    <!-- FUERA DE ZONA -->
     <div id="out-of-zone-modal" class="fixed inset-0 z-[2000] hidden flex-col items-center justify-center p-6 text-center bg-[repeating-linear-gradient(45deg,#1a1a1a,#1a1a1a_10px,#2a0808_10px,#2a0808_20px)]">
         <i class="fas fa-map-marker-alt text-6xl text-red-500 mb-4 animate-bounce"></i>
         <h1 class="text-3xl font-black text-white uppercase italic tracking-widest mb-2">FUERA DE ZONA</h1>
-        <p class="text-sm text-gray-300 bg-black/80 p-6 rounded-2xl border border-red-500 shadow-2xl">POR EL MOMENTO NO ESTAMOS DISPONIBLES EN TU ZONA.<br><br><span class="text-naranja font-bold">ESTAMOS TRABAJANDO PARA RESOLVERLO.</span></p>
+        <p class="text-sm text-gray-300 bg-black/80 p-6 rounded-2xl border border-red-500 shadow-2xl">
+            POR EL MOMENTO NO ESTAMOS DISPONIBLES EN TU ZONA.<br><br>
+            <span class="text-naranja font-bold">ESTAMOS TRABAJANDO PARA RESOLVERLO.</span>
+        </p>
         <button onclick="document.getElementById('out-of-zone-modal').classList.add('hidden')" class="mt-8 bg-white text-black px-8 py-3 rounded-full font-black uppercase shadow-lg active:scale-95">Entendido</button>
     </div>
 
+    <!-- CARGA INICIAL -->
     <div id="loading-screen" class="min-h-screen flex flex-col items-center justify-center bg-asfalto fixed inset-0 z-[999]">
         <i class="fas fa-motorcycle text-naranja text-6xl animate-bounce mb-4"></i>
         <p class="text-xs font-black uppercase tracking-widest text-gray-500">Cargando OBR...</p>
     </div>
 
-    <!-- ========================================== VISTA 0: LANDING ========================================== -->
-    <div id="view-landing" class="app-view min-h-screen flex flex-col items-center justify-center p-6 lg:p-12 bg-gradient-to-b from-asfalto via-black to-[#3a1800] relative overflow-hidden hidden">
+    <!-- ========== LANDING ========== -->
+    <div id="view-landing" class="app-view min-h-screen hidden flex-col items-center justify-center p-6 lg:p-12 bg-gradient-to-b from-asfalto via-black to-[#3a1800] relative overflow-hidden">
         <div class="absolute top-[-10%] left-[-20%] w-96 h-96 bg-naranja/10 rounded-full blur-[100px] pointer-events-none"></div>
         <img src="logo.png" alt="OBR" class="w-32 lg:w-48 mb-6 lg:mb-10 z-10 drop-shadow-[0_0_20px_rgba(255,107,0,0.5)]" onerror="this.src='https://via.placeholder.com/150/FF6B00/FFFFFF?text=OBR'">
         
@@ -101,7 +142,7 @@
                 <button onclick="startFlow('rastreo_publico')" class="w-full bg-white/5 hover:bg-white/10 border border-white/10 p-5 lg:p-6 rounded-2xl flex items-center justify-between transition-all active:scale-95 backdrop-blur-md group shadow-lg">
                     <div class="flex items-center space-x-4">
                         <div class="w-12 h-12 lg:w-16 lg:h-16 bg-naranja/20 rounded-full flex items-center justify-center text-naranja text-xl lg:text-2xl"><i class="fas fa-motorcycle"></i></div>
-                        <div class="text-left"><p class="text-sm lg:text-lg font-black uppercase text-white tracking-wider">Seguir mi servicio</p><p class="text-[10px] lg:text-xs text-gray-400 font-medium">Estado de reparación en taller</p></div>
+                        <div class="text-left"><p class="text-sm lg:text-lg font-black uppercase tracking-wider">Seguir mi servicio</p><p class="text-[10px] lg:text-xs text-gray-400 font-medium">Estado de reparación en taller</p></div>
                     </div>
                     <i class="fas fa-chevron-right text-gray-600 lg:text-xl"></i>
                 </button>
@@ -109,7 +150,7 @@
                 <button onclick="startFlow('tienda_publica')" class="w-full bg-white/5 hover:bg-white/10 border border-white/10 p-5 lg:p-6 rounded-2xl flex items-center justify-between transition-all active:scale-95 backdrop-blur-md group shadow-lg">
                     <div class="flex items-center space-x-4">
                         <div class="w-12 h-12 lg:w-16 lg:h-16 bg-naranja/20 rounded-full flex items-center justify-center text-naranja text-xl lg:text-2xl"><i class="fas fa-shopping-bag"></i></div>
-                        <div class="text-left"><p class="text-sm lg:text-lg font-black uppercase text-white tracking-wider">Comprar Refacciones</p><p id="tienda-subtitle" class="text-[10px] lg:text-xs text-gray-400 font-medium">Catálogo OBR</p></div>
+                        <div class="text-left"><p class="text-sm lg:text-lg font-black uppercase tracking-wider">Comprar Refacciones</p><p id="tienda-subtitle" class="text-[10px] lg:text-xs text-gray-400 font-medium">Catálogo OBR</p></div>
                     </div>
                     <i class="fas fa-chevron-right text-gray-600 lg:text-xl"></i>
                 </button>
@@ -123,28 +164,51 @@
                     <a href="tel:6441106011" class="text-naranja font-black tracking-widest text-xs lg:text-base hover:text-white transition-colors">644 110 6011</a>
                 </div>
             </div>
+            <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=27.446859,-109.943861', '_blank')" class="mt-4 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-full font-black uppercase text-xs tracking-widest border border-white/20">
+                <i class="fas fa-map-signs mr-2"></i> Cómo llegar al taller
+            </button>
+            <button id="install-pwa-btn" class="hidden mt-4 bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-full font-black uppercase text-xs tracking-widest">
+                <i class="fas fa-download mr-2"></i> Instalar App
+            </button>
         </div>
     </div>
 
-    <!-- ========================================== VISTA PÚBLICA: TIENDA ========================================== -->
+    <!-- TIENDA PÚBLICA -->
     <div id="view-public-store" class="app-view min-h-screen hidden flex-col items-center p-6 lg:p-12 bg-asfalto pt-8">
         <div class="w-full max-w-md lg:max-w-5xl">
-            <button onclick="startFlow('inicio')" class="w-10 h-10 lg:w-12 lg:h-12 bg-white/10 rounded-full flex items-center justify-center text-white mb-6 lg:mb-10 hover:bg-white/20 transition-colors"><i class="fas fa-arrow-left lg:text-xl"></i></button>
+            <button onclick="startFlow('inicio')" class="w-10 h-10 lg:w-12 lg:h-12 bg-white/10 rounded-full flex items-center justify-center text-white mb-6 lg:mb-10"><i class="fas fa-arrow-left lg:text-xl"></i></button>
             <div class="flex justify-between items-end mb-2">
-                <h2 class="text-3xl lg:text-5xl font-black italic uppercase text-white">Catálogo OBR</h2>
+                <h2 class="text-3xl lg:text-5xl font-black italic uppercase">Catálogo OBR</h2>
                 <span id="membresia-badge" class="hidden bg-green-500/20 border border-green-500 text-green-400 text-[8px] lg:text-xs px-3 py-1 rounded font-black uppercase mb-1">Envío Gratis</span>
             </div>
-            <p class="text-xs lg:text-base text-gray-400 mb-8 lg:mb-12">Explora nuestros productos disponibles. Pídelos directo a domicilio.</p>
+            <p class="text-xs lg:text-base text-gray-400 mb-4">Explora nuestros productos. Pídelos directo o agrega al carrito.</p>
             
+            <input type="text" id="store-search" placeholder="Buscar refacción..." oninput="filterStore()" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-6 text-white focus:border-naranja">
+            <div class="flex justify-end mb-4">
+                <button onclick="toggleModal('modal-cart', true)" class="relative bg-white/10 p-3 rounded-full text-white">
+                    <i class="fas fa-shopping-cart text-xl"></i>
+                    <span id="cart-count" class="absolute -top-1 -right-1 bg-naranja text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-black">0</span>
+                </button>
+            </div>
+
             <div id="public-store-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-8 w-full"></div>
+
+            <!-- Formulario de contacto -->
+            <div class="mt-12 glass p-6 rounded-3xl">
+                <h3 class="text-xl font-black uppercase mb-4">Contáctanos</h3>
+                <input type="text" id="contact-name" placeholder="Nombre" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
+                <input type="tel" id="contact-phone" placeholder="Teléfono" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
+                <textarea id="contact-msg" placeholder="Mensaje" rows="2" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white resize-none"></textarea>
+                <button onclick="sendContact()" class="bg-naranja text-white px-6 py-3 rounded-xl font-black uppercase">Enviar por WhatsApp</button>
+            </div>
         </div>
     </div>
 
-    <!-- ========================================== VISTA PÚBLICA: RASTREO ========================================== -->
+    <!-- RASTREO PÚBLICO -->
     <div id="view-public-tracking" class="app-view min-h-screen hidden flex-col items-center p-6 lg:p-12 bg-asfalto pt-8">
         <div class="w-full max-w-md lg:max-w-3xl">
-            <button onclick="startFlow('inicio')" class="w-10 h-10 lg:w-12 lg:h-12 bg-white/10 rounded-full flex items-center justify-center text-white mb-6 hover:bg-white/20 transition-colors"><i class="fas fa-arrow-left"></i></button>
-            <h2 class="text-3xl lg:text-5xl font-black italic uppercase text-white mb-2">Rastrea tu moto</h2>
+            <button onclick="startFlow('inicio')" class="w-10 h-10 lg:w-12 lg:h-12 bg-white/10 rounded-full flex items-center justify-center text-white mb-6"><i class="fas fa-arrow-left"></i></button>
+            <h2 class="text-3xl lg:text-5xl font-black italic uppercase mb-2">Rastrea tu moto</h2>
             <p class="text-xs lg:text-base text-gray-400 mb-8">Ingresa tu número celular (10 dígitos) para conocer el estado actual de tu servicio.</p>
 
             <div class="glass p-6 lg:p-8 rounded-3xl shadow-xl mb-8">
@@ -177,7 +241,7 @@
         </div>
     </div>
 
-    <!-- ========================================== VISTA 1: LOGIN / REGISTRO ========================================== -->
+    <!-- LOGIN / REGISTRO -->
     <div id="view-login" class="app-view min-h-screen hidden flex-col items-center justify-center p-6 bg-asfalto relative overflow-hidden">
         <div class="absolute top-0 right-0 w-64 h-64 lg:w-96 lg:h-96 bg-naranja/10 rounded-full blur-[80px] pointer-events-none"></div>
         <h1 id="login-title" class="text-3xl lg:text-5xl font-black mb-1 text-center italic tracking-tighter text-white z-10">MOTO RESCATE</h1>
@@ -208,8 +272,8 @@
             <div id="auth-step-register" class="hidden glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-white/5">
                 <p class="text-naranja font-black uppercase tracking-widest text-sm lg:text-base mb-6 border-b border-white/10 pb-3"><i class="fas fa-user-plus mr-1"></i> Completar Registro</p>
                 <div class="space-y-5">
-                    <div><label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Tu Nombre Completo</label><input id="reg-name" type="text" placeholder="Ej. Juan Pérez" class="w-full bg-white/5 border border-white/10 p-4 mt-1 rounded-xl focus:outline-none focus:border-naranja text-base lg:text-lg transition-all text-white"></div>
-                    <div><label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Crea Contraseña (Min 6)</label><input id="reg-password" type="password" placeholder="********" class="w-full bg-white/5 border border-white/10 p-4 mt-1 rounded-xl focus:outline-none focus:border-naranja text-xl lg:text-2xl tracking-widest transition-all text-white"></div>
+                    <div><label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Tu Nombre Completo</label><input id="reg-name" type="text" autocomplete="new-password" placeholder="Ej. Juan Pérez" class="w-full bg-white/5 border border-white/10 p-4 mt-1 rounded-xl focus:outline-none focus:border-naranja text-base lg:text-lg transition-all text-white"></div>
+                    <div><label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Crea Contraseña (Min 6)</label><input id="reg-password" type="password" autocomplete="new-password" placeholder="********" class="w-full bg-white/5 border border-white/10 p-4 mt-1 rounded-xl focus:outline-none focus:border-naranja text-xl lg:text-2xl tracking-widest transition-all text-white"></div>
                     <div class="p-5 bg-red-900/10 border border-naranja/30 rounded-xl mt-2 shadow-inner">
                         <p class="text-[10px] lg:text-xs text-naranja font-black uppercase tracking-widest mb-4"><i class="fas fa-shield-alt mr-1"></i> Recuperación</p>
                         <select id="reg-question" class="w-full bg-asfalto border border-white/10 p-4 mb-4 rounded-lg text-sm text-white font-bold focus:outline-none focus:border-naranja">
@@ -236,15 +300,15 @@
         </div>
     </div>
 
-    <!-- ========================================== VISTA OBLIGATORIA: FORCE SETUP ========================================== -->
+    <!-- CONFIGURACIÓN OBLIGATORIA -->
     <div id="view-force-setup" class="app-view min-h-screen hidden flex-col items-center justify-center p-6 bg-gradient-to-b from-blue-900/40 to-asfalto relative overflow-hidden">
         <div class="w-full max-w-md lg:max-w-lg z-10 glass p-8 lg:p-12 rounded-3xl shadow-2xl border border-blue-500/30">
             <h2 class="text-2xl lg:text-3xl font-black italic uppercase text-white mb-2"><i class="fas fa-lock text-blue-400 mr-2"></i>Asegura tu cuenta</h2>
             <p class="text-xs lg:text-sm text-gray-300 mb-8">El administrador te ha dado de alta. Por tu seguridad, debes personalizar tu contraseña y pregunta secreta antes de continuar.</p>
             
             <div class="space-y-5">
-                <div><label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Tu Nombre</label><input id="force-name" type="text" class="w-full bg-asfalto border border-white/10 p-4 mt-1 rounded-xl focus:outline-none text-white text-lg"></div>
-                <div><label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Nueva Contraseña (Min 6)</label><input id="force-password" type="password" placeholder="Escribe tu nueva clave" class="w-full bg-asfalto border border-blue-500/50 p-4 mt-1 rounded-xl focus:outline-none focus:border-blue-400 text-xl tracking-widest text-white"></div>
+                <div><label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Tu Nombre</label><input id="force-name" type="text" autocomplete="new-password" class="w-full bg-asfalto border border-white/10 p-4 mt-1 rounded-xl focus:outline-none text-white text-lg"></div>
+                <div><label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Nueva Contraseña (Min 6)</label><input id="force-password" type="password" autocomplete="new-password" placeholder="Escribe tu nueva clave" class="w-full bg-asfalto border border-blue-500/50 p-4 mt-1 rounded-xl focus:outline-none focus:border-blue-400 text-xl tracking-widest text-white"></div>
                 <div class="p-5 bg-black/40 border border-white/10 rounded-xl mt-4">
                     <p class="text-[10px] lg:text-xs text-blue-400 font-black uppercase tracking-widest mb-4"><i class="fas fa-shield-alt mr-1"></i> Recuperación</p>
                     <select id="force-question" class="w-full bg-asfalto border border-white/10 p-4 mb-4 rounded-lg text-sm text-white font-bold focus:border-blue-400">
@@ -259,7 +323,7 @@
         </div>
     </div>
 
-    <!-- ========================================== VISTA 1.5: FORMULARIO AUXILIO ========================================== -->
+    <!-- FORMULARIO SOS -->
     <div id="view-sos-form" class="app-view min-h-screen hidden flex-col items-center p-6 lg:p-12 bg-asfalto pt-8 lg:pt-16">
         <div class="w-full max-w-md lg:max-w-4xl animate-fade-in pb-10">
             <h2 class="text-3xl lg:text-5xl font-black italic uppercase text-naranja mb-2 text-center">Detalles del Rescate</h2>
@@ -341,7 +405,7 @@
         </div>
     </div>
 
-    <!-- ========================================== VISTA 2: DASHBOARD CLIENTE ========================================== -->
+    <!-- DASHBOARD CLIENTE -->
     <div id="app-client" class="app-view hidden pb-24 flex-col">
         <header class="p-5 lg:p-6 flex justify-between items-center bg-asfalto/90 backdrop-blur-md sticky top-0 z-40 border-b border-white/5 w-full shadow-lg">
             <div class="flex items-center">
@@ -380,12 +444,22 @@
                         <p class="text-xs text-center text-gray-600 italic">No tienes servicios registrados.</p>
                     </div>
                 </div>
+
+                <!-- CALENDARIO DE MANTENIMIENTO (NUEVO) -->
+                <div class="mt-6 glass p-6 rounded-3xl">
+                    <h3 class="text-lg font-black uppercase mb-4">Recordatorios de Mantenimiento</h3>
+                    <div class="flex gap-2 mb-4">
+                        <input type="text" id="reminder-desc" placeholder="Ej. Cambio de aceite" class="flex-1 bg-white/5 border border-white/10 p-3 rounded-xl text-white">
+                        <input type="date" id="reminder-date" class="bg-white/5 border border-white/10 p-3 rounded-xl text-white">
+                        <button onclick="addReminder()" class="bg-naranja px-4 rounded-xl font-black">+</button>
+                    </div>
+                    <div id="reminders-list" class="space-y-2 max-h-32 overflow-y-auto hide-scroll"></div>
+                </div>
             </section>
 
             <section id="c-view-moto" class="c-view hidden space-y-6">
                 <h2 class="text-2xl font-black italic uppercase text-center">Estado en Vivo</h2>
                 
-                <!-- ESTADO VACÍO -->
                 <div id="no-active-services-msg" class="bg-white/5 border border-white/10 p-8 rounded-3xl text-center shadow-lg flex flex-col items-center justify-center">
                     <div class="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6">
                         <i class="fas fa-map-marked-alt text-4xl text-gray-600"></i>
@@ -395,7 +469,6 @@
                     <p class="text-xs text-gray-500 mt-4">Esta pestaña se activará automáticamente cuando solicites un auxilio o ingreses tu moto al taller.</p>
                 </div>
 
-                <!-- RESCATE SOS -->
                 <div id="active-sos-card" class="hidden bg-red-900/30 border border-red-500 p-6 rounded-3xl relative overflow-hidden animate-fade-in shadow-xl">
                     <div class="flex items-center space-x-3 mb-2">
                         <i class="fas fa-ambulance text-red-500 text-2xl animate-pulse"></i>
@@ -409,7 +482,6 @@
                     </div>
                 </div>
 
-                <!-- TALLER TRACKING -->
                 <div id="active-workshop-card" class="hidden bg-gradient-to-b from-black to-asfalto border border-blue-500/30 p-6 lg:p-8 rounded-3xl shadow-xl relative overflow-hidden animate-fade-in">
                     <div class="absolute top-0 right-0 bg-blue-600 text-white px-4 py-1 rounded-bl-2xl text-[10px] font-black uppercase shadow-md">Taller OBR</div>
                     <p class="text-[10px] lg:text-xs text-gray-500 font-bold uppercase tracking-widest mt-2 mb-1">Estado de Reparación</p>
@@ -456,10 +528,13 @@
             <button onclick="switchClientView('c-view-inicio')" class="c-nav-btn tab-active flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2"><i class="fas fa-home text-2xl mb-1"></i><span class="text-[10px] font-black uppercase tracking-widest mt-1">Inicio</span></button>
             <button onclick="switchClientView('c-view-tienda')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2"><i class="fas fa-shopping-bag text-2xl mb-1"></i><span class="text-[10px] font-black uppercase tracking-widest mt-1">Tienda</span></button>
             <button onclick="switchClientView('c-view-moto')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2"><i class="fas fa-motorcycle text-2xl mb-1"></i><span class="text-[10px] font-black uppercase tracking-widest mt-1">En Vivo</span></button>
+            <button onclick="toggleTheme()" class="flex items-center justify-center px-2 py-2 text-xs">
+                <i class="fas fa-moon"></i>/<i class="fas fa-sun"></i>
+            </button>
         </nav>
     </div>
 
-    <!-- ========================================== VISTA 3: APLICACIÓN ADMIN / TALLER ========================================== -->
+    <!-- PANEL ADMINISTRADOR -->
     <div id="app-admin" class="app-view hidden pb-24 border-t-4 border-naranja flex-col bg-asfalto min-h-screen">
         <header class="p-5 flex justify-between items-center bg-asfalto sticky top-0 z-40 border-b border-naranja/20 shadow-md">
             <div>
@@ -539,6 +614,18 @@
                     <button onclick="toggleModal('modal-nuevo-servicio', true)" class="bg-blue-600/20 text-blue-400 border border-blue-500/50 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors hover:bg-blue-600/40"><i class="fas fa-plus mr-2"></i>Ingresar Moto</button>
                 </div>
                 <div id="admin-services-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </section>
+
+            <!-- ALERTAS SOS -->
+            <section id="a-view-alertas" class="a-view hidden flex-col h-full space-y-4">
+                <div class="flex justify-between items-center mb-2">
+                    <h3 class="text-2xl font-black italic uppercase">Mapa de <span class="text-red-500">Emergencias</span></h3>
+                    <button onclick="toggleMapTheme()" class="bg-white/10 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase border border-white/10 hover:bg-white/20 transition-all"><i class="fas fa-adjust mr-2"></i>Tema Mapa</button>
+                </div>
+                <div class="bg-white/5 border border-white/10 p-4 rounded-3xl shadow-xl">
+                    <div id="admin-sos-global-map" class="w-full h-64 lg:h-96 bg-white rounded-2xl z-0 border border-red-500/20"></div>
+                </div>
+                <div id="admin-sos-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4"></div>
             </section>
 
             <!-- ALMACÉN E INVENTARIO -->
@@ -702,18 +789,6 @@
                 </div>
             </section>
 
-            <!-- ALERTAS SOS -->
-            <section id="a-view-alertas" class="a-view hidden flex-col h-full space-y-4">
-                <div class="flex justify-between items-center mb-2">
-                    <h3 class="text-2xl font-black italic uppercase">Mapa de <span class="text-red-500">Emergencias</span></h3>
-                    <button onclick="toggleMapTheme()" class="bg-white/10 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase border border-white/10 hover:bg-white/20 transition-all"><i class="fas fa-adjust mr-2"></i>Tema Mapa</button>
-                </div>
-                <div class="bg-white/5 border border-white/10 p-4 rounded-3xl shadow-xl">
-                    <div id="admin-sos-global-map" class="w-full h-64 lg:h-96 bg-white rounded-2xl z-0 border border-red-500/20"></div>
-                </div>
-                <div id="admin-sos-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4"></div>
-            </section>
-
             <!-- AJUSTES CONFIGURACIÓN -->
             <section id="a-view-config" class="a-view hidden space-y-6">
                 <h3 class="text-2xl font-black italic uppercase text-white">Ajustes <span class="text-gray-400">y Tarifas</span></h3>
@@ -785,6 +860,18 @@
                     </div>
                 </div>
             </section>
+
+            <!-- ESTADÍSTICAS (NUEVO) -->
+            <section id="a-view-stats" class="a-view hidden space-y-4 p-4">
+                <h3 class="text-2xl font-black italic uppercase">Estadísticas <span class="text-naranja">OBR</span></h3>
+                <div class="bg-white/5 p-6 rounded-3xl">
+                    <canvas id="stats-chart" width="400" height="200"></canvas>
+                </div>
+                <div class="mt-4">
+                    <button onclick="exportCSV('ventas')" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-black uppercase mr-2">Exportar Ventas CSV</button>
+                    <button onclick="exportCSV('inventario')" class="bg-green-600 text-white px-4 py-2 rounded-xl font-black uppercase">Exportar Inventario CSV</button>
+                </div>
+            </section>
         </main>
 
         <nav class="fixed bottom-0 w-full bg-asfalto/95 backdrop-blur-md border-t border-naranja/20 flex overflow-x-auto hide-scroll p-3 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
@@ -796,12 +883,13 @@
                 <button onclick="switchAdminView('a-view-promos')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-purple-400 min-w-[60px]"><i class="fas fa-percent text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Promos</span></button>
                 <button onclick="switchAdminView('a-view-usuarios')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-blue-400 min-w-[60px]"><i class="fas fa-users text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Usuarios</span></button>
                 <button onclick="switchAdminView('a-view-config')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-gray-400 min-w-[60px]"><i class="fas fa-cog text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Ajustes</span></button>
+                <button onclick="switchAdminView('a-view-stats')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-naranja min-w-[60px]"><i class="fas fa-chart-bar text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Estadíst.</span></button>
             </div>
         </nav>
     </div>
 
     <!-- MODALES FLOTANTES -->
-
+    <!-- Modal nuevo servicio -->
     <div id="modal-nuevo-servicio" class="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4 hidden backdrop-blur-sm">
         <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30 shadow-[0_0_50px_rgba(34,197,94,0.1)]">
             <button onclick="toggleModal('modal-nuevo-servicio', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400"><i class="fas fa-times"></i></button>
@@ -817,6 +905,7 @@
         </div>
     </div>
 
+    <!-- Modal corte admin -->
     <div id="modal-corte-admin" class="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-4 hidden backdrop-blur-sm">
         <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-naranja/30 shadow-[0_0_50px_rgba(255,107,0,0.1)]">
             <button onclick="toggleModal('modal-corte-admin', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400"><i class="fas fa-times"></i></button>
@@ -826,6 +915,7 @@
         </div>
     </div>
 
+    <!-- Modal detalles venta -->
     <div id="modal-sale-details" class="fixed inset-0 bg-black/95 z-[150] flex items-center justify-center p-4 hidden backdrop-blur-sm">
         <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-white/20 shadow-[0_0_50px_rgba(255,255,255,0.1)]" id="print-ticket-area">
             <button onclick="toggleModal('modal-sale-details', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 no-print hover:bg-white/20 transition-all"><i class="fas fa-times"></i></button>
@@ -846,7 +936,7 @@
         </div>
     </div>
 
-    <!-- MODAL FOLIO QR Y DETALLES SOS INTEGRADOS -->
+    <!-- Modal QR ticket -->
     <div id="modal-qr-ticket" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
         <div class="bg-gradient-to-b from-asfalto to-black w-full max-w-sm rounded-[2rem] relative border border-naranja/50 shadow-[0_0_50px_rgba(255,107,0,0.3)] overflow-hidden" id="print-qr-area">
             <div class="absolute -top-10 -right-10 w-32 h-32 bg-naranja/20 rounded-full blur-[30px] no-print"></div>
@@ -871,7 +961,7 @@
         </div>
     </div>
 
-    <!-- MODAL ACTUALIZAR ESTATUS TALLER (MECÁNICO) -->
+    <!-- Modal actualizar estado taller -->
     <div id="modal-update-status" class="fixed inset-0 bg-black/95 z-[150] flex items-center justify-center p-4 hidden backdrop-blur-sm">
         <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 relative border border-blue-500/30 shadow-[0_0_50px_rgba(59,130,246,0.1)]">
             <button onclick="toggleModal('modal-update-status', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 z-[300]"><i class="fas fa-times"></i></button>
@@ -896,7 +986,7 @@
         </div>
     </div>
 
-    <!-- MODAL DETALLES SOS (ADMIN/MECÁNICO) -->
+    <!-- Modal detalle SOS admin -->
     <div id="modal-sos-detail" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
         <div class="bg-asfalto w-full max-w-2xl h-[90vh] rounded-[2rem] relative border border-red-500/50 flex flex-col overflow-hidden shadow-[0_0_50px_rgba(239,68,68,0.2)]">
             <div class="bg-red-600/20 border-b border-red-500/30 p-4 flex justify-between items-center z-10">
@@ -923,7 +1013,64 @@
         </div>
     </div>
 
-    <!-- FIREBASE INTEGRATION -->
+    <!-- Modal detalle usuario -->
+    <div id="modal-user-detail" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+        <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 relative border border-blue-500/30 shadow-[0_0_50px_rgba(59,130,246,0.1)]">
+            <button onclick="toggleModal('modal-user-detail', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 z-[300]"><i class="fas fa-times"></i></button>
+            <h2 class="text-xl font-black mb-1 text-white uppercase tracking-widest truncate w-5/6" id="ud-name">Usuario</h2>
+            <p class="text-xs text-blue-400 mb-6 font-bold" id="ud-phone"></p>
+            <div id="ud-stats" class="space-y-3 text-sm text-gray-300"></div>
+            <div class="mt-6 border-t border-white/10 pt-4">
+                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Historial de Servicios</p>
+                <div id="ud-history" class="max-h-40 overflow-y-auto space-y-2 hide-scroll"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal chat -->
+    <div id="modal-chat" class="fixed inset-0 bg-black/95 z-[150] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+        <div class="bg-asfalto w-full max-w-md h-[80vh] rounded-[2rem] relative border border-blue-500/30 flex flex-col overflow-hidden shadow-[0_0_50px_rgba(59,130,246,0.1)]">
+            <div class="bg-blue-600/20 border-b border-blue-500/30 p-4 flex justify-between items-center">
+                <div>
+                    <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest"><i class="fas fa-comments mr-1"></i> Chat de Rescate</p>
+                    <p class="text-xs text-white font-bold" id="chat-title">Mecánico / Cliente</p>
+                </div>
+                <button onclick="closeChat()" class="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-gray-300 hover:bg-white/20 transition-all"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="chat-messages" class="flex-grow p-4 overflow-y-auto flex flex-col space-y-3 hide-scroll bg-black/20"></div>
+            <div class="p-3 bg-white/5 border-t border-white/10 flex space-x-2">
+                <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-grow bg-black/50 p-3 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 border border-transparent transition-all">
+                <button onclick="sendMessage()" class="bg-blue-600 hover:bg-blue-500 text-white w-12 rounded-xl flex items-center justify-center active:scale-95 transition-transform"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal carrito -->
+    <div id="modal-cart" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+        <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 relative border border-naranja/30">
+            <button onclick="toggleModal('modal-cart', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400"><i class="fas fa-times"></i></button>
+            <h2 class="text-2xl font-black mb-4 text-center">Tu Carrito</h2>
+            <div id="cart-items" class="max-h-60 overflow-y-auto hide-scroll mb-4 space-y-2"></div>
+            <div class="flex justify-between items-center border-t border-white/10 pt-4">
+                <span class="text-lg font-black">Total: $<span id="cart-total">0.00</span></span>
+                <button onclick="checkoutCart()" class="bg-naranja text-white px-6 py-3 rounded-xl font-black uppercase">Enviar pedido por WhatsApp</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal firma digital -->
+    <div id="modal-signature" class="fixed inset-0 bg-black/95 z-[250] flex items-center justify-center p-4 hidden">
+        <div class="bg-white p-6 rounded-2xl">
+            <h3 class="text-black font-black mb-4">Firma de Entrega</h3>
+            <canvas id="signature-canvas" width="300" height="150" class="border border-gray-400 rounded"></canvas>
+            <div class="flex space-x-2 mt-4">
+                <button onclick="clearSignature()" class="bg-gray-300 px-4 py-2 rounded">Limpiar</button>
+                <button onclick="saveSignature()" class="bg-naranja text-white px-4 py-2 rounded">Guardar Firma</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIREBASE SCRIPTS -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -957,6 +1104,8 @@
             rescueKmRanges: [{km: 3, price: 20}, {km: 3.5, price: 25}, {km: 4, price: 30}, {km: 4.5, price: 35}]
         };
         
+        window.currentStatus = 'idle';
+
         window.addEventListener('beforeunload', function (e) {
             if (window.currentStatus === 'pending' || window.currentStatus === 'accepted') {
                 e.preventDefault(); e.returnValue = 'Tienes un servicio en curso. ¿Seguro que deseas salir?';
@@ -965,12 +1114,23 @@
 
         let adminGeoMap = null; let adminGeoCircle = null; let adminBusinessMarker = null;
         let adminSOSGlobalMapInst = null; let adminSOSMarkers = {};
+        let sosMapInstance = null; let mechMapInst = null; let mechMarkerInst = null; let sosDetailMapInst = null; let sosDetailMarker = null;
         window.mapTheme = 'light_all'; 
         
         let shopServices = []; let adminInventoryList = []; window.posTicket = []; window.posTotal = 0; window.posTotalCost = 0;
-        let activeChatUid = null; let chatUnsubscribe = null;
+        let activeChatUid = null; let chatUnsubscribe = null; window.adminSOSDataCache = {};
+        window.cart = [];
+        window.reminders = [];
+        window.signatureDocId = null;
 
         if (window.location.search.includes('taller26')) window.userIntent = 'admin';
+
+        const uploadWithTimeout = async (ref, file, timeout = 15000) => {
+            return Promise.race([
+                uploadBytes(ref, file),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeout))
+            ]);
+        };
 
         window.showToast = function(msg, isError = false) {
             const t = document.getElementById('status-toast');
@@ -986,11 +1146,11 @@
 
         window.fixMaps = () => {
             setTimeout(() => {
-                if(typeof adminGeoMap !== 'undefined' && adminGeoMap) adminGeoMap.invalidateSize();
-                if(typeof adminSOSGlobalMapInst !== 'undefined' && adminSOSGlobalMapInst) adminSOSGlobalMapInst.invalidateSize();
-                if(typeof sosMapInstance !== 'undefined' && sosMapInstance) sosMapInstance.invalidateSize();
-                if(typeof mechMapInst !== 'undefined' && mechMapInst) mechMapInst.invalidateSize();
-                if(typeof sosDetailMapInst !== 'undefined' && sosDetailMapInst) sosDetailMapInst.invalidateSize();
+                if(adminGeoMap) adminGeoMap.invalidateSize();
+                if(adminSOSGlobalMapInst) adminSOSGlobalMapInst.invalidateSize();
+                if(sosMapInstance) sosMapInstance.invalidateSize();
+                if(mechMapInst) mechMapInst.invalidateSize();
+                if(sosDetailMapInst) sosDetailMapInst.invalidateSize();
             }, 300);
         };
 
@@ -1025,6 +1185,53 @@
             return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
         }
 
+        // ------------------ CHAT TEMPORAL PRIVADO ------------------
+        window.openChat = function(uid, isClient = false) {
+            activeChatUid = uid;
+            document.getElementById('modal-chat').classList.remove('hidden');
+            document.getElementById('chat-title').innerText = isClient ? "Chat Privado con Mecánico" : "Chat Privado con Cliente";
+            const chatBox = document.getElementById('chat-messages');
+            chatBox.innerHTML = '<p class="text-center text-[10px] text-gray-500 mt-4"><i class="fas fa-lock mr-1"></i>Chat temporal encriptado</p>';
+            
+            chatUnsubscribe = onValue(dbRef(rtdb, `sos_chats/${uid}`), (snap) => {
+                chatBox.innerHTML = '<p class="text-center text-[10px] text-gray-500 mt-4 mb-2"><i class="fas fa-lock mr-1"></i>Chat temporal encriptado</p>';
+                if(snap.exists()) {
+                    const msgs = snap.val();
+                    Object.values(msgs).sort((a,b)=>a.ts-b.ts).forEach(m => {
+                        const isMe = (isClient && m.sender === 'client') || (!isClient && m.sender === 'admin');
+                        const align = isMe ? 'self-end bg-blue-600 text-white' : 'self-start bg-white/10 text-gray-200';
+                        const time = new Date(m.ts).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        chatBox.innerHTML += `<div class="max-w-[80%] rounded-2xl p-3 ${align} relative animate-fade-in shadow-md">
+                            <p class="text-sm">${m.text}</p>
+                            <p class="text-[8px] text-right mt-1 opacity-70">${time}</p>
+                        </div>`;
+                    });
+                    setTimeout(()=> chatBox.scrollTop = chatBox.scrollHeight, 100);
+                }
+            });
+        };
+
+        window.closeChat = function() {
+            document.getElementById('modal-chat').classList.add('hidden');
+            activeChatUid = null;
+            if(chatUnsubscribe) { chatUnsubscribe(); chatUnsubscribe = null; }
+        };
+
+        window.sendMessage = function() {
+            if(!activeChatUid) return;
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if(!text) return;
+            input.value = '';
+            
+            const isClient = window.currentUserDoc && (window.currentUserDoc.role === 'cliente' || window.currentUserDoc.role === 'membresia');
+            const sender = isClient ? 'client' : 'admin';
+            
+            const newMsgRef = push(dbRef(rtdb, `sos_chats/${activeChatUid}`));
+            rtdbSet(newMsgRef, { sender, text, ts: Date.now() });
+        };
+
+        // ------------------ CARGA E INICIO ------------------
         async function loadGlobalSettings() {
             try {
                 const docSnap = await getDoc(doc(db, 'settings', 'general'));
@@ -1103,7 +1310,6 @@
                 
                 loadPublicStore();
                 loadServicesCatalog();
-                adminRefreshConfigUI();
             } catch(e) {}
         }
 
@@ -1145,10 +1351,13 @@
                         <div class="glass rounded-3xl p-4 flex flex-col justify-between border border-white/5 relative">
                             ${p.discountPercent ? `<div class="absolute -top-2 -right-2 bg-purple-600 text-white text-[10px] font-black px-2 py-1 rounded shadow-lg uppercase animate-pulse">-${p.discountPercent}%</div>` : ''}
                             <div class="w-full aspect-square bg-white/5 rounded-2xl mb-3 flex items-center justify-center overflow-hidden">${imgHtml}</div>
-                            <p class="text-[10px] lg:text-xs font-black uppercase leading-tight mb-1 text-white">${p.name}</p>
+                            <p class="text-[10px] lg:text-xs font-black uppercase leading-tight mb-1">${p.name}</p>
                             <p class="text-[8px] text-gray-400 mb-2 line-clamp-2 h-6">${p.desc || ''}</p>
                             <p class="text-naranja font-black text-lg lg:text-xl mb-3 leading-none">${strikeHtml}$${displayPrice} ${isMem?'<span class="block text-[8px] text-green-400 mt-1">Socio VIP</span>':''}</p>
-                            <button onclick="requireLoginToBuy('${p.name}')" class="w-full bg-white/10 hover:bg-white/20 p-2 rounded-xl text-[10px] lg:text-xs font-black uppercase tracking-widest transition-all text-white border border-white/10">Pedir a domicilio</button>
+                            <div class="flex space-x-1">
+                                <button onclick="requireLoginToBuy('${p.name}')" class="flex-1 bg-white/10 hover:bg-white/20 p-2 rounded-xl text-[10px] lg:text-xs font-black uppercase tracking-widest transition-all border border-white/10">Pedir</button>
+                                <button onclick="addToCart('${p.name}', '${displayPrice}')" class="bg-naranja hover:bg-orange-600 p-2 rounded-xl text-[10px] lg:text-xs font-black uppercase"><i class="fas fa-cart-plus"></i></button>
+                            </div>
                         </div>`;
                     }
                 });
@@ -1242,7 +1451,9 @@
             document.getElementById('auth-step-register').classList.add('hidden');
             document.getElementById('auth-step-recovery').classList.add('hidden');
             document.getElementById('phone-input').value = '';
+            document.getElementById('reg-name').value = '';
             if(document.getElementById('login-password')) document.getElementById('login-password').value = '';
+            if(document.getElementById('reg-password')) document.getElementById('reg-password').value = '';
         };
 
         window.switchClientView = (id) => {
@@ -1264,6 +1475,7 @@
             if(id === 'a-view-config') { adminRefreshConfigUI(); renderAdminMap(); }
             if(id === 'a-view-usuarios') { adminLoadUsers(); }
             if(id === 'a-view-promos') { adminLoadLoyalty(); }
+            if(id === 'a-view-stats') { loadStats(); }
             window.fixMaps();
         };
 
@@ -1339,8 +1551,10 @@
             const btn = document.querySelector('#auth-step-login button');
             const origHtml = btn.innerHTML;
             btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Entrando...';
-            try { await signInWithEmailAndPassword(auth, `${rawPhone}@motorescateobr.com`, password); } 
-            catch(e) { btn.disabled = false; btn.innerHTML = origHtml; showToast("Contraseña incorrecta", true); }
+            try { 
+                await signInWithEmailAndPassword(auth, `${rawPhone}@motorescateobr.com`, password); 
+                document.getElementById('login-password').value = '';
+            } catch(e) { btn.disabled = false; btn.innerHTML = origHtml; showToast("Contraseña incorrecta", true); }
         };
 
         window.processRegister = async function() {
@@ -1359,11 +1573,13 @@
             try {
                 const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
                 await setDoc(doc(db, "users", userCredential.user.uid), { phone: "+52" + rawPhone, name: name, role: 'cliente', secQuestion: question, secAnswer: answer.toLowerCase(), pwd: password, created: new Date().toISOString() });
+                document.getElementById('reg-password').value = '';
             } catch (e) {
                 if (e.code === 'auth/email-already-in-use') {
                     try {
                         const userCred = await signInWithEmailAndPassword(auth, fakeEmail, password);
                         await setDoc(doc(db, "users", userCred.user.uid), { phone: "+52" + rawPhone, name: name, role: 'cliente', secQuestion: question, secAnswer: answer.toLowerCase(), pwd: password, created: new Date().toISOString() });
+                        document.getElementById('reg-password').value = '';
                     } catch(loginErr) { showToast("Ya existe. Loguéate.", true); document.getElementById('auth-step-register').classList.add('hidden'); document.getElementById('auth-step-login').classList.remove('hidden'); btn.disabled = false; btn.innerHTML = origHtml; }
                 } else { btn.disabled = false; btn.innerHTML = origHtml; showToast("Error", true); }
             }
@@ -1424,6 +1640,7 @@
                         } else {
                             dbData = userSnap.data();
                             if(dbData.pwd === '123456' && dbData.role !== 'cliente') {
+                                hideAllViews();
                                 showView('view-force-setup');
                                 document.getElementById('force-name').value = dbData.name || '';
                                 return; 
@@ -1489,6 +1706,7 @@
                             document.getElementById('client-name-display').innerText = window.currentUserDoc?.name || 'Cliente OBR';
                             loadClientHistory(); 
                             listenToMySOS(); 
+                            loadReminders();
                         }
                     }
                 } catch (e) {
@@ -1736,10 +1954,10 @@
                         const file = fileInput.files[0];
                         if (file.size > 20 * 1024 * 1024) { btn.disabled = false; btn.innerHTML = origHtml; return showToast("Archivo muy pesado (Max 20MB)", true); }
                         const stRef = sRef(storage, `rescates/${auth.currentUser.uid}/${Date.now()}_${file.name}`);
-                        await uploadBytes(stRef, file);
+                        await uploadWithTimeout(stRef, file, 15000);
                         mediaUrl = await getDownloadURL(stRef);
                     } catch(uploadErr) {
-                        console.warn("Upload de imagen omitido", uploadErr);
+                        console.warn("Upload error or timeout, saving status anyway.");
                     }
                 }
 
@@ -1778,10 +1996,6 @@
         };
 
         // ------------------ TRACKING MAPA EN VIVO Y CHAT ------------------
-        window.currentStatus = 'pending';
-        let mechMapInst = null;
-        let mechMarkerInst = null;
-        
         function listenToMySOS() {
             onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), (snapshot) => {
                 if(snapshot.exists()) {
@@ -1915,7 +2129,7 @@
                     const file = fileInput.files[0];
                     if(file.size > 5 * 1024 * 1024) { btn.disabled = false; btn.innerHTML = origHtml; return showToast("Imagen muy pesada", true); }
                     const stRef = sRef(storage, `inventario/${Date.now()}_${file.name}`);
-                    await uploadBytes(stRef, file);
+                    await uploadWithTimeout(stRef, file, 20000);
                     mediaUrl = await getDownloadURL(stRef);
                 }
 
@@ -2171,7 +2385,7 @@
                         const f = fileInput.files[i];
                         if(f.size > 10 * 1024 * 1024) continue;
                         const stRef = sRef(storage, `rescates/manual/${Date.now()}_${f.name}`);
-                        await uploadBytes(stRef, f);
+                        await uploadWithTimeout(stRef, f, 20000);
                         mediaUrls.push(await getDownloadURL(stRef));
                     }
                 }
@@ -2259,10 +2473,14 @@
             try {
                 let mediaUrl = "";
                 if (fileInput.files.length > 0) {
-                    const file = fileInput.files[0];
-                    const stRef = sRef(storage, `workshop/${id}/${Date.now()}_${file.name}`);
-                    await uploadBytes(stRef, file);
-                    mediaUrl = await getDownloadURL(stRef);
+                    try {
+                        const file = fileInput.files[0];
+                        const stRef = sRef(storage, `workshop/${id}/${Date.now()}_${file.name}`);
+                        await uploadWithTimeout(stRef, file, 15000);
+                        mediaUrl = await getDownloadURL(stRef);
+                    } catch(uploadErr) {
+                        console.warn("Upload error or timeout, saving status anyway.");
+                    }
                 }
 
                 await updateDoc(doc(db, "rescates", id), { tallerStatus: status });
@@ -2388,7 +2606,7 @@
                 const file = fileInput.files[0];
                 if(file.size > 50 * 1024 * 1024) { btn.disabled = false; btn.innerHTML = origHtml; return showToast("Video muy pesado (Max 50MB)", true); }
                 const stRef = sRef(storage, `promos/${Date.now()}_${file.name}`);
-                await uploadBytes(stRef, file);
+                await uploadWithTimeout(stRef, file, 30000);
                 const url = await getDownloadURL(stRef);
                 
                 globalSettings.promoVideoUrl = url;
@@ -2397,7 +2615,7 @@
                 fileInput.value = '';
                 loadPublicStore();
             } catch(e) {
-                showToast("Error al subir video", true);
+                showToast("Error al subir video. Podría ser muy pesado.", true);
             } finally {
                 btn.disabled = false; btn.innerHTML = origHtml;
             }
@@ -2470,24 +2688,25 @@
                 
                 snap.forEach(d => {
                     const u = d.data();
+                    const cacheStr = encodeURIComponent(JSON.stringify(u));
                     
                     if (u.role === 'admin' || u.role === 'mecanico' || u.role === 'taller' || u.role === 'socio') {
                         staffList.innerHTML += `
-                        <div class="bg-blue-900/20 border border-blue-500/30 p-3 rounded-xl flex justify-between items-center mb-2">
+                        <div onclick="openUserDetail('${d.id}', '${cacheStr}')" class="bg-blue-900/20 border border-blue-500/30 p-3 rounded-xl flex justify-between items-center mb-2 cursor-pointer hover:bg-blue-900/40 transition-colors shadow-sm">
                             <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-blue-400 uppercase tracking-widest">${u.role}</p></div>
-                            <div class="text-right"><p class="text-yellow-400 text-xs"><i class="fas fa-star"></i> 5.0</p><p class="text-[8px] text-gray-500">Valoración</p></div>
+                            <div class="text-right"><p class="text-yellow-400 text-xs"><i class="fas fa-star"></i> 5.0</p><p class="text-[8px] text-gray-500">Ver Perfil</p></div>
                         </div>`;
                     } else if (u.role === 'membresia') {
                         const expStr = u.membresiaExp ? new Date(u.membresiaExp).toLocaleDateString() : 'Sin Fecha';
                         vipList.innerHTML += `
                         <div class="bg-black/50 border border-yellow-500/30 p-3 rounded-xl flex justify-between items-center mb-2">
-                            <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-400">${u.phone}</p><p class="text-[8px] text-yellow-500 mt-1">Vence: ${expStr}</p></div>
+                            <div onclick="openUserDetail('${d.id}', '${cacheStr}')" class="cursor-pointer flex-grow"><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-400">${u.phone}</p><p class="text-[8px] text-yellow-500 mt-1">Vence: ${expStr}</p></div>
                             <button onclick="adminToggleMembership('${d.id}', false)" class="text-[8px] bg-red-600/20 text-red-400 px-3 py-2 rounded-lg border border-red-500/50 uppercase font-bold hover:bg-red-600 hover:text-white transition-colors">Bajar</button>
                         </div>`;
                     } else {
                         normalList.innerHTML += `
                         <div class="bg-black/30 border border-white/5 p-3 rounded-xl flex justify-between items-center mb-2">
-                            <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-500">${u.phone}</p></div>
+                            <div onclick="openUserDetail('${d.id}', '${cacheStr}')" class="cursor-pointer flex-grow"><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-500">${u.phone}</p></div>
                             <button onclick="adminToggleMembership('${d.id}', true)" class="text-[8px] bg-yellow-600/20 text-yellow-400 px-3 py-2 rounded-lg border border-yellow-500/50 uppercase font-bold hover:bg-yellow-600 hover:text-white transition-colors">Hacer VIP</button>
                         </div>`;
                     }
@@ -2508,376 +2727,303 @@
             } catch(e) { showToast("Error al actualizar", true); }
         };
 
-        // ------------------ GESTION ADMIN (GEOFENCE Y MAPAS GLOBALES) ------------------
-        window.toggleMapTheme = () => {
-            window.mapTheme = window.mapTheme === 'dark_all' ? 'light_all' : 'dark_all';
-            const tileUrl = `https://{s}.basemaps.cartocdn.com/${window.mapTheme}/{z}/{x}/{y}{r}.png`;
-            if(adminSOSGlobalMapInst) adminSOSGlobalMapInst.eachLayer(l => { if(l instanceof L.TileLayer) l.setUrl(tileUrl); });
-            if(adminGeoMap) adminGeoMap.eachLayer(l => { if(l instanceof L.TileLayer) l.setUrl(tileUrl); });
-            if(sosDetailMapInst) sosDetailMapInst.eachLayer(l => { if(l instanceof L.TileLayer) l.setUrl(tileUrl); });
+        window.openUserDetail = async function(uid, userStr) {
+            try {
+                const u = JSON.parse(decodeURIComponent(userStr));
+                document.getElementById('ud-name').innerText = u.name || 'Sin Nombre';
+                document.getElementById('ud-phone').innerText = u.phone || '';
+                
+                const statsDiv = document.getElementById('ud-stats');
+                const historyDiv = document.getElementById('ud-history');
+                statsDiv.innerHTML = '<i class="fas fa-spinner fa-spin text-gray-500"></i> Cargando historial...';
+                historyDiv.innerHTML = '';
+                
+                toggleModal('modal-user-detail', true);
+                
+                let totalSpent = 0;
+                let serviceCount = 0;
+                
+                if(['mecanico','admin','socio'].includes(u.role)) {
+                    const satSnap = await getDocs(query(collection(db, "satisfaction"), limit(50))); 
+                    let totalRating = 0; let ratingCount = 0;
+                    satSnap.forEach(d => { totalRating+=d.data().rating; ratingCount++; });
+                    const avg = ratingCount > 0 ? (totalRating/ratingCount).toFixed(1) : '5.0';
+                    statsDiv.innerHTML = `<p><i class="fas fa-star text-yellow-500 mr-2"></i> Rating General Equipo: ${avg} / 5</p><p class="mt-2 text-xs italic text-gray-500">Nota: La plataforma OBR calcula el promedio global del equipo de rescate.</p>`;
+                    historyDiv.innerHTML = '<p class="text-xs text-gray-500 italic">Vista de empleado activa.</p>';
+                    return;
+                }
+
+                const vSnap = await getDocs(query(collection(db, "ventas"), where("clienteCel", "==", u.phone.replace('+52',''))));
+                vSnap.forEach(d => { totalSpent += d.data().total; serviceCount++; });
+                
+                const sSnap = await getDocs(query(collection(db, "rescates"), where("uid", "==", uid), limit(10)));
+                
+                statsDiv.innerHTML = `<div class="grid grid-cols-2 gap-4 text-center mt-4">
+                    <div class="bg-black/50 p-4 rounded-xl border border-white/5"><p class="text-[10px] text-gray-500 uppercase tracking-widest">Servicios/Compras</p><p class="text-2xl font-black text-white">${serviceCount}</p></div>
+                    <div class="bg-black/50 p-4 rounded-xl border border-white/5"><p class="text-[10px] text-gray-500 uppercase tracking-widest">Inversión Total</p><p class="text-2xl font-black text-naranja">$${totalSpent.toFixed(2)}</p></div>
+                </div>`;
+                
+                if(sSnap.empty) historyDiv.innerHTML = '<p class="text-xs text-gray-500 italic">No hay historial de rescates de este cliente.</p>';
+                sSnap.forEach(doc => {
+                    const data = doc.data();
+                    const dStr = new Date(data.timestamp).toLocaleDateString();
+                    historyDiv.innerHTML += `<div class="bg-black/30 p-3 rounded-xl border border-white/5 flex justify-between items-center text-xs">
+                        <span class="text-gray-300 truncate w-2/3">${data.falla}</span>
+                        <span class="text-naranja font-bold">${dStr}</span>
+                    </div>`;
+                });
+            } catch(e) { console.error(e); }
         };
 
-        window.updateGeofenceRadius = function(val) {
-            document.getElementById('radius-display').innerText = val;
-            if(adminGeoCircle && adminGeoMap) {
-                adminGeoCircle.setRadius(parseFloat(val) * 1000);
+        // ------------------ NUEVAS FUNCIONES ADICIONALES ------------------
+
+        // Notificaciones locales
+        function requestNotificationPermission() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
             }
-        };
-
-        window.renderScheduleTable = function() {
-            const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-            let html = '';
-            for(let i=0; i<7; i++) {
-                const s = globalSettings.schedule[i] || {o:8, c:20};
-                html += `<tr>
-                    <td class="py-2 text-white font-bold pl-2">${days[i]}</td>
-                    <td class="py-1"><input type="number" id="sch-o-${i}" value="${s.o}" class="w-16 bg-asfalto border border-white/10 rounded p-2 text-center text-white font-black text-sm focus:border-naranja"></td>
-                    <td class="py-1"><input type="number" id="sch-c-${i}" value="${s.c}" class="w-16 bg-asfalto border border-white/10 rounded p-2 text-center text-white font-black text-sm focus:border-naranja"></td>
-                </tr>`;
+        }
+        function showLocalNotification(title, body) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, { body, icon: 'logo.png' });
             }
-            document.getElementById('schedule-tbody').innerHTML = html;
-        };
+        }
 
-        window.adminAddKmRange = function() {
-            const limit = parseFloat(document.getElementById('new-km-limit').value);
-            const price = parseFloat(document.getElementById('new-km-price').value);
-            if(isNaN(limit) || isNaN(price)) return showToast("Agrega KM y Precio", true);
-            if(!globalSettings.rescueKmRanges) globalSettings.rescueKmRanges = [];
-            globalSettings.rescueKmRanges.push({km: limit, price: price});
-            document.getElementById('new-km-limit').value = '';
-            document.getElementById('new-km-price').value = '';
-            renderKmRanges();
-        };
+        // Service Worker
+        if ('serviceWorker' in navigator) {
+            const swCode = `
+                const CACHE = 'obr-v1';
+                const urlsToCache = ['/','index.html','logo.png'];
+                self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(urlsToCache))));
+                self.addEventListener('fetch', e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))));
+            `;
+            const swBlob = new Blob([swCode], {type: 'application/javascript'});
+            const swUrl = URL.createObjectURL(swBlob);
+            navigator.serviceWorker.register(swUrl);
+        }
 
-        window.adminDelKmRange = function(index) {
-            globalSettings.rescueKmRanges.splice(index, 1);
-            renderKmRanges();
-        };
+        // Instalación PWA
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            const installBtn = document.getElementById('install-pwa-btn');
+            if(installBtn) installBtn.classList.remove('hidden');
+        });
+        document.addEventListener('click', (e) => {
+            if(e.target.id === 'install-pwa-btn' && deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+            }
+        });
 
-        window.renderKmRanges = function() {
-            const list = document.getElementById('km-ranges-list');
-            if(!globalSettings.rescueKmRanges) globalSettings.rescueKmRanges = [];
-            globalSettings.rescueKmRanges.sort((a,b)=> a.km - b.km);
-            let html = '';
-            globalSettings.rescueKmRanges.forEach((r, i) => {
-                html += `<div class="flex justify-between items-center bg-white/5 border border-white/10 p-2 rounded-lg text-xs mb-2">
-                    <span class="text-white">Hasta <b class="text-naranja">${r.km} KM</b> = $${r.price}</span>
-                    <button onclick="adminDelKmRange(${i})" class="text-red-500 hover:text-white"><i class="fas fa-trash"></i></button>
+        // Modo oscuro/claro
+        window.toggleTheme = function() {
+            document.body.classList.toggle('light-mode');
+            localStorage.setItem('theme', document.body.classList.contains('light-mode') ? 'light' : 'dark');
+        };
+        if(localStorage.getItem('theme') === 'light') document.body.classList.add('light-mode');
+
+        // Calendario de mantenimiento
+        window.addReminder = async function() {
+            const desc = document.getElementById('reminder-desc').value.trim();
+            const date = document.getElementById('reminder-date').value;
+            if(!desc || !date) return showToast("Completa ambos campos", true);
+            const reminder = { desc, date, uid: auth.currentUser.uid, timestamp: Date.now() };
+            await addDoc(collection(db, "reminders"), reminder);
+            document.getElementById('reminder-desc').value = '';
+            document.getElementById('reminder-date').value = '';
+            loadReminders();
+            showToast("Recordatorio guardado");
+        };
+        async function loadReminders() {
+            if(!auth.currentUser) return;
+            const snap = await getDocs(query(collection(db, "reminders"), where("uid", "==", auth.currentUser.uid)));
+            const list = document.getElementById('reminders-list');
+            if(!list) return;
+            list.innerHTML = '';
+            snap.forEach(d => {
+                const r = d.data();
+                list.innerHTML += `<div class="flex justify-between items-center bg-black/20 p-2 rounded">
+                    <span>${r.desc} - ${new Date(r.date).toLocaleDateString()}</span>
+                    <button onclick="deleteReminder('${d.id}')" class="text-red-500"><i class="fas fa-trash"></i></button>
                 </div>`;
             });
-            if(globalSettings.rescueKmRanges.length === 0) html = '<p class="text-[10px] text-gray-500 italic">Sin rangos definidos.</p>';
-            if(list) list.innerHTML = html;
-        };
-
-        function adminRefreshConfigUI() {
-            document.getElementById('config-price-mode').value = globalSettings.priceMode || 'km';
-            document.getElementById('config-base-price').value = globalSettings.rescueBase || 100;
-            document.getElementById('config-km-extra').value = globalSettings.rescueKmExtra || 10;
-            document.getElementById('config-radius').value = globalSettings.radiusKm || 15;
-            document.getElementById('radius-display').innerText = globalSettings.radiusKm || 15;
-            togglePriceMode();
-            renderKmRanges();
-            renderScheduleTable();
         }
+        window.deleteReminder = async (id) => { await deleteDoc(doc(db, "reminders", id)); loadReminders(); };
 
-        window.adminSaveConfig = async function() {
-            const btn = document.querySelector('#a-view-config button.bg-naranja');
-            const origHtml = btn.innerHTML;
-            btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Guardando...';
+        // Carrito de compras
+        window.addToCart = function(name, price) {
+            window.cart.push({name, price: parseFloat(price)});
+            updateCartUI();
+            showToast("Agregado al carrito");
+        };
+        window.updateCartUI = function() {
+            const countEl = document.getElementById('cart-count');
+            const itemsEl = document.getElementById('cart-items');
+            const totalEl = document.getElementById('cart-total');
+            if(countEl) countEl.innerText = window.cart.length;
+            if(itemsEl) {
+                itemsEl.innerHTML = window.cart.map((item,i) => `
+                    <div class="flex justify-between items-center text-white">
+                        <span>${item.name}</span>
+                        <span>$${item.price.toFixed(2)} <button onclick="removeFromCart(${i})" class="text-red-500 ml-2"><i class="fas fa-times"></i></button></span>
+                    </div>`).join('');
+            }
+            const total = window.cart.reduce((sum, item) => sum + item.price, 0);
+            if(totalEl) totalEl.innerText = total.toFixed(2);
+        };
+        window.removeFromCart = function(index) {
+            window.cart.splice(index,1);
+            updateCartUI();
+        };
+        window.checkoutCart = function() {
+            if(window.cart.length === 0) return showToast("Carrito vacío", true);
+            let msg = "Hola, quiero pedir los siguientes productos:\n";
+            window.cart.forEach(item => msg += `- ${item.name}: $${item.price}\n`);
+            msg += `Total: $${window.cart.reduce((s,i)=>s+i.price,0)}`;
+            window.open(`https://wa.me/526311551533?text=${encodeURIComponent(msg)}`, '_blank');
+            window.cart = [];
+            updateCartUI();
+            toggleModal('modal-cart', false);
+        };
 
-            const r = parseFloat(document.getElementById('config-radius').value || 15);
-            const applyAll = document.getElementById('config-apply-all').checked;
-            
-            const mode = document.getElementById('config-price-mode').value;
-            const rBase = parseFloat(document.getElementById('config-base-price').value || 0);
-            const kExtra = parseFloat(document.getElementById('config-km-extra').value || 0);
+        // Buscador en tienda
+        window.filterStore = function() {
+            const term = document.getElementById('store-search').value.toLowerCase();
+            const cards = document.querySelectorAll('#public-store-grid > div');
+            cards.forEach(card => {
+                const text = card.innerText.toLowerCase();
+                card.style.display = text.includes(term) ? '' : 'none';
+            });
+        };
 
-            if (!globalSettings.schedule) globalSettings.schedule = {};
-            
-            if (applyAll) {
-                const bO = parseInt(document.getElementById('sch-o-1').value || 8); 
-                const bC = parseInt(document.getElementById('sch-c-1').value || 20);
-                for(let i=0; i<7; i++) globalSettings.schedule[i] = {o: bO, c: bC};
-            } else {
-                for(let i=0; i<7; i++) {
-                    globalSettings.schedule[i] = {
-                        o: parseInt(document.getElementById(`sch-o-${i}`).value || 8),
-                        c: parseInt(document.getElementById(`sch-c-${i}`).value || 20)
-                    };
+        // Formulario de contacto
+        window.sendContact = function() {
+            const name = document.getElementById('contact-name').value.trim();
+            const phone = document.getElementById('contact-phone').value.trim();
+            const msg = document.getElementById('contact-msg').value.trim();
+            if(!name || !msg) return showToast("Nombre y mensaje requeridos", true);
+            const waText = `Hola, soy ${name}${phone ? ' ('+phone+')' : ''}. ${msg}`;
+            window.open(`https://wa.me/526311551533?text=${encodeURIComponent(waText)}`, '_blank');
+        };
+
+        // PDF de factura
+        window.downloadPDF = function(ticketData) {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFontSize(16);
+            doc.text("MOTO RESCATE OBR - Ticket", 20, 20);
+            doc.setFontSize(12);
+            doc.text(`Fecha: ${new Date(ticketData.fecha).toLocaleString()}`, 20, 30);
+            let y = 40;
+            (ticketData.ticket || []).forEach(item => {
+                doc.text(`${item.name} - $${item.price}`, 20, y);
+                y += 10;
+            });
+            doc.text(`Total: $${ticketData.total}`, 20, y+10);
+            doc.save(`ticket_${ticketData.id}.pdf`);
+        };
+
+        // Estadísticas admin
+        window.loadStats = async function() {
+            const snap = await getDocs(collection(db, "ventas"));
+            const salesByDay = {};
+            snap.forEach(d => {
+                const date = new Date(d.data().fecha).toLocaleDateString();
+                salesByDay[date] = (salesByDay[date] || 0) + d.data().total;
+            });
+            const labels = Object.keys(salesByDay).slice(-7);
+            const data = Object.values(salesByDay).slice(-7);
+            const ctx = document.getElementById('stats-chart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{ label: 'Ingresos ($)', data, backgroundColor: '#FF6B00' }]
                 }
-            }
-            
-            globalSettings.radiusKm = r;
-            globalSettings.priceMode = mode;
-            globalSettings.rescueBase = rBase;
-            globalSettings.rescueKmExtra = kExtra;
-
-            try {
-                await setDoc(doc(db, "settings", "general"), globalSettings);
-                showToast("Ajustes y Horarios Guardados Exitosamente");
-                renderScheduleTable(); 
-            } catch(e) { showToast("Error al guardar", true); }
-            finally { btn.disabled = false; btn.innerHTML = origHtml; }
+            });
         };
 
-        function renderAdminMap() {
-            const tileUrl = `https://{s}.basemaps.cartocdn.com/${window.mapTheme}/{z}/{x}/{y}{r}.png`;
-            if(!adminGeoMap && document.getElementById('admin-geofence-map')) {
-                adminGeoMap = L.map('admin-geofence-map', { dragging: true, scrollWheelZoom: false }).setView([globalSettings.centerLat, globalSettings.centerLng], 12);
-                L.tileLayer(tileUrl).addTo(adminGeoMap);
-                
-                adminGeoCircle = L.circle([globalSettings.centerLat, globalSettings.centerLng], { color: '#FF6B00', fillColor: '#FF6B00', fillOpacity: 0.2, radius: globalSettings.radiusKm * 1000 }).addTo(adminGeoMap);
-                
-                adminBusinessMarker = L.marker([globalSettings.centerLat, globalSettings.centerLng], {
-                    draggable: true,
-                    icon: L.divIcon({ className: 'mech-pulse-marker bg-naranja border-white', html: '<i class="fas fa-store"></i>', iconSize: [24,24] })
-                }).addTo(adminGeoMap);
-
-                adminBusinessMarker.on('dragend', function(event) {
-                    const position = adminBusinessMarker.getLatLng();
-                    globalSettings.centerLat = position.lat;
-                    globalSettings.centerLng = position.lng;
-                    adminGeoCircle.setLatLng(position);
-                    adminGeoMap.panTo(position);
-                    showToast("¡Ubicación del Taller ajustada! Presiona Guardar Ajustes.");
-                });
-            } else if (adminGeoMap) {
-                adminGeoMap.invalidateSize();
-            }
-        }
-
-        // NOTIFICACIONES SOS ACTIVAS AL TALLER Y DETALLES SOS
-        window.adminSOSDataCache = {};
-        let sosDetailMapInst = null;
-        let sosDetailMarker = null;
-
-        window.openSOSDetail = function(uid) {
-            const data = window.adminSOSDataCache[uid];
-            if(!data) return;
-            document.getElementById('sos-detail-title').innerText = "Cliente: " + data.phone;
-            document.getElementById('sos-detail-falla').innerText = data.falla;
-            
-            if(data.mediaUrl) {
-                document.getElementById('sos-detail-media-container').classList.remove('hidden');
-                document.getElementById('sos-detail-img').src = data.mediaUrl;
-            } else {
-                document.getElementById('sos-detail-media-container').classList.add('hidden');
-            }
-
-            const actionsDiv = document.getElementById('sos-detail-actions');
-            const clientName = data.clientName || 'amigo';
-            const myName = window.currentUserDoc ? window.currentUserDoc.name : 'Mecánico';
-            const waMsg = `Hola ${clientName}, soy ${myName} tu mecánico asignado y me encuentro en camino hacia tu ubicación, puedes seguir de cerca mi trayecto desde la APP.`;
-            const mapsUrl = data.lat ? `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.manualAddress)}`;
-
-            actionsDiv.innerHTML = `
-                <a href="${mapsUrl}" target="_blank" class="flex-1 bg-white/10 hover:bg-white/20 text-white text-center py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-white/10"><i class="fas fa-location-arrow mr-1"></i> Ir a Ruta</a>
-                <a href="https://wa.me/${data.phone.replace('+','')}?text=${encodeURIComponent(waMsg)}" target="_blank" class="w-14 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded-xl text-xl transition-all shadow-lg active:scale-95"><i class="fab fa-whatsapp"></i></a>
-            `;
-
-            toggleModal('modal-sos-detail', true);
-
-            setTimeout(() => {
-                if(data.lat && data.lng) {
-                    if(!sosDetailMapInst) {
-                        sosDetailMapInst = L.map('sos-detail-map', { dragging: true }).setView([data.lat, data.lng], 15);
-                        L.tileLayer(`https://{s}.basemaps.cartocdn.com/${window.mapTheme}/{z}/{x}/{y}{r}.png`).addTo(sosDetailMapInst);
-                        sosDetailMarker = L.marker([data.lat, data.lng], { icon: L.divIcon({ className: 'gps-pulse-marker', iconSize: [20,20] }) }).addTo(sosDetailMapInst);
-                    } else {
-                        sosDetailMapInst.setView([data.lat, data.lng], 15);
-                        sosDetailMarker.setLatLng([data.lat, data.lng]);
-                        sosDetailMapInst.invalidateSize();
-                    }
-                } else {
-                    if(sosDetailMapInst) { sosDetailMapInst.remove(); sosDetailMapInst = null; }
-                    document.getElementById('sos-detail-map').innerHTML = `<div class="flex items-center justify-center h-full text-gray-500 font-bold text-xs uppercase tracking-widest"><i class="fas fa-keyboard mr-2 text-red-500"></i> Sin GPS (Dirección manual)</div>`;
-                }
-            }, 300);
-        };
-
-        window.closeSOSDetail = function() {
-            toggleModal('modal-sos-detail', false);
-        };
-
-        function adminListenSOS() {
-            const list = document.getElementById('admin-sos-list');
-            try {
-                const tileUrl = `https://{s}.basemaps.cartocdn.com/${window.mapTheme}/{z}/{x}/{y}{r}.png`;
-                if(!adminSOSGlobalMapInst && document.getElementById('admin-sos-global-map')) {
-                    adminSOSGlobalMapInst = L.map('admin-sos-global-map', { dragging: true, scrollWheelZoom: false }).setView([globalSettings.centerLat, globalSettings.centerLng], 12);
-                    L.tileLayer(tileUrl).addTo(adminSOSGlobalMapInst);
-                    L.marker([globalSettings.centerLat, globalSettings.centerLng], { icon: L.divIcon({ className: 'mech-pulse-marker bg-naranja border-white', html: '<i class="fas fa-store"></i>', iconSize: [24,24] }) }).addTo(adminSOSGlobalMapInst);
-                }
-
-                onValue(dbRef(rtdb, 'sos_alerts'), (snapshot) => {
-                    list.innerHTML = '';
-                    let hasAlerts = false;
-                    let lastAlertPos = null;
-
-                    const noMsg = document.getElementById('no-active-services-msg');
-                    if(noMsg) noMsg.classList.add('hidden');
-
-                    for(let k in adminSOSMarkers) adminSOSGlobalMapInst.removeLayer(adminSOSMarkers[k]);
-                    adminSOSMarkers = {};
-
-                    snapshot.forEach((child) => {
-                        const alert = child.val();
-                        if(alert.status === 'completed') return; 
-                        hasAlerts = true;
-                        
-                        window.adminSOSDataCache[child.key] = alert;
-
-                        if(alert.lat && alert.lng && adminSOSGlobalMapInst) {
-                            lastAlertPos = [alert.lat, alert.lng];
-                            const mIcon = L.divIcon({ className: 'gps-pulse-marker', iconSize: [20,20] });
-                            adminSOSMarkers[`client_${child.key}`] = L.marker([alert.lat, alert.lng], {icon: mIcon}).addTo(adminSOSGlobalMapInst).bindPopup(`<b>${alert.phone}</b><br>${alert.falla.substring(0,15)}...`);
-                        }
-
-                        if(alert.status === 'accepted' && alert.mech_lat && alert.mech_lng && adminSOSGlobalMapInst) {
-                            let minutes = alert.acceptedAt ? Math.floor((Date.now() - alert.acceptedAt)/60000) : 0;
-                            const mechIcon = L.divIcon({ className: 'mech-pulse-marker', html: '<i class="fas fa-motorcycle"></i>', iconSize: [24,24] });
-                            adminSOSMarkers[`mech_${child.key}`] = L.marker([alert.mech_lat, alert.mech_lng], {icon: mechIcon}).addTo(adminSOSGlobalMapInst).bindPopup(`<b>${alert.mech_name || 'Mecánico'}</b><br>En camino: ${minutes} min`);
-                        }
-                        
-                        let mapsUrl = alert.lat ? `https://www.google.com/maps/dir/?api=1&destination=${alert.lat},${alert.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(alert.manualAddress)}`;
-                        let ubi = alert.lat ? `<span class="text-green-400 font-bold"><i class="fas fa-satellite-dish mr-1"></i> GPS Exacto</span>` : `<span class="text-red-400 font-bold"><i class="fas fa-keyboard mr-1"></i> Manual: ${alert.manualAddress}</span>`;
-                        
-                        const clientName = alert.clientName || 'amigo';
-                        const myName = window.currentUserDoc ? window.currentUserDoc.name : 'Mecánico';
-                        const waMsg = `Hola ${clientName}, soy ${myName} tu mecánico asignado y me encuentro en camino hacia tu ubicación, puedes seguir de cerca mi trayecto desde la APP.`;
-                        
-                        let actBtn = alert.status==='pending' ? `<button onclick="adminAcceptSOS('${child.key}', '${clientName}')" class="w-full bg-naranja hover:bg-orange-600 text-white font-black text-xs py-4 rounded-xl mt-4 shadow-lg active:scale-95 transition-all"><i class="fas fa-motorcycle mr-2"></i> Aceptar y Despachar</button>` : `<button onclick="adminFinishSOS('${child.key}')" class="w-full bg-green-500 hover:bg-green-600 text-white font-black text-xs py-4 rounded-xl mt-4 shadow-lg active:scale-95 transition-all"><i class="fas fa-check-double mr-2"></i> Finalizar Servicio</button>`;
-
-                        const toTallerBtn = alert.status==='accepted' ? `<button onclick="adminMoveToWorkshop('${child.key}', '${alert.phone}', '${alert.falla.replace(/'/g,"")}')" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-black text-xs py-3 rounded-xl mt-2 shadow-lg active:scale-95 transition-all flex items-center justify-center"><i class="fas fa-arrow-right mr-2"></i> Mandar a Taller Activo</button>` : '';
-                        const chatBtn = `<button onclick="openChat('${child.key}')" class="w-full bg-white/10 hover:bg-white/20 text-white font-black text-xs py-3 rounded-xl mt-2 shadow-lg active:scale-95 transition-all border border-white/10 flex items-center justify-center"><i class="fas fa-comment-dots mr-2"></i> Abrir Chat</button>`;
-                        
-                        const detailsBtn = `<button onclick="openSOSDetail('${child.key}')" class="w-full bg-blue-900/40 hover:bg-blue-900/60 text-blue-400 font-black text-xs py-3 rounded-xl mt-2 shadow-lg active:scale-95 transition-all border border-blue-500/30 flex items-center justify-center"><i class="fas fa-search-plus mr-2"></i> Ver Detalles y Mapa</button>`;
-
-                        list.innerHTML += `
-                            <div class="bg-gradient-to-b from-red-900/20 to-black/40 border ${alert.status==='accepted' ? 'border-naranja' : 'border-red-500/50'} p-6 rounded-3xl shadow-xl relative overflow-hidden">
-                                <div class="absolute top-0 right-0 ${alert.status==='accepted' ? 'bg-naranja' : 'bg-red-600'} text-white text-[10px] font-black uppercase px-4 py-1 rounded-bl-2xl shadow-lg">${alert.status==='accepted' ? 'En Camino' : 'Emergencia'}</div>
-                                <p class="font-black text-white text-xl mt-2 tracking-widest">${alert.phone}</p>
-                                <p class="text-xs text-gray-400 mb-4 font-bold"><i class="fas fa-clock mr-1 text-naranja"></i> ${new Date(alert.timestamp).toLocaleTimeString()}</p>
-                                <div class="bg-black/60 p-4 rounded-xl my-4 border border-white/5">
-                                    <p class="text-[10px] text-naranja font-black uppercase mb-1">Ubicación de Rescate:</p>
-                                    <p class="text-sm text-white leading-relaxed mb-3">${ubi}</p>
-                                    <p class="text-[10px] text-naranja font-black uppercase mb-1 border-t border-white/10 pt-3">Detalle del Reporte:</p>
-                                    <p class="text-sm text-white leading-relaxed font-semibold">"${alert.falla}"</p>
-                                </div>
-                                <div class="flex space-x-3 mb-2">
-                                    <a href="${mapsUrl}" target="_blank" class="flex-1 bg-white/10 hover:bg-white/20 text-white text-center py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all border border-white/10"><i class="fas fa-location-arrow mr-1"></i> Ir Ruta</a>
-                                    <a href="https://wa.me/${alert.phone.replace('+','')}?text=${encodeURIComponent(waMsg)}" target="_blank" class="w-14 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded-xl text-xl transition-all"><i class="fab fa-whatsapp"></i></a>
-                                </div>
-                                ${chatBtn}
-                                ${detailsBtn}
-                                ${actBtn}
-                                ${toTallerBtn}
-                            </div>`;
-                    });
-                    
-                    if(!hasAlerts) {
-                        list.innerHTML = `<div class="p-8 border border-white/10 rounded-3xl text-center text-gray-600 lg:col-span-2 shadow-inner bg-black/20"><i class="fas fa-check-circle text-4xl mb-3 opacity-50"></i><p class="text-xs font-black tracking-widest uppercase">Sin emergencias activas</p></div>`;
-                    }
-                    
-                    if(adminSOSGlobalMapInst) {
-                        setTimeout(() => adminSOSGlobalMapInst.invalidateSize(), 200);
-                        if(lastAlertPos) adminSOSGlobalMapInst.setView(lastAlertPos, 13);
-                    }
-                });
-            } catch(e) {}
-        }
-        
-        let mechWatchId = null;
-        window.adminAcceptSOS = function(clientUid, clientName) {
-            if (navigator.geolocation) {
-                const myName = window.currentUserDoc ? window.currentUserDoc.name : 'Mecánico';
-                navigator.geolocation.getCurrentPosition((pos) => {
-                    update(dbRef(rtdb, 'sos_alerts/' + clientUid), { 
-                        status: 'accepted', 
-                        mech_lat: pos.coords.latitude, 
-                        mech_lng: pos.coords.longitude,
-                        mech_name: myName,
-                        acceptedAt: Date.now()
-                    });
-                    showToast("Despachada con éxito");
-                    
-                    if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
-                    mechWatchId = navigator.geolocation.watchPosition((newPos) => {
-                        update(dbRef(rtdb, 'sos_alerts/' + clientUid), {
-                            mech_lat: newPos.coords.latitude, 
-                            mech_lng: newPos.coords.longitude
-                        });
-                    });
-
-                }, () => { showToast("Error GPS", true); });
-            }
-        };
-
-        window.adminFinishSOS = function(clientUid) {
-            if(mechWatchId) { navigator.geolocation.clearWatch(mechWatchId); mechWatchId = null; }
-            update(dbRef(rtdb, 'sos_alerts/' + clientUid), { status: 'completed' });
-            rtdbSet(dbRef(rtdb, 'sos_chats/' + clientUid), null);
-            showToast("Servicio Finalizado.");
-        };
-
-        window.adminSendSOSToPOS = function(desc, phone) {
-            switchAdminView('a-view-pos');
-            document.getElementById('pos-manual-desc').value = desc.substring(0, 40) + "...";
-            document.getElementById('pos-customer-phone').value = phone.replace('+52', '');
-            showToast("Datos cargados en caja. Ingresa el precio.");
-        };
-
-        window.adminLoadUsers = async function() {
-            try {
-                const snap = await getDocs(query(collection(db, "users"), limit(100)));
-                const normalList = document.getElementById('admin-users-normal-list');
-                const vipList = document.getElementById('admin-users-vip-list');
-                const staffList = document.getElementById('admin-users-staff-list');
-                
-                if(!normalList || !vipList || !staffList) return;
-                normalList.innerHTML = ''; vipList.innerHTML = ''; staffList.innerHTML = '';
-                
-                document.getElementById('config-mem-price').value = globalSettings.membershipPrice || 100;
-                
+        // Exportar CSV
+        window.exportCSV = async function(type) {
+            let csv = '';
+            if(type === 'ventas') {
+                const snap = await getDocs(collection(db, "ventas"));
+                csv = "Fecha,Descripción,Total\n";
                 snap.forEach(d => {
-                    const u = d.data();
-                    
-                    if (u.role === 'admin' || u.role === 'mecanico' || u.role === 'taller' || u.role === 'socio') {
-                        staffList.innerHTML += `
-                        <div class="bg-blue-900/20 border border-blue-500/30 p-3 rounded-xl flex justify-between items-center mb-2">
-                            <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-blue-400 uppercase tracking-widest">${u.role}</p></div>
-                            <div class="text-right"><p class="text-yellow-400 text-xs"><i class="fas fa-star"></i> 5.0</p><p class="text-[8px] text-gray-500">Valoración</p></div>
-                        </div>`;
-                    } else if (u.role === 'membresia') {
-                        const expStr = u.membresiaExp ? new Date(u.membresiaExp).toLocaleDateString() : 'Sin Fecha';
-                        vipList.innerHTML += `
-                        <div class="bg-black/50 border border-yellow-500/30 p-3 rounded-xl flex justify-between items-center mb-2">
-                            <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-400">${u.phone}</p><p class="text-[8px] text-yellow-500 mt-1">Vence: ${expStr}</p></div>
-                            <button onclick="adminToggleMembership('${d.id}', false)" class="text-[8px] bg-red-600/20 text-red-400 px-3 py-2 rounded-lg border border-red-500/50 uppercase font-bold hover:bg-red-600 hover:text-white transition-colors">Bajar</button>
-                        </div>`;
-                    } else {
-                        normalList.innerHTML += `
-                        <div class="bg-black/30 border border-white/5 p-3 rounded-xl flex justify-between items-center mb-2">
-                            <div><p class="font-black text-white text-xs">${u.name}</p><p class="text-[9px] text-gray-500">${u.phone}</p></div>
-                            <button onclick="adminToggleMembership('${d.id}', true)" class="text-[8px] bg-yellow-600/20 text-yellow-400 px-3 py-2 rounded-lg border border-yellow-500/50 uppercase font-bold hover:bg-yellow-600 hover:text-white transition-colors">Hacer VIP</button>
-                        </div>`;
-                    }
+                    const v = d.data();
+                    csv += `${new Date(v.fecha).toLocaleDateString()},"${v.desc}",${v.total}\n`;
                 });
-            } catch(e) { console.error(e); }
+            } else if(type === 'inventario') {
+                const snap = await getDocs(collection(db, "inventario"));
+                csv = "Nombre,Stock,Precio Público\n";
+                snap.forEach(d => {
+                    const p = d.data();
+                    csv += `"${p.name}",${p.stock},${p.pricePublic}\n`;
+                });
+            }
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `${type}_${Date.now()}.csv`; a.click();
         };
 
-        window.adminToggleMembership = async function(uid, makeVip) {
-            try {
-                if (makeVip) {
-                    const expDate = Date.now() + (30 * 24 * 60 * 60 * 1000); 
-                    await updateDoc(doc(db, "users", uid), { role: 'membresia', membresiaExp: expDate });
-                } else {
-                    await updateDoc(doc(db, "users", uid), { role: 'cliente', membresiaExp: null });
-                }
-                showToast(makeVip ? "Membresía Activada por 30 días" : "Membresía Cancelada");
-                adminLoadUsers();
-            } catch(e) { showToast("Error al actualizar", true); }
+        // Asignar mecánico (en detalle SOS)
+        window.assignMechanic = async function(sosUid, mechanicName) {
+            await updateDoc(doc(db, "rescates", sosUid), { assignedMechanic: mechanicName });
+            showToast(`Mecánico asignado: ${mechanicName}`);
         };
+
+        // Firma digital
+        window.openSignatureModal = function(docId) {
+            window.signatureDocId = docId;
+            toggleModal('modal-signature', true);
+            const canvas = document.getElementById('signature-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+            let drawing = false;
+            canvas.onmousedown = () => drawing = true;
+            canvas.onmouseup = () => drawing = false;
+            canvas.onmousemove = (e) => {
+                if(!drawing) return;
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(e.offsetX, e.offsetY, 2, 0, 2*Math.PI);
+                ctx.fill();
+            };
+        };
+        window.clearSignature = function() {
+            const canvas = document.getElementById('signature-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0,0,canvas.width,canvas.height);
+        };
+        window.saveSignature = async function() {
+            const canvas = document.getElementById('signature-canvas');
+            const dataUrl = canvas.toDataURL('image/png');
+            const blob = await (await fetch(dataUrl)).blob();
+            const stRef = sRef(storage, `signatures/${window.signatureDocId}.png`);
+            await uploadBytes(stRef, blob);
+            const url = await getDownloadURL(stRef);
+            await updateDoc(doc(db, "rescates", window.signatureDocId), { signatureUrl: url });
+            toggleModal('modal-signature', false);
+            showToast("Firma guardada");
+        };
+
+        // Escanear QR
+        window.startQRScanner = function() {
+            const html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, qrCodeMessage => {
+                window.open(`?qr=${qrCodeMessage}`, '_blank');
+                html5QrCode.stop();
+            }, err => {});
+        };
+
+        // Inicialización final
+        window.addEventListener('load', () => {
+            requestNotificationPermission();
+        });
+
+        console.log("🚀 OBR Full mejorado cargado exitosamente.");
     </script>
 </body>
 </html>
