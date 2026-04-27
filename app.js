@@ -1,96 +1,3 @@
-Aquí tienes el archivo **`styles.css` completo y actualizado**. Reemplaza tu versión anterior por este contenido.
-
-```css
-:root {
-    --bg: #1A1A1A;
-    --text: #ffffff;
-    --glass-bg: rgba(255,255,255,0.05);
-    --border: rgba(255,255,255,0.1);
-}
-.light-mode {
-    --bg: #f5f5f5;
-    --text: #1A1A1A;
-    --glass-bg: rgba(0,0,0,0.05);
-    --border: rgba(0,0,0,0.1);
-}
-body {
-    font-family: 'Inter', sans-serif;
-    background-color: var(--bg);
-    color: var(--text);
-    -webkit-tap-highlight-color: transparent;
-    transition: background-color 0.3s ease, color 0.3s ease;
-}
-.glass {
-    background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    border: 1px solid var(--border);
-}
-.tab-active { color: #FF6B00; border-top: 2px solid #FF6B00; }
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-thumb { background: #FF6B00; border-radius: 10px; }
-.hide-scroll::-webkit-scrollbar { display: none; }
-
-@keyframes pulse-sos {
-    0% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.7); transform: scale(1); }
-    50% { transform: scale(1.05); }
-    70% { box-shadow: 0 0 0 50px rgba(255, 107, 0, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0); transform: scale(1); }
-}
-.btn-sos-huge { animation: pulse-sos 2s infinite; }
-
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-.animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
-
-.gps-pulse-marker {
-    width: 20px; height: 20px;
-    background-color: #FF6B00;
-    border-radius: 50%;
-    box-shadow: 0 0 0 rgba(255, 107, 0, 0.7);
-    animation: pulse-sos 1.5s infinite;
-    border: 3px solid white;
-}
-.mech-pulse-marker {
-    width: 26px; height: 26px;
-    background-color: #22c55e;
-    border-radius: 50%;
-    box-shadow: 0 0 0 rgba(34, 197, 94, 0.7);
-    animation: pulse-sos 1.5s infinite;
-    border: 3px solid white;
-    display: flex; align-items: center; justify-content: center;
-    color: white; font-size: 12px;
-}
-.obr-pin-marker { background: transparent; border: none; box-shadow: none; }
-.obr-pin-icon {
-    width: 32px; height: 32px;
-    background: #FF6B00;
-    border-radius: 50% 50% 50% 0;
-    transform: rotate(-45deg);
-    border: 2px solid white;
-    display: flex; align-items: center; justify-content: center;
-    animation: pulse-sos 2s infinite;
-}
-.obr-pin-icon i { transform: rotate(45deg); color: white; font-size: 14px; }
-
-/* Ajustes responsive */
-@media (max-width: 768px) {
-    .glass { backdrop-filter: blur(6px); }
-    .btn-sos-huge { width: 70vw; height: 70vw; }
-    .app-view { padding: 1rem; }
-    .hide-on-mobile { display: none; }
-}
-@media (min-width: 1024px) {
-    .max-w-7xl { max-width: 80rem; }
-    .lg\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-}
-
-/* Tema automático para mapas */
-.leaflet-tile-pane { filter: var(--map-filter, none); }
-.light-mode .leaflet-tile-pane { filter: grayscale(30%); }
-```
-
-Ahora procedo con el archivo **`app.js`** completo. Dado que es muy extenso, lo entregaré en el siguiente mensaje. Por favor, confirma que deseas continuar con el `app.js`.Ahora te entrego el archivo **`app.js` completo y actualizado** con todas las correcciones y mejoras implementadas. Reemplaza tu versión anterior por este contenido.
-
-```javascript
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, where, limit, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -781,7 +688,6 @@ window.openCitaDetail = async (id) => {
     const snap = await getDoc(doc(db, "citas", id));
     if(!snap.exists()) return;
     const c = snap.data();
-    // Aquí se podrían mostrar más detalles o permitir edición
     showToast(`Cita: ${c.fecha} ${c.hora} - ${c.trabajo}`);
 };
 
@@ -1195,7 +1101,6 @@ window.openUserDetail = async uid => {
     const u = (await getDoc(doc(db, "users", uid))).data();
     document.getElementById('ud-name').innerText = u.name;
     document.getElementById('ud-phone').innerText = u.phone;
-    // Cargar historial del usuario
     const q = query(collection(db, "rescates"), where("uid", "==", uid), limit(10));
     const snap = await getDocs(q);
     const historyDiv = document.getElementById('ud-history');
@@ -1258,7 +1163,6 @@ window.exportStatsPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18); doc.text("MOTO RESCATE OBR - Reporte Estadístico", 14, 22);
     doc.setFontSize(12); doc.text(`Fecha: ${new Date().toLocaleString()}`, 14, 32);
-    // Se pueden añadir más detalles
     doc.save(`reporte_${new Date().toISOString().slice(0,10)}.pdf`);
 };
 
@@ -1355,9 +1259,7 @@ function adminListenSOS() {
                     </div></div>`;
             }
         });
-        // Agregar marcadores al mapa
         if(adminSOSGlobalMapInst) {
-            // Limpiar marcadores anteriores
             for(let key in adminSOSMarkers) {
                 adminSOSGlobalMapInst.removeLayer(adminSOSMarkers[key]);
             }
@@ -1486,4 +1388,3 @@ window.addEventListener('load', () => {
 });
 
 console.log("🚀 OBR v4.0 cargado correctamente con TTS y mejoras visuales");
-```
