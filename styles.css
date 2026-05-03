@@ -1,15 +1,12 @@
+/* ===== styles.css COMPLETO (con mejoras para emergencia, taller y garantías) - Parte 1/2 ===== */
+
 :root {
     --bg: #1A1A1A;
     --text: #ffffff;
     --glass-bg: rgba(255,255,255,0.05);
     --border: rgba(255,255,255,0.1);
 }
-.light-mode {
-    --bg: #f5f5f5;
-    --text: #1A1A1A;
-    --glass-bg: rgba(0,0,0,0.05);
-    --border: rgba(0,0,0,0.1);
-}
+
 body {
     font-family: 'Inter', sans-serif;
     background-color: var(--bg);
@@ -17,16 +14,45 @@ body {
     -webkit-tap-highlight-color: transparent;
     transition: background-color 0.3s ease, color 0.3s ease;
 }
+
+/* --- TEMA CLARO --- */
+body.light-mode {
+    --bg: #f0f2f5;
+    --text: #111111;
+    --glass-bg: rgba(255, 255, 255, 0.9);
+    --border: rgba(0, 0, 0, 0.1);
+    background-color: var(--bg);
+    color: var(--text);
+}
+.light-mode .bg-asfalto, .light-mode nav.bg-asfalto { background-color: #ffffff !important; color: #111111 !important; }
+.light-mode .bg-asfalto\/90, .light-mode nav.bg-asfalto\/90 { background-color: rgba(255,255,255,0.95) !important; color: #111111 !important; }
+.light-mode .text-white { color: #111111 !important; }
+.light-mode .text-gray-400 { color: #555555 !important; }
+.light-mode .text-gray-300 { color: #333333 !important; }
+.light-mode .border-white\/10, .light-mode .border-white\/5 { border-color: rgba(0,0,0,0.1) !important; }
+.light-mode .bg-white\/5, .light-mode .bg-white\/10 { background-color: rgba(0,0,0,0.05) !important; }
+.light-mode .bg-black\/40, .light-mode .bg-black\/50, .light-mode .bg-black\/30, .light-mode .bg-black\/20 { 
+    background-color: rgba(255,255,255,0.9) !important; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+}
+.light-mode .bg-gradient-to-b { background-image: linear-gradient(to bottom, #ffffff, #f0f2f5) !important; }
+.light-mode .bg-gradient-to-br { background-image: linear-gradient(to bottom right, #ffffff, #f0f2f5) !important; }
+.light-mode input.text-white, .light-mode textarea.text-white, .light-mode select.text-white { color: #111111 !important; }
+.light-mode input.color-scheme-dark { color-scheme: light; }
+
 .glass {
     background: var(--glass-bg);
     backdrop-filter: blur(12px);
     border: 1px solid var(--border);
 }
+
 .tab-active { color: #FF6B00; border-top: 2px solid #FF6B00; }
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-thumb { background: #FF6B00; border-radius: 10px; }
 .hide-scroll::-webkit-scrollbar { display: none; }
+.color-scheme-dark { color-scheme: dark; }
 
+/* Animación de pulso (corregida para no afectar posición del marcador) */
 @keyframes pulse-sos {
     0% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.7); transform: scale(1); }
     50% { transform: scale(1.05); }
@@ -35,51 +61,452 @@ body {
 }
 .btn-sos-huge { animation: pulse-sos 2s infinite; }
 
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-.animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
-
+/* PINES DEL MAPA – animación solo en elemento interno para no mover el pin */
 .gps-pulse-marker {
-    width: 20px; height: 20px;
+    width: 28px; height: 28px;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    display: flex; align-items: center; justify-content: center;
+}
+.gps-pulse-marker .pulse-inner {
+    width: 28px; height: 28px;
     background-color: #FF6B00;
     border-radius: 50%;
     box-shadow: 0 0 0 rgba(255, 107, 0, 0.7);
     animation: pulse-sos 1.5s infinite;
-    border: 3px solid white;
+    border: 2px solid white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
 }
 .mech-pulse-marker {
-    width: 26px; height: 26px;
+    width: 32px; height: 32px;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000 !important;
+}
+.mech-pulse-marker .pulse-inner {
+    width: 32px; height: 32px;
     background-color: #22c55e;
     border-radius: 50%;
     box-shadow: 0 0 0 rgba(34, 197, 94, 0.7);
     animation: pulse-sos 1.5s infinite;
-    border: 3px solid white;
+    border: 2px solid white;
     display: flex; align-items: center; justify-content: center;
-    color: white; font-size: 12px;
+    font-size: 16px;
 }
+
 .obr-pin-marker { background: transparent; border: none; box-shadow: none; }
 .obr-pin-icon {
-    width: 32px; height: 32px;
+    width: 36px; height: 36px;
     background: #FF6B00;
-    border-radius: 50% 50% 50% 0;
-    transform: rotate(-45deg);
+    border-radius: 50%;
     border: 2px solid white;
     display: flex; align-items: center; justify-content: center;
     animation: pulse-sos 2s infinite;
+    font-size: 18px;
+    color: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
-.obr-pin-icon i { transform: rotate(45deg); color: white; font-size: 14px; }
 
-/* Ajustes responsive */
+/* Estilos de modales */
+.fixed.inset-0 { backdrop-filter: blur(4px); }
+.modal-content {
+    background: #1A1A1A;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 2rem;
+    padding: 1.5rem;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* Botones flotantes */
+.float-scanner-btn {
+    position: fixed;
+    bottom: 100px;
+    right: 20px;
+    z-index: 100;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #2563eb;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+/* Tarjetas de productos POS (imagen ajustada sin recorte) */
+#pos-product-grid > div {
+    aspect-ratio: 1 / 1;
+    padding: 0.5rem;
+    border-radius: 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    max-height: 150px;
+}
+#pos-product-grid .aspect-square {
+    max-height: 80px;
+    margin-bottom: 0.25rem;
+}
+#pos-product-grid .aspect-square img {
+    object-fit: contain !important;
+    width: 100%;
+    height: 100%;
+}
+#pos-product-grid p {
+    font-size: 0.65rem;
+    line-height: 1.1;
+    margin-bottom: 0.25rem;
+    height: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#pos-product-grid .font-black.text-sm {
+    font-size: 0.75rem;
+}
+
+/* Tarjetas SOS compactas */
+.sos-card-compact {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.5rem;
+}
+.sos-card-compact .phone { font-weight: 800; font-size: 0.8rem; }
+.sos-card-compact .falla { font-size: 0.7rem; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sos-card-compact .actions { display: flex; gap: 0.5rem; margin-top: 0.25rem; }
+.sos-card-compact .actions button { padding: 0.15rem 0.5rem; border-radius: 0.5rem; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; border: none; cursor: pointer; }
+
+/* Mapa SOS en escritorio: layout dividido */
+@media (min-width: 1024px) {
+    .a-view-alertas .lg\:grid {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 1rem;
+        height: calc(100vh - 200px);
+    }
+    .a-view-alertas .lg\:col-span-2 {
+        height: 100%;
+    }
+    .a-view-alertas .lg\:col-span-1 {
+        overflow-y: auto;
+        max-height: 100%;
+        padding-right: 0.5rem;
+    }
+}
+
+/* Tarjetas de servicios en taller (colores por estatus) */
+.admin-service-card {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 1rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+}
+
+/* Estilos para los estatus del taller */
+.status-recibida { background-color: rgba(59, 130, 246, 0.3); color: #60a5fa; }
+.status-mecanica { background-color: rgba(234, 179, 8, 0.3); color: #facc15; }
+.status-pruebas { background-color: rgba(59, 130, 246, 0.3); color: #60a5fa; }
+.status-lista { background-color: rgba(34, 197, 94, 0.3); color: #4ade80; }
+
+/* Grid de productos (inventario) – imagen ajustada con object-contain */
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 1rem;
+}
+.product-card {
+    background: rgba(0,0,0,0.3);
+    border-radius: 1rem;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    transition: transform 0.2s;
+}
+.product-card img {
+    width: 100%;
+    aspect-ratio: 1/1;
+    object-fit: contain !important;
+    border-radius: 0.5rem;
+    background: rgba(255,255,255,0.1);
+    margin-bottom: 0.5rem;
+}
+.product-card:hover { transform: scale(1.02); }
+
+/* Asegurar que las imágenes en el grid público y cliente también usen contain */
+#public-store-grid img,
+#client-store-grid img {
+    object-fit: contain !important;
+}
+/* Inputs y botones */
+input, select, textarea {
+    outline: none;
+    transition: border-color 0.2s;
+}
+input:focus, select:focus, textarea:focus {
+    border-color: #FF6B00 !important;
+}
+
+/* Botón primario */
+.btn-primary {
+    background: #FF6B00;
+    color: white;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1.5rem;
+    transition: background 0.2s;
+}
+.btn-primary:hover { background: #ea580c; }
+
+/* Modal específico ingresar moto */
+#modal-nuevo-servicio input, #modal-nuevo-servicio textarea {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: white;
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    width: 100%;
+    margin-bottom: 0.75rem;
+}
+
+/* Carrito */
+.cart-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Calendario video banner */
+.video-day-row {
+    background: rgba(0,0,0,0.4);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Grid video banner (2 columnas) */
+#video-schedule-days {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+/* Responsive general */
 @media (max-width: 768px) {
     .glass { backdrop-filter: blur(6px); }
     .btn-sos-huge { width: 70vw; height: 70vw; }
     .app-view { padding: 1rem; }
     .hide-on-mobile { display: none; }
 }
-@media (min-width: 1024px) {
-    .max-w-7xl { max-width: 80rem; }
-    .lg\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+/* Impresión */
+@media print {
+    body * { visibility: hidden; }
+    .hide-on-print { display: none !important; }
+    #print-qr-area, #print-qr-area * { visibility: visible; }
+    #print-qr-area { 
+        position: absolute; 
+        left: 0; 
+        top: 0; 
+        width: 100%; 
+        margin: 0; 
+        box-shadow: none !important; 
+        border: none !important;
+        padding: 0 !important;
+    }
 }
 
-/* Tema automático para mapas */
+.ticket-print-bg {
+    background-color: #ffffff;
+    background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+/* Ajustes para Leaflet en modo oscuro */
 .leaflet-tile-pane { filter: var(--map-filter, none); }
-.light-mode .leaflet-tile-pane { filter: grayscale(30%); }
+.light-mode .leaflet-tile-pane { filter: grayscale(10%); }
+
+/* Estilos para el modal de firma */
+#signature-canvas {
+    border: 2px solid #ccc;
+    border-radius: 0.5rem;
+    background: #f9f9f9;
+    cursor: crosshair;
+}
+
+/* Botón flotante inventario */
+#float-inventory-btn {
+    position: fixed;
+    bottom: 100px;
+    right: 30px;
+    z-index: 100;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #16a34a;
+    color: white;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+/* Botón flotante del carrito en móvil (cliente) */
+#cart-count-mobile {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #ef4444;
+    color: white;
+    font-size: 0.65rem;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+}
+
+/* Aseguramos que el contenedor de las fotos en detalle también use contain */
+#servicio-fotos-container img {
+    object-fit: contain !important;
+}
+
+/* Ajuste para que el menú inferior no tape el contenido en admin */
+#app-admin main {
+    padding-bottom: 7rem;
+}
+@media (min-width: 1024px) {
+    #app-admin main {
+        padding-bottom: 6rem;
+    }
+}
+
+/* ===== NUEVOS ESTILOS PARA MEJORAS ===== */
+
+/* Botón de emergencia bloqueado (cuando taller está cerrado) */
+#emergency-client-btn.opacity-50 {
+    cursor: not-allowed;
+    filter: grayscale(30%);
+}
+#emergency-closed-text {
+    font-size: 0.7rem;
+    line-height: 1.2;
+}
+
+/* Contenedor de cobros pendientes de mecánicos en POS */
+#admin-pending-mech-payments {
+    max-height: 200px;
+    overflow-y: auto;
+}
+#admin-pending-mech-payments > div {
+    transition: background 0.2s;
+}
+#admin-pending-mech-payments > div:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+/* Sección de cobros pendientes para el mecánico */
+#mech-pending-charges {
+    max-height: 300px;
+    overflow-y: auto;
+}
+#mech-pending-charges > div {
+    transition: background 0.2s;
+}
+#mech-pending-charges > div:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+/* Productos con descuento: precio original tachado */
+.line-through {
+    text-decoration: line-through;
+}
+
+/* Lista de productos con descuento */
+#discounted-products-list > div {
+    transition: background 0.2s;
+}
+#discounted-products-list > div:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+/* Garantías */
+#garantias-list > div {
+    transition: background 0.2s;
+}
+#garantias-list > div:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+/* Ventas realizadas */
+#ventas-realizadas-list > div {
+    transition: background 0.2s;
+}
+#ventas-realizadas-list > div:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+/* Detalle de usuario y staff */
+#modal-user-detail .bg-black\/30,
+#modal-staff-detail .bg-black\/30 {
+    transition: background 0.2s;
+}
+#modal-user-detail .bg-black\/30:hover,
+#modal-staff-detail .bg-black\/30:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+/* Botón CHECK del taller */
+#btn-lista-check {
+    align-items: center;
+    justify-content: center;
+    display: none;
+}
+#btn-lista-check i {
+    margin-right: 0.25rem;
+}
+
+/* Ajuste para el historial del cliente */
+#client-history-list > div {
+    transition: background 0.2s;
+}
+#client-history-list > div:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+/* Ajuste para las citas del cliente */
+#client-appointments-list > div {
+    transition: background 0.2s;
+}
+#client-appointments-list > div:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+/* Ajuste para la tienda cliente (misma vista que catálogo público) */
+#client-store-grid .glass img {
+    object-fit: contain !important;
+    background: rgba(255,255,255,0.05);
+}
