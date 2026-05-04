@@ -1260,5 +1260,16 @@
 
 <!-- FIN DE MODALES -->
 <script type="module" src="app.js"></script>
+    <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').then(reg => {
+        console.log('SW registrado:', reg.scope);
+      }).catch(err => {
+        console.warn('Error al registrar SW:', err);
+      });
+    });
+  }
+</script>
 </body>
 </html>
