@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, where, limit, updateDoc, deleteDoc, orderBy, arrayUnion, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, where, limit, updateDoc, deleteDoc, orderBy, onSnapshot, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getDatabase, ref as dbRef, set as rtdbSet, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
@@ -48,8 +48,9 @@ window.currentSOSFilter = 'pending';
 let statsChartInstance = null, statsPieInstance = null;
 let adminSalesCache = {}; let lastNotifiedSOS = null; let mechWatchId = null;
 window.activePosFilter = 'todos';
-window.garantiasActivas = []; // Para gestión de garantías
-
+window.garantiasActivas = [];
+let mySOSListener = null;
+let serviciosListener = null, sosListener = null, pedidosListener = null, citasListener = null;
 const generateShortId = () => 'OBR-' + Math.floor(10000 + Math.random() * 90000);
 
 // === UTILIDADES ===
@@ -57,20 +58,91 @@ window.showToast = (msg, isError = false) => {
     const t = document.getElementById('status-toast'); if(!t) return;
     document.getElementById('status-msg').innerText = msg;
     const icon = document.getElementById('toast-icon');
-    t.firstElementChild.className = isError 
+    t.firstElementChild.className = isError
         ? 'bg-red-600 text-white px-6 py-3 rounded-full shadow-2xl flex items-center space-x-3 font-bold text-sm'
         : 'bg-naranja text-white px-6 py-3 rounded-full shadow-2xl flex items-center space-x-3 font-bold text-sm';
     icon.className = isError ? 'fas fa-exclamation-triangle text-lg' : 'fas fa-check-circle text-lg';
     t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 4000);
 };
 
-window.toggleModal = (id, show) => { 
+window.confirmModal = (message, onConfirm, onCancel) => {
+    const modalId = 'modal-confirm-custom';
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.innerHTML = `
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-white/10 shadow-2xl text-center">
+                <p id="confirm-msg" class="text-white font-bold mb-6"></p>
+                <div class="flex space-x-3 justify-center">
+                    <button id="confirm-yes" class="bg-green-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">Sí</button>
+                    <button id="confirm-no" class="bg-gray-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">No</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modalEl);
+    }
+    document.getElementById('confirm-msg').innerText = message;
+    document.getElementById('confirm-yes').onclick = () => {
+        toggleModal(modalId, false);
+        if (onConfirm) onConfirm();
+    };
+    document.getElementById('confirm-no').onclick = () => {
+        toggleModal(modalId, false);
+        if (onCancel) onCancel();
+    };
+    toggleModal(modalId, true);
+};
+
+window.promptModal = (message, defaultValue, callback) => {
+    const modalId = 'modal-prompt-custom';
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.innerHTML = `
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-white/10 shadow-2xl">
+                <p id="prompt-msg" class="text-white font-bold mb-4"></p>
+                <input id="prompt-input" type="text" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white mb-4">
+                <div class="flex space-x-3 justify-center">
+                    <button id="prompt-ok" class="bg-green-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">Aceptar</button>
+                    <button id="prompt-cancel" class="bg-gray-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">Cancelar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modalEl);
+    }
+    document.getElementById('prompt-msg').innerText = message;
+    const input = document.getElementById('prompt-input');
+    input.value = defaultValue || '';
+    document.getElementById('prompt-ok').onclick = () => {
+        toggleModal(modalId, false);
+        if (callback) callback(input.value);
+    };
+    document.getElementById('prompt-cancel').onclick = () => {
+        toggleModal(modalId, false);
+        if (callback) callback(null);
+    };
+    toggleModal(modalId, true);
+    setTimeout(() => input.focus(), 100);
+};
+
+window.toggleModal = (id, show) => {
     const m = document.getElementById(id);
     if(m) {
         m.classList.toggle('hidden', !show);
         if(show && id === 'modal-video-schedule') window.renderVideoScheduleDays?.();
-        if(show && id === 'modal-ventas-realizadas') window.loadVentasRealizadas?.();
         if(show && id === 'modal-garantias') window.loadGarantias?.();
+        if(show && id === 'modal-nueva-cita') {
+            const fechaInput = document.getElementById('cita-fecha');
+            if(fechaInput) fechaInput.min = new Date().toISOString().split('T')[0];
+        }
+        if(show && id === 'modal-edit-cita') {
+            const fechaInput = document.getElementById('edit-cita-fecha');
+            if(fechaInput) fechaInput.min = new Date().toISOString().split('T')[0];
+        }
     }
 };
 
@@ -111,14 +183,14 @@ const uploadFile = (file, path, onProgressCallback = null) => {
         if(!file) return resolve(null);
         const storageRef = sRef(storage, path);
         const uploadTask = uploadBytesResumable(storageRef, file);
-        uploadTask.on('state_changed', 
+        uploadTask.on('state_changed',
             (snapshot) => {
                 if (onProgressCallback) {
                     const p = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
                     onProgressCallback(p);
                 }
-            }, 
-            error => reject(error), 
+            },
+            error => reject(error),
             async () => resolve(await getDownloadURL(uploadTask.snapshot.ref))
         );
     });
@@ -167,18 +239,37 @@ window.changeThemeMode = async (mode) => {
     globalSettings.themeMode = mode; applyTheme();
     if(auth.currentUser && window.currentUserDoc?.role === 'admin') await setDoc(doc(db, "settings", "general"), { themeMode: mode }, { merge: true });
 };
+
 function applyTheme() {
     let mode = globalSettings.themeMode || 'auto';
     if (mode === 'auto') { const h = new Date().getHours(); mode = (h >= 7 && h < 19) ? 'light' : 'dark'; }
     document.body.classList.toggle('light-mode', mode === 'light');
     const sel = document.getElementById('theme-selector'); if(sel) sel.value = globalSettings.themeMode || 'auto';
+    switchMapLayer(mode === 'light');
+}
+
+function switchMapLayer(isLight) {
+    const layerUrl = isLight
+        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    const attribution = '&copy; <a href="https://carto.com/">CARTO</a>';
+
+    const maps = [adminSOSGlobalMapInst, adminGeoMap, mechMapInst, sosMapInstance];
+    maps.forEach(map => {
+        if (map) {
+            map.eachLayer(layer => {
+                if (layer instanceof L.TileLayer) map.removeLayer(layer);
+            });
+            L.tileLayer(layerUrl, { attribution }).addTo(map);
+        }
+    });
 }
 
 // === RASTREO MECÁNICO ===
 function startMechanicTracking() {
     if(['admin', 'mecanico', 'taller'].includes(window.currentUserDoc?.role)) {
         if(navigator.geolocation) {
-            mechWatchId = navigator.geolocation.watchPosition(pos => {
+            navigator.geolocation.watchPosition(pos => {
                 update(dbRef(rtdb, 'mecanicos_activos/' + auth.currentUser.uid), { lat: pos.coords.latitude, lng: pos.coords.longitude, name: window.currentUserDoc.name, ts: Date.now() });
             }, e=>console.error(e), {enableHighAccuracy: true, maximumAge: 10000});
         }
@@ -194,12 +285,12 @@ async function loadGlobalSettings() {
 }
 
 function updateLandingStatus() {
-    const now = new Date(); const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1; 
+    const now = new Date(); const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
     const sched = globalSettings.schedule[dayIndex] || { o: "08:00", c: "20:00" };
     const [hOpen, mOpen] = sched.o.split(':').map(Number); const [hClose, mClose] = sched.c.split(':').map(Number);
     const nowMins = now.getHours() * 60 + now.getMinutes(); const openMins = hOpen * 60 + mOpen; const closeMins = hClose * 60 + mClose;
     const isOpen = nowMins >= openMins && nowMins < closeMins;
-    
+
     const lo = document.getElementById('landing-open'); const lc = document.getElementById('landing-closed');
     if(lo) lo.style.display = isOpen ? 'flex' : 'none'; if(lc) lc.style.display = isOpen ? 'none' : 'flex';
     const badge = document.getElementById('landing-status-badge');
@@ -224,7 +315,7 @@ window.updateEmergencyButtonState = (isOpen, sched) => {
     const emBtn = document.getElementById('emergency-client-btn');
     const emText = document.getElementById('emergency-closed-text');
     if (!emBtn) return;
-    
+
     if (isOpen) {
         emBtn.classList.remove('opacity-50', 'pointer-events-none', 'bg-gray-600');
         emBtn.classList.add('bg-gradient-to-r', 'from-red-600', 'to-naranja');
@@ -266,6 +357,7 @@ function findNextOpenDay() {
     return null;
 }
 
+// === CARGA DE TIENDA Y SERVICIOS ===
 async function loadPublicStore() {
     try {
         const snap = await getDocs(collection(db, "inventario"));
@@ -273,9 +365,16 @@ async function loadPublicStore() {
         let html = ''; const isMem = auth.currentUser && window.currentUserDoc?.role === 'membresia';
         snap.forEach(doc => {
             const p = doc.data();
-            if(p.stock > 0) {
+            if(p.stock > 0 && p.visible !== false) {
                 const price = isMem ? (p.priceMember || p.pricePublic) : p.pricePublic;
-                html += `<div class="glass p-4 rounded-3xl flex flex-col hover:shadow-[0_0_15px_rgba(255,107,0,0.3)] transition-all" onclick="window.openProductDetail?.('${doc.id}')"><div class="w-full aspect-square bg-white/5 rounded-2xl mb-3 flex items-center justify-center overflow-hidden">${p.imgUrl ? `<img src="${p.imgUrl}" class="w-full h-full object-contain">` : '<i class="fas fa-box text-4xl text-gray-600"></i>'}</div><p class="text-xs font-black uppercase flex-grow">${p.name}</p><p class="text-naranja font-black text-lg mb-3">$${price}</p><button onclick="event.stopPropagation(); addToCart('${p.name}', ${price})" class="w-full bg-naranja hover:bg-orange-600 transition-colors text-white p-2 rounded-xl text-xs font-black uppercase">Añadir</button></div>`;
+                const promo = (p.originalPrice && p.originalPrice > p.pricePublic);
+                html += `<div class="glass p-4 rounded-3xl flex flex-col hover:shadow-[0_0_15px_rgba(255,107,0,0.3)] transition-all relative" onclick="window.openProductDetail?.('${doc.id}')">
+                    ${promo ? '<div class="sticker-promo absolute top-2 right-2 bg-red-500 text-white px-2 py-0.5 text-[0.6rem] font-black rounded-full uppercase z-10">PROMO</div>' : ''}
+                    <div class="w-full aspect-square bg-white/5 rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative">${p.imgUrl ? `<img src="${p.imgUrl}" class="w-full h-full object-contain">` : '<i class="fas fa-box text-4xl text-gray-600"></i>'}</div>
+                    <p class="text-xs font-black uppercase flex-grow">${p.name}</p>
+                    <p class="text-naranja font-black text-lg mb-3">${promo ? `<span class="line-through text-gray-500 text-xs mr-1">$${p.originalPrice.toFixed(2)}</span>` : ''}$${price.toFixed(2)}</p>
+                    <button onclick="event.stopPropagation(); addToCart('${p.name}', ${price})" class="w-full bg-naranja hover:bg-orange-600 transition-colors text-white p-2 rounded-xl text-xs font-black uppercase">Añadir</button>
+                </div>`;
             }
         });
         if (!html) html = `<div class="col-span-full text-center p-10 flex flex-col items-center"><i class="fas fa-box-open text-6xl text-gray-600 mb-6 opacity-30"></i><h3 class="text-2xl font-black text-naranja uppercase italic mb-2">Próximamente</h3><p class="text-gray-400 text-sm mb-6">Estamos abasteciendo nuestro almacén.</p><button onclick="toggleModal('modal-contact', true)" class="bg-blue-600 text-white px-6 py-3 rounded-full font-black uppercase text-xs"><i class="fas fa-headset mr-2"></i>Contactar al Taller</button></div>`;
@@ -293,32 +392,41 @@ async function loadServicesCatalog() {
         select.innerHTML = html;
     } catch (e) {}
 }
+
 // === FLUJO DE VISTAS Y AUTENTICACIÓN ===
 onAuthStateChanged(auth, async user => {
     document.getElementById('loading-screen').classList.add('hidden');
     const globalLoginBtn = document.getElementById('global-login-btn');
-    
+
     if (!user) {
         if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
         if(globalLoginBtn) globalLoginBtn.style.display = 'flex';
         loadGlobalSettings(); document.getElementById('view-landing').classList.remove('hidden'); document.getElementById('view-landing').classList.add('flex'); return;
     }
-    
+
     if(globalLoginBtn) globalLoginBtn.style.display = 'none';
-    
+
     document.getElementById('view-landing').classList.add('hidden');
-    
+
     const userSnap = await getDoc(doc(db, 'users', user.uid));
-    if (userSnap.exists()) { window.currentUserDoc = userSnap.data(); window.currentUserDoc.id = user.uid; } 
+    if (userSnap.exists()) { window.currentUserDoc = userSnap.data(); window.currentUserDoc.id = user.uid; }
     else { window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; }
-    
+
     if (window.currentUserDoc.firstLogin) {
         showView('view-force-setup');
         return;
     }
 
+    if (window.currentUserDoc.role === 'membresia' && window.currentUserDoc.membresiaExp) {
+        if (Date.now() > window.currentUserDoc.membresiaExp) {
+            await updateDoc(doc(db, 'users', user.uid), { role: 'cliente', membresiaExp: null });
+            window.currentUserDoc.role = 'cliente';
+            showToast("Tu membresía VIP ha expirado. Has vuelto a Cliente Estándar.");
+        }
+    }
+
     applyTheme(); startMechanicTracking();
-    
+
     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
         showView('app-admin'); document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
         window.adminRefreshConfigUI(); window.adminLoadInventory(); window.adminLoadSales(); window.filterSOS('pending'); window.adminListenServices(); window.adminLoadCitas(); window.loadChatList();
@@ -337,9 +445,18 @@ onAuthStateChanged(auth, async user => {
         window.loadClientHistory(); listenToMySOS(); window.loadClientCitas(); loadPublicStore();
         window.loadMyOrders();
         updateLandingStatus();
+        onValue(dbRef(rtdb, 'notificaciones/' + user.uid), snap => {
+            if (snap.exists()) {
+                const notif = snap.val();
+                showToast(notif.msg);
+                if (Notification.permission === 'granted') {
+                    new Notification('OBR', { body: notif.msg, icon: 'logo.png' });
+                }
+                remove(dbRef(rtdb, 'notificaciones/' + user.uid));
+            }
+        });
     }
 });
-
 function showView(targetId) {
     const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'view-force-setup', 'app-client', 'app-admin'];
     views.forEach(id => { const el = document.getElementById(id); if(el) { el.classList.add('hidden'); el.classList.remove('flex'); el.style.display = 'none'; } });
@@ -397,7 +514,7 @@ window.switchAdminView = (id) => {
     document.querySelectorAll('.a-nav-btn').forEach(b => b.classList.remove('tab-active'));
     const btn = Array.from(document.querySelectorAll('.a-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
     if(btn) btn.classList.add('tab-active');
-    
+
     const chatBtn = document.getElementById('admin-chat-float-btn');
     if(chatBtn) chatBtn.classList.toggle('hidden', !['a-view-pos', 'a-view-alertas'].includes(id));
 
@@ -408,7 +525,7 @@ window.switchAdminView = (id) => {
     if(id === 'a-view-citas') window.adminLoadCitas();
     if(id === 'a-view-alertas') window.renderSOSGlobalMap();
     if(id === 'a-view-pos') { window.posFilterProducts(); window.renderPendingMechanicPayments(); window.loadVentasRealizadas(); }
-    if(id === 'a-view-inventario') { 
+    if(id === 'a-view-inventario') {
         window.adminLoadInventory();
         if (!document.getElementById('float-inventory-btn')) {
             const btn = document.createElement('button');
@@ -436,14 +553,22 @@ window.checkUserExists = async () => {
         if (!snap.empty) {
             window.currentUserDoc = snap.docs[0].data(); document.getElementById('login-name-display').innerText = window.currentUserDoc.name || 'Cliente';
             document.getElementById('auth-step-login').classList.remove('hidden');
-        } else { document.getElementById('auth-step-register').classList.remove('hidden'); }
+        } else {
+            document.getElementById('auth-step-register').classList.remove('hidden');
+        }
     } catch(e) { showToast("Error de conexión", true); } finally { btn.disabled = false; btn.innerHTML = 'Siguiente'; }
 };
 
 window.processLogin = async () => {
     const rawPhone = document.getElementById('phone-input').value.trim(); const password = document.getElementById('login-password').value.trim();
     if(!password) return showToast("Ingresa contraseña", true);
-    try { await signInWithEmailAndPassword(auth, `${rawPhone}@motorescateobr.com`, password); } catch(e) { showToast("Contraseña incorrecta", true); }
+    try {
+        await signInWithEmailAndPassword(auth, `${rawPhone}@motorescateobr.com`, password);
+    } catch(e) {
+        if (e.code === 'auth/user-not-found') showToast("Usuario no registrado", true);
+        else if (e.code === 'auth/wrong-password') showToast("Contraseña incorrecta", true);
+        else showToast("Error al iniciar sesión", true);
+    }
 };
 
 window.processRegister = async () => {
@@ -456,8 +581,15 @@ window.processRegister = async () => {
         const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
         await setDoc(doc(db, "users", userCredential.user.uid), { phone: "+52" + rawPhone, name, role: 'cliente', secQuestion: question, secAnswer: answer.toLowerCase(), pwd: password, created: new Date().toISOString() });
     } catch (e) {
-        if (e.code === 'auth/email-already-in-use') { try { await signInWithEmailAndPassword(auth, fakeEmail, password); } catch(loginErr) { showToast("Ya existe. Inicia sesión.", true); } } 
-        else showToast("Error en registro", true);
+        if (e.code === 'auth/email-already-in-use') {
+            try {
+                await signInWithEmailAndPassword(auth, fakeEmail, password);
+            } catch(loginErr) {
+                showToast("Ya existe. Inicia sesión con tu contraseña.", true);
+                document.getElementById('auth-step-register').classList.add('hidden');
+                document.getElementById('auth-step-login').classList.remove('hidden');
+            }
+        } else showToast("Error en registro", true);
     }
 };
 
@@ -481,11 +613,11 @@ window.processRecovery = () => {
 
 window.logout = () => signOut(auth).then(() => window.location.href = window.location.pathname);
 
-// === SOS CLIENTE (con envío forzado por timeout) ===
+// === SOS CLIENTE ===
 window.launchSOSForm = () => {
     showView('view-sos-form'); document.getElementById('manual-address-container').classList.add('hidden'); document.getElementById('llanta-type-container').classList.add('hidden');
     document.getElementById('sos-map-preview').classList.remove('hidden'); document.getElementById('sos-estimate-display').innerText = "Calculando..."; document.getElementById('gps-status-text').innerText = "Buscando...";
-    
+
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
             tempSOSGps.lat = pos.coords.latitude; tempSOSGps.lng = pos.coords.longitude;
@@ -494,7 +626,12 @@ window.launchSOSForm = () => {
             document.getElementById('gps-status-text').innerText = "GPS Establecido"; document.getElementById('gps-status-text').className = "text-[9px] font-bold text-green-400";
             if(!sosMapInstance) {
                 sosMapInstance = L.map('sos-map-preview', { dragging: false, zoomControl: false, scrollWheelZoom: false }).setView([tempSOSGps.lat, tempSOSGps.lng], 16);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(sosMapInstance);
+                // Usar la capa adecuada según el tema
+                const isLight = document.body.classList.contains('light-mode');
+                const layerUrl = isLight
+                    ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+                    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+                L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(sosMapInstance);
                 L.marker([tempSOSGps.lat, tempSOSGps.lng], { icon: L.divIcon({ className: 'gps-pulse-marker', html:'<div class="pulse-inner"><i class="fas fa-street-view text-white text-xs"></i></div>', iconSize: [28, 28], iconAnchor: [14, 28] }) }).addTo(sosMapInstance);
             } else { sosMapInstance.setView([tempSOSGps.lat, tempSOSGps.lng], 16); sosMapInstance.invalidateSize(); }
             window.updateSOSEstimate(dist);
@@ -517,7 +654,7 @@ window.updateSOSEstimate = function(dist = null) {
         for(let r of ranges) { if(d <= r.km) { rescueCost = r.price; matched = true; break; } }
         if(!matched && ranges.length > 0) rescueCost = ranges[ranges.length-1].price + Math.max(0, (d - ranges[ranges.length-1].km)) * (globalSettings.rescueKmExtra||0);
     } else rescueCost = globalSettings.rescueBase || 100;
-    
+
     if(auth.currentUser && window.currentUserDoc?.role === 'membresia') rescueCost = 0; window.currentSOSCost = rescueCost;
     if(selectEl.value === "0") dispEl.innerHTML = `<span class="text-naranja">Rescate: $${rescueCost.toFixed(2)}</span>`;
     else { const s = shopServices.find(x => x.id === selectEl.value); if(s) dispEl.innerHTML = `$${(rescueCost + parseFloat(s.price)).toFixed(2)}`; }
@@ -534,23 +671,22 @@ window.submitFinalSOS = async () => {
     const btn = document.getElementById('btn-submit-sos');
     if (!falla && servSelect.value === "0") return showToast("Describe la falla", true);
     if (!tempSOSGps.lat && !manualAddress) return showToast("Falta ubicación", true);
-    
+
     speakTTS('Estamos notificando al taller para su solicitud. Espere un momento.');
     btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
     let mediaUrl = ""; const truePhone = window.currentUserDoc?.phone || ("+52" + (auth.currentUser.email?.replace('@motorescateobr.com','') || ''));
-    
+
     let srvName = servSelect.value === "0" ? "Auxilio" : servSelect.options[servSelect.selectedIndex].text;
     let descFinal = `[${srvName}] ${falla}`;
     const srvDoc = shopServices.find(x => x.id === servSelect.value);
     if(srvDoc && srvDoc.desc) descFinal += ` \n*${srvDoc.desc}*`;
 
     const llantaOpt = document.querySelector('input[name="llanta"]:checked'); if(llantaOpt) descFinal += ` (Llanta: ${llantaOpt.value})`;
-    
+
     const obrId = generateShortId();
-    
-    // Forzar timeout de 5 segundos para todo el proceso
+
     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
-    
+
     try {
         const uploadPromise = (async () => {
             if (fileInput && fileInput.files.length > 0) {
@@ -559,19 +695,19 @@ window.submitFinalSOS = async () => {
             }
             return "";
         })();
-        
+
         mediaUrl = await Promise.race([uploadPromise, timeoutPromise.catch(() => "")]);
-        
+
         const rData = { uid: auth.currentUser.uid, shortId: obrId, clientName: window.currentUserDoc?.name || '', phone: truePhone, extraPhone: document.getElementById('sos-extra-phone').value.trim(), marca: document.getElementById('sos-marca').value.trim(), modelo: document.getElementById('sos-modelo').value.trim(), cc: document.getElementById('sos-cc').value.trim(), falla: descFinal, mediaUrl, lat: tempSOSGps.lat, lng: tempSOSGps.lng, manualAddress, costoRescateEstimado: window.currentSOSCost, status: 'pending', tallerStatus: 'recibida', timestamp: Date.now() };
-        
+
         const addPromise = addDoc(collection(db, "rescates"), rData);
         const rtdbPromise = rtdbSet(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), rData);
-        
+
         await Promise.race([
             Promise.all([addPromise, rtdbPromise]),
             timeoutPromise
         ]);
-        
+
         document.getElementById('sos-falla').value = ''; document.getElementById('sos-media').value = ''; document.getElementById('llanta-type-container').classList.add('hidden');
         showToast("¡Unidad notificada!"); showView('app-client'); window.switchClientView('c-view-moto'); listenToMySOS();
     } catch (e) {
@@ -579,38 +715,57 @@ window.submitFinalSOS = async () => {
         showToast("Solicitud enviada. Te notificaremos cuando el taller confirme.");
         document.getElementById('sos-falla').value = ''; document.getElementById('sos-media').value = ''; document.getElementById('llanta-type-container').classList.add('hidden');
         showView('app-client'); window.switchClientView('c-view-moto'); listenToMySOS();
-    } finally { 
-        btn.disabled = false; btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>'; 
+    } finally {
+        btn.disabled = false; btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
     }
 };
 
-let mySOSListener = null;
 function listenToMySOS() {
     if(!auth.currentUser) return;
     if(mySOSListener) mySOSListener();
     mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), (snap) => {
-        if(!snap.exists()) { document.getElementById('active-sos-card')?.classList.add('hidden'); document.getElementById('no-active-services-msg')?.classList.remove('hidden'); return; }
+        if(!snap.exists()) {
+            document.getElementById('active-sos-card')?.classList.add('hidden');
+            document.getElementById('no-active-services-msg')?.classList.remove('hidden');
+            window.lastClientSOSStatus = null;
+            return;
+        }
         const data = snap.val();
-        document.getElementById('active-sos-card')?.classList.remove('hidden'); document.getElementById('no-active-services-msg')?.classList.add('hidden');
-        
-        if(data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') { speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.'); playSound('notif'); }
-        else if (data.status === 'completed' && window.lastClientSOSStatus !== 'completed') {
-            speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.'); playSound('notif');
-            document.getElementById('active-sos-card')?.classList.add('hidden'); document.getElementById('satisfaction-survey').classList.remove('hidden'); remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
+        document.getElementById('active-sos-card')?.classList.remove('hidden');
+        document.getElementById('no-active-services-msg')?.classList.add('hidden');
+
+        if(data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
+            speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
+            playSound('notif');
+        } else if (data.status === 'completed' && window.lastClientSOSStatus !== 'completed') {
+            speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
+            playSound('notif');
+            document.getElementById('active-sos-card')?.classList.add('hidden');
+            document.getElementById('satisfaction-survey').classList.remove('hidden');
+            remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
+            window.loadClientHistory();
         }
         window.lastClientSOSStatus = data.status;
         document.getElementById('sos-status-desc-client').innerText = data.status === 'accepted' ? "Mecánico en camino" : "Esperando confirmación";
-        
+
         if(data.status === 'accepted' && data.mech_lat) {
             document.getElementById('mechanic-live-map').classList.remove('hidden');
             if(!mechMapInst) {
                 mechMapInst = L.map('mechanic-live-map', { dragging: false, zoomControl: false }).setView([data.mech_lat, data.mech_lng], 14);
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(mechMapInst);
+                const isLight = document.body.classList.contains('light-mode');
+                const layerUrl = isLight
+                    ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+                    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+                L.tileLayer(layerUrl).addTo(mechMapInst);
                 mechMarkerInst = L.marker([data.mech_lat, data.mech_lng], { icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] }) }).addTo(mechMapInst);
-            } else { mechMarkerInst.setLatLng([data.mech_lat, data.mech_lng]); mechMapInst.invalidateSize(); }
+            } else {
+                mechMarkerInst.setLatLng([data.mech_lat, data.mech_lng]);
+                mechMapInst.invalidateSize();
+            }
         }
     });
 }
+
 window.openSOSDetailClient = function() {};
 
 window.setRating = r => {
@@ -626,44 +781,57 @@ window.submitSurvey = async () => {
     await addDoc(collection(db, "satisfaction"), { uid: auth.currentUser.uid, rating: window.currentRating, comments, timestamp: Date.now(), mechName: window.currentUserDoc.name || 'Mecánico' });
     document.getElementById('satisfaction-survey').classList.add('hidden'); document.getElementById('no-active-services-msg')?.classList.remove('hidden'); showToast("¡Gracias!");
 };
-// === ADMIN TALLER Y CITAS (con colores por estatus) ===
-window.adminListenServices = async () => {
-    const snap = await getDocs(query(collection(db, "rescates"), limit(50)));
-    const list = document.getElementById('admin-services-list'); if(!list) return; list.innerHTML = '';
-    let listaMotos = [];
-    snap.forEach(d => {
-        const v = d.data(); if(v.status !== 'completed' || v.tallerStatus === 'entregada' || v.tallerStatus === 'pagado') return;
-        listaMotos.push({ id: d.id, ...v });
-    });
-    // Ordenar: primero las que no están "lista", luego "lista" al final
-    listaMotos.sort((a,b) => (a.tallerStatus === 'lista' ? 1 : 0) - (b.tallerStatus === 'lista' ? 1 : 0));
-    listaMotos.forEach(v => {
-        const colorClass = v.tallerStatus === 'mecanica' ? 'bg-yellow-600/30 text-yellow-400' :
-                           v.tallerStatus === 'pruebas' ? 'bg-blue-600/30 text-blue-400' :
-                           v.tallerStatus === 'lista' ? 'bg-green-600/30 text-green-400' :
-                           'bg-gray-600/30 text-gray-400';
-        list.innerHTML += `<div class="bg-white/5 border border-white/10 p-4 rounded-2xl cursor-pointer hover:bg-white/10 transition shadow-lg" onclick="openDetalleServicio('${v.id}')"><div class="flex justify-between"><span class="font-black text-white text-sm">${v.phone}</span><span class="text-[10px] font-black uppercase px-2 py-1 rounded ${colorClass}">${v.tallerStatus}</span></div><p class="text-[10px] text-gray-400 mt-2 line-clamp-2">${v.falla}</p></div>`;
-    });
-    if(list.innerHTML === '') list.innerHTML = '<p class="text-gray-600 text-xs text-center col-span-full">Sin motos activas en taller</p>';
-    // Botón flotante para ver solo las "lista"
-    const btnCheck = document.getElementById('btn-lista-check');
-    if (btnCheck) {
-        btnCheck.style.display = 'flex';
-        btnCheck.onclick = () => {
-            list.innerHTML = '';
-            listaMotos.filter(v => v.tallerStatus === 'lista').forEach(v => {
-                list.innerHTML += `<div class="bg-green-600/20 border border-green-500/30 p-4 rounded-2xl cursor-pointer hover:bg-green-600/30 transition shadow-lg" onclick="openDetalleServicio('${v.id}')"><div class="flex justify-between"><span class="font-black text-white text-sm">${v.phone}</span><span class="text-[10px] font-black uppercase text-green-400 px-2 py-1 rounded">Lista</span></div><p class="text-[10px] text-gray-400 mt-2 line-clamp-2">${v.falla}</p></div>`;
+
+// === ADMIN TALLER Y CITAS (organizado por bloques, solo "lista" es solo lectura) ===
+window.adminListenServices = () => {
+    if (serviciosListener) serviciosListener();
+    serviciosListener = onSnapshot(query(collection(db, "rescates"), limit(50)), (snap) => {
+        const list = document.getElementById('admin-services-list'); if(!list) return;
+        let listaMotos = [];
+        snap.forEach(d => {
+            const v = d.data(); if(v.status !== 'completed' || v.tallerStatus === 'entregada' || v.tallerStatus === 'pagado') return;
+            listaMotos.push({ id: d.id, ...v });
+        });
+        const recibidas = listaMotos.filter(v => v.tallerStatus === 'recibida');
+        const mecanica = listaMotos.filter(v => v.tallerStatus === 'mecanica');
+        const pruebas = listaMotos.filter(v => v.tallerStatus === 'pruebas');
+        const listas = listaMotos.filter(v => v.tallerStatus === 'lista');
+
+        const renderBlock = (title, items, colorClass, borderColor) => {
+            let html = `<div class="mb-6"><h4 class="text-sm font-black uppercase text-white mb-2 border-b ${borderColor} pb-1">${title} (${items.length})</h4><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">`;
+            if (items.length === 0) html += '<p class="text-gray-500 text-xs italic">Sin motos</p>';
+            items.forEach(v => {
+                const statusColor = v.tallerStatus === 'mecanica' ? 'bg-yellow-600/30 text-yellow-400' :
+                                   v.tallerStatus === 'pruebas' ? 'bg-blue-600/30 text-blue-400' :
+                                   v.tallerStatus === 'lista' ? 'bg-green-600/30 text-green-400' :
+                                   'bg-gray-600/30 text-gray-400';
+                const pdfBtn = v.tallerStatus === 'lista' ? `<button onclick="event.stopPropagation(); window.downloadCompletedServicePDF('${v.id}')" class="bg-purple-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase mt-1">📄 PDF</button>` : '';
+                html += `<div class="bg-white/5 border border-white/10 p-4 rounded-2xl cursor-pointer hover:bg-white/10 transition shadow-lg w-full max-w-sm" onclick="openDetalleServicio('${v.id}')">
+                    <div class="flex justify-between items-start">
+                        <span class="font-black text-white text-sm truncate max-w-[60%]">${v.phone || 'Sin teléfono'}</span>
+                        <span class="text-[10px] font-black uppercase px-2 py-1 rounded ${statusColor} shrink-0">${v.tallerStatus}</span>
+                    </div>
+                    <p class="text-[10px] text-gray-400 mt-2 line-clamp-2 truncate">${v.falla}</p>
+                    ${pdfBtn}
+                </div>`;
             });
+            html += '</div></div>';
+            return html;
         };
-    }
+
+        list.innerHTML = renderBlock('📥 Recibidas', recibidas, 'text-gray-400', 'border-gray-500/30') +
+                         renderBlock('🔧 En Mecánica', mecanica, 'text-yellow-400', 'border-yellow-500/30') +
+                         renderBlock('🧪 En Pruebas', pruebas, 'text-blue-400', 'border-blue-500/30') +
+                         renderBlock('✅ Listas para Entrega', listas, 'text-green-400', 'border-green-500/30');
+    });
 };
 
 window.adminIngresarServicioManual = async () => {
-    const phone = document.getElementById('manual-srv-phone').value.trim();
+    const phone = document.getElementById('manual-srv-phone').value.trim() || null;
     const moto = document.getElementById('manual-srv-moto').value.trim();
     const falla = document.getElementById('manual-srv-falla').value.trim();
     const fileInput = document.getElementById('manual-srv-media');
-    if(!phone || !moto || !falla) return showToast("Completar datos", true);
+    if(!moto || !falla) return showToast("Completar marca/modelo y falla", true);
 
     const btn = document.querySelector('#modal-nuevo-servicio button.bg-green-500');
     btn.disabled = true;
@@ -679,9 +847,9 @@ window.adminIngresarServicioManual = async () => {
         }
         await addDoc(collection(db, "rescates"), {
             shortId: generateShortId(),
-            phone: "+52" + phone,
+            phone: phone ? "+52" + phone : null,
             marca: moto.split(' ')[0] || moto,
-            modelo: moto.replace(moto.split(' ')[0], '').trim(),
+            modelo: moto.replace(moto.split(' ')[0], '').trim() || moto,
             falla,
             mediaUrl: mediaUrls.length === 1 ? mediaUrls[0] : (mediaUrls.length > 1 ? mediaUrls : ''),
             status: 'completed',
@@ -690,7 +858,6 @@ window.adminIngresarServicioManual = async () => {
         });
         showToast("Moto ingresada al Taller");
         toggleModal('modal-nuevo-servicio', false);
-        window.adminListenServices();
     } catch (e) {
         showToast("Error", true);
     } finally {
@@ -702,31 +869,39 @@ window.adminIngresarServicioManual = async () => {
 window.openDetalleServicio = async (id) => {
     const docSnap = await getDoc(doc(db, "rescates", id)); if(!docSnap.exists()) return;
     const data = docSnap.data(); currentDetalleServicioId = id;
-    document.getElementById('servicio-detalle-phone').innerText = `${data.shortId || ''} - ${data.phone}`; 
+    const soloLectura = data.tallerStatus === 'lista' || data.tallerStatus === 'pagado';
+    document.getElementById('servicio-detalle-phone').innerText = `${data.shortId || ''} - ${data.phone || 'Sin teléfono'}`;
     document.getElementById('servicio-detalle-info').innerHTML = `<p class="text-xs text-white">Moto: ${data.marca||''} ${data.modelo||''} ${data.cc||''}<br><br>${data.falla}</p>`;
-    
+
     const mediaContainer = document.getElementById('servicio-fotos-container');
     let existingUrls = [];
     if (data.mediaUrl) {
         existingUrls = Array.isArray(data.mediaUrl) ? data.mediaUrl : [data.mediaUrl];
     }
-    mediaContainer.innerHTML = existingUrls.map(url => `<img src="${url}" class="h-20 w-20 object-contain rounded-xl border border-white/10 cursor-pointer" onclick="window.open(this.src)">`).join('');
+    mediaContainer.innerHTML = existingUrls.map(url => `<img src="${url}" class="h-20 w-20 object-contain rounded-xl border border-white/10 cursor-pointer" onclick="window.openImageLightbox('${url}')">`).join('');
     if (existingUrls.length === 0) mediaContainer.innerHTML = '<p class="text-[10px] text-gray-500 italic">Sin fotos</p>';
-    
+
     const addPhotoBtn = document.getElementById('servicio-add-photo-btn');
-    if (addPhotoBtn) {
-        addPhotoBtn.classList.remove('hidden');
-        addPhotoBtn.onclick = () => window.addExtraPhotos(id);
+    const actionsContainer = document.getElementById('servicio-actions-container');
+    const comentarioInput = document.getElementById('servicio-comentario');
+    const comentarioBtn = comentarioInput?.nextElementSibling;
+
+    if (soloLectura) {
+        if (addPhotoBtn) addPhotoBtn.classList.add('hidden');
+        if (actionsContainer) actionsContainer.classList.add('hidden');
+        if (comentarioInput) comentarioInput.disabled = true;
+        if (comentarioBtn) comentarioBtn.classList.add('hidden');
+    } else {
+        if (addPhotoBtn) {
+            addPhotoBtn.classList.remove('hidden');
+            addPhotoBtn.onclick = () => window.addExtraPhotos(id);
+        }
+        if (actionsContainer) actionsContainer.classList.remove('hidden');
+        if (comentarioInput) comentarioInput.disabled = false;
+        if (comentarioBtn) comentarioBtn.classList.remove('hidden');
     }
-    const changeCitaBtn = document.querySelector('#modal-detalle-servicio .bg-yellow-600\\/20');
-    if (changeCitaBtn) changeCitaBtn.style.display = 'none';
-    
+
     window.loadServicioBitacora(id);
-    
-    const actions = document.getElementById('servicio-actions-container');
-    if(data.tallerStatus === 'lista' || data.tallerStatus === 'pagado') actions.classList.add('hidden');
-    else actions.classList.remove('hidden');
-    
     toggleModal('modal-detalle-servicio', true);
 };
 
@@ -738,26 +913,29 @@ window.loadServicioBitacora = async (id) => {
         bList.innerHTML += `<div class="bg-black/40 p-2 rounded-xl mb-1 border border-white/5"><p class="text-[9px] text-blue-400 font-black">${m.mechName} <span class="text-gray-500 font-normal float-right">${new Date(m.ts).toLocaleTimeString()}</span></p><p class="text-xs text-white mt-1">${m.text}</p></div>`;
     });
 };
+
 window.addServicioComentario = async () => {
     if(!currentDetalleServicioId) return;
     const txt = document.getElementById('servicio-comentario').value.trim(); if(!txt) return;
     await addDoc(collection(db, "rescates", currentDetalleServicioId, "bitacora"), { text: txt, mechName: window.currentUserDoc.name, ts: Date.now() });
-    document.getElementById('servicio-comentario').value = ''; window.loadServicioBitacora(currentDetalleServicioId);
+    document.getElementById('servicio-comentario').value = '';
+    window.loadServicioBitacora(currentDetalleServicioId);
 };
 
 window.cambiarEstadoServicio = async (nuevoEstado) => {
     if(!currentDetalleServicioId) return;
     const docRef = doc(db, "rescates", currentDetalleServicioId); const docSnap = await getDoc(docRef); if(!docSnap.exists()) return;
-    const actual = docSnap.data().tallerStatus; if(actual === 'lista' || actual === 'pagado') return showToast("No se puede cambiar, ya finalizó", true);
-    
+    const actual = docSnap.data().tallerStatus;
+    if(actual === 'lista' || actual === 'pagado') return showToast("No se puede cambiar, ya finalizó", true);
+
     await updateDoc(docRef, { tallerStatus: nuevoEstado });
-    
+
     if(docSnap.data().uid) push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), { msg: nuevoEstado === 'pruebas' ? 'CONTINUAMOS TRABAJANDO EN TU MOTO' : (nuevoEstado === 'lista' ? 'TU MOTO YA CASI ESTA LISTA, ESPERA AL MECÁNICO' : 'MOTO EN MECÁNICA') });
 
-    playSound('notif'); showToast(`Estado cambiado a ${nuevoEstado}`); toggleModal('modal-detalle-servicio', false); window.adminListenServices();
+    playSound('notif'); showToast(`Estado cambiado a ${nuevoEstado}`); toggleModal('modal-detalle-servicio', false);
 };
 
-// === HISTORIAL DEL CLIENTE (con detalle, descarga PDF y comentarios) ===
+// === HISTORIAL DEL CLIENTE ===
 window.loadClientHistory = async () => {
     if(!auth.currentUser || !window.currentUserDoc) return;
     const snap = await getDocs(query(collection(db, "rescates"), where("phone", "==", window.currentUserDoc.phone)));
@@ -780,7 +958,7 @@ window.openClientServiceDetail = async (id) => {
     if(data.uid !== auth.currentUser.uid && data.phone !== window.currentUserDoc.phone) {
         return showToast("No tienes permiso para ver este servicio", true);
     }
-    
+
     const detailHTML = `
         <div class="text-white space-y-2">
             <h3 class="font-black text-lg">Servicio: ${data.shortId || 'Sin ID'}</h3>
@@ -792,7 +970,7 @@ window.openClientServiceDetail = async (id) => {
             ${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('${id}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">Descargar Ticket PDF</button>` : ''}
         </div>
     `;
-    
+
     const modalId = 'modal-client-service-detail';
     let modalEl = document.getElementById(modalId);
     if (!modalEl) {
@@ -824,258 +1002,243 @@ window.downloadClientTicket = async (serviceId) => {
     if (data.costoRescateEstimado) doc.text(`Costo: $${data.costoRescateEstimado}`, 14, 66);
     doc.save(`Servicio_${data.shortId || serviceId}.pdf`);
 };
-
-// === CITAS DEL CLIENTE (modificar con aviso al taller) ===
-window.loadClientCitas = async () => {
+// === CITAS DEL CLIENTE ===
+window.loadClientCitas = () => {
     if(!window.currentUserDoc) return;
-    const snap = await getDocs(query(collection(db, "citas"), where("phone", "==", window.currentUserDoc.phone)));
-    const list = document.getElementById('client-appointments-list'); if(!list) return; list.innerHTML = '';
-    snap.forEach(d => { 
-        const c = d.data(); 
-        list.innerHTML += `<div class="bg-white/5 p-3 rounded-xl text-xs text-white border border-white/10 mb-2 flex justify-between items-center">
-            <div>
-                <span class="text-green-400 font-bold mr-2">${c.fecha} ${c.hora}</span>
-                <span>${c.trabajo}</span>
-                <p class="text-[10px] text-gray-400">${c.moto}</p>
-            </div>
-            <button onclick="window.clientEditCita('${d.id}')" class="bg-yellow-600/20 text-yellow-400 border border-yellow-500/50 px-2 py-1 rounded text-[9px] font-black uppercase"><i class="fas fa-edit"></i></button>
-        </div>`; 
+    if(citasListener) citasListener();
+    citasListener = onSnapshot(query(collection(db, "citas"), where("phone", "==", window.currentUserDoc.phone)), (snap) => {
+        const list = document.getElementById('client-appointments-list'); if(!list) return; list.innerHTML = '';
+        snap.forEach(d => {
+            const c = d.data();
+            list.innerHTML += `<div class="bg-white/5 p-3 rounded-xl text-xs text-white border border-white/10 mb-2 flex justify-between items-center">
+                <div>
+                    <span class="text-green-400 font-bold mr-2">${c.fecha} ${c.hora}</span>
+                    <span>${c.trabajo}</span>
+                    <p class="text-[10px] text-gray-400">${c.moto}</p>
+                </div>
+                <button onclick="window.clientEditCita('${d.id}')" class="bg-yellow-600/20 text-yellow-400 border border-yellow-500/50 px-2 py-1 rounded text-[9px] font-black uppercase"><i class="fas fa-edit"></i></button>
+            </div>`;
+        });
+        if(list.innerHTML === '') list.innerHTML = '<p class="text-gray-500 text-xs italic">Sin citas.</p>';
     });
-    if(list.innerHTML === '') list.innerHTML = '<p class="text-gray-500 text-xs italic">Sin citas.</p>';
 };
 
-window.clientEditCita = (citaId) => {
-    getDoc(doc(db, "citas", citaId)).then(snap => {
-        if (!snap.exists()) return;
-        const c = snap.data();
-        const modalHTML = `
-            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-yellow-500/30">
-                <button onclick="toggleModal('modal-client-edit-cita', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
-                <h2 class="text-xl font-black mb-4 text-white">Modificar Cita</h2>
-                <p class="text-xs text-gray-400 mb-4">Los cambios se enviarán al taller para confirmación.</p>
-                <input type="date" id="client-edit-cita-fecha" value="${c.fecha}" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white color-scheme-dark">
-                <input type="time" id="client-edit-cita-hora" value="${c.hora}" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white color-scheme-dark">
-                <textarea id="client-edit-cita-trabajo" rows="2" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">${c.trabajo}</textarea>
-                <button onclick="window.clientSubmitCitaChange('${citaId}')" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white p-3 rounded-xl font-black uppercase">Enviar Solicitud de Cambio</button>
-            </div>
-        `;
-        const modalId = 'modal-client-edit-cita';
+window.solicitarNuevaCita = () => {
+    toggleModal('modal-nueva-cita', true);
+};
+
+// === LIGHTBOX PARA IMÁGENES ===
+window.openImageLightbox = (url) => {
+    const lightboxId = 'modal-image-lightbox';
+    let modalEl = document.getElementById(lightboxId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = lightboxId;
+        modalEl.className = 'fixed inset-0 bg-black/90 z-[400] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.onclick = () => toggleModal(lightboxId, false);
+        modalEl.innerHTML = `<div class="max-w-[90vw] max-h-[90vh]"><img id="lightbox-img" src="" class="max-w-full max-h-full object-contain rounded-xl"></div>`;
+        document.body.appendChild(modalEl);
+    }
+    document.getElementById('lightbox-img').src = url;
+    toggleModal(lightboxId, true);
+};
+
+// === GARANTÍAS ===
+window.calcularFechaFinGarantia = (tipo) => {
+    if (!tipo || tipo === 'Sin garantía' || tipo === 'No aplica') return null;
+    const ahora = new Date();
+    const match = tipo.match(/(\d+)\s*(días|dias|día|dia|mes|meses)/i);
+    if (match) {
+        const cantidad = parseInt(match[1]);
+        if (match[2].toLowerCase().includes('día') || match[2].toLowerCase().includes('dia')) {
+            ahora.setDate(ahora.getDate() + cantidad);
+        } else if (match[2].toLowerCase().includes('mes')) {
+            ahora.setMonth(ahora.getMonth() + cantidad);
+        }
+        return ahora.toISOString();
+    }
+    return null;
+};
+
+window.searchGarantiaByCodigo = () => {
+    window.promptModal("Ingresa el código de compra (OBR-...):", "", async (codigo) => {
+        if (!codigo) return;
+        const snap = await getDocs(query(collection(db, "garantias"), where("ventaId", ">=", ""), where("ventaId", "<=", "z")));
+        let resultado = '';
+        snap.forEach(d => {
+            const g = d.data();
+            if (g.ventaId && g.ventaId.toLowerCase().includes(codigo.toLowerCase())) {
+                resultado += `<div class="bg-white/5 p-2 rounded text-xs text-white mb-1">
+                    <p><span class="font-bold">${g.producto}</span> - ${g.tipoGarantia}</p>
+                    <p class="text-gray-400">Estado: ${g.estado}</p>
+                    <p class="text-gray-400">Vence: ${g.fechaFin ? new Date(g.fechaFin).toLocaleDateString() : 'N/A'}</p>
+                </div>`;
+            }
+        });
+        if (!resultado) return showToast("No se encontraron garantías para ese código", true);
+        const modalId = 'modal-garantias-result';
         let modalEl = document.getElementById(modalId);
         if (!modalEl) {
             modalEl = document.createElement('div');
             modalEl.id = modalId;
             modalEl.className = 'fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `<div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30" id="${modalId}-content"></div>`;
             document.body.appendChild(modalEl);
         }
-        modalEl.innerHTML = modalHTML;
+        document.getElementById(`${modalId}-content`).innerHTML = `<button onclick="toggleModal('${modalId}',false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button><h3 class="text-lg font-black text-white mb-3">Garantías encontradas</h3>${resultado}`;
         toggleModal(modalId, true);
     });
 };
 
-window.clientSubmitCitaChange = async (citaId) => {
-    const fecha = document.getElementById('client-edit-cita-fecha').value;
-    const hora = document.getElementById('client-edit-cita-hora').value;
-    const trabajo = document.getElementById('client-edit-cita-trabajo').value.trim();
-    if (!fecha || !hora || !trabajo) return showToast("Completa todos los campos", true);
-    
-    await addDoc(collection(db, "citas", citaId, "cambios_solicitados"), {
-        fecha, hora, trabajo,
-        solicitadoPor: auth.currentUser.uid,
-        nombre: window.currentUserDoc.name,
-        timestamp: Date.now(),
-        estado: 'pendiente'
-    });
-    
-    showToast("Solicitud enviada al taller. Te contactaremos para confirmar.");
-    toggleModal('modal-client-edit-cita', false);
-};
+// === REPORTE PDF DE SERVICIO COMPLETADO (con imágenes, bitácora, desglose de costos) ===
+window.downloadCompletedServicePDF = async (id) => {
+    const docSnap = await getDoc(doc(db, "rescates", id));
+    if (!docSnap.exists()) return showToast("Servicio no encontrado", true);
+    const data = docSnap.data();
+    const bSnap = await getDocs(collection(db, "rescates", id, "bitacora"));
+    let bitacora = [];
+    bSnap.forEach(d => bitacora.push(d.data()));
+    bitacora.sort((a, b) => a.ts - b.ts);
 
-// === TIENDA Y CARRITO (vista cliente con opciones de entrega) ===
-window.addToCart = (name, price) => { window.cart.push({name, price: parseFloat(price)}); window.updateCartUI(); showToast("Agregado"); };
+    const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", id), limit(1)));
+    let venta = null;
+    ventasSnap.forEach(v => { venta = v.data(); });
 
-window.updateCartUI = () => {
-    const cartCount = document.getElementById('cart-count');
-    if(cartCount) cartCount.innerText = window.cart.length;
-    const mobileCount = document.getElementById('cart-count-mobile');
-    if(mobileCount) mobileCount.innerText = window.cart.length;
-    const cartItems = document.getElementById('cart-items');
-    if(cartItems) cartItems.innerHTML = window.cart.map((item,i) => `<div class="flex justify-between items-center bg-white/5 p-2 rounded-lg text-white mb-1"><span class="text-xs">${item.name}</span><span class="text-naranja font-black">$${item.price.toFixed(2)} <button onclick="removeFromCart(${i})" class="text-red-500 ml-2"><i class="fas fa-times"></i></button></span></div>`).join('');
-    
-    let sub = window.cart.reduce((s,i)=>s+i.price,0);
-    let total = sub - window.cartDescuento; if(total < 0) total = 0;
-    
-    const discountRow = document.getElementById('cart-discount-row');
-    if(discountRow) {
-        if(window.cartDescuento > 0) {
-            discountRow.classList.remove('hidden');
-            const discAmt = document.getElementById('cart-discount-amount');
-            if(discAmt) discAmt.innerText = `-$${window.cartDescuento.toFixed(2)}`;
-        } else { discountRow.classList.add('hidden'); }
-    }
-    const cartTotal = document.getElementById('cart-total');
-    if(cartTotal) cartTotal.innerText = total.toFixed(2);
-};
-window.removeFromCart = i => { window.cart.splice(i,1); window.updateCartUI(); };
-
-window.applyCartPromo = async () => {
-    const code = document.getElementById('cart-promo-code')?.value.trim().toUpperCase();
-    if(!code) return;
-    const snap = await getDocs(query(collection(db, "promociones"), where("codigo", "==", code), where("active", "==", true), limit(1)));
-    if(!snap.empty) {
-        const promo = snap.docs[0].data();
-        let sub = window.cart.reduce((s,i)=>s+i.price,0);
-        if(promo.tipoRecompensa === 'desc_fijo') window.cartDescuento = parseFloat(promo.valorRecompensa);
-        else if(promo.tipoRecompensa === 'desc_porc') window.cartDescuento = sub * (parseFloat(promo.valorRecompensa)/100);
-        window.updateCartUI(); showToast("Cupón aplicado");
-    } else { showToast("Cupón inválido", true); window.cartDescuento = 0; window.updateCartUI(); }
-};
-
-window.createOrder = async () => {
-    if (!window.cart.length) return showToast("Carrito vacío", true);
-    if (!auth.currentUser) { showToast("Inicia sesión para continuar", true); window.showView('view-login'); return; }
-    
-    const modalId = 'modal-order-options';
-    let modalEl = document.getElementById(modalId);
-    if (!modalEl) {
-        modalEl = document.createElement('div');
-        modalEl.id = modalId;
-        modalEl.className = 'fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-        modalEl.innerHTML = `<div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 relative border border-naranja/30 shadow-2xl" id="${modalId}-content"></div>`;
-        document.body.appendChild(modalEl);
-    }
-    
-    const total = parseFloat(document.getElementById('cart-total')?.innerText || '0');
-    document.getElementById(`${modalId}-content`).innerHTML = `
-        <button onclick="toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
-        <h2 class="text-xl font-black mb-4 text-white">Opciones de entrega</h2>
-        <div class="space-y-4">
-            <div>
-                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Tipo de entrega</label>
-                <select id="order-delivery-type" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white mb-3" onchange="window.toggleDeliveryAddress(this.value)">
-                    <option value="recoger">Recoger en taller</option>
-                    <option value="domicilio">Envío a domicilio</option>
-                </select>
-            </div>
-            <div id="delivery-address-container" class="hidden space-y-3">
-                <input id="order-address" type="text" placeholder="Dirección (calle y número)" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white text-sm">
-                <input id="order-between-streets" type="text" placeholder="Entre calles" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white text-sm">
-                <input id="order-alt-phone" type="tel" placeholder="Teléfono alterno" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white text-sm">
-            </div>
-            <div>
-                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Método de pago</label>
-                <select id="order-payment-method" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white mb-3">
-                    <option value="efectivo">Efectivo</option>
-                    <option value="transferencia">Transferencia (el taller te contactará)</option>
-                    <option value="tarjeta">Tarjeta (al recibir)</option>
-                </select>
-            </div>
-            <p class="text-xs text-gray-400">Total a pagar: <span class="text-naranja font-black">$${total.toFixed(2)}</span></p>
-            <button onclick="window.finalizeOrder()" class="w-full bg-naranja hover:bg-orange-600 text-white p-4 rounded-xl font-black uppercase">Confirmar Pedido</button>
-        </div>
-    `;
-    toggleModal(modalId, true);
-};
-
-window.toggleDeliveryAddress = (value) => {
-    const container = document.getElementById('delivery-address-container');
-    if (container) container.classList.toggle('hidden', value !== 'domicilio');
-};
-
-window.finalizeOrder = async () => {
-    const deliveryType = document.getElementById('order-delivery-type').value;
-    const paymentMethod = document.getElementById('order-payment-method').value;
-    const total = parseFloat(document.getElementById('cart-total')?.innerText || '0');
-    
-    let address = '', betweenStreets = '', altPhone = '';
-    if (deliveryType === 'domicilio') {
-        address = document.getElementById('order-address')?.value.trim();
-        betweenStreets = document.getElementById('order-between-streets')?.value.trim();
-        altPhone = document.getElementById('order-alt-phone')?.value.trim();
-        if (!address) return showToast("Ingresa la dirección de entrega", true);
-    }
-    
-    const order = {
-        uid: auth.currentUser.uid,
-        items: window.cart,
-        total,
-        status: 'solicitado',
-        timestamp: Date.now(),
-        shortId: generateShortId(),
-        deliveryType,
-        paymentMethod,
-        address,
-        betweenStreets,
-        altPhone,
-        clientName: window.currentUserDoc.name || '',
-        clientPhone: window.currentUserDoc.phone || ''
-    };
-    
-    try {
-        const docRef = await addDoc(collection(db, "pedidos"), order);
-        window.cart = []; window.cartDescuento = 0; window.updateCartUI();
-        toggleModal('modal-cart', false);
-        toggleModal('modal-order-options', false);
-        showToast("Pedido realizado. Te mantendremos informado.");
-        window.loadMyOrders();
-    } catch(e) {
-        showToast("Error al crear pedido", true);
-        console.error(e);
-    }
-};
-
-window.loadMyOrders = async () => {
-    if (!auth.currentUser) return;
-    const snap = await getDocs(query(collection(db, "pedidos"), where("uid", "==", auth.currentUser.uid), orderBy("timestamp", "desc"), limit(10)));
-    const container = document.getElementById('pedidos-list');
-    if (!container) return;
-    container.innerHTML = '';
-    snap.forEach(doc => {
-        const o = doc.data();
-        container.innerHTML += `<div class="bg-white/5 p-3 rounded-xl border border-white/10">
-            <div class="flex justify-between"><span class="font-bold text-sm">${o.shortId}</span><span class="text-xs capitalize">${o.status}</span></div>
-            <p class="text-xs text-gray-400">${o.items.map(i=>i.name).join(', ')}</p>
-            <p class="text-naranja font-black">$${o.total.toFixed(2)}</p>
-            <p class="text-[10px] text-gray-400">${o.deliveryType === 'domicilio' ? 'Envío a domicilio' : 'Recoger en taller'}</p>
-            ${o.status === 'pagado' ? `<button onclick="window.downloadReceipt('${doc.id}')" class="mt-1 bg-blue-600 text-white text-[10px] px-2 py-1 rounded font-bold uppercase">Descargar ticket</button>` : ''}
-        </div>`;
-    });
-};
-
-window.downloadReceipt = async (pedidoId) => {
-    const snap = await getDoc(doc(db, "pedidos", pedidoId));
-    if (!snap.exists()) return;
-    const data = snap.data();
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     doc.setFontSize(16);
-    doc.text("Comprobante de Pago OBR", 14, 20);
+    doc.text("Reporte de Servicio OBR", 14, 20);
     doc.setFontSize(10);
-    doc.text(`Pedido: ${data.shortId}`, 14, 30);
-    doc.text(`Cliente: ${window.currentUserDoc?.name || ''}`, 14, 36);
-    doc.text(`Fecha: ${new Date(data.timestamp).toLocaleString()}`, 14, 42);
-    doc.text(`Tipo de entrega: ${data.deliveryType === 'domicilio' ? 'Envío a domicilio' : 'Recoger en taller'}`, 14, 48);
-    if (data.address) doc.text(`Dirección: ${data.address}`, 14, 54);
-    doc.text("Productos:", 14, 60);
-    let y = 66;
-    data.items.forEach(item => {
-        doc.text(`- ${item.name}: $${item.price}`, 14, y);
-        y += 6;
-    });
-    doc.text(`Total: $${data.total}`, 14, y+4);
-    doc.save(`Ticket_${data.shortId}.pdf`);
-};
-// === CIERRE DE TIENDA Y CARRITO (CONTINUACIÓN) ===
-window.sendContactFromModal = () => {
-    const name = document.getElementById('modal-contact-name')?.value.trim();
-    const phone = document.getElementById('modal-contact-phone')?.value.trim();
-    const msg = document.getElementById('modal-contact-msg')?.value.trim();
-    if(!name || !msg) return showToast("Nombre y mensaje requeridos", true);
-    window.open(`https://wa.me/526311551533?text=${encodeURIComponent(`Hola, soy ${name}${phone ? ' ('+phone+')' : ''}. ${msg}`)}`, '_blank');
+    doc.text(`Servicio: ${data.shortId}`, 14, 30);
+    doc.text(`Cliente: ${data.phone}`, 14, 36);
+    doc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, 14, 42);
+    doc.text(`Falla: ${data.falla}`, 14, 48);
+    doc.text(`Inicio: ${new Date(data.timestamp).toLocaleString()}`, 14, 54);
+    let y = 62;
+    if (data.mediaUrl) {
+        const urls = Array.isArray(data.mediaUrl) ? data.mediaUrl : [data.mediaUrl];
+        urls.forEach((url, i) => {
+            if (y > 250) { doc.addPage(); y = 20; }
+            doc.text(`Foto ${i+1} incluida en el reporte.`, 14, y);
+            y += 6;
+        });
+    }
+    if (bitacora.length) {
+        if (y > 240) { doc.addPage(); y = 20; }
+        doc.text("Bitácora del Mecánico:", 14, y);
+        y += 8;
+        bitacora.forEach(m => {
+            if (y > 270) { doc.addPage(); y = 20; }
+            doc.text(`- [${new Date(m.ts).toLocaleString()}] ${m.mechName}: ${m.text}`, 14, y);
+            y += 6;
+        });
+    }
+    if (venta) {
+        if (y > 240) { doc.addPage(); y = 20; }
+        doc.text("Detalle de Venta:", 14, y);
+        y += 8;
+        doc.text(`Ticket: ${venta.shortId}`, 14, y); y += 6;
+        doc.text(`Total: $${venta.total.toFixed(2)}`, 14, y); y += 6;
+        if (venta.ticket && Array.isArray(venta.ticket)) {
+            venta.ticket.forEach(item => {
+                if (y > 270) { doc.addPage(); y = 20; }
+                doc.text(`- ${item.name}: $${item.price.toFixed(2)}`, 14, y);
+                y += 6;
+            });
+        }
+    } else {
+        if (data.costoRescateEstimado) {
+            if (y > 240) { doc.addPage(); y = 20; }
+            doc.text(`Costo estimado del rescate: $${data.costoRescateEstimado}`, 14, y);
+        }
+    }
+    doc.save(`Reporte_${data.shortId}.pdf`);
 };
 
-// ============================================================
-// === CAJA / POS COMPLETO (con garantías y ventas realizadas) ===
-// ============================================================
+// === EDICIÓN Y ELIMINACIÓN DE SERVICIOS DEL CATÁLOGO ===
+window.editService = (serviceId) => {
+    getDoc(doc(db, "servicios", serviceId)).then(snap => {
+        if (!snap.exists()) return;
+        const s = snap.data();
+        window.promptModal("Nuevo nombre del servicio:", s.name, async (newName) => {
+            if (!newName) return;
+            window.promptModal("Nuevo precio:", s.price.toString(), async (newPriceStr) => {
+                const newPrice = parseFloat(newPriceStr);
+                if (isNaN(newPrice)) return showToast("Precio inválido", true);
+                await updateDoc(doc(db, "servicios", serviceId), { name: newName, price: newPrice });
+                showToast("Servicio actualizado");
+                loadServicesCatalog();
+                refreshCatalogUI();
+            });
+        });
+    });
+};
+
+window.deleteService = (serviceId) => {
+    window.confirmModal("¿Eliminar este servicio del catálogo?", async () => {
+        await deleteDoc(doc(db, "servicios", serviceId));
+        showToast("Servicio eliminado");
+        loadServicesCatalog();
+        refreshCatalogUI();
+    });
+};
+
+function refreshCatalogUI() {
+    if (document.getElementById('a-view-config') && !document.getElementById('a-view-config').classList.contains('hidden')) {
+        const catalogList = document.getElementById('admin-service-catalog');
+        if (catalogList) {
+            getDocs(collection(db, "servicios")).then(snap => {
+                catalogList.innerHTML = '';
+                snap.forEach(d => {
+                    const s = d.data();
+                    catalogList.innerHTML += `<div class="flex justify-between bg-white/5 p-2 rounded text-xs">
+                        <span>${s.name} ($${s.price})</span>
+                        <div>
+                            <button onclick="window.editService('${d.id}')" class="text-blue-400 mr-2"><i class="fas fa-edit"></i></button>
+                            <button onclick="window.deleteService('${d.id}')" class="text-red-400"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>`;
+                });
+            });
+        }
+    }
+}
+
+// === FUNCIONES DE ALMACÉN: eliminar, ocultar, modificar stock ===
+window.eliminarProductoInventario = (productId) => {
+    window.confirmModal("¿Eliminar este producto del almacén permanentemente?", async () => {
+        await deleteDoc(doc(db, "inventario", productId));
+        showToast("Producto eliminado");
+        window.adminLoadInventory();
+        loadPublicStore();
+    });
+};
+
+window.toggleProductoVisible = async (productId, visible) => {
+    await updateDoc(doc(db, "inventario", productId), { visible: !visible });
+    showToast(visible ? "Producto oculto de tienda" : "Producto visible en tienda");
+    window.adminLoadInventory();
+    loadPublicStore();
+};
+
+window.modificarStock = (productId) => {
+    const p = adminInventoryList.find(x => x.id === productId);
+    if (!p) return;
+    window.promptModal("Nuevo stock:", p.stock.toString(), async (newStock) => {
+        if (newStock === null || newStock === '') return;
+        const stockNum = parseInt(newStock);
+        if (isNaN(stockNum)) return showToast("Valor inválido", true);
+        await updateDoc(doc(db, "inventario", productId), { stock: stockNum });
+        showToast("Stock actualizado");
+        window.adminLoadInventory();
+        loadPublicStore();
+    });
+};
+
+// ======================================================
+// ==================== CAJA / POS ======================
+// ======================================================
+
 window.openCaja = () => toggleModal('modal-caja', true);
 window.confirmOpenCaja = () => {
     const fondo = parseFloat(document.getElementById('caja-fondo-input')?.value) || 0;
@@ -1162,7 +1325,6 @@ window.togglePosReceivedInput = () => {
     if(method !== 'Efectivo') {
         const changeEl = document.getElementById('pos-change');
         if (changeEl) changeEl.innerText = "$0.00";
-        // Ahora el folio de tarjeta es opcional, no forzamos modal
     }
 };
 
@@ -1206,10 +1368,10 @@ window.removeTicketItem = i => { window.posTicket.splice(i,1); window.renderTick
 window.addAlmacenToTicket = (id) => {
     const p = adminInventoryList.find(x => x.id === id);
     if(p && p.stock > 0) {
-        // Preguntar garantía si es producto de almacén
-        const garantia = prompt("Garantía para este producto:\n(Dejar vacío = Sin garantía, o escribe: 15 días, 1 mes, 2 meses, 3 meses, No aplica)", "");
-        window.posTicket.push({ type: 'almacen', id: p.id, name: p.name, price: p.priceTaller, cost: p.cost, garantia: garantia || 'Sin garantía' });
-        window.renderTicket(); showToast("Agregado");
+        window.promptModal("Garantía para este producto:\n(Dejar vacío = Sin garantía, o escribe: 15 días, 1 mes, 2 meses, 3 meses, No aplica)", "", (garantia) => {
+            window.posTicket.push({ type: 'almacen', id: p.id, name: p.name, price: p.priceTaller, cost: p.cost, garantia: garantia || 'Sin garantía' });
+            window.renderTicket(); showToast("Agregado");
+        });
     }
     else if(p) showToast("Sin stock", true);
 };
@@ -1245,7 +1407,7 @@ window.processScannerInput = async () => {
     finally { if(btn) { btn.disabled = false; btn.innerHTML = 'Buscar / Cobrar'; } }
 };
 
-// ===== FINALIZAR CHECKOUT (con impresión automática y garantías) =====
+// ===== CHECKOUT Y FINALIZAR VENTA =====
 window.checkoutTicket = async (isCard = false) => {
     if(!window.posTicket.length) return showToast("El ticket está vacío", true);
     if(!window.cajaAbierta) return showToast("Abrir caja primero", true);
@@ -1287,7 +1449,6 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
     
     try {
         const sId = generateShortId();
-        // Recoger garantías de los productos de almacén
         const garantias = window.posTicket
             .filter(item => item.type === 'almacen' && item.garantia && item.garantia !== 'Sin garantía' && item.garantia !== 'No aplica')
             .map(item => ({
@@ -1313,7 +1474,6 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
 
         const docRef = await addDoc(collection(db, "ventas"), saleData);
 
-        // Guardar garantías en colección aparte si existen
         for (let g of garantias) {
             await addDoc(collection(db, "garantias"), {
                 ...g,
@@ -1323,7 +1483,6 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
             });
         }
 
-        // Descontar stock
         for(let item of window.posTicket) {
             try {
                 if(item.type === 'almacen') {
@@ -1340,7 +1499,6 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
             }
         }
 
-        // Vincular pedido del cliente si existe
         if (phone) {
             try {
                 const userSnap = await getDocs(query(collection(db, "users"), where("phone", "==", "+52"+phone), limit(1)));
@@ -1358,13 +1516,10 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
 
         showToast("Venta Registrada y Pagada", false);
 
-        // Imprimir ticket automáticamente (PDF)
         window.imprimirTicketVenta(docRef.id, saleData);
 
-        // Respaldo del ticket para WhatsApp
         const ticketRespaldo = [...window.posTicket];
         
-        // LIMPIAR TODO para nueva venta
         window.posTicket = [];
         window.posDescuento = 0;
         const phoneInput = document.getElementById('pos-customer-phone');
@@ -1376,9 +1531,8 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
 
         window.renderTicket();
         window.adminLoadInventory();
-        if (typeof window.adminLoadSales === 'function') window.adminLoadSales();
+        window.adminLoadSales();
         window.adminListenServices();
-        if (typeof window.openSaleDetails === 'function') window.openSaleDetails(docRef.id, saleData);
         if (phone) {
             try {
                 window.sendTicketWhatsAppAfterCheckout(phone, totalToPay, ticketRespaldo);
@@ -1386,7 +1540,6 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
                 console.warn('Error al enviar WhatsApp:', e);
             }
         }
-        // Actualizar ventas realizadas
         window.loadVentasRealizadas();
 
     } catch (e) {
@@ -1400,24 +1553,6 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
     }
 }
 
-// Función auxiliar para calcular fecha de fin de garantía
-window.calcularFechaFinGarantia = (tipo) => {
-    if (!tipo || tipo === 'Sin garantía' || tipo === 'No aplica') return null;
-    const ahora = new Date();
-    const match = tipo.match(/(\d+)\s*(días|dias|mes|meses)/i);
-    if (match) {
-        const cantidad = parseInt(match[1]);
-        if (match[2].toLowerCase().includes('día') || match[2].toLowerCase().includes('dia')) {
-            ahora.setDate(ahora.getDate() + cantidad);
-        } else if (match[2].toLowerCase().includes('mes')) {
-            ahora.setMonth(ahora.getMonth() + cantidad);
-        }
-        return ahora.toISOString();
-    }
-    return null;
-};
-
-// Imprimir ticket de venta en PDF automáticamente
 window.imprimirTicketVenta = (ventaId, saleData) => {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -1438,7 +1573,6 @@ window.imprimirTicketVenta = (ventaId, saleData) => {
     doc.text(`Total: $${saleData.total.toFixed(2)}`, 14, y+5);
     doc.setFontSize(7);
     doc.text("Gracias por su compra. Conserve este ticket para garantías.", 14, y+12);
-    // Guardar automáticamente sin pedir confirmación (el navegador puede bloquear popups múltiples)
     try {
         doc.save(`Venta_${saleData.shortId}.pdf`);
     } catch(e) { console.warn('Auto-impresión bloqueada por el navegador'); }
@@ -1447,24 +1581,12 @@ window.imprimirTicketVenta = (ventaId, saleData) => {
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
     const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const items = ticketItems.map(i => `- ${i.name}: $${i.price}`).join('\n');
+    const items = ticketItems.map(i => `- ${i.name}: $${i.price} ${i.garantia ? '(Garantía: '+i.garantia+')' : ''}`).join('\n');
     const msg = `🧾 *Ticket OBR*\n${items}\n\n*Total: $${total}*`;
     const url = `https://api.whatsapp.com/send?phone=+52${cleanPhone}&text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
 };
 
-// Listener del input para mostrar/ocultar botón WhatsApp
-const phoneInputListener = document.getElementById('pos-customer-phone');
-if (phoneInputListener) {
-    phoneInputListener.addEventListener('input', function() {
-        const waBtn = document.getElementById('wa-ticket-btn');
-        if (waBtn) waBtn.style.display = this.value.trim() ? 'block' : 'none';
-    });
-}
-
-// ==================================
-// === VENTAS REALIZADAS (reimprimir) ===
-// ==================================
 window.loadVentasRealizadas = async () => {
     const container = document.getElementById('ventas-realizadas-list');
     if (!container) return;
@@ -1518,15 +1640,11 @@ window.verGarantiasVenta = async (ventaId) => {
     toggleModal(modalId, true);
 };
 
-// ======================
-// === GESTIÓN DE GARANTÍAS ===
-// ======================
 window.loadGarantias = async () => {
     const container = document.getElementById('garantias-list');
     if (!container) return;
     const ahora = new Date();
     const snap = await getDocs(collection(db, "garantias"));
-    // Actualizar estados vencidos
     const batch = [];
     snap.forEach(d => {
         const g = d.data();
@@ -1536,7 +1654,6 @@ window.loadGarantias = async () => {
     });
     if (batch.length) await Promise.all(batch);
     
-    // Recargar
     const snapActualizado = await getDocs(collection(db, "garantias"));
     container.innerHTML = '';
     snapActualizado.forEach(d => {
@@ -1552,62 +1669,9 @@ window.loadGarantias = async () => {
         </div>`;
     });
 };
-
-// ==================================
-// === GESTIÓN DE COBROS PENDIENTES DE MECÁNICOS ===
-// ==================================
-window.loadMechPendingCharges = async () => {
-    if (!auth.currentUser || window.currentUserDoc?.role !== 'mecanico') return;
-    const snap = await getDocs(query(collection(db, "cobros_pendientes"), 
-        where("mech_uid", "==", auth.currentUser.uid),
-        where("estado", "==", "pendiente")
-    ));
-    const container = document.getElementById('mech-pending-charges');
-    if (!container) return;
-    container.innerHTML = '';
-    let totalPendiente = 0;
-    snap.forEach(d => {
-        const c = d.data();
-        totalPendiente += c.monto || 0;
-        container.innerHTML += `<div class="bg-yellow-600/20 border border-yellow-500/30 p-3 rounded-xl text-xs text-white flex justify-between items-center">
-            <div>
-                <p class="font-bold">${c.concepto || 'Refacción vendida'}</p>
-                <p class="text-[10px] text-gray-400">Cliente: ${c.clienteCel || 'N/A'}</p>
-            </div>
-            <div class="text-right">
-                <p class="text-yellow-400 font-black">$${c.monto.toFixed(2)}</p>
-                <button onclick="window.markMechChargeAsPaid('${d.id}')" class="text-[8px] bg-green-600 text-white px-2 py-0.5 rounded font-bold uppercase mt-1">Pagado al taller</button>
-            </div>
-        </div>`;
-    });
-    const totalEl = document.getElementById('mech-total-pending');
-    if (totalEl) totalEl.innerText = `$${totalPendiente.toFixed(2)}`;
-};
-
-window.markMechChargeAsPaid = async (cobroId) => {
-    await updateDoc(doc(db, "cobros_pendientes", cobroId), { estado: 'pagado', fechaPago: new Date().toISOString() });
-    showToast("Marcado como pagado al taller");
-    window.loadMechPendingCharges();
-};
-
-window.renderPendingMechanicPayments = async () => {
-    const container = document.getElementById('admin-pending-mech-payments');
-    if (!container) return;
-    const snap = await getDocs(query(collection(db, "cobros_pendientes"), where("estado", "==", "pendiente")));
-    container.innerHTML = '<h4 class="text-yellow-400 font-black text-xs uppercase tracking-widest mb-2"><i class="fas fa-hand-holding-usd mr-1"></i> Cobros pendientes de mecánicos</h4>';
-    snap.forEach(d => {
-        const c = d.data();
-        container.innerHTML += `<div class="bg-yellow-600/20 border border-yellow-500/30 p-2 rounded-xl text-xs text-white flex justify-between items-center mb-1">
-            <div>
-                <p class="font-bold">${c.mech_name || 'Mecánico'}</p>
-                <p class="text-[10px] text-gray-400">${c.concepto}</p>
-            </div>
-            <p class="text-yellow-400 font-black">$${c.monto.toFixed(2)}</p>
-        </div>`;
-    });
-};
-
+// ======================================================
 // === INVENTARIO Y PRODUCTOS ===
+// ======================================================
 window.adminLoadInventory = async () => {
     try {
         const snap = await getDocs(collection(db, "inventario"));
@@ -1617,13 +1681,13 @@ window.adminLoadInventory = async () => {
             const d = doc.data();
             d.id = doc.id;
             adminInventoryList.push(d);
-            // Construir el texto de precio con tachado si hay descuento activo (menor que pricePublic original)
             let precioHtml = `$${d.pricePublic?.toFixed(2)}`;
             if (d.originalPrice && d.originalPrice > d.pricePublic) {
                 precioHtml = `<span class="line-through text-gray-500 text-xs mr-1">$${d.originalPrice.toFixed(2)}</span><span class="text-naranja font-black text-lg">$${d.pricePublic.toFixed(2)}</span>`;
             } else {
                 precioHtml = `<span class="text-naranja font-black text-lg">$${d.pricePublic?.toFixed(2)}</span>`;
             }
+            const eyeIcon = d.visible === false ? 'fa-eye-slash' : 'fa-eye';
             listHtml += `<div class="bg-white/5 p-5 rounded-2xl border border-white/5 shadow-lg flex flex-col justify-between" onclick="window.openProductDetail?.('${doc.id}')">
                 <div>
                     <p class="text-white font-bold text-sm mb-1">${d.name}</p>
@@ -1632,6 +1696,11 @@ window.adminLoadInventory = async () => {
                 <div class="mt-4 pt-3 border-t border-white/10 flex justify-between items-center">
                     <span class="text-xs text-gray-400">Stock: <b class="${d.stock>0?'text-green-400':'text-red-500'}">${d.stock}</b></span>
                     ${d.category ? `<span class="text-[10px] text-gray-500 uppercase bg-white/5 px-2 py-0.5 rounded">${d.category}</span>` : ''}
+                    <div class="flex space-x-1">
+                        <button onclick="event.stopPropagation(); window.modificarStock('${doc.id}')" class="text-blue-400 text-xs"><i class="fas fa-edit"></i></button>
+                        <button onclick="event.stopPropagation(); window.toggleProductoVisible('${doc.id}', ${d.visible !== false})" class="text-yellow-400 text-xs"><i class="fas ${eyeIcon}"></i></button>
+                        <button onclick="event.stopPropagation(); window.eliminarProductoInventario('${doc.id}')" class="text-red-400 text-xs"><i class="fas fa-trash"></i></button>
+                    </div>
                 </div>
             </div>`;
         });
@@ -1658,7 +1727,6 @@ window.adminAddProduct = async () => {
             const file = fileInput.files[0];
             mediaUrl = await uploadWithTimeout(file, `inventario/${Date.now()}_${file.name}`);
         }
-        // Guardar también el precio original para descuentos futuros
         const originalPrice = parseFloat(publicPrice);
         await addDoc(collection(db, "inventario"), { 
             name, 
@@ -1668,9 +1736,10 @@ window.adminAddProduct = async () => {
             priceTaller: parseFloat(taller), 
             priceMember: parseFloat(member), 
             pricePublic: originalPrice, 
-            originalPrice: originalPrice, // para restauraciones
+            originalPrice: originalPrice,
             category,
             imgUrl: mediaUrl, 
+            visible: true,
             timestamp: Date.now() 
         });
         showToast("Producto agregado"); 
@@ -1699,7 +1768,9 @@ window.openProductDetail = (id) => {
     }
 };
 
-// === PROMOCIONES Y DESCUENTOS (con lista de productos con descuento) ===
+// ======================================================
+// === PROMOCIONES Y DESCUENTOS ===
+// ======================================================
 window.populatePromoProductSelect = () => {
     const select = document.getElementById('promo-product-select');
     if (!select) return;
@@ -1725,17 +1796,15 @@ window.adminApplyPromo = async () => {
     if (type === 'percent') {
         newPrice = originalPrice * (1 - discount / 100);
     } else {
-        newPrice = discount; // precio fijo
+        newPrice = discount;
     }
     await updateDoc(productRef, { pricePublic: newPrice, originalPrice: originalPrice });
     showToast(`Descuento aplicado: ahora $${newPrice.toFixed(2)}`);
     window.adminLoadInventory();
     loadPublicStore();
-    // Refrescar lista de productos con descuento en panel lateral
     window.renderDiscountedProductsList();
 };
 
-// Lista lateral de productos con descuento
 window.renderDiscountedProductsList = () => {
     const container = document.getElementById('discounted-products-list');
     if (!container) return;
@@ -1766,7 +1835,9 @@ window.removeProductDiscount = async (productId) => {
     window.renderDiscountedProductsList();
 };
 
-// === ADMIN LEALTAD Y CÓDIGOS ===
+// ======================================================
+// === ADMIN LEALTAD Y CÓDIGOS (con notificación) ===
+// ======================================================
 window.adminSaveLoyalty = async () => {
     const code = document.getElementById('loyalty-code')?.value.trim().toUpperCase();
     if (!code) return showToast("Ingresa un código", true);
@@ -1776,7 +1847,8 @@ window.adminSaveLoyalty = async () => {
     const audience = document.getElementById('loyalty-audience')?.value;
     const maxUsos = parseInt(document.getElementById('loyalty-max-usos')?.value) || 0;
     if (!rewardVal) return showToast("Valor de recompensa requerido", true);
-    await addDoc(collection(db, "promociones"), {
+
+    const promoData = {
         codigo: code,
         tipoRecompensa: rewardType,
         valorRecompensa: rewardVal,
@@ -1786,9 +1858,25 @@ window.adminSaveLoyalty = async () => {
         condition,
         audience,
         timestamp: Date.now()
-    });
-    showToast("Promoción activada");
+    };
+    await addDoc(collection(db, "promociones"), promoData);
+    showToast("Promoción activada. Notificando usuarios...");
     window.adminLoadLoyalty();
+
+    // Notificar usuarios según audiencia
+    const usersSnap = await getDocs(collection(db, "users"));
+    const msg = `🎉 ¡Nuevo código de descuento! Usa "${code}" y obtén ${rewardType === 'desc_porc' ? rewardVal + '% de descuento' : '$' + rewardVal + ' de descuento'}.`;
+    usersSnap.forEach(async (userDoc) => {
+        const user = userDoc.data();
+        let notificar = false;
+        if (audience === 'both') notificar = true;
+        else if (audience === 'vip' && (user.role === 'membresia' || user.role === 'admin')) notificar = true;
+        else if (audience === 'general' && user.role !== 'membresia' && user.role !== 'admin') notificar = true;
+
+        if (notificar) {
+            await rtdbSet(dbRef(rtdb, 'notificaciones/' + userDoc.id), { msg });
+        }
+    });
 };
 
 window.adminLoadLoyalty = async () => {
@@ -1821,12 +1909,16 @@ window.togglePromoActive = async (promoId, active) => {
 };
 
 window.deletePromo = async (promoId) => {
-    await deleteDoc(doc(db, "promociones", promoId));
-    showToast("Promoción eliminada");
-    window.adminLoadLoyalty();
+    window.confirmModal("¿Eliminar esta promoción?", async () => {
+        await deleteDoc(doc(db, "promociones", promoId));
+        showToast("Promoción eliminada");
+        window.adminLoadLoyalty();
+    });
 };
 
-// === VIDEO BANNER ===
+// ======================================================
+// === VIDEO BANNER (con previsualización) ===
+// ======================================================
 window.renderVideoScheduleDays = () => {
     const container = document.getElementById('video-schedule-days');
     if (!container) return;
@@ -1837,7 +1929,8 @@ window.renderVideoScheduleDays = () => {
         html += `<div class="video-day-row">
             <p class="font-bold text-xs text-white mb-1">${dia}</p>
             <input type="file" accept="video/*" class="w-full text-xs text-gray-400 file:bg-naranja file:text-white file:border-0 file:rounded-md file:px-2 file:py-1" onchange="window.handleVideoFile(this, ${index})" />
-            <p class="text-[9px] text-gray-500 mt-1 truncate">${current ? current : 'Sin video asignado'}</p>
+            <p class="text-[9px] text-gray-500 mt-1 truncate" id="video-name-${index}">${current ? current : 'Sin video asignado'}</p>
+            <div id="video-preview-${index}" class="mt-2 hidden"></div>
         </div>`;
     });
     container.innerHTML = html;
@@ -1845,8 +1938,17 @@ window.renderVideoScheduleDays = () => {
 
 window.handleVideoFile = (input, dayIndex) => {
     if (input.files && input.files[0]) {
+        const file = input.files[0];
         if (!globalSettings.videoSchedule) globalSettings.videoSchedule = {};
-        globalSettings.videoSchedule[dayIndex] = input.files[0].name;
+        globalSettings.videoSchedule[dayIndex] = file.name;
+        const previewDiv = document.getElementById(`video-preview-${dayIndex}`);
+        const nameP = document.getElementById(`video-name-${dayIndex}`);
+        if (nameP) nameP.innerText = file.name;
+        if (previewDiv) {
+            previewDiv.classList.remove('hidden');
+            const videoURL = URL.createObjectURL(file);
+            previewDiv.innerHTML = `<video src="${videoURL}" controls class="w-full max-h-32 rounded-lg"></video>`;
+        }
     }
 };
 
@@ -1856,7 +1958,9 @@ window.saveVideoSchedule = async () => {
     toggleModal('modal-video-schedule', false);
 };
 
+// ======================================================
 // === AJUSTES GENERALES (GUARDAR) ===
+// ======================================================
 window.adminSaveConfig = async () => {
     const mode = document.getElementById('config-price-mode')?.value;
     const basePrice = parseFloat(document.getElementById('config-base-price')?.value) || 0;
@@ -1906,7 +2010,17 @@ window.set24HSchedule = async () => {
     updateLandingStatus();
 };
 
-// === CATÁLOGO DE SERVICIOS (con descripción IA) ===
+window.togglePriceMode = () => {
+    const mode = document.getElementById('config-price-mode')?.value;
+    const fijoDiv = document.getElementById('config-price-fijo');
+    const kmDiv = document.getElementById('config-price-km');
+    if (fijoDiv) fijoDiv.style.display = mode === 'fijo' ? 'block' : 'none';
+    if (kmDiv) kmDiv.style.display = mode === 'km' ? 'block' : 'none';
+};
+
+// ======================================================
+// === CATÁLOGO DE SERVICIOS (con IA y edición) ===
+// ======================================================
 window.adminAddService = async () => {
     const name = document.getElementById('new-service-name')?.value.trim();
     const price = parseFloat(document.getElementById('new-service-price')?.value);
@@ -1918,18 +2032,32 @@ window.adminAddService = async () => {
     document.getElementById('new-service-price').value = '';
     document.getElementById('new-service-desc').value = '';
     loadServicesCatalog();
-    const catalogList = document.getElementById('admin-service-catalog');
-    if (catalogList) {
-        const snap = await getDocs(collection(db, "servicios"));
-        catalogList.innerHTML = '';
-        snap.forEach(d => {
-            const s = d.data();
-            catalogList.innerHTML += `<div class="flex justify-between bg-white/5 p-2 rounded text-xs"><span>${s.name}</span><span>$${s.price}</span></div>`;
-        });
+    refreshCatalogUI();
+};
+
+// Generar descripción IA para servicio (Ajustes)
+window.generateAIDescription = () => {
+    const nameEl = document.getElementById('new-service-name');
+    const descEl = document.getElementById('new-service-desc');
+    if(nameEl && descEl) {
+        const name = nameEl.value.trim() || 'este servicio';
+        descEl.value = `Servicio profesional OBR: ${name}. Realizado por mecánicos especializados con herramientas de alta calidad.`;
     }
 };
 
+// Nueva función: generar descripción IA para producto (Almacén)
+window.generateAIInvDescription = () => {
+    const nameEl = document.getElementById('inv-name');
+    const descEl = document.getElementById('inv-desc');
+    if(nameEl && descEl) {
+        const name = nameEl.value.trim() || 'este producto';
+        descEl.value = `Repuesto original OBR: ${name}. La mejor calidad para tu moto. Aprovecha esta pieza de alto rendimiento.`;
+    }
+};
+
+// ======================================================
 // === ADMIN USUARIOS Y DETALLE DE CLIENTES / STAFF ===
+// ======================================================
 window.adminAddUser = async () => {
     const phone = document.getElementById('add-user-phone')?.value.trim();
     const name = document.getElementById('add-user-name')?.value.trim();
@@ -1938,10 +2066,9 @@ window.adminAddUser = async () => {
     const fakeEmail = `${phone}@motorescateobr.com`;
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, '123456');
-        await setDoc(doc(db, "users", userCredential.user.uid), { phone: "+52"+phone, name, role, pwd: '123456', firstLogin: true });
+        await setDoc(doc(db, "users", userCredential.user.uid), { phone: "+52"+phone, name, role, pwd: '123456', firstLogin: true, vistasPermitidas: ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas'] });
         showToast('Usuario creado. Deberá cambiar contraseña en su primer inicio.');
         window.adminLoadUsers();
-        await signOut(auth);
     } catch (e) {
         if (e.code === 'auth/email-already-in-use') showToast("Ese celular ya existe", true);
         else showToast("Error al crear", true);
@@ -1976,7 +2103,6 @@ window.openUserDetail = async (uid) => {
     document.getElementById('ud-name').innerText = user.name || 'Sin nombre';
     document.getElementById('ud-phone').innerText = user.phone;
 
-    // Historial de servicios
     const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("phone", "==", user.phone), orderBy("timestamp", "desc")));
     const historyDiv = document.getElementById('ud-history');
     historyDiv.innerHTML = '';
@@ -1985,27 +2111,28 @@ window.openUserDetail = async (uid) => {
         historyDiv.innerHTML += `<div class="bg-white/5 p-2 rounded text-xs text-white"><span class="font-bold">${rData.shortId || ''}</span> - ${rData.falla}</div>`;
     });
 
-    // Citas
-    const citasSnap = await getDocs(query(collection(db, "citas"), where("phone", "==", user.phone)));
-    const citasDiv = document.getElementById('ud-citas');
-    citasDiv.innerHTML = '';
-    citasSnap.forEach(c => {
-        const cData = c.data();
-        citasDiv.innerHTML += `<div class="bg-white/5 p-2 rounded text-xs cursor-pointer" onclick="window.openCitaDetail('${c.id}')">${cData.fecha} ${cData.hora} - ${cData.trabajo}</div>`;
-    });
+    const comprasSnap = await getDocs(query(collection(db, "ventas"), where("clienteCel", "==", user.phone), orderBy("fecha", "desc"), limit(10)));
+    const comprasDiv = document.getElementById('ud-compras');
+    if (comprasDiv) {
+        comprasDiv.innerHTML = '';
+        comprasSnap.forEach(c => {
+            const cData = c.data();
+            comprasDiv.innerHTML += `<div class="bg-white/5 p-2 rounded text-xs text-white"><span class="font-bold">${cData.shortId}</span> - $${cData.total?.toFixed(2)}</div>`;
+        });
+    }
 
-    // Historial de membresías (si existe)
-    const membContainer = document.getElementById('ud-membership-history');
-    if (membContainer) {
+    const vipHistoryDiv = document.getElementById('ud-vip-history');
+    if (vipHistoryDiv) {
         if (user.membresiaExp) {
             const expDate = new Date(user.membresiaExp);
-            membContainer.innerHTML = `<p class="text-xs text-yellow-400 font-bold">Membresía VIP vigente hasta ${expDate.toLocaleDateString()}</p>`;
+            vipHistoryDiv.innerHTML = `<p class="text-xs text-yellow-400 font-bold">Membresía VIP vigente hasta ${expDate.toLocaleDateString()}</p>`;
+        } else if (user.historialVIP && user.historialVIP.length) {
+            vipHistoryDiv.innerHTML = user.historialVIP.map(h => `<p class="text-[10px] text-gray-400">Del ${new Date(h.inicio).toLocaleDateString()} al ${new Date(h.fin).toLocaleDateString()}</p>`).join('');
         } else {
-            membContainer.innerHTML = '<p class="text-xs text-gray-500">Sin membresía activa</p>';
+            vipHistoryDiv.innerHTML = '<p class="text-xs text-gray-500">Nunca ha sido VIP</p>';
         }
     }
 
-    // Botón VIP
     const vipBtn = document.getElementById('promote-vip-btn');
     if (vipBtn) {
         if (user.role === 'membresia') {
@@ -2015,47 +2142,70 @@ window.openUserDetail = async (uid) => {
             vipBtn.onclick = () => window.promoteToVIP(uid);
         }
     }
+
+    const bloquearBtn = document.getElementById('bloquear-usuario-btn');
+    if (bloquearBtn) {
+        bloquearBtn.classList.remove('hidden');
+        bloquearBtn.onclick = () => window.toggleBloquearUsuario(uid, !user.bloqueado);
+        bloquearBtn.innerText = user.bloqueado ? 'Desbloquear' : 'Bloquear';
+    }
+
     toggleModal('modal-user-detail', true);
 };
 
 window.promoteToVIP = async (uid) => {
+    const userDoc = await getDoc(doc(db, "users", uid));
+    const user = userDoc.data();
     const now = Date.now();
     const exp = new Date(now);
     exp.setMonth(exp.getMonth() + 1);
-    await updateDoc(doc(db, "users", uid), { role: 'membresia', membresiaExp: exp.getTime() });
-    showToast("Usuario promovido a VIP");
+    const historialVIP = user.historialVIP || [];
+    historialVIP.push({ inicio: now, fin: exp.getTime() });
+    await updateDoc(doc(db, "users", uid), { role: 'membresia', membresiaExp: exp.getTime(), historialVIP });
+    showToast("Usuario promovido a VIP por 30 días");
     toggleModal('modal-user-detail', false);
     window.adminLoadUsers();
 };
 
-window.adminEditUser = async (uid) => {
-    const newName = prompt("Nuevo nombre:", window.currentUserDoc?.name || '');
-    if (newName) {
-        await updateDoc(doc(db, "users", uid), { name: newName });
-        showToast("Nombre actualizado");
-        window.adminLoadUsers();
-        if (!document.getElementById('modal-user-detail').classList.contains('hidden')) {
-            window.openUserDetail(uid);
-        }
+window.toggleBloquearUsuario = async (uid, bloquear) => {
+    await updateDoc(doc(db, "users", uid), { bloqueado: bloquear });
+    showToast(bloquear ? "Usuario bloqueado" : "Usuario desbloqueado");
+    window.adminLoadUsers();
+    if (!document.getElementById('modal-user-detail').classList.contains('hidden')) {
+        window.openUserDetail(uid);
     }
 };
 
-window.adminDeleteUser = async (uid) => {
-    if (confirm("¿Eliminar este usuario? Esta acción no se puede deshacer.")) {
+window.adminEditUser = (uid) => {
+    window.promptModal("Nuevo nombre:", window.currentUserDoc?.name || '', async (newName) => {
+        if (newName) {
+            await updateDoc(doc(db, "users", uid), { name: newName });
+            showToast("Nombre actualizado");
+            window.adminLoadUsers();
+            if (!document.getElementById('modal-user-detail').classList.contains('hidden')) {
+                window.openUserDetail(uid);
+            }
+        }
+    });
+};
+
+window.adminDeleteUser = (uid) => {
+    window.confirmModal("¿Eliminar este usuario? Esta acción no se puede deshacer.", async () => {
         await deleteDoc(doc(db, "users", uid));
         showToast("Usuario eliminado");
         toggleModal('modal-user-detail', false);
         window.adminLoadUsers();
-    }
+    });
 };
 
-// === DETALLE DE MECÁNICO (STAFF) mejorado ===
+// ======================================================
+// === DETALLE DE MECÁNICO (STAFF) con permisos de vista ===
+// ======================================================
 window.openStaffDetail = async (uid) => {
     const userDoc = await getDoc(doc(db, "users", uid));
     if (!userDoc.exists()) return;
     const user = userDoc.data();
 
-    // Servicios realizados
     const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("mech_uid", "==", uid), orderBy("timestamp", "desc")));
     let servicios = 0;
     let ingresos = 0;
@@ -2069,7 +2219,6 @@ window.openStaffDetail = async (uid) => {
         }
     });
 
-    // Calificaciones
     const satisfactionSnap = await getDocs(query(collection(db, "satisfaction"), where("uid", "==", uid)));
     let calificaciones = [];
     let comentarios = '';
@@ -2080,6 +2229,19 @@ window.openStaffDetail = async (uid) => {
     });
     const promedio = calificaciones.length ? (calificaciones.reduce((a,b)=>a+b,0)/calificaciones.length).toFixed(1) : 'N/A';
 
+    // Checkboxes de vistas permitidas
+    const vistas = ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas'];
+    const vistasNombres = ['Caja','Taller','SOS','Almacén','Promos','Usuarios','Ajustes','Estadíst.','Citas'];
+    const vistasActuales = user.vistasPermitidas || vistas;
+    let vistasHTML = '';
+    vistas.forEach((v, i) => {
+        const checked = vistasActuales.includes(v) ? 'checked' : '';
+        vistasHTML += `<label class="flex items-center space-x-2 text-xs text-white cursor-pointer">
+            <input type="checkbox" ${checked} onchange="window.toggleVistaPermitida('${uid}', '${v}', this.checked)">
+            <span>${vistasNombres[i]}</span>
+        </label>`;
+    });
+
     const html = `<div class="text-white space-y-2 text-xs">
         <h3 class="font-black text-lg">${user.name}</h3>
         <p>Servicios realizados: ${servicios}</p>
@@ -2087,6 +2249,12 @@ window.openStaffDetail = async (uid) => {
         <p>Calificación promedio: <span class="text-yellow-400 font-black">${promedio} ⭐</span></p>
         <div class="max-h-32 overflow-y-auto hide-scroll bg-black/30 p-2 rounded mt-2">${listaServicios || 'Sin servicios'}</div>
         <div class="max-h-32 overflow-y-auto hide-scroll bg-black/30 p-2 rounded mt-2">${comentarios || 'Sin comentarios'}</div>
+        <p class="font-black text-blue-400 mt-2">Permisos de Vista:</p>
+        <div class="grid grid-cols-2 gap-1 bg-black/30 p-2 rounded">${vistasHTML}</div>
+        <div class="flex space-x-2 mt-3">
+            <button onclick="window.togglePausarCuenta('${uid}', ${!user.pausada})" class="flex-1 bg-yellow-600 text-white py-2 rounded-xl font-black uppercase text-[10px]">${user.pausada ? 'Reactivar Cuenta' : 'Pausar Cuenta'}</button>
+            <button onclick="window.downloadStaffReport('${uid}')" class="flex-1 bg-blue-600 text-white py-2 rounded-xl font-black uppercase text-[10px]">Descargar Reporte</button>
+        </div>
     </div>`;
     const modalId = 'modal-staff-detail';
     let modalEl = document.getElementById(modalId);
@@ -2100,7 +2268,45 @@ window.openStaffDetail = async (uid) => {
     document.getElementById(`${modalId}-content`).innerHTML = `<button onclick="toggleModal('${modalId}',false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>${html}`;
     toggleModal(modalId, true);
 };
-// === SOS MEJORADO (filtro corregido, mapa externo, adminSOSGlobalMapInst asegurado) ===
+
+window.toggleVistaPermitida = async (uid, vista, permitir) => {
+    const userDoc = await getDoc(doc(db, "users", uid));
+    const user = userDoc.data();
+    let vistas = user.vistasPermitidas || ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas'];
+    if (permitir) {
+        if (!vistas.includes(vista)) vistas.push(vista);
+    } else {
+        vistas = vistas.filter(v => v !== vista);
+    }
+    await updateDoc(doc(db, "users", uid), { vistasPermitidas: vistas });
+};
+
+window.togglePausarCuenta = async (uid, pausar) => {
+    await updateDoc(doc(db, "users", uid), { pausada: pausar });
+    showToast(pausar ? "Cuenta pausada" : "Cuenta reactivada");
+};
+
+window.downloadStaffReport = async (uid) => {
+    const userDoc = await getDoc(doc(db, "users", uid));
+    const user = userDoc.data();
+    const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("mech_uid", "==", uid), orderBy("timestamp", "desc")));
+    let dataHTML = '<table border="1"><tr><th>ID</th><th>Falla</th><th>Costo</th></tr>';
+    rescatesSnap.forEach(r => {
+        const d = r.data();
+        dataHTML += `<tr><td>${d.shortId}</td><td>${d.falla?.substring(0,40)}</td><td>$${d.costoRescateEstimado || 0}</td></tr>`;
+    });
+    dataHTML += '</table>';
+    const htmlContent = `<html><body><h1>Reporte de ${user.name}</h1>${dataHTML}</body></html>`;
+    const blob = new Blob([htmlContent], {type: 'text/html'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Reporte_${user.name}.html`;
+    a.click();
+};
+// ======================================================
+// === SOS MEJORADO (mapa oscuro/claro automático, filtros correctos, botón PDF en completados) ===
+// ======================================================
 window.filterSOS = (status) => {
     window.currentSOSFilter = status || 'pending';
     renderSOSGlobalMap();
@@ -2110,17 +2316,27 @@ window.renderSOSGlobalMap = async () => {
     const mapEl = document.getElementById('admin-sos-global-map');
     if (!mapEl) return;
 
-    // Asegurar que adminSOSGlobalMapInst exista siempre
+    const isLight = document.body.classList.contains('light-mode');
+    const layerUrl = isLight
+        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    const attribution = '&copy; <a href="https://carto.com/">CARTO</a>';
+
     if (!adminSOSGlobalMapInst) {
         adminSOSGlobalMapInst = L.map(mapEl, { zoomControl: true, scrollWheelZoom: false }).setView([TALLER_LAT, TALLER_LNG], 11);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(adminSOSGlobalMapInst);
+        L.tileLayer(layerUrl, { attribution }).addTo(adminSOSGlobalMapInst);
         L.marker([TALLER_LAT, TALLER_LNG], {
             icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36, 36], iconAnchor: [18, 36] }),
             interactive: false
         }).addTo(adminSOSGlobalMapInst);
+    } else {
+        // Actualizar capa del mapa si es necesario
+        adminSOSGlobalMapInst.eachLayer(layer => {
+            if (layer instanceof L.TileLayer) adminSOSGlobalMapInst.removeLayer(layer);
+        });
+        L.tileLayer(layerUrl, { attribution }).addTo(adminSOSGlobalMapInst);
     }
 
-    // Limpiar solo marcadores, no el mapa
     Object.values(adminSOSMarkers).forEach(m => {
         if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.removeLayer(m);
     });
@@ -2131,8 +2347,12 @@ window.renderSOSGlobalMap = async () => {
     listEl.innerHTML = '';
     let markersGroup = [];
 
+    const filterStatus = window.currentSOSFilter || 'pending';
+
     allSnap.forEach(docSnap => {
         const d = docSnap.data();
+        if (d.status !== filterStatus) return;
+
         const lat = d.lat || TALLER_LAT;
         const lng = d.lng || TALLER_LNG;
 
@@ -2144,11 +2364,6 @@ window.renderSOSGlobalMap = async () => {
         adminSOSMarkers[docSnap.id] = marker;
         markersGroup.push(marker);
 
-        // *** FILTRO CORREGIDO: solo mostrar en lista si coincide con currentSOSFilter ***
-        const filterStatus = window.currentSOSFilter || 'pending';
-        if (d.status !== filterStatus) return; // no agregar a la lista HTML
-
-        // Botón NAVEGAR 🏍️ con enlace a Google Maps externo
         const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-1.5 py-0.5 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
 
         let actions = navBtn;
@@ -2164,6 +2379,8 @@ window.renderSOSGlobalMap = async () => {
         } else if (d.status === 'repairing' && d.mech_uid === auth.currentUser.uid) {
             actions += `<button onclick="event.stopPropagation(); window.changeSOSStatus('${docSnap.id}','to_shop')" class="bg-blue-500 text-white px-2 py-0.5 rounded text-[0.6rem]">A taller</button>
                        <button onclick="event.stopPropagation(); window.changeSOSStatus('${docSnap.id}','ready')" class="bg-purple-500 text-white px-2 py-0.5 rounded text-[0.6rem]">Lista</button>`;
+        } else if (d.status === 'completed') {
+            actions += `<button onclick="event.stopPropagation(); window.downloadCompletedServicePDF('${docSnap.id}')" class="bg-purple-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase">📄 PDF</button>`;
         }
 
         listEl.innerHTML += `
@@ -2177,12 +2394,10 @@ window.renderSOSGlobalMap = async () => {
         </div>`;
     });
 
-    // Ajustar zoom para ver todos los marcadores
     if (markersGroup.length > 0) {
         const group = new L.featureGroup(markersGroup);
         adminSOSGlobalMapInst.fitBounds(group.getBounds().pad(0.1));
     } else {
-        // Si no hay marcadores, vista centrada en el taller
         adminSOSGlobalMapInst.setView([TALLER_LAT, TALLER_LNG], 13);
     }
     window.fixMaps?.();
@@ -2195,18 +2410,20 @@ window.acceptSOS = (id) => {
 };
 
 window.cancelSOS = async (id) => {
-    const docRef = doc(db, "rescates", id);
-    const snap = await getDoc(docRef);
-    if (!snap.exists()) return;
-    const data = snap.data();
-    if (data.uid) {
-        push(dbRef(rtdb, 'sos_alerts/' + data.uid + '/notifs'), {
-            msg: 'El taller no puede atender tu solicitud en este momento, contacta por llamada.'
-        });
-        speakTTS("El taller no puede atender tu solicitud en este momento, contacta por llamada.");
-    }
-    await updateDoc(docRef, { status: 'cancelled' });
-    renderSOSGlobalMap();
+    window.confirmModal("¿Cancelar este servicio SOS?", async () => {
+        const docRef = doc(db, "rescates", id);
+        const snap = await getDoc(docRef);
+        if (!snap.exists()) return;
+        const data = snap.data();
+        if (data.uid) {
+            push(dbRef(rtdb, 'sos_alerts/' + data.uid + '/notifs'), {
+                msg: 'El taller no puede atender tu solicitud en este momento, contacta por llamada.'
+            });
+            speakTTS("El taller no puede atender tu solicitud en este momento, contacta por llamada.");
+        }
+        await updateDoc(docRef, { status: 'cancelled' });
+        renderSOSGlobalMap();
+    });
 };
 
 window.changeSOSStatus = async (id, newStatus) => {
@@ -2339,7 +2556,86 @@ window.tomarCasoDirecto = async () => {
     renderSOSGlobalMap();
 };
 
+// ======================================================
+// === CITAS (con validación de usuario e invitación por WhatsApp) ===
+// ======================================================
+window.adminCrearCita = async () => {
+    const phone = document.getElementById('cita-phone')?.value.trim();
+    const moto = document.getElementById('cita-moto')?.value.trim();
+    const trabajo = document.getElementById('cita-trabajo')?.value.trim();
+    const fecha = document.getElementById('cita-fecha')?.value;
+    const hora = document.getElementById('cita-hora')?.value;
+    if (!phone || !moto || !trabajo || !fecha || !hora) return showToast("Completa todos los campos", true);
+
+    const fechaObj = new Date(fecha);
+    const hoy = new Date();
+    hoy.setHours(0,0,0,0);
+    if (fechaObj < hoy) return showToast("No puedes agendar una cita en una fecha pasada", true);
+
+    // Verificar si el usuario existe
+    const userSnap = await getDocs(query(collection(db, "users"), where("phone", "==", "+52"+phone), limit(1)));
+    if (userSnap.empty) {
+        // Mostrar opción de invitar
+        const inviteHTML = `
+            <div class="text-white text-center">
+                <p class="mb-4">El número <span class="text-naranja font-bold">+52 ${phone}</span> no está registrado en OBR.</p>
+                <button onclick="window.invitarClienteWhatsApp('${phone}')" class="w-full bg-green-600 text-white p-3 rounded-xl font-black uppercase mb-2 flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Invitar a OBR por WhatsApp</button>
+                <button onclick="toggleModal('modal-invite-cliente', false)" class="w-full bg-gray-600 text-white p-3 rounded-xl font-black uppercase">Cancelar</button>
+            </div>
+        `;
+        const modalId = 'modal-invite-cliente';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[400] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `<div class="bg-asfalto w-full max-w-xs rounded-[2rem] p-6 relative border border-green-500/30" id="${modalId}-content"></div>`;
+            document.body.appendChild(modalEl);
+        }
+        document.getElementById(`${modalId}-content`).innerHTML = inviteHTML;
+        toggleModal(modalId, true);
+        return;
+    }
+
+    // El usuario existe, guardar la cita
+    await addDoc(collection(db, "citas"), {
+        phone: "+52" + phone,
+        moto,
+        trabajo,
+        fecha,
+        hora,
+        timestamp: Date.now()
+    });
+    showToast("Cita guardada correctamente");
+    toggleModal('modal-nueva-cita', false);
+    window.adminLoadCitas();
+};
+
+window.invitarClienteWhatsApp = (phone) => {
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const mensaje = encodeURIComponent("¡Hola! 👋 Te invitamos a unirte a *OBR (Moto Rescate)*, donde podrás solicitar auxilio vial, agendar citas y mucho más. Descarga la app aquí: https://exploracionesobr.github.io/RESCATE-OBR");
+    window.open(`https://api.whatsapp.com/send?phone=+52${cleanPhone}&text=${mensaje}`, '_blank');
+    toggleModal('modal-invite-cliente', false);
+};
+
+window.adminLoadCitas = async () => {
+    const snap = await getDocs(query(collection(db, "citas"), orderBy("fecha", "asc")));
+    const list = document.getElementById('admin-citas-list');
+    if (!list) return;
+    list.innerHTML = '';
+    snap.forEach(d => {
+        const c = d.data();
+        list.innerHTML += `<div class="bg-white/5 p-3 rounded-xl text-xs text-white" onclick="window.openCitaDetail('${d.id}')">
+            <p class="font-bold">${c.fecha} ${c.hora}</p>
+            <p>${c.phone} - ${c.moto}</p>
+            <p class="text-gray-400">${c.trabajo}</p>
+        </div>`;
+    });
+};
+
+// ======================================================
 // === FOTOS EXTRA ===
+// ======================================================
 window.addExtraPhotos = async (sosId) => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -2361,19 +2657,27 @@ window.addExtraPhotos = async (sosId) => {
         showToast('Fotos agregadas');
         if (currentDetalleServicioId === sosId) {
             const fotosContainer = document.getElementById('servicio-fotos-container');
-            if (fotosContainer) fotosContainer.innerHTML = existingUrls.map(url => `<img src="${url}" class="h-20 w-20 object-contain rounded-xl border border-white/10 cursor-pointer" onclick="window.open(this.src)">`).join('');
+            if (fotosContainer) fotosContainer.innerHTML = existingUrls.map(url => `<img src="${url}" class="h-20 w-20 object-contain rounded-xl border border-white/10 cursor-pointer" onclick="window.openImageLightbox('${url}')">`).join('');
         }
     };
     input.click();
 };
-// === ESTADÍSTICAS ===
+
+// ======================================================
+// === ESTADÍSTICAS (con más detalles) ===
+// ======================================================
+window.adminLoadSales = async () => {
+    try {
+        const snap = await getDocs(collection(db, "ventas"));
+        adminSalesCache.ventas = [];
+        snap.forEach(d => adminSalesCache.ventas.push(d.data()));
+    } catch(e) {}
+};
+
 window.loadStats = async () => {
     const fromDate = document.getElementById('stats-from')?.value;
     const toDate = document.getElementById('stats-to')?.value;
-    let q = collection(db, "ventas");
-    const salesSnap = await getDocs(q);
-    let salesData = [];
-    salesSnap.forEach(d => salesData.push(d.data()));
+    let salesData = adminSalesCache.ventas || [];
     if (fromDate) salesData = salesData.filter(v => v.fecha >= fromDate);
     if (toDate) salesData = salesData.filter(v => v.fecha <= toDate + 'T23:59:59');
     const byDay = {};
@@ -2393,11 +2697,15 @@ window.loadStats = async () => {
     }
     const totalVentas = salesData.reduce((s,v) => s + (v.total || 0), 0);
     const totalCosto = salesData.reduce((s,v) => s + (v.costo || 0), 0);
+    const inversion = totalCosto;
+    const salidas = window.retiros.reduce((s,r)=>s+(r.monto||0),0);
     const summaryGrid = document.getElementById('stats-summary-grid');
     if (summaryGrid) {
         summaryGrid.innerHTML = `
             <div class="bg-white/5 p-3 rounded-xl"><p class="text-xs text-gray-400">Ventas Totales</p><p class="text-xl font-black">$${totalVentas.toFixed(2)}</p></div>
-            <div class="bg-white/5 p-3 rounded-xl"><p class="text-xs text-gray-400">Ganancia</p><p class="text-xl font-black">$${(totalVentas - totalCosto).toFixed(2)}</p></div>
+            <div class="bg-white/5 p-3 rounded-xl"><p class="text-xs text-gray-400">Ganancia Bruta</p><p class="text-xl font-black">$${(totalVentas - totalCosto).toFixed(2)}</p></div>
+            <div class="bg-white/5 p-3 rounded-xl"><p class="text-xs text-gray-400">Inversión (Costo)</p><p class="text-xl font-black">$${inversion.toFixed(2)}</p></div>
+            <div class="bg-white/5 p-3 rounded-xl"><p class="text-xs text-gray-400">Salidas (Retiros)</p><p class="text-xl font-black">$${salidas.toFixed(2)}</p></div>
         `;
     }
     const productCount = {};
@@ -2444,7 +2752,35 @@ window.exportStatsPDF = async () => {
     doc.save(`Estadisticas_OBR_${new Date().toISOString().slice(0,10)}.pdf`);
 };
 
+window.exportCSV = (tipo) => {
+    if (tipo === 'ventas') {
+        const rows = [['Fecha', 'Descripción', 'Total']];
+        (adminSalesCache.ventas || []).forEach(v => rows.push([new Date(v.fecha).toLocaleDateString(), v.desc, v.total]));
+        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `ventas_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } else if (tipo === 'inventario') {
+        const rows = [['Nombre', 'Stock', 'Costo', 'Precio Público']];
+        adminInventoryList.forEach(p => rows.push([p.name, p.stock, p.cost, p.pricePublic]));
+        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `inventario_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+};
+
+// ======================================================
 // === ADMIN REFRESH CONFIG UI ===
+// ======================================================
 window.adminRefreshConfigUI = () => {
     const modeEl = document.getElementById('config-price-mode');
     if (modeEl) modeEl.value = globalSettings.priceMode;
@@ -2508,13 +2844,25 @@ window.removeKmRange = (index) => {
 window.renderAdminMap = () => {
     const mapEl = document.getElementById('admin-geofence-map');
     if (!mapEl || adminGeoMap) return;
+    const isLight = document.body.classList.contains('light-mode');
+    const layerUrl = isLight
+        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     adminGeoMap = L.map(mapEl).setView([TALLER_LAT, TALLER_LNG], 13);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(adminGeoMap);
+    L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(adminGeoMap);
     L.marker([TALLER_LAT, TALLER_LNG], { icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }) }).addTo(adminGeoMap);
     adminGeoCircle = L.circle([TALLER_LAT, TALLER_LNG], { radius: globalSettings.radiusKm * 1000, color: '#FF6B00', fillOpacity: 0.1 }).addTo(adminGeoMap);
 };
 
+window.updateGeofenceRadius = (val) => {
+    const radiusKm = parseFloat(val);
+    document.getElementById('radius-display').innerText = radiusKm;
+    if (adminGeoCircle) adminGeoCircle.setRadius(radiusKm * 1000);
+};
+
+// ======================================================
 // === INVENTARIO FLOTANTE (CONTEO RÁPIDO) ===
+// ======================================================
 window.openInventoryCount = () => {
     const now = Date.now();
     if (window.inventoryCountSession && (now - window.inventoryCountSession.start) > 6 * 60 * 60 * 1000) {
@@ -2641,7 +2989,9 @@ window.finalizeInventoryCount = () => {
     toggleModal(modalId, true);
 };
 
+// ======================================================
 // === CORTE DE CAJA ===
+// ======================================================
 window.showAdminCorte = () => {
     if (!window.cajaAbierta) return;
     const ventasHoy = (adminSalesCache?.ventas || []).filter(
@@ -2711,7 +3061,10 @@ window.exportCortePDF = () => {
     });
     doc.save(`Corte_Caja_${new Date().toISOString().slice(0,10)}.pdf`);
 };
+
+// ======================================================
 // === BÚSQUEDA DE ESTADO DE SERVICIO (PÚBLICO) ===
+// ======================================================
 window.searchServiceStatus = async () => {
     const input = document.getElementById('search-tracker-input')?.value.trim();
     const password = document.getElementById('search-tracker-pwd')?.value.trim();
@@ -2734,28 +3087,6 @@ window.searchServiceStatus = async () => {
     const rescueDoc = snap.docs[0];
     const rescue = rescueDoc.data();
 
-    const passwordContainer = document.getElementById('tracker-password-container');
-    if (!input.startsWith('OBR-') && !password) {
-        if (passwordContainer) passwordContainer.classList.remove('hidden');
-        const notFound = document.getElementById('tracking-not-found');
-        if (notFound) notFound.classList.add('hidden');
-        return;
-    }
-
-    if (!input.startsWith('OBR-')) {
-        const userSnap = await getDocs(query(collection(db, "users"), where("phone", "==", "+52"+input), limit(1)));
-        if (userSnap.empty) {
-            const notFound = document.getElementById('tracking-not-found');
-            if (notFound) notFound.classList.remove('hidden');
-            return;
-        }
-        const user = userSnap.docs[0].data();
-        if (user.pwd !== password) {
-            showToast("Contraseña incorrecta", true);
-            return;
-        }
-    }
-
     const notFound = document.getElementById('tracking-not-found');
     if (notFound) notFound.classList.add('hidden');
     const container = document.getElementById('tracking-result-container');
@@ -2773,30 +3104,20 @@ window.searchServiceStatus = async () => {
         `;
     }
 };
+// ======================================================
+// === CIERRE Y STUBS (ÚNICA DECLARACIÓN DE MANIFEST) ===
+// ======================================================
+tailwind.config = {
+    theme: {
+        extend: {
+            colors: {
+                asfalto: '#1A1A1A',
+                naranja: '#FF6B00'
+            }
+        }
+    }
+};
 
-// === INICIALIZAR ===
-window.addEventListener('load', () => {
-    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
-});
-
-// Stubs para funciones pendientes (chat, etc.)
-window.openChat = window.openChat || function(){};
-window.closeChat = window.closeChat || function(){};
-window.loadChatList = window.loadChatList || async function(){};
-window.sendMessage = window.sendMessage || async function(){};
-window.enviarSolicitudCambioCita = window.enviarSolicitudCambioCita || async function(){};
-window.adminLoadSales = window.adminLoadSales || async function(){};
-window.openSaleDetails = window.openSaleDetails || function(id, data){ showToast(`Venta ${data.shortId} registrada`); };
-window.filterStore = window.filterStore || function(){};
-window.printTicket = window.printTicket || function(){};
-window.adminSaveMemPrice = window.adminSaveMemPrice || async function(){};
-window.exportCSV = window.exportCSV || function(){};
-window.clearSignature = window.clearSignature || function(){};
-window.saveSignature = window.saveSignature || function(){};
-window.exportUserHistoryPDF = window.exportUserHistoryPDF || function(){};
-
-// tailwind config
-tailwind.config = { theme: { extend: { colors: { asfalto: '#1A1A1A', naranja: '#FF6B00' } } } };
 const manifest = {
     name: "Moto Rescate OBR",
     short_name: "OBR",
@@ -2805,8 +3126,169 @@ const manifest = {
     background_color: "#1A1A1A",
     theme_color: "#FF6B00",
     icons: [
-        { src: "logo.png", sizes: "512x512", type: "image/png", purpose: "any maskable" }
+        { src: "logo.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
+        { src: "logo.png", sizes: "192x192", type: "image/png", purpose: "any maskable" }
     ]
 };
 const mBlob = new Blob([JSON.stringify(manifest)], {type: 'application/manifest+json'});
-(function() { const l = document.createElement('link'); l.rel = 'manifest'; l.href = URL.createObjectURL(mBlob); document.head.appendChild(l); })();
+(function() {
+    const l = document.createElement('link');
+    l.rel = 'manifest';
+    l.href = URL.createObjectURL(mBlob);
+    document.head.appendChild(l);
+})();
+
+// Refresco periódico
+setInterval(() => {
+    if (auth.currentUser) {
+        updateLandingStatus();
+        if (['admin','mecanico','taller','socio'].includes(window.currentUserDoc?.role)) {
+            window.adminLoadInventory();
+            window.adminLoadSales();
+            window.posFilterProducts();
+        }
+    }
+}, 30000);
+
+// Evento para el botón de contacto en el cliente
+window.addEventListener('click', function(e) {
+    if (e.target.closest('#btn-contacto-taller')) {
+        e.stopPropagation();
+        e.preventDefault();
+        const optionsHTML = `
+            <div class="text-center">
+                <p class="text-white font-bold mb-4">Contactar al Taller</p>
+                <button onclick="window.open('tel:6311551533')" class="w-full bg-green-600 text-white p-3 rounded-xl font-black mb-2 flex items-center justify-center"><i class="fas fa-phone mr-2"></i> Llamar 631 155 1533</button>
+                <button onclick="window.open('tel:6441106011')" class="w-full bg-green-600 text-white p-3 rounded-xl font-black mb-4 flex items-center justify-center"><i class="fas fa-phone mr-2"></i> Llamar 644 110 6011</button>
+                <button onclick="toggleModal('modal-contact-taller', false)" class="text-gray-400 text-sm">Cancelar</button>
+            </div>
+        `;
+        const modalId = 'modal-contact-taller';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[350] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `<div class="bg-asfalto w-full max-w-xs rounded-[2rem] p-6 relative border border-blue-500/30" id="${modalId}-content"></div>`;
+            document.body.appendChild(modalEl);
+        }
+        document.getElementById(`${modalId}-content`).innerHTML = optionsHTML;
+        toggleModal(modalId, true);
+    }
+});
+
+// Stubs para funciones no implementadas completamente
+window.sendContactFromModal = window.sendContactFromModal || function() {
+    const name = document.getElementById('modal-contact-name')?.value.trim();
+    const phone = document.getElementById('modal-contact-phone')?.value.trim();
+    const msg = document.getElementById('modal-contact-msg')?.value.trim();
+    if(!name || !msg) return showToast("Nombre y mensaje requeridos", true);
+    window.open(`https://wa.me/526311551533?text=${encodeURIComponent(`Hola, soy ${name}${phone ? ' ('+phone+')' : ''}. ${msg}`)}`, '_blank');
+};
+window.loadChatList = window.loadChatList || async function() {};
+window.sendMessage = window.sendMessage || async function() {};
+window.openChat = window.openChat || function(uid, isClient) {
+    activeChatUid = uid;
+    document.getElementById('chat-title').innerText = isClient ? 'Soporte OBR' : (window.currentUserDoc?.name || 'Chat');
+    toggleModal('modal-chat', true);
+};
+window.closeChat = window.closeChat || function() {
+    activeChatUid = null;
+    toggleModal('modal-chat', false);
+};
+window.loadMechPendingCharges = window.loadMechPendingCharges || async function() {};
+window.renderPendingMechanicPayments = window.renderPendingMechanicPayments || async function() {};
+window.openCitaDetail = window.openCitaDetail || function(id) {
+    getDoc(doc(db, "citas", id)).then(snap => {
+        if (!snap.exists()) return;
+        const c = snap.data();
+        document.getElementById('edit-cita-id').value = id;
+        document.getElementById('edit-cita-phone').value = c.phone.replace('+52', '');
+        document.getElementById('edit-cita-moto').value = c.moto;
+        document.getElementById('edit-cita-trabajo').value = c.trabajo;
+        document.getElementById('edit-cita-fecha').value = c.fecha;
+        document.getElementById('edit-cita-hora').value = c.hora;
+        toggleModal('modal-edit-cita', true);
+    });
+};
+window.clientEditCita = window.clientEditCita || function(id) {
+    getDoc(doc(db, "citas", id)).then(snap => {
+        if (!snap.exists()) return;
+        const c = snap.data();
+        const modalHTML = `
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-yellow-500/30">
+                <button onclick="toggleModal('modal-client-edit-cita', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+                <h2 class="text-xl font-black mb-4 text-white">Modificar Cita</h2>
+                <p class="text-xs text-gray-400 mb-4">Los cambios se enviarán al taller para confirmación.</p>
+                <input type="date" id="client-edit-cita-fecha" value="${c.fecha}" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white color-scheme-dark">
+                <input type="time" id="client-edit-cita-hora" value="${c.hora}" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white color-scheme-dark">
+                <textarea id="client-edit-cita-trabajo" rows="2" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">${c.trabajo}</textarea>
+                <button onclick="window.clientSubmitCitaChange('${id}')" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white p-3 rounded-xl font-black uppercase">Enviar Solicitud de Cambio</button>
+            </div>
+        `;
+        const modalId = 'modal-client-edit-cita';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            document.body.appendChild(modalEl);
+        }
+        modalEl.innerHTML = modalHTML;
+        toggleModal(modalId, true);
+    });
+};
+window.clientSubmitCitaChange = window.clientSubmitCitaChange || async function(id) {
+    const fecha = document.getElementById('client-edit-cita-fecha')?.value;
+    const hora = document.getElementById('client-edit-cita-hora')?.value;
+    const trabajo = document.getElementById('client-edit-cita-trabajo')?.value.trim();
+    if (!fecha || !hora || !trabajo) return showToast("Completa todos los campos", true);
+    await addDoc(collection(db, "citas", id, "cambios_solicitados"), {
+        fecha, hora, trabajo,
+        solicitadoPor: auth.currentUser.uid,
+        nombre: window.currentUserDoc.name,
+        timestamp: Date.now(),
+        estado: 'pendiente'
+    });
+    showToast("Solicitud enviada al taller");
+    toggleModal('modal-client-edit-cita', false);
+};
+window.enviarSolicitudCambioCita = window.enviarSolicitudCambioCita || async function() {};
+window.adminUpdateCita = window.adminUpdateCita || async function() {
+    const id = document.getElementById('edit-cita-id').value;
+    const phone = document.getElementById('edit-cita-phone').value.trim();
+    const moto = document.getElementById('edit-cita-moto').value.trim();
+    const trabajo = document.getElementById('edit-cita-trabajo').value.trim();
+    const fecha = document.getElementById('edit-cita-fecha').value;
+    const hora = document.getElementById('edit-cita-hora').value;
+    if (!phone || !moto || !trabajo || !fecha || !hora) return showToast("Completa todos los campos", true);
+    await updateDoc(doc(db, "citas", id), {
+        phone: "+52" + phone,
+        moto,
+        trabajo,
+        fecha,
+        hora
+    });
+    showToast("Cita actualizada");
+    toggleModal('modal-edit-cita', false);
+    window.adminLoadCitas();
+};
+window.adminDeleteCita = window.adminDeleteCita || async function() {
+    const id = document.getElementById('edit-cita-id').value;
+    window.confirmModal("¿Eliminar esta cita?", async () => {
+        await deleteDoc(doc(db, "citas", id));
+        showToast("Cita eliminada");
+        toggleModal('modal-edit-cita', false);
+        window.adminLoadCitas();
+    });
+};
+window.printTicket = window.printTicket || function() {};
+window.filterStore = window.filterStore || function() {};
+window.autoCalcInv = window.autoCalcInv || function() {
+    const cost = parseFloat(document.getElementById('inv-cost')?.value) || 0;
+    if (cost) {
+        document.getElementById('inv-price-taller').value = (cost * 1.3).toFixed(2);
+        document.getElementById('inv-price-member').value = (cost * 1.4).toFixed(2);
+        document.getElementById('inv-price-public').value = (cost * 1.6).toFixed(2);
+    }
+};
