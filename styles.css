@@ -1,10 +1,17 @@
-/* ===== styles.css COMPLETO (con mejoras para emergencia, taller y garantías) - Parte 1/2 ===== */
-
+/* ===== styles.css COMPLETO ===== */
 :root {
     --bg: #1A1A1A;
     --text: #ffffff;
     --glass-bg: rgba(255,255,255,0.05);
     --border: rgba(255,255,255,0.1);
+}
+
+html {
+    touch-action: manipulation;
+    -ms-touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
 }
 
 body {
@@ -13,6 +20,22 @@ body {
     color: var(--text);
     -webkit-tap-highlight-color: transparent;
     transition: background-color 0.3s ease, color 0.3s ease;
+    touch-action: pan-x pan-y;
+    -ms-touch-action: pan-x pan-y;
+    overscroll-behavior: contain;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    max-width: 100vw;
+    overflow-x: hidden;
+}
+
+input, textarea, [contenteditable] {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
 }
 
 /* --- TEMA CLARO --- */
@@ -52,7 +75,6 @@ body.light-mode {
 .hide-scroll::-webkit-scrollbar { display: none; }
 .color-scheme-dark { color-scheme: dark; }
 
-/* Animación de pulso (corregida para no afectar posición del marcador) */
 @keyframes pulse-sos {
     0% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.7); transform: scale(1); }
     50% { transform: scale(1.05); }
@@ -61,7 +83,6 @@ body.light-mode {
 }
 .btn-sos-huge { animation: pulse-sos 2s infinite; }
 
-/* PINES DEL MAPA – animación solo en elemento interno para no mover el pin */
 .gps-pulse-marker {
     width: 28px; height: 28px;
     background: transparent !important;
@@ -111,7 +132,6 @@ body.light-mode {
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
-/* Estilos de modales */
 .fixed.inset-0 { backdrop-filter: blur(4px); }
 .modal-content {
     background: #1A1A1A;
@@ -123,7 +143,6 @@ body.light-mode {
     overflow-y: auto;
 }
 
-/* Botones flotantes */
 .float-scanner-btn {
     position: fixed;
     bottom: 100px;
@@ -140,7 +159,6 @@ body.light-mode {
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
-/* Tarjetas de productos POS (imagen ajustada sin recorte) */
 #pos-product-grid > div {
     aspect-ratio: 1 / 1;
     padding: 0.5rem;
@@ -172,38 +190,56 @@ body.light-mode {
     font-size: 0.75rem;
 }
 
-/* Tarjetas SOS compactas */
 .sos-card-compact {
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: 0.75rem;
     padding: 0.5rem 0.75rem;
     margin-bottom: 0.5rem;
+    cursor: pointer;
+    transition: background 0.2s;
 }
+.sos-card-compact:hover { background: rgba(255,255,255,0.1); }
 .sos-card-compact .phone { font-weight: 800; font-size: 0.8rem; }
 .sos-card-compact .falla { font-size: 0.7rem; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sos-card-compact .actions { display: flex; gap: 0.5rem; margin-top: 0.25rem; }
+.sos-card-compact .actions { display: flex; gap: 0.5rem; margin-top: 0.25rem; flex-wrap: wrap; }
 .sos-card-compact .actions button { padding: 0.15rem 0.5rem; border-radius: 0.5rem; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; border: none; cursor: pointer; }
 
-/* Mapa SOS en escritorio: layout dividido */
 @media (min-width: 1024px) {
     .a-view-alertas .lg\:grid {
         display: grid;
-        grid-template-columns: 1fr 2fr;
+        grid-template-columns: 1fr 1fr;
         gap: 1rem;
-        height: calc(100vh - 200px);
+        height: auto;
     }
     .a-view-alertas .lg\:col-span-2 {
-        height: 100%;
+        height: 65vh;
+        position: sticky;
+        top: 80px;
     }
     .a-view-alertas .lg\:col-span-1 {
         overflow-y: auto;
-        max-height: 100%;
+        max-height: 65vh;
         padding-right: 0.5rem;
     }
 }
 
-/* Tarjetas de servicios en taller (colores por estatus) */
+@media (min-width: 1280px) {
+    body {
+        padding: 0 2rem;
+    }
+    #app-admin main {
+        max-width: 1400px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    #app-client main {
+        max-width: 700px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+}
+
 .admin-service-card {
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.1);
@@ -215,13 +251,11 @@ body.light-mode {
     height: 100%;
 }
 
-/* Estilos para los estatus del taller */
 .status-recibida { background-color: rgba(59, 130, 246, 0.3); color: #60a5fa; }
 .status-mecanica { background-color: rgba(234, 179, 8, 0.3); color: #facc15; }
 .status-pruebas { background-color: rgba(59, 130, 246, 0.3); color: #60a5fa; }
 .status-lista { background-color: rgba(34, 197, 94, 0.3); color: #4ade80; }
 
-/* Grid de productos (inventario) – imagen ajustada con object-contain */
 .product-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -247,12 +281,11 @@ body.light-mode {
 }
 .product-card:hover { transform: scale(1.02); }
 
-/* Asegurar que las imágenes en el grid público y cliente también usen contain */
 #public-store-grid img,
 #client-store-grid img {
     object-fit: contain !important;
 }
-/* Inputs y botones */
+
 input, select, textarea {
     outline: none;
     transition: border-color 0.2s;
@@ -261,7 +294,6 @@ input:focus, select:focus, textarea:focus {
     border-color: #FF6B00 !important;
 }
 
-/* Botón primario */
 .btn-primary {
     background: #FF6B00;
     color: white;
@@ -274,7 +306,6 @@ input:focus, select:focus, textarea:focus {
 }
 .btn-primary:hover { background: #ea580c; }
 
-/* Modal específico ingresar moto */
 #modal-nuevo-servicio input, #modal-nuevo-servicio textarea {
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.1);
@@ -285,7 +316,6 @@ input:focus, select:focus, textarea:focus {
     margin-bottom: 0.75rem;
 }
 
-/* Carrito */
 .cart-item {
     display: flex;
     justify-content: space-between;
@@ -296,7 +326,6 @@ input:focus, select:focus, textarea:focus {
     margin-bottom: 0.5rem;
 }
 
-/* Calendario video banner */
 .video-day-row {
     background: rgba(0,0,0,0.4);
     border-radius: 0.75rem;
@@ -304,22 +333,27 @@ input:focus, select:focus, textarea:focus {
     margin-bottom: 0.5rem;
 }
 
-/* Grid video banner (2 columnas) */
 #video-schedule-days {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 1rem;
 }
 
-/* Responsive general */
 @media (max-width: 768px) {
     .glass { backdrop-filter: blur(6px); }
     .btn-sos-huge { width: 70vw; height: 70vw; }
     .app-view { padding: 1rem; }
     .hide-on-mobile { display: none; }
+    body { font-size: 15px; }
+    input, select, textarea, button { font-size: 16px !important; }
+    .text-xs { font-size: 0.75rem !important; }
+    .text-sm { font-size: 0.85rem !important; }
+    .text-lg { font-size: 1.1rem !important; }
+    .text-xl { font-size: 1.3rem !important; }
+    .text-2xl { font-size: 1.5rem !important; }
+    .text-3xl { font-size: 1.7rem !important; }
 }
 
-/* Impresión */
 @media print {
     body * { visibility: hidden; }
     .hide-on-print { display: none !important; }
@@ -342,11 +376,9 @@ input:focus, select:focus, textarea:focus {
     background-size: 20px 20px;
 }
 
-/* Ajustes para Leaflet en modo oscuro */
 .leaflet-tile-pane { filter: var(--map-filter, none); }
 .light-mode .leaflet-tile-pane { filter: grayscale(10%); }
 
-/* Estilos para el modal de firma */
 #signature-canvas {
     border: 2px solid #ccc;
     border-radius: 0.5rem;
@@ -354,7 +386,6 @@ input:focus, select:focus, textarea:focus {
     cursor: crosshair;
 }
 
-/* Botón flotante inventario */
 #float-inventory-btn {
     position: fixed;
     bottom: 100px;
@@ -372,7 +403,6 @@ input:focus, select:focus, textarea:focus {
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
-/* Botón flotante del carrito en móvil (cliente) */
 #cart-count-mobile {
     position: absolute;
     top: -6px;
@@ -389,12 +419,10 @@ input:focus, select:focus, textarea:focus {
     font-weight: 900;
 }
 
-/* Aseguramos que el contenedor de las fotos en detalle también use contain */
 #servicio-fotos-container img {
     object-fit: contain !important;
 }
 
-/* Ajuste para que el menú inferior no tape el contenido en admin */
 #app-admin main {
     padding-bottom: 7rem;
 }
@@ -403,10 +431,8 @@ input:focus, select:focus, textarea:focus {
         padding-bottom: 6rem;
     }
 }
+/* ===== NUEVOS ESTILOS Y MEJORAS ===== */
 
-/* ===== NUEVOS ESTILOS PARA MEJORAS ===== */
-
-/* Botón de emergencia bloqueado (cuando taller está cerrado) */
 #emergency-client-btn.opacity-50 {
     cursor: not-allowed;
     filter: grayscale(30%);
@@ -416,7 +442,6 @@ input:focus, select:focus, textarea:focus {
     line-height: 1.2;
 }
 
-/* Contenedor de cobros pendientes de mecánicos en POS */
 #admin-pending-mech-payments {
     max-height: 200px;
     overflow-y: auto;
@@ -428,7 +453,6 @@ input:focus, select:focus, textarea:focus {
     background: rgba(255,255,255,0.1);
 }
 
-/* Sección de cobros pendientes para el mecánico */
 #mech-pending-charges {
     max-height: 300px;
     overflow-y: auto;
@@ -440,12 +464,10 @@ input:focus, select:focus, textarea:focus {
     background: rgba(255,255,255,0.08);
 }
 
-/* Productos con descuento: precio original tachado */
 .line-through {
     text-decoration: line-through;
 }
 
-/* Lista de productos con descuento */
 #discounted-products-list > div {
     transition: background 0.2s;
 }
@@ -453,7 +475,6 @@ input:focus, select:focus, textarea:focus {
     background: rgba(255,255,255,0.05);
 }
 
-/* Garantías */
 #garantias-list > div {
     transition: background 0.2s;
 }
@@ -461,7 +482,6 @@ input:focus, select:focus, textarea:focus {
     background: rgba(255,255,255,0.05);
 }
 
-/* Ventas realizadas */
 #ventas-realizadas-list > div {
     transition: background 0.2s;
 }
@@ -469,7 +489,6 @@ input:focus, select:focus, textarea:focus {
     background: rgba(255,255,255,0.05);
 }
 
-/* Detalle de usuario y staff */
 #modal-user-detail .bg-black\/30,
 #modal-staff-detail .bg-black\/30 {
     transition: background 0.2s;
@@ -479,7 +498,6 @@ input:focus, select:focus, textarea:focus {
     background: rgba(255,255,255,0.08);
 }
 
-/* Botón CHECK del taller */
 #btn-lista-check {
     align-items: center;
     justify-content: center;
@@ -489,7 +507,6 @@ input:focus, select:focus, textarea:focus {
     margin-right: 0.25rem;
 }
 
-/* Ajuste para el historial del cliente */
 #client-history-list > div {
     transition: background 0.2s;
 }
@@ -497,7 +514,6 @@ input:focus, select:focus, textarea:focus {
     background: rgba(255,255,255,0.08);
 }
 
-/* Ajuste para las citas del cliente */
 #client-appointments-list > div {
     transition: background 0.2s;
 }
@@ -505,8 +521,149 @@ input:focus, select:focus, textarea:focus {
     background: rgba(255,255,255,0.08);
 }
 
-/* Ajuste para la tienda cliente (misma vista que catálogo público) */
 #client-store-grid .glass img {
     object-fit: contain !important;
     background: rgba(255,255,255,0.05);
+}
+
+#user-session-indicator {
+    display: none;
+}
+@media (max-width: 768px) {
+    #user-session-indicator {
+        display: flex;
+    }
+}
+
+#vip-banner {
+    display: none;
+    animation: fadeInDown 0.5s ease;
+}
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Sticker PROMO */
+.sticker-promo {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: #ef4444;
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* Contenedor del video banner */
+#video-banner-container {
+    margin-top: 1rem;
+    border-radius: 1rem;
+    overflow: hidden;
+    background: #000;
+}
+#video-banner-container video {
+    width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+}
+@media (max-width: 768px) {
+    #video-banner-container video {
+        max-height: 200px;
+    }
+}
+
+/* Mapa SOS en escritorio: tamaño fijo */
+#admin-sos-global-map {
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+    border-radius: 1.5rem;
+}
+
+/* Lista de SOS con scroll interno */
+#admin-sos-list {
+    max-height: calc(65vh - 80px);
+    overflow-y: auto;
+}
+
+/* Organización de taller en bloques, tarjetas con ancho máximo y truncado */
+#admin-services-list .mb-6 {
+    background: rgba(255,255,255,0.02);
+    border-radius: 1rem;
+    padding: 0.75rem;
+}
+#admin-services-list h4 {
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+}
+#admin-services-list .grid > div {
+    max-width: 100%;
+    overflow: hidden;
+}
+#admin-services-list .grid span.truncate,
+#admin-services-list .grid p.truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Mejora de modales para que se vean más nativos en la app */
+.modal-content {
+    border-radius: 1.5rem;
+    background: #1A1A1A;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Evitar selección de texto en botones y etiquetas */
+button, label, .no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Previsualización de video en tarjeta */
+.video-day-row video {
+    width: 100%;
+    max-height: 150px;
+    border-radius: 0.5rem;
+    background: #000;
+}
+
+/* Tema claro: mantener bordes visibles */
+.light-mode .border-white\/10,
+.light-mode .border-white\/5,
+.light-mode .border-white\/20 {
+    border-color: rgba(0,0,0,0.1) !important;
+}
+
+.light-mode .bg-white\/5 {
+    background-color: rgba(0,0,0,0.05) !important;
+}
+
+/* Ajustes de tamaño de fuente en móviles para mejorar manipulación */
+@media (max-width: 768px) {
+    body {
+        font-size: 15px;
+    }
+    input, select, textarea {
+        font-size: 16px !important;
+    }
+    .text-xs {
+        font-size: 0.75rem !important;
+    }
+    .text-sm {
+        font-size: 0.85rem !important;
+    }
+}
+
+/* Ajustes de espaciado para la barra de navegación inferior */
+nav.fixed.bottom-0 {
+    padding-bottom: env(safe-area-inset-bottom, 0.75rem);
 }
