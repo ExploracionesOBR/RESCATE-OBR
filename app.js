@@ -825,8 +825,8 @@ window.adminListenServices = () => {
         const pruebas = listaMotos.filter(v => v.tallerStatus === 'pruebas');
         const listas = listaMotos.filter(v => v.tallerStatus === 'lista');
 
-const renderBlock = (title, items, colorClass, borderColor) => {
-    let html = `<div class="mb-6"><h4 class="text-sm font-black uppercase text-white mb-2 border-b ${borderColor} pb-1">${title} (${items.length})</h4><div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">`;
+        const renderBlock = (title, items, colorClass, borderColor) => {
+    let html = `<div class="mb-6"><h4 class="text-sm font-black uppercase text-white mb-2 border-b ${borderColor} pb-1">${title} (${items.length})</h4><div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-4">`;
     if (items.length === 0) html += '<p class="text-gray-500 text-xs italic">Sin motos</p>';
     items.forEach(v => {
         const statusColor = v.tallerStatus === 'mecanica' ? 'bg-yellow-600/30 text-yellow-400' :
@@ -834,12 +834,12 @@ const renderBlock = (title, items, colorClass, borderColor) => {
                            v.tallerStatus === 'lista' ? 'bg-green-600/30 text-green-400' :
                            'bg-gray-600/30 text-gray-400';
         const pdfBtn = v.tallerStatus === 'lista' ? `<button onclick="event.stopPropagation(); window.downloadCompletedServicePDF('${v.id}')" class="bg-purple-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase mt-1">📄 PDF</button>` : '';
-        html += `<div class="bg-white/5 border border-white/10 p-5 rounded-2xl cursor-pointer hover:bg-white/10 transition shadow-lg w-full" onclick="openDetalleServicio('${v.id}')">
+        html += `<div class="bg-white/5 border border-white/10 p-6 rounded-2xl cursor-pointer hover:bg-white/10 transition shadow-lg w-full" onclick="openDetalleServicio('${v.id}')">
             <div class="flex justify-between items-start">
-                <span class="font-black text-white text-base break-words">${v.clientName || v.phone || 'Sin nombre'}</span>
-                <span class="text-[11px] font-black uppercase px-3 py-1 rounded ${statusColor} shrink-0">${v.tallerStatus}</span>
+                <span class="font-black text-white text-lg break-words">${v.clientName || v.phone || 'Sin nombre'}</span>
+                <span class="text-[12px] font-black uppercase px-3 py-1 rounded ${statusColor} shrink-0">${v.tallerStatus}</span>
             </div>
-            <p class="text-xs text-gray-400 mt-2">${v.falla}</p>
+            <p class="text-sm text-gray-400 mt-2">${v.falla}</p>
             ${pdfBtn}
         </div>`;
     });
@@ -1010,15 +1010,12 @@ window.openClientServiceDetail = async (id) => {
     document.getElementById(`${modalId}-content`).innerHTML = `<button onclick="toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>${detailHTML}`;
     toggleModal(modalId, true);
 };
-
 window.downloadClientTicket = async (serviceId) => {
     const docSnap = await getDoc(doc(db, "rescates", serviceId));
     if (!docSnap.exists()) return;
     const data = docSnap.data();
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
-    const pageWidth = pdfDoc.internal.pageSize.getWidth();
-
     pdfDoc.setFillColor(255, 107, 0);
     pdfDoc.rect(0, 0, 210, 30, 'F');
     pdfDoc.setFontSize(18);
@@ -1035,9 +1032,9 @@ window.downloadClientTicket = async (serviceId) => {
     let y = 65 + (lines.length * 6);
     pdfDoc.text(`Estado: ${data.status}`, 14, y);
     if (data.costoRescateEstimado) pdfDoc.text(`Costo: $${data.costoRescateEstimado}`, 14, y + 6);
-
     pdfDoc.save(`Servicio_${data.shortId || serviceId}.pdf`);
 };
+
 // === CITAS DEL CLIENTE ===
 window.loadClientCitas = () => {
     if(!window.currentUserDoc) return;
@@ -1143,17 +1140,100 @@ window.downloadCompletedServicePDF = async (id) => {
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
-
-    // Logo
     const logoImg = new Image();
     logoImg.src = 'logo.png';
-    logoImg.onload = async () => {
-        pdfDoc.addImage(logoImg, 'PNG', 10, 5, 20, 20);
-        generarReporte(pdfDoc, data, bitacora, venta, pageWidth);
+
+    const generar = () => {
+        // Encabezado
+        pdfDoc.setFillColor(255, 107, 0);
+        pdfDoc.rect(0, 0, 210, 30, 'F');
+        if (logoImg.complete && logoImg.naturalWidth > 0) {
+            pdfDoc.addImage(logoImg, 'PNG', 10, 5, 20, 20);
+        }
+        pdfDoc.setFontSize(18);
+        pdfDoc.setTextColor(255, 255, 255);
+        pdfDoc.text("REPORTE DE SERVICIO OBR", logoImg.complete ? 40 : 14, 18);
+        pdfDoc.setTextColor(0, 0, 0);
+        pdfDoc.setFontSize(11);
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.text(`Servicio: ${data.shortId}`, 14, 40);
+        pdfDoc.setFont("helvetica", "normal");
+        pdfDoc.setFontSize(10);
+        pdfDoc.text(`Cliente: ${data.clientName || data.phone || ''}`, 14, 48);
+        pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, 14, 55);
+        pdfDoc.text(`Falla:`, 14, 62);
+        const fallaLines = pdfDoc.splitTextToSize(data.falla || '', 180);
+        pdfDoc.text(fallaLines, 14, 69);
+        let y = 69 + (fallaLines.length * 6);
+        pdfDoc.text(`Inicio: ${new Date(data.timestamp).toLocaleString()}`, 14, y);
+        y += 10;
+
+        if (bitacora.length) {
+            y += 5;
+            if (y > 270) { pdfDoc.addPage(); y = 20; }
+            pdfDoc.setFontSize(11);
+            pdfDoc.setFont("helvetica", "bold");
+            pdfDoc.text("Bitácora del Mecánico:", 14, y);
+            y += 8;
+            pdfDoc.setFontSize(9);
+            pdfDoc.setFont("helvetica", "normal");
+            bitacora.forEach(m => {
+                if (y > 275) { pdfDoc.addPage(); y = 20; }
+                const entry = `- [${new Date(m.ts).toLocaleString()}] ${m.mechName}: ${m.text}`;
+                const entryLines = pdfDoc.splitTextToSize(entry, 180);
+                pdfDoc.text(entryLines, 14, y);
+                y += entryLines.length * 5 + 2;
+            });
+        }
+
+        if (venta) {
+            y += 10;
+            if (y > 250) { pdfDoc.addPage(); y = 20; }
+            pdfDoc.setFont("helvetica", "bold");
+            pdfDoc.text("Detalle de Venta:", 14, y);
+            y += 8;
+            pdfDoc.setFont("helvetica", "normal");
+            pdfDoc.setFontSize(10);
+            pdfDoc.text(`Ticket: ${venta.shortId}`, 14, y); y += 6;
+            pdfDoc.text(`Total: $${venta.total.toFixed(2)}`, 14, y); y += 6;
+            if (venta.ticket && Array.isArray(venta.ticket)) {
+                const body = venta.ticket.map(item => [
+                    item.name,
+                    `$${item.price.toFixed(2)}`
+                ]);
+                y += 2;
+                pdfDoc.autoTable({
+                    startY: y,
+                    head: [['Producto', 'Precio']],
+                    body: body,
+                    styles: { fontSize: 8, cellPadding: 2 },
+                    headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
+                    columnStyles: {
+                        0: { cellWidth: 'auto' },
+                        1: { cellWidth: 25, halign: 'right' }
+                    },
+                    margin: { left: 14 }
+                });
+                y = pdfDoc.lastAutoTable.finalY + 10;
+            }
+        } else if (data.costoRescateEstimado) {
+            pdfDoc.text(`Costo estimado: $${data.costoRescateEstimado}`, 14, y);
+            y += 10;
+        }
+
+        pdfDoc.setFontSize(7);
+        pdfDoc.setTextColor(120);
+        pdfDoc.text("Gracias por confiar en OBR – Reporte generado automáticamente", 14, y + 5);
+        pdfDoc.save(`Reporte_${data.shortId}.pdf`);
     };
-    logoImg.onerror = () => {
-        generarReporte(pdfDoc, data, bitacora, venta, pageWidth);
-    };
+
+    if (logoImg.complete) {
+        generar();
+    } else {
+        logoImg.onload = generar;
+        logoImg.onerror = generar;
+    }
+};
 
     async function generarReporte(pdfDoc, data, bitacora, venta, pageWidth) {
         // Encabezado
@@ -1628,38 +1708,26 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
         }
     }
 }
-
 window.imprimirTicketVenta = (ventaId, saleData) => {
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
     
-    // Encabezado con logo y fondo naranja
     pdfDoc.setFillColor(255, 107, 0);
     pdfDoc.rect(0, 0, 210, 30, 'F');
     const logoImg = new Image();
     logoImg.src = 'logo.png';
-    logoImg.onload = () => {
-        pdfDoc.addImage(logoImg, 'PNG', 10, 3, 20, 20);
+    const generar = () => {
+        if (logoImg.complete && logoImg.naturalWidth > 0) {
+            pdfDoc.addImage(logoImg, 'PNG', 10, 3, 20, 20);
+        }
         pdfDoc.setFontSize(18);
         pdfDoc.setTextColor(255, 255, 255);
-        pdfDoc.text("COMPROBANTE DE VENTA", 35, 15);
-        pdfDoc.setTextColor(0, 0, 0);
-        generarContenido(pdfDoc, ventaId, saleData);
-    };
-    logoImg.onerror = () => {
-        pdfDoc.setFontSize(18);
-        pdfDoc.setTextColor(255, 255, 255);
-        pdfDoc.text("COMPROBANTE DE VENTA", 14, 15);
-        pdfDoc.setTextColor(0, 0, 0);
-        generarContenido(pdfDoc, ventaId, saleData);
-    };
-
-    function generarContenido(pdfDoc, ventaId, saleData) {
-        pdfDoc.setFontSize(8);
+        pdfDoc.text("COMPROBANTE DE VENTA", logoImg.complete ? 35 : 14, 15);
         pdfDoc.setTextColor(0,0,0);
+        pdfDoc.setFontSize(8);
         pdfDoc.text(`Ticket: ${saleData.shortId}`, 14, 40);
         pdfDoc.text(`Fecha: ${new Date(saleData.fecha).toLocaleString()}`, 14, 46);
-        pdfDoc.text(`Método de pago: ${saleData.metodoPago}`, 14, 52);
+        pdfDoc.text(`Método: ${saleData.metodoPago}`, 14, 52);
         if (saleData.clienteCel) pdfDoc.text(`Cliente: ${saleData.clienteCel}`, 14, 58);
 
         const body = saleData.ticket.map(item => [
@@ -1674,9 +1742,9 @@ window.imprimirTicketVenta = (ventaId, saleData) => {
             styles: { fontSize: 8, cellPadding: 2 },
             headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
             columnStyles: {
-                0: { cellWidth: 80 },
-                1: { cellWidth: 30, halign: 'right' },
-                2: { cellWidth: 60 }
+                0: { cellWidth: 'auto' },
+                1: { cellWidth: 25, halign: 'right' },
+                2: { cellWidth: 40 }
             },
             margin: { left: 14 }
         });
@@ -1689,29 +1757,23 @@ window.imprimirTicketVenta = (ventaId, saleData) => {
         pdfDoc.setFont("helvetica", "normal");
         pdfDoc.text("Gracias por su compra. Conserve este ticket para garantías.", 14, finalY + 10);
 
-        // Impresión automática
         try {
             const blob = pdfDoc.output('blob');
             const url = URL.createObjectURL(blob);
             const printWindow = window.open(url, '_blank');
-            if (printWindow) {
-                printWindow.onload = () => { printWindow.print(); };
-            }
+            if (printWindow) printWindow.onload = () => printWindow.print();
             const link = document.createElement('a');
             link.href = url;
             link.download = `Venta_${saleData.shortId}.pdf`;
             document.body.appendChild(link);
             link.click();
-            setTimeout(() => {
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-            }, 100);
-        } catch(e) {
-            console.warn('Auto-impresión bloqueada');
-            pdfDoc.save(`Venta_${saleData.shortId}.pdf`);
-        }
-    }
+            setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(url); }, 100);
+        } catch(e) { console.warn('Auto-impresión bloqueada'); pdfDoc.save(`Venta_${saleData.shortId}.pdf`); }
+    };
+    if (logoImg.complete) generar();
+    else { logoImg.onload = generar; logoImg.onerror = generar; }
 };
+
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
     const cleanPhone = phone.replace(/[^0-9]/g, '');
