@@ -1596,11 +1596,32 @@ window.imprimirTicketVenta = (ventaId, saleData) => {
     doc.text(`Total: $${saleData.total.toFixed(2)}`, 14, y+5);
     doc.setFontSize(7);
     doc.text("Gracias por su compra. Conserve este ticket para garantías.", 14, y+12);
+    
+    // Impresión automática: abre una ventana con el PDF y lanza el diálogo de impresión
     try {
+        const blob = doc.output('blob');
+        const url = URL.createObjectURL(blob);
+        const printWindow = window.open(url, '_blank');
+        if (printWindow) {
+            printWindow.onload = () => {
+                printWindow.print();
+            };
+        }
+        // Intenta descargar automáticamente como respaldo
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Venta_${saleData.shortId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }, 100);
+    } catch(e) {
+        console.warn('Auto-impresión bloqueada por el navegador');
         doc.save(`Venta_${saleData.shortId}.pdf`);
-    } catch(e) { console.warn('Auto-impresión bloqueada por el navegador'); }
+    }
 };
-
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
     const cleanPhone = phone.replace(/[^0-9]/g, '');
@@ -1630,11 +1651,12 @@ window.loadVentasRealizadas = async () => {
         </div>`;
     });
 };
-
 window.reimprimirVenta = async (ventaId) => {
     const snap = await getDoc(doc(db, "ventas", ventaId));
     if (!snap.exists()) return showToast("Venta no encontrada", true);
-    window.imprimirTicketVenta(ventaId, snap.data());
+    const saleData = snap.data();
+    // Llama a la misma función de impresión (que ahora imprime automáticamente)
+    window.imprimirTicketVenta(ventaId, saleData);
 };
 
 window.verGarantiasVenta = async (ventaId) => {
