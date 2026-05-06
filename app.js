@@ -232,17 +232,29 @@ function getDistanceKm(lat1, lon1, lat2, lon2) {
 }
 
 function playSound(type) {
-    try { const s = document.getElementById(type === 'alert' ? 'alert-sound' : 'notif-sound'); if(s) { s.currentTime = 0; s.play().catch(()=>{}); } } catch(e){}
-}
-
-function speakTTS(text) {
-    if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(text); utterance.lang = 'es-MX'; utterance.rate = 0.9;
-        const voices = window.speechSynthesis.getVoices();
-        const femaleVoice = voices.find(v => v.lang.includes('es') && (v.name.toLowerCase().includes('mujer') || v.name.toLowerCase().includes('female') || v.name.toLowerCase().includes('paulina')));
-        if(femaleVoice) utterance.voice = femaleVoice;
-        window.speechSynthesis.speak(utterance);
-    }
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        if (type === 'alert') {
+            // Sonido de alerta: tono más grave y largo
+            oscillator.frequency.value = 800;
+            oscillator.type = 'square';
+            gainNode.gain.value = 0.3;
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.2);
+        } else {
+            // Sonido de notificación: tono agudo y corto
+            oscillator.frequency.value = 1200;
+            oscillator.type = 'sine';
+            gainNode.gain.value = 0.2;
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.1);
+        }
+    } catch(e) {}
 }
 if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 
