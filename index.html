@@ -4,22 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#FF6B00">
     <meta name="apple-mobile-web-app-title" content="OBR">
     <title>Moto Rescate OBR</title>
     <link rel="apple-touch-icon" href="logo.png">
     <link rel="icon" type="image/png" href="logo.png">
+    <!-- Manifiesto estático -->
+    <link rel="manifest" href="manifest.json">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+    <!-- Carga asíncrona de fuentes de Google -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- html2canvas se carga diferido desde app.js -->
     
     <link rel="stylesheet" href="styles.css">
 
@@ -88,7 +94,6 @@
                 <i class="fas fa-moon text-4xl lg:text-5xl text-gray-400 mb-2 z-10"></i>
                 <span class="font-black text-2xl lg:text-3xl uppercase italic z-10 text-gray-300">Taller</span>
                 <span class="font-black text-3xl lg:text-4xl uppercase italic z-10 text-red-500">Cerrado</span>
-                <!-- TEXTO CORREGIDO: vacío, se llena desde JS con el horario real -->
                 <p id="closed-hours-text" class="text-[10px] lg:text-xs text-gray-400 z-10 mt-2 text-center px-4 font-bold"></p>
             </div>
         </div>
@@ -113,6 +118,7 @@
         <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=27.446859,-109.943861', '_blank')" class="mt-4 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-full font-black uppercase text-xs tracking-widest border border-white/20"><i class="fas fa-map-signs mr-2"></i> Cómo llegar al taller</button>
     </div>
 </div>
+
 <!-- TIENDA PÚBLICA -->
 <div id="view-public-store" class="app-view min-h-screen hidden flex-col items-center p-6 lg:p-12 bg-asfalto pt-8">
     <div class="w-full max-w-full lg:max-w-[1200px]">
@@ -303,7 +309,6 @@
         </div>
     </div>
 </div>
-
 <!-- DASHBOARD CLIENTE -->
 <div id="app-client" class="app-view hidden pb-24 flex-col">
     <header class="p-5 lg:p-6 flex justify-between items-center bg-asfalto/90 backdrop-blur-md sticky top-0 z-40 border-b border-white/5 w-full shadow-lg">
@@ -463,7 +468,7 @@
                     <div class="flex space-x-2 mb-4 shrink-0">
                         <div class="relative flex-grow">
                             <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                            <input id="pos-search-input" type="text" placeholder="Buscar producto por nombre o SKU..." oninput="window.posFilterProducts?.()" class="w-full bg-asfalto p-3 pl-10 rounded-xl text-white text-sm focus:border-naranja border border-transparent transition-colors">
+                            <input id="pos-search-input" type="text" placeholder="Buscar producto por nombre o SKU..." oninput="window.posFilterPlants?.()" class="w-full bg-asfalto p-3 pl-10 rounded-xl text-white text-sm focus:border-naranja border border-transparent transition-colors">
                         </div>
                         <button onclick="toggleModal('modal-scanner-input', true)" class="bg-blue-600 text-white px-4 rounded-xl flex items-center justify-center hover:bg-blue-500 transition-colors shadow-lg"><i class="fas fa-qrcode"></i></button>
                     </div>
@@ -880,8 +885,6 @@
         </div>
     </nav>
 </div>
-<!-- FIN DE #app-admin -->
-
 <!-- ======================== MODALES ======================== -->
 
 <!-- Modal Escáner/Buscador Manual POS -->
@@ -1260,10 +1263,10 @@
 
 <!-- FIN DE MODALES -->
 <script type="module" src="app.js"></script>
-    <script>
+<script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').then(reg => {
+      navigator.serviceWorker.register('/RESCATE-OBR/sw.js').then(reg => {
         console.log('SW registrado:', reg.scope);
       }).catch(err => {
         console.warn('Error al registrar SW:', err);
