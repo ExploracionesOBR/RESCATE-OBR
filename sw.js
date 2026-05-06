@@ -1,11 +1,14 @@
 // sw.js – Service Worker de OBR
-const CACHE_NAME = 'obr-cache-v2';
+const CACHE_NAME = 'obr-cache-v3';
+const BASE_PATH = '/RESCATE-OBR';
+
 const urlsToCache = [
-  '/',
-  'index.html',
-  'app.js',
-  'styles.css',
-  'logo.png',
+  `${BASE_PATH}/`,
+  `${BASE_PATH}/index.html`,
+  `${BASE_PATH}/app.js`,
+  `${BASE_PATH}/styles.css`,
+  `${BASE_PATH}/logo.png`,
+  `${BASE_PATH}/manifest.json`,
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap',
@@ -13,8 +16,7 @@ const urlsToCache = [
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js',
-  'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+  'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'
 ];
 
 // Instalación: cachea los recursos esenciales
@@ -73,10 +75,9 @@ self.addEventListener('fetch', event => {
         return response;
       }).catch(() => {
         // Si falla la red para un recurso que no está en caché,
-        // podrías devolver una página offline simple para HTML, 
-        // pero como es una SPA, devolvemos index.html para navegación
+        // para navegación devolvemos index.html
         if (event.request.mode === 'navigate') {
-          return caches.match('/index.html');
+          return caches.match(`${BASE_PATH}/index.html`);
         }
       });
     })
