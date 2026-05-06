@@ -1182,7 +1182,6 @@ window.downloadCompletedServicePDF = async (id) => {
     }
     pdfDoc.save(`Reporte_${data.shortId}.pdf`);
 };
-
 // === EDICIÓN Y ELIMINACIÓN DE SERVICIOS DEL CATÁLOGO ===
 window.editService = (serviceId) => {
     getDoc(doc(db, "servicios", serviceId)).then(snap => {
