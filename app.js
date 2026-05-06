@@ -825,28 +825,27 @@ window.adminListenServices = () => {
         const pruebas = listaMotos.filter(v => v.tallerStatus === 'pruebas');
         const listas = listaMotos.filter(v => v.tallerStatus === 'lista');
 
-        const renderBlock = (title, items, colorClass, borderColor) => {
-            let html = `<div class="mb-6"><h4 class="text-sm font-black uppercase text-white mb-2 border-b ${borderColor} pb-1">${title} (${items.length})</h4><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">`;
-            if (items.length === 0) html += '<p class="text-gray-500 text-xs italic">Sin motos</p>';
-            items.forEach(v => {
-                const statusColor = v.tallerStatus === 'mecanica' ? 'bg-yellow-600/30 text-yellow-400' :
-                                   v.tallerStatus === 'pruebas' ? 'bg-blue-600/30 text-blue-400' :
-                                   v.tallerStatus === 'lista' ? 'bg-green-600/30 text-green-400' :
-                                   'bg-gray-600/30 text-gray-400';
-                const pdfBtn = v.tallerStatus === 'lista' ? `<button onclick="event.stopPropagation(); window.downloadCompletedServicePDF('${v.id}')" class="bg-purple-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase mt-1">📄 PDF</button>` : '';
-                               html += `<div class="bg-white/5 border border-white/10 p-5 rounded-2xl cursor-pointer hover:bg-white/10 transition shadow-lg w-full lg:max-w-none" onclick="openDetalleServicio('${v.id}')">
-                    <div class="flex justify-between items-start">
-                        <span class="font-black text-white text-base truncate max-w-[70%]">${v.clientName || v.phone || 'Sin nombre'}</span>
-                        <span class="text-[11px] font-black uppercase px-3 py-1 rounded ${statusColor} shrink-0">${v.tallerStatus}</span>
-                    </div>
-                    <p class="text-xs text-gray-400 mt-2 line-clamp-2">${v.falla}</p>
-                    ${pdfBtn}
-                </div>`;
-            });
-            html += '</div></div>';
-            return html;
-        };
-
+const renderBlock = (title, items, colorClass, borderColor) => {
+    let html = `<div class="mb-6"><h4 class="text-sm font-black uppercase text-white mb-2 border-b ${borderColor} pb-1">${title} (${items.length})</h4><div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-2 gap-4">`;
+    if (items.length === 0) html += '<p class="text-gray-500 text-xs italic">Sin motos</p>';
+    items.forEach(v => {
+        const statusColor = v.tallerStatus === 'mecanica' ? 'bg-yellow-600/30 text-yellow-400' :
+                           v.tallerStatus === 'pruebas' ? 'bg-blue-600/30 text-blue-400' :
+                           v.tallerStatus === 'lista' ? 'bg-green-600/30 text-green-400' :
+                           'bg-gray-600/30 text-gray-400';
+        const pdfBtn = v.tallerStatus === 'lista' ? `<button onclick="event.stopPropagation(); window.downloadCompletedServicePDF('${v.id}')" class="bg-purple-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase mt-1">📄 PDF</button>` : '';
+        html += `<div class="bg-white/5 border border-white/10 p-5 rounded-2xl cursor-pointer hover:bg-white/10 transition shadow-lg w-full" onclick="openDetalleServicio('${v.id}')">
+            <div class="flex justify-between items-start">
+                <span class="font-black text-white text-base break-words">${v.clientName || v.phone || 'Sin nombre'}</span>
+                <span class="text-[11px] font-black uppercase px-3 py-1 rounded ${statusColor} shrink-0">${v.tallerStatus}</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-2">${v.falla}</p>
+            ${pdfBtn}
+        </div>`;
+    });
+    html += '</div></div>';
+    return html;
+};
         list.innerHTML = renderBlock('📥 Recibidas', recibidas, 'text-gray-400', 'border-gray-500/30') +
                          renderBlock('🔧 En Mecánica', mecanica, 'text-yellow-400', 'border-yellow-500/30') +
                          renderBlock('🧪 En Pruebas', pruebas, 'text-blue-400', 'border-blue-500/30') +
