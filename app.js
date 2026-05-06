@@ -834,7 +834,7 @@ window.adminListenServices = () => {
                                    v.tallerStatus === 'lista' ? 'bg-green-600/30 text-green-400' :
                                    'bg-gray-600/30 text-gray-400';
                 const pdfBtn = v.tallerStatus === 'lista' ? `<button onclick="event.stopPropagation(); window.downloadCompletedServicePDF('${v.id}')" class="bg-purple-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase mt-1">📄 PDF</button>` : '';
-                               html += `<div class="bg-white/5 border border-white/10 p-5 rounded-2xl cursor-pointer hover:bg-white/10 transition shadow-lg w-full" onclick="openDetalleServicio('${v.id}')">
+                               html += `<div class="bg-white/5 border border-white/10 p-5 rounded-2xl cursor-pointer hover:bg-white/10 transition shadow-lg w-full lg:max-w-none" onclick="openDetalleServicio('${v.id}')">
                     <div class="flex justify-between items-start">
                         <span class="font-black text-white text-base truncate max-w-[70%]">${v.clientName || v.phone || 'Sin nombre'}</span>
                         <span class="text-[11px] font-black uppercase px-3 py-1 rounded ${statusColor} shrink-0">${v.tallerStatus}</span>
