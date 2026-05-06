@@ -1038,6 +1038,7 @@ window.downloadClientTicket = async (serviceId) => {
     if (data.costoRescateEstimado) pdfDoc.text(`Costo: $${data.costoRescateEstimado}`, 14, y + 6);
 
     pdfDoc.save(`Servicio_${data.shortId || serviceId}.pdf`);
+};
 // === CITAS DEL CLIENTE ===
 window.loadClientCitas = () => {
     if(!window.currentUserDoc) return;
@@ -1712,7 +1713,6 @@ window.imprimirTicketVenta = (ventaId, saleData) => {
         }
     }
 };
-
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
     const cleanPhone = phone.replace(/[^0-9]/g, '');
