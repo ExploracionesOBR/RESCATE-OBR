@@ -20,6 +20,18 @@ const db = getFirestore(app);
 const rtdb = getDatabase(app);
 const storage = getStorage(app);
 
+// === CARGA DIFERIDA DE html2canvas ===
+window.loadHtml2Canvas = () => {
+    return new Promise((resolve, reject) => {
+        if (window.html2canvas) return resolve(window.html2canvas);
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        script.onload = () => resolve(window.html2canvas);
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+};
+
 // === VARIABLES GLOBALES ===
 window.userIntent = 'inicio';
 let tempSOSGps = { lat: null, lng: null };
@@ -626,7 +638,6 @@ window.launchSOSForm = () => {
             document.getElementById('gps-status-text').innerText = "GPS Establecido"; document.getElementById('gps-status-text').className = "text-[9px] font-bold text-green-400";
             if(!sosMapInstance) {
                 sosMapInstance = L.map('sos-map-preview', { dragging: false, zoomControl: false, scrollWheelZoom: false }).setView([tempSOSGps.lat, tempSOSGps.lng], 16);
-                // Usar la capa adecuada según el tema
                 const isLight = document.body.classList.contains('light-mode');
                 const layerUrl = isLight
                     ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
@@ -2734,13 +2745,15 @@ window.exportStatsPDF = async () => {
     const snap = await getDocs(collection(db, "ventas"));
     let totalV = 0, totalC = 0; const bodyData = [];
     snap.forEach(d => { const v = d.data(); totalV += v.total; totalC += (v.costo || 0); bodyData.push([new Date(v.fecha).toLocaleDateString(), v.desc.substring(0,30), `$${v.total.toFixed(2)}`]); });
-    const { jsPDF } = window.jspdf; const doc = new jsPDF();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
     const logoImg = new Image(); logoImg.crossOrigin = 'Anonymous'; logoImg.src = 'logo.png';
     await new Promise((res) => { logoImg.onload = res; logoImg.onerror = res; });
     if(logoImg.complete && logoImg.naturalWidth > 0) doc.addImage(logoImg, 'PNG', 14, 10, 30, 30);
     const chartCanvas = document.getElementById('stats-chart');
     if (chartCanvas) {
-        const chartImg = chartCanvas.toDataURL('image/png');
+        await window.loadHtml2Canvas();
+        const chartImg = await html2canvas(chartCanvas);
         doc.addImage(chartImg, 'PNG', 14, 50, 180, 80);
     }
     doc.setFillColor(255, 107, 0); doc.rect(0, 0, 210, 30, 'F'); doc.setTextColor(255, 255, 255); doc.setFontSize(20); doc.text("REPORTE ESTADÍSTICO OBR", 14, 20);
@@ -3105,7 +3118,7 @@ window.searchServiceStatus = async () => {
     }
 };
 // ======================================================
-// === CIERRE Y STUBS (ÚNICA DECLARACIÓN DE MANIFEST) ===
+// === CIERRE Y STUBS (SIN MANIFIESTO DINÁMICO) ===
 // ======================================================
 tailwind.config = {
     theme: {
@@ -3118,25 +3131,7 @@ tailwind.config = {
     }
 };
 
-const manifest = {
-    name: "Moto Rescate OBR",
-    short_name: "OBR",
-    start_url: ".",
-    display: "standalone",
-    background_color: "#1A1A1A",
-    theme_color: "#FF6B00",
-    icons: [
-        { src: "logo.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
-        { src: "logo.png", sizes: "192x192", type: "image/png", purpose: "any maskable" }
-    ]
-};
-const mBlob = new Blob([JSON.stringify(manifest)], {type: 'application/manifest+json'});
-(function() {
-    const l = document.createElement('link');
-    l.rel = 'manifest';
-    l.href = URL.createObjectURL(mBlob);
-    document.head.appendChild(l);
-})();
+// Ya no se genera el manifiesto dinámico. Se usará el archivo manifest.json enlazado en el HTML.
 
 // Refresco periódico
 setInterval(() => {
