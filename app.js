@@ -1017,18 +1017,27 @@ window.downloadClientTicket = async (serviceId) => {
     if (!docSnap.exists()) return;
     const data = docSnap.data();
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text("Comprobante de Servicio OBR", 14, 20);
-    doc.setFontSize(10);
-    doc.text(`Servicio: ${data.shortId || 'Sin ID'}`, 14, 30);
-    doc.text(`Cliente: ${window.currentUserDoc?.name || ''}`, 14, 36);
-    doc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, 14, 42);
-    doc.text(`Fecha: ${new Date(data.timestamp).toLocaleString()}`, 14, 48);
-    doc.text(`Descripción: ${data.falla}`, 14, 54);
-    doc.text(`Estado: ${data.status}`, 14, 60);
-    if (data.costoRescateEstimado) doc.text(`Costo: $${data.costoRescateEstimado}`, 14, 66);
-    doc.save(`Servicio_${data.shortId || serviceId}.pdf`);
+    const pdfDoc = new jsPDF();
+    const pageWidth = pdfDoc.internal.pageSize.getWidth();
+
+    pdfDoc.setFillColor(255, 107, 0);
+    pdfDoc.rect(0, 0, 210, 30, 'F');
+    pdfDoc.setFontSize(18);
+    pdfDoc.setTextColor(255, 255, 255);
+    pdfDoc.text("COMPROBANTE DE SERVICIO OBR", 14, 18);
+    pdfDoc.setTextColor(0, 0, 0);
+    pdfDoc.setFontSize(10);
+    pdfDoc.text(`Servicio: ${data.shortId || 'Sin ID'}`, 14, 40);
+    pdfDoc.text(`Cliente: ${window.currentUserDoc?.name || ''}`, 14, 46);
+    pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, 14, 52);
+    pdfDoc.text(`Fecha: ${new Date(data.timestamp).toLocaleString()}`, 14, 58);
+    const lines = pdfDoc.splitTextToSize(`Descripción: ${data.falla}`, 180);
+    pdfDoc.text(lines, 14, 65);
+    let y = 65 + (lines.length * 6);
+    pdfDoc.text(`Estado: ${data.status}`, 14, y);
+    if (data.costoRescateEstimado) pdfDoc.text(`Costo: $${data.costoRescateEstimado}`, 14, y + 6);
+
+    pdfDoc.save(`Servicio_${data.shortId || serviceId}.pdf`);
 };
 // === CITAS DEL CLIENTE ===
 window.loadClientCitas = () => {
@@ -1133,54 +1142,95 @@ window.downloadCompletedServicePDF = async (id) => {
     ventasSnap.forEach(v => { venta = v.data(); });
 
     const { jsPDF } = window.jspdf;
-    const pdfDoc = new jsPDF();            // ← antes era 'doc', ahora 'pdfDoc'
-    pdfDoc.setFontSize(16);
-    pdfDoc.text("Reporte de Servicio OBR", 14, 20);
-    pdfDoc.setFontSize(10);
-    pdfDoc.text(`Servicio: ${data.shortId}`, 14, 30);
-    pdfDoc.text(`Cliente: ${data.phone}`, 14, 36);
-    pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, 14, 42);
-    pdfDoc.text(`Falla: ${data.falla}`, 14, 48);
-    pdfDoc.text(`Inicio: ${new Date(data.timestamp).toLocaleString()}`, 14, 54);
-    let y = 62;
-    if (data.mediaUrl) {
-        const urls = Array.isArray(data.mediaUrl) ? data.mediaUrl : [data.mediaUrl];
-        urls.forEach((url, i) => {
-            if (y > 250) { pdfDoc.addPage(); y = 20; }
-            pdfDoc.text(`Foto ${i+1} incluida en el reporte.`, 14, y);
-            y += 6;
-        });
-    }
-    if (bitacora.length) {
-        if (y > 240) { pdfDoc.addPage(); y = 20; }
-        pdfDoc.text("Bitácora del Mecánico:", 14, y);
-        y += 8;
-        bitacora.forEach(m => {
-            if (y > 270) { pdfDoc.addPage(); y = 20; }
-            pdfDoc.text(`- [${new Date(m.ts).toLocaleString()}] ${m.mechName}: ${m.text}`, 14, y);
-            y += 6;
-        });
-    }
-    if (venta) {
-        if (y > 240) { pdfDoc.addPage(); y = 20; }
-        pdfDoc.text("Detalle de Venta:", 14, y);
-        y += 8;
-        pdfDoc.text(`Ticket: ${venta.shortId}`, 14, y); y += 6;
-        pdfDoc.text(`Total: $${venta.total.toFixed(2)}`, 14, y); y += 6;
-        if (venta.ticket && Array.isArray(venta.ticket)) {
-            venta.ticket.forEach(item => {
+    const pdfDoc = new jsPDF();
+    const pageWidth = pdfDoc.internal.pageSize.getWidth();
+
+    // Logo
+    const logoImg = new Image();
+    logoImg.src = 'logo.png';
+    logoImg.onload = async () => {
+        pdfDoc.addImage(logoImg, 'PNG', 10, 5, 20, 20);
+        generarReporte(pdfDoc, data, bitacora, venta, pageWidth);
+    };
+    logoImg.onerror = () => {
+        generarReporte(pdfDoc, data, bitacora, venta, pageWidth);
+    };
+
+    async function generarReporte(pdfDoc, data, bitacora, venta, pageWidth) {
+        // Encabezado
+        pdfDoc.setFillColor(255, 107, 0);
+        pdfDoc.rect(0, 0, 210, 30, 'F');
+        pdfDoc.setFontSize(18);
+        pdfDoc.setTextColor(255, 255, 255);
+        pdfDoc.text("REPORTE DE SERVICIO OBR", 40, 18);
+        pdfDoc.setTextColor(0, 0, 0);
+        pdfDoc.setFontSize(11);
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.text(`Servicio: ${data.shortId}`, 14, 40);
+        pdfDoc.setFont("helvetica", "normal");
+        pdfDoc.setFontSize(10);
+        pdfDoc.text(`Cliente: ${data.phone}`, 14, 48);
+        pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, 14, 55);
+        pdfDoc.text(`Falla:`, 14, 62);
+        const lines = pdfDoc.splitTextToSize(data.falla, 180);
+        pdfDoc.text(lines, 14, 69);
+        let y = 69 + (lines.length * 6);
+        pdfDoc.text(`Inicio: ${new Date(data.timestamp).toLocaleString()}`, 14, y);
+        y += 10;
+
+        // Bitácora
+        if (bitacora.length) {
+            y += 5;
+            if (y > 260) { pdfDoc.addPage(); y = 20; }
+            pdfDoc.setFontSize(11);
+            pdfDoc.setFont("helvetica", "bold");
+            pdfDoc.text("Bitácora del Mecánico:", 14, y);
+            y += 8;
+            pdfDoc.setFontSize(9);
+            pdfDoc.setFont("helvetica", "normal");
+            bitacora.forEach(m => {
                 if (y > 270) { pdfDoc.addPage(); y = 20; }
-                pdfDoc.text(`- ${item.name}: $${item.price.toFixed(2)}`, 14, y);
+                pdfDoc.text(`- [${new Date(m.ts).toLocaleString()}] ${m.mechName}: ${m.text}`, 14, y);
                 y += 6;
             });
         }
-    } else {
-        if (data.costoRescateEstimado) {
-            if (y > 240) { pdfDoc.addPage(); y = 20; }
+
+        // Detalle de venta
+        if (venta) {
+            y += 10;
+            if (y > 260) { pdfDoc.addPage(); y = 20; }
+            pdfDoc.setFontSize(11);
+            pdfDoc.setFont("helvetica", "bold");
+            pdfDoc.text("Detalle de Venta:", 14, y);
+            y += 8;
+            pdfDoc.setFontSize(10);
+            pdfDoc.text(`Ticket: ${venta.shortId}`, 14, y); y += 6;
+            pdfDoc.text(`Total: $${venta.total.toFixed(2)}`, 14, y); y += 6;
+            if (venta.ticket && Array.isArray(venta.ticket)) {
+                const body = venta.ticket.map(item => [item.name, `$${item.price.toFixed(2)}`]);
+                y += 2;
+                pdfDoc.autoTable({
+                    startY: y,
+                    head: [['Producto', 'Precio']],
+                    body: body,
+                    styles: { fontSize: 8, cellPadding: 2 },
+                    headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
+                    margin: { left: 14 }
+                });
+                y = pdfDoc.lastAutoTable.finalY + 10;
+            }
+        } else if (data.costoRescateEstimado) {
             pdfDoc.text(`Costo estimado del rescate: $${data.costoRescateEstimado}`, 14, y);
+            y += 10;
         }
+
+        // Pie
+        pdfDoc.setFontSize(7);
+        pdfDoc.setTextColor(100);
+        pdfDoc.text("Gracias por confiar en OBR - Un cambio de aceite oportuno es más vida a tu motor.", 14, y + 5);
+
+        pdfDoc.save(`Reporte_${data.shortId}.pdf`);
     }
-    pdfDoc.save(`Reporte_${data.shortId}.pdf`);
 };
 // === EDICIÓN Y ELIMINACIÓN DE SERVICIOS DEL CATÁLOGO ===
 window.editService = (serviceId) => {
@@ -1582,35 +1632,87 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
 
 window.imprimirTicketVenta = (ventaId, saleData) => {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text("COMPROBANTE DE VENTA OBR", 14, 20);
-    doc.setFontSize(8);
-    doc.text(`Ticket: ${saleData.shortId}`, 14, 28);
-    doc.text(`Fecha: ${new Date(saleData.fecha).toLocaleString()}`, 14, 33);
-    doc.text(`Método de pago: ${saleData.metodoPago}`, 14, 38);
-    if (saleData.clienteCel) doc.text(`Cliente: ${saleData.clienteCel}`, 14, 43);
-    doc.setFontSize(10);
-    doc.text("Productos:", 14, 50);
-    let y = 57;
-    saleData.ticket.forEach(item => {
-        doc.text(`- ${item.name}: $${item.price.toFixed(2)} ${item.garantia ? '(Garantía: '+item.garantia+')' : ''}`, 14, y);
-        y += 7;
-    });
-    doc.text(`Total: $${saleData.total.toFixed(2)}`, 14, y+5);
-    doc.setFontSize(7);
-    doc.text("Gracias por su compra. Conserve este ticket para garantías.", 14, y+12);
+    const pdfDoc = new jsPDF();
     
-    // Impresión automática: abre una ventana con el PDF y lanza el diálogo de impresión
-    try {
-        const blob = doc.output('blob');
-        const url = URL.createObjectURL(blob);
-        const printWindow = window.open(url, '_blank');
-        if (printWindow) {
-            printWindow.onload = () => {
-                printWindow.print();
-            };
+    // Encabezado con logo y fondo naranja
+    pdfDoc.setFillColor(255, 107, 0);
+    pdfDoc.rect(0, 0, 210, 30, 'F');
+    const logoImg = new Image();
+    logoImg.src = 'logo.png';
+    logoImg.onload = () => {
+        pdfDoc.addImage(logoImg, 'PNG', 10, 3, 20, 20);
+        pdfDoc.setFontSize(18);
+        pdfDoc.setTextColor(255, 255, 255);
+        pdfDoc.text("COMPROBANTE DE VENTA", 35, 15);
+        pdfDoc.setTextColor(0, 0, 0);
+        generarContenido(pdfDoc, ventaId, saleData);
+    };
+    logoImg.onerror = () => {
+        pdfDoc.setFontSize(18);
+        pdfDoc.setTextColor(255, 255, 255);
+        pdfDoc.text("COMPROBANTE DE VENTA", 14, 15);
+        pdfDoc.setTextColor(0, 0, 0);
+        generarContenido(pdfDoc, ventaId, saleData);
+    };
+
+    function generarContenido(pdfDoc, ventaId, saleData) {
+        pdfDoc.setFontSize(8);
+        pdfDoc.setTextColor(0,0,0);
+        pdfDoc.text(`Ticket: ${saleData.shortId}`, 14, 40);
+        pdfDoc.text(`Fecha: ${new Date(saleData.fecha).toLocaleString()}`, 14, 46);
+        pdfDoc.text(`Método de pago: ${saleData.metodoPago}`, 14, 52);
+        if (saleData.clienteCel) pdfDoc.text(`Cliente: ${saleData.clienteCel}`, 14, 58);
+
+        const body = saleData.ticket.map(item => [
+            item.name,
+            `$${item.price.toFixed(2)}`,
+            item.garantia || 'Sin garantía'
+        ]);
+        pdfDoc.autoTable({
+            startY: 65,
+            head: [['Producto', 'Precio', 'Garantía']],
+            body: body,
+            styles: { fontSize: 8, cellPadding: 2 },
+            headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
+            columnStyles: {
+                0: { cellWidth: 80 },
+                1: { cellWidth: 30, halign: 'right' },
+                2: { cellWidth: 60 }
+            },
+            margin: { left: 14 }
+        });
+
+        const finalY = pdfDoc.lastAutoTable.finalY + 10;
+        pdfDoc.setFontSize(14);
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.text(`Total: $${saleData.total.toFixed(2)}`, 14, finalY);
+        pdfDoc.setFontSize(7);
+        pdfDoc.setFont("helvetica", "normal");
+        pdfDoc.text("Gracias por su compra. Conserve este ticket para garantías.", 14, finalY + 10);
+
+        // Impresión automática
+        try {
+            const blob = pdfDoc.output('blob');
+            const url = URL.createObjectURL(blob);
+            const printWindow = window.open(url, '_blank');
+            if (printWindow) {
+                printWindow.onload = () => { printWindow.print(); };
+            }
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Venta_${saleData.shortId}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, 100);
+        } catch(e) {
+            console.warn('Auto-impresión bloqueada');
+            pdfDoc.save(`Venta_${saleData.shortId}.pdf`);
         }
+    }
+};
         // Intenta descargar automáticamente como respaldo
         const link = document.createElement('a');
         link.href = url;
@@ -3155,27 +3257,22 @@ window.showAdminCorte = () => {
 
 window.exportCortePDF = () => {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.text("Corte de Caja OBR", 14, 20);
-    doc.setFontSize(10);
+    const pdfDoc = new jsPDF();
+    pdfDoc.setFillColor(255, 107, 0);
+    pdfDoc.rect(0, 0, 210, 30, 'F');
+    pdfDoc.setFontSize(18);
+    pdfDoc.setTextColor(255, 255, 255);
+    pdfDoc.text("CORTE DE CAJA OBR", 14, 18);
+    pdfDoc.setTextColor(0, 0, 0);
+    pdfDoc.setFontSize(10);
     const ventasHoy = (adminSalesCache?.ventas || []).filter(v => new Date(v.fecha).toDateString() === new Date().toDateString());
     const totalVentas = ventasHoy.reduce((s,v)=>s+(v.total||0),0);
     const totalRetiros = (window.retiros||[]).reduce((s,r)=>s+(r.monto||0),0);
-    doc.text(`Fondo Inicial: $${window.fondoInicial.toFixed(2)}`, 14, 30);
-    doc.text(`Ventas del día: $${totalVentas.toFixed(2)}`, 14, 38);
-    doc.text(`Retiros: $${totalRetiros.toFixed(2)}`, 14, 46);
-    doc.text(`Efectivo en caja: $${(window.fondoInicial+totalVentas-totalRetiros).toFixed(2)}`, 14, 54);
-    doc.autoTable({
-        startY: 65,
-        head: [['Concepto', 'Monto']],
-        body: [
-            ['Fondo Inicial', `$${window.fondoInicial.toFixed(2)}`],
-            ['Ventas', `$${totalVentas.toFixed(2)}`],
-            ['Retiros', `$${totalRetiros.toFixed(2)}`]
-        ]
-    });
-    doc.save(`Corte_Caja_${new Date().toISOString().slice(0,10)}.pdf`);
+    pdfDoc.text(`Fondo Inicial: $${window.fondoInicial.toFixed(2)}`, 14, 40);
+    pdfDoc.text(`Ventas del día: $${totalVentas.toFixed(2)}`, 14, 48);
+    pdfDoc.text(`Retiros: $${totalRetiros.toFixed(2)}`, 14, 56);
+    pdfDoc.text(`Efectivo en caja: $${(window.fondoInicial+totalVentas-totalRetiros).toFixed(2)}`, 14, 64);
+    pdfDoc.save(`Corte_Caja_${new Date().toISOString().slice(0,10)}.pdf`);
 };
 
 // ======================================================
