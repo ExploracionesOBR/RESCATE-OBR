@@ -548,7 +548,12 @@ window.switchAdminView = (id) => {
     if(id === 'a-view-stats') window.loadStats();
     if(id === 'a-view-citas') window.adminLoadCitas();
     if(id === 'a-view-alertas') window.renderSOSGlobalMap();
-    if(id === 'a-view-pos') { window.posFilterProducts(); window.renderPendingMechanicPayments(); window.loadVentasRealizadas(); }
+    if(id === 'a-view-pos') { 
+    window.posFilterProducts(); 
+    window.cargarNotificacionesCitas(); 
+    window.cargarCobrosMecanicosPanel(); 
+    window.loadVentasRealizadas(); 
+}
     if(id === 'a-view-inventario') {
         window.adminLoadInventory();
         if (!document.getElementById('float-inventory-btn')) {
@@ -2823,6 +2828,71 @@ window.exportCSV = (tipo) => {
         link.click();
         document.body.removeChild(link);
     }
+};
+// === PANEL DE NOTIFICACIONES EN CAJA (CITAS Y COBROS) ===
+window.cargarNotificacionesCitas = async () => {
+    const hoy = new Date().toISOString().split('T')[0];
+    const q = query(collection(db, "citas"),
+                    where("fecha", "==", hoy),
+                    orderBy("hora", "asc"));
+    const snap = await getDocs(q);
+    const lista = document.getElementById('citas-pendientes-list');
+    const resumen = document.getElementById('citas-resumen');
+    if (!lista || !resumen) return;
+    lista.innerHTML = '';
+    let contadorHoy = 0;
+    let contadorPorHora = {};
+    snap.forEach(doc => {
+        const c = doc.data();
+        if (c.estado && c.estado !== 'pendiente') return;
+        contadorHoy++;
+        const horaKey = c.hora.substring(0, 5);
+        contadorPorHora[horaKey] = (contadorPorHora[horaKey] || 0) + 1;
+        const tipoCliente = c.phone ? (c.phone.startsWith('VIP') ? 'VIP' : 'Usuario') : 'Sin registro';
+        lista.innerHTML += `
+        <div class="bg-black/30 p-3 rounded-xl border border-white/10 flex justify-between items-start">
+            <div class="flex-1">
+                <p class="text-xs font-bold text-white">${c.fecha} ${c.hora} - ${c.trabajo}</p>
+                <p class="text-[10px] text-gray-400">${c.moto} | ${tipoCliente}</p>
+            </div>
+            <div class="flex space-x-1 ml-2">
+                <button onclick="window.aceptarCita('${doc.id}')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase">Aceptar</button>
+                <button onclick="window.rechazarCita('${doc.id}')" class="bg-red-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase">Rechazar</button>
+            </div>
+        </div>`;
+    });
+    resumen.innerText = `Hoy: ${contadorHoy} citas | ${Object.entries(contadorPorHora).map(([h, n]) => h + ': ' + n).join(', ')}`;
+};
+
+window.aceptarCita = async (citaId) => {
+    await updateDoc(doc(db, "citas", citaId), { estado: 'aceptada' });
+    showToast("Cita aceptada");
+    window.cargarNotificacionesCitas();
+};
+
+window.rechazarCita = async (citaId) => {
+    await updateDoc(doc(db, "citas", citaId), { estado: 'rechazada' });
+    showToast("Cita rechazada");
+    window.cargarNotificacionesCitas();
+};
+
+window.cargarCobrosMecanicosPanel = async () => {
+    const lista = document.getElementById('cobros-mecanicos-list');
+    if (!lista) return;
+    const snap = await getDocs(query(collection(db, "cobros_pendientes"), where("estado", "==", "pendiente")));
+    lista.innerHTML = '';
+    snap.forEach(doc => {
+        const c = doc.data();
+        lista.innerHTML += `
+        <div class="flex justify-between items-center bg-black/30 p-2 rounded-lg">
+            <div>
+                <p class="text-xs text-white font-bold">${c.mech_name || 'Mecánico'}</p>
+                <p class="text-[10px] text-gray-400">${c.concepto} - $${c.monto.toFixed(2)}</p>
+            </div>
+            <button onclick="window.marcarCobroPagado?.('${doc.id}')" class="text-[0.6rem] bg-green-600 text-white px-2 py-0.5 rounded font-bold uppercase">Pagado</button>
+        </div>`;
+    });
+    if (snap.empty) lista.innerHTML = '<p class="text-xs text-gray-500">Sin cobros pendientes</p>';
 };
 
 // ======================================================
