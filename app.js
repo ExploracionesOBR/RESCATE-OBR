@@ -2646,15 +2646,15 @@ window.adminCrearCita = async () => {
         return;
     }
 
-    // El usuario existe, guardar la cita
     await addDoc(collection(db, "citas"), {
-        phone: "+52" + phone,
-        moto,
-        trabajo,
-        fecha,
-        hora,
-        timestamp: Date.now()
-    });
+    phone: "+52" + phone,
+    moto,
+    trabajo,
+    fecha,
+    hora,
+    estado: 'pendiente',   // <-- AÑADE ESTA LÍNEA
+    timestamp: Date.now()
+});
     showToast("Cita guardada correctamente");
     toggleModal('modal-nueva-cita', false);
     window.adminLoadCitas();
