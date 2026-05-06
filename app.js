@@ -1713,6 +1713,21 @@ window.imprimirTicketVenta = (ventaId, saleData) => {
         }
     }
 };
+        // Intenta descargar automáticamente como respaldo
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Venta_${saleData.shortId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }, 100);
+    } catch(e) {
+        console.warn('Auto-impresión bloqueada por el navegador');
+        doc.save(`Venta_${saleData.shortId}.pdf`);
+    }
+};
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
     const cleanPhone = phone.replace(/[^0-9]/g, '');
