@@ -834,12 +834,12 @@ window.adminListenServices = () => {
                                    v.tallerStatus === 'lista' ? 'bg-green-600/30 text-green-400' :
                                    'bg-gray-600/30 text-gray-400';
                 const pdfBtn = v.tallerStatus === 'lista' ? `<button onclick="event.stopPropagation(); window.downloadCompletedServicePDF('${v.id}')" class="bg-purple-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase mt-1">📄 PDF</button>` : '';
-                html += `<div class="bg-white/5 border border-white/10 p-4 rounded-2xl cursor-pointer hover:bg-white/10 transition shadow-lg w-full max-w-sm" onclick="openDetalleServicio('${v.id}')">
+                               html += `<div class="bg-white/5 border border-white/10 p-5 rounded-2xl cursor-pointer hover:bg-white/10 transition shadow-lg w-full" onclick="openDetalleServicio('${v.id}')">
                     <div class="flex justify-between items-start">
-                        <span class="font-black text-white text-sm truncate max-w-[60%]">${v.phone || 'Sin teléfono'}</span>
-                        <span class="text-[10px] font-black uppercase px-2 py-1 rounded ${statusColor} shrink-0">${v.tallerStatus}</span>
+                        <span class="font-black text-white text-base truncate max-w-[70%]">${v.clientName || v.phone || 'Sin nombre'}</span>
+                        <span class="text-[11px] font-black uppercase px-3 py-1 rounded ${statusColor} shrink-0">${v.tallerStatus}</span>
                     </div>
-                    <p class="text-[10px] text-gray-400 mt-2 line-clamp-2 truncate">${v.falla}</p>
+                    <p class="text-xs text-gray-400 mt-2 line-clamp-2">${v.falla}</p>
                     ${pdfBtn}
                 </div>`;
             });
@@ -1133,54 +1133,54 @@ window.downloadCompletedServicePDF = async (id) => {
     ventasSnap.forEach(v => { venta = v.data(); });
 
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text("Reporte de Servicio OBR", 14, 20);
-    doc.setFontSize(10);
-    doc.text(`Servicio: ${data.shortId}`, 14, 30);
-    doc.text(`Cliente: ${data.phone}`, 14, 36);
-    doc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, 14, 42);
-    doc.text(`Falla: ${data.falla}`, 14, 48);
-    doc.text(`Inicio: ${new Date(data.timestamp).toLocaleString()}`, 14, 54);
+    const pdfDoc = new jsPDF();            // ← antes era 'doc', ahora 'pdfDoc'
+    pdfDoc.setFontSize(16);
+    pdfDoc.text("Reporte de Servicio OBR", 14, 20);
+    pdfDoc.setFontSize(10);
+    pdfDoc.text(`Servicio: ${data.shortId}`, 14, 30);
+    pdfDoc.text(`Cliente: ${data.phone}`, 14, 36);
+    pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, 14, 42);
+    pdfDoc.text(`Falla: ${data.falla}`, 14, 48);
+    pdfDoc.text(`Inicio: ${new Date(data.timestamp).toLocaleString()}`, 14, 54);
     let y = 62;
     if (data.mediaUrl) {
         const urls = Array.isArray(data.mediaUrl) ? data.mediaUrl : [data.mediaUrl];
         urls.forEach((url, i) => {
-            if (y > 250) { doc.addPage(); y = 20; }
-            doc.text(`Foto ${i+1} incluida en el reporte.`, 14, y);
+            if (y > 250) { pdfDoc.addPage(); y = 20; }
+            pdfDoc.text(`Foto ${i+1} incluida en el reporte.`, 14, y);
             y += 6;
         });
     }
     if (bitacora.length) {
-        if (y > 240) { doc.addPage(); y = 20; }
-        doc.text("Bitácora del Mecánico:", 14, y);
+        if (y > 240) { pdfDoc.addPage(); y = 20; }
+        pdfDoc.text("Bitácora del Mecánico:", 14, y);
         y += 8;
         bitacora.forEach(m => {
-            if (y > 270) { doc.addPage(); y = 20; }
-            doc.text(`- [${new Date(m.ts).toLocaleString()}] ${m.mechName}: ${m.text}`, 14, y);
+            if (y > 270) { pdfDoc.addPage(); y = 20; }
+            pdfDoc.text(`- [${new Date(m.ts).toLocaleString()}] ${m.mechName}: ${m.text}`, 14, y);
             y += 6;
         });
     }
     if (venta) {
-        if (y > 240) { doc.addPage(); y = 20; }
-        doc.text("Detalle de Venta:", 14, y);
+        if (y > 240) { pdfDoc.addPage(); y = 20; }
+        pdfDoc.text("Detalle de Venta:", 14, y);
         y += 8;
-        doc.text(`Ticket: ${venta.shortId}`, 14, y); y += 6;
-        doc.text(`Total: $${venta.total.toFixed(2)}`, 14, y); y += 6;
+        pdfDoc.text(`Ticket: ${venta.shortId}`, 14, y); y += 6;
+        pdfDoc.text(`Total: $${venta.total.toFixed(2)}`, 14, y); y += 6;
         if (venta.ticket && Array.isArray(venta.ticket)) {
             venta.ticket.forEach(item => {
-                if (y > 270) { doc.addPage(); y = 20; }
-                doc.text(`- ${item.name}: $${item.price.toFixed(2)}`, 14, y);
+                if (y > 270) { pdfDoc.addPage(); y = 20; }
+                pdfDoc.text(`- ${item.name}: $${item.price.toFixed(2)}`, 14, y);
                 y += 6;
             });
         }
     } else {
         if (data.costoRescateEstimado) {
-            if (y > 240) { doc.addPage(); y = 20; }
-            doc.text(`Costo estimado del rescate: $${data.costoRescateEstimado}`, 14, y);
+            if (y > 240) { pdfDoc.addPage(); y = 20; }
+            pdfDoc.text(`Costo estimado del rescate: $${data.costoRescateEstimado}`, 14, y);
         }
     }
-    doc.save(`Reporte_${data.shortId}.pdf`);
+    pdfDoc.save(`Reporte_${data.shortId}.pdf`);
 };
 
 // === EDICIÓN Y ELIMINACIÓN DE SERVICIOS DEL CATÁLOGO ===
