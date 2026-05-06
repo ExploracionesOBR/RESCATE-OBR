@@ -668,3 +668,7 @@ button, label, .no-select {
 nav.fixed.bottom-0 {
     padding-bottom: env(safe-area-inset-bottom, 0.75rem);
 }
+/* Asegurar que el main del admin ocupe todo el ancho disponible en CAJA */
+#a-view-pos {
+    max-width: 100%;
+}
