@@ -2722,21 +2722,118 @@ window.togglePausarCuenta = async (uid, pausar) => {
 
 window.downloadStaffReport = async (uid) => {
     const userDoc = await getDoc(doc(db, "users", uid));
+    if (!userDoc.exists()) return showToast("Usuario no encontrado", true);
     const user = userDoc.data();
+
     const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("mech_uid", "==", uid), orderBy("timestamp", "desc")));
-    let dataHTML = '<table border="1"><tr><th>ID</th><th>Falla</th><th>Costo</th></tr>';
-    rescatesSnap.forEach(r => {
-        const d = r.data();
-        dataHTML += `<tr><td>${d.shortId}</td><td>${d.falla?.substring(0,40)}</td><td>$${d.costoRescateEstimado || 0}</td></tr>`;
+    const rescates = [];
+    rescatesSnap.forEach(r => rescates.push({ id: r.id, ...r.data() }));
+
+    const satisfactionSnap = await getDocs(query(collection(db, "satisfaction"), where("uid", "==", uid)));
+    const calificaciones = [];
+    satisfactionSnap.forEach(s => calificaciones.push(s.data().rating));
+    const promedio = calificaciones.length ? (calificaciones.reduce((a,b)=>a+b,0)/calificaciones.length).toFixed(1) : 'N/A';
+
+    const totalIngresos = rescates.reduce((sum, r) => sum + (r.costoRescateEstimado || 0), 0);
+
+    const { jsPDF } = window.jspdf;
+    const pdfDoc = new jsPDF();
+    const addFooter = window._setupProfessionalPDF(pdfDoc, 'REPORTE DE STAFF OBR', null);
+    const pageWidth = pdfDoc.internal.pageSize.getWidth();
+    let y = 40;
+
+    // Tarjeta de perfil
+    pdfDoc.setFillColor(245, 245, 245);
+    pdfDoc.roundedRect(15, y, pageWidth - 30, 35, 3, 3, 'FD');
+    pdfDoc.setFontSize(12);
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.setTextColor(30,41,59);
+    pdfDoc.text(`${user.name || 'Sin nombre'}`, 20, y + 10);
+    pdfDoc.setFontSize(9);
+    pdfDoc.setFont("helvetica", "normal");
+    pdfDoc.text(`Rol: ${user.role || 'staff'}`, 20, y + 18);
+    pdfDoc.text(`Teléfono: ${user.phone || 'N/A'}`, 20, y + 26);
+    y += 45;
+
+    // Métricas rápidas
+    const metricas = [
+        { label: 'Servicios realizados', value: rescates.length.toString() },
+        { label: 'Calificación promedio', value: `${promedio} ⭐` },
+        { label: 'Ingresos generados', value: `$${totalIngresos.toFixed(2)}` }
+    ];
+    const cardWidth = (pageWidth - 32) / 3;
+    let x = 15;
+    metricas.forEach(m => {
+        pdfDoc.setFillColor(248, 248, 248);
+        pdfDoc.roundedRect(x, y, cardWidth - 3, 16, 2, 2, 'FD');
+        pdfDoc.setFontSize(6);
+        pdfDoc.setTextColor(100);
+        pdfDoc.setFont("helvetica", "normal");
+        pdfDoc.text(m.label, x + 2, y + 5);
+        pdfDoc.setFontSize(10);
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.setTextColor(30,41,59);
+        pdfDoc.text(m.value, x + 2, y + 12);
+        x += cardWidth;
     });
-    dataHTML += '</table>';
-    const htmlContent = `<html><body><h1>Reporte de ${user.name}</h1>${dataHTML}</body></html>`;
-    const blob = new Blob([htmlContent], {type: 'text/html'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Reporte_${user.name}.html`;
-    a.click();
+    y += 24;
+
+    // Tabla de servicios recientes
+    if (rescates.length > 0) {
+        pdfDoc.setFontSize(10);
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.text("Últimos servicios atendidos:", 20, y);
+        y += 8;
+        const body = rescates.slice(0, 20).map(r => [
+            new Date(r.timestamp).toLocaleDateString('es-MX'),
+            r.shortId || 'Sin ID',
+            r.falla?.substring(0, 30) || '',
+            `$${(r.costoRescateEstimado || 0).toFixed(2)}`
+        ]);
+        pdfDoc.autoTable({
+            startY: y,
+            head: [['Fecha', 'ID', 'Descripción', 'Costo']],
+            body: body,
+            theme: 'grid',
+            styles: { fontSize: 8, cellPadding: 2, textColor: [30,41,59] },
+            headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
+            margin: { left: 20 }
+        });
+        y = pdfDoc.lastAutoTable.finalY + 10;
+    } else {
+        pdfDoc.setFontSize(10);
+        pdfDoc.setTextColor(100);
+        pdfDoc.text("Sin servicios registrados.", 20, y);
+        y += 10;
+    }
+
+    // Reseñas recientes (si hay)
+    if (calificaciones.length > 0) {
+        if (y > 230) { pdfDoc.addPage(); y = 25; }
+        pdfDoc.setFontSize(10);
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.text("Reseñas de clientes:", 20, y);
+        y += 8;
+        pdfDoc.setFontSize(8);
+        pdfDoc.setFont("helvetica", "normal");
+        const resenas = [];
+        satisfactionSnap.forEach(s => resenas.push(s.data()));
+        resenas.sort((a,b) => b.timestamp - a.timestamp);
+        resenas.slice(0, 10).forEach(r => {
+            if (y > 270) { pdfDoc.addPage(); y = 20; }
+            const estrellas = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+            pdfDoc.text(`${new Date(r.timestamp).toLocaleDateString('es-MX')} - ${estrellas}`, 20, y);
+            y += 5;
+            if (r.comments) {
+                const commentLines = pdfDoc.splitTextToSize(`"${r.comments}"`, pageWidth - 40);
+                pdfDoc.text(commentLines, 25, y);
+                y += commentLines.length * 5 + 2;
+            }
+        });
+    }
+
+    addFooter(pdfDoc);
+    pdfDoc.save(`Reporte_${user.name || 'staff'}.pdf`);
 };
 // ======================================================
 // === SOS MEJORADO (mapa oscuro/claro automático, filtros correctos, botón PDF en completados) ===
