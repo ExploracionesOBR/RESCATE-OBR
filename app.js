@@ -817,44 +817,89 @@ function listenToMySOS() {
     if(!auth.currentUser) return;
     if(mySOSListener) mySOSListener();
     mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), (snap) => {
+        const activeCard = document.getElementById('active-sos-card');
+        const noServicesMsg = document.getElementById('no-active-services-msg');
+        const survey = document.getElementById('satisfaction-survey');
+        const mechanicMapDiv = document.getElementById('mechanic-live-map');
+        const statusDesc = document.getElementById('sos-status-desc-client');
+        const wsCard = document.getElementById('active-workshop-card');
+        const wsTimeline = document.getElementById('workshop-timeline-client'); // si existe
+        const wsProgress = document.getElementById('client-ws-progress');
+        const wsTexts = ['ws-text-1','ws-text-2','ws-text-3','ws-text-4'];
+        
         if(!snap.exists()) {
-            document.getElementById('active-sos-card')?.classList.add('hidden');
-            document.getElementById('no-active-services-msg')?.classList.remove('hidden');
-            window.lastClientSOSStatus = null;
-            // Limpiar mapa del mecánico si se cancela el SOS
+            // No hay SOS activo
+            if(activeCard) activeCard.classList.add('hidden');
+            if(noServicesMsg) noServicesMsg.classList.remove('hidden');
+            if(survey) survey.classList.add('hidden');
+            if(mechanicMapDiv) mechanicMapDiv.classList.add('hidden');
+            if(wsCard) wsCard.classList.add('hidden');
+            // Limpiar mapa del mecánico
             if (mechMapInst) {
                 mechMapInst.remove();
                 mechMapInst = null;
                 mechMarkerInst = null;
             }
+            window.lastClientSOSStatus = null;
             return;
         }
         const data = snap.val();
-        document.getElementById('active-sos-card')?.classList.remove('hidden');
-        document.getElementById('no-active-services-msg')?.classList.add('hidden');
+        // Mostrar tarjeta de SOS activo
+        if(activeCard) activeCard.classList.remove('hidden');
+        if(noServicesMsg) noServicesMsg.classList.add('hidden');
 
+        // === Manejo de estados ===
         if(data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
             speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
             playSound('notif');
-        } else if (data.status === 'completed' && window.lastClientSOSStatus !== 'completed') {
+        } else if ((data.status === 'completed' || data.status === 'cancelled') && window.lastClientSOSStatus !== 'completed' && window.lastClientSOSStatus !== 'cancelled') {
             speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
             playSound('notif');
-            document.getElementById('active-sos-card')?.classList.add('hidden');
-            document.getElementById('satisfaction-survey').classList.remove('hidden');
+            if(activeCard) activeCard.classList.add('hidden');
+            if(survey) survey.classList.remove('hidden');
             remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
             window.loadClientHistory();
-            // Limpiar mapa del mecánico al finalizar
             if (mechMapInst) {
                 mechMapInst.remove();
                 mechMapInst = null;
                 mechMarkerInst = null;
             }
+            // Verificar si la moto está en taller (tallerStatus != 'entregada')
+            if (data.tallerStatus && !['entregada','pagado'].includes(data.tallerStatus)) {
+                // Mostrar timeline del taller
+                if(wsCard) {
+                    wsCard.classList.remove('hidden');
+                    // Actualizar progreso y textos basado en tallerStatus
+                    const steps = { 'recibida':1, 'mecanica':2, 'pruebas':3, 'lista':4 };
+                    const currentStep = steps[data.tallerStatus] || 0;
+                    if(wsProgress) wsProgress.style.width = ((currentStep-1)*33.33) + '%';
+                    wsTexts.forEach((id, idx) => {
+                        const el = document.getElementById(id);
+                        if(el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
+                    });
+                }
+                // Cargar bitácora (si hay listener de taller activo)
+                // La bitácora se escucha en tiempo real desde Firestore? No tenemos listener para cliente.
+                // Podemos cargarla al vuelo si existe un ID de servicio en taller.
+                if (data.tallerServiceId) {
+                    window.loadClientWorkshopTimeline?.(data.tallerServiceId);
+                }
+            } else {
+                if(wsCard) wsCard.classList.add('hidden');
+            }
+            window.lastClientSOSStatus = data.status;
+            return;
         }
         window.lastClientSOSStatus = data.status;
-        document.getElementById('sos-status-desc-client').innerText = data.status === 'accepted' ? "Mecánico en camino" : "Esperando confirmación";
+        if(statusDesc) {
+            statusDesc.innerText = data.status === 'accepted' ? "Mecánico en camino" : 
+                                    data.status === 'completed' ? "Servicio finalizado" : 
+                                    "Esperando confirmación";
+        }
 
+        // Mapa del mecánico
         if(data.status === 'accepted' && data.mech_lat) {
-            document.getElementById('mechanic-live-map').classList.remove('hidden');
+            if(mechanicMapDiv) mechanicMapDiv.classList.remove('hidden');
             if(!mechMapInst) {
                 mechMapInst = L.map('mechanic-live-map', { dragging: false, zoomControl: false }).setView([data.mech_lat, data.mech_lng], 14);
                 const isLight = document.body.classList.contains('light-mode');
@@ -863,13 +908,19 @@ function listenToMySOS() {
                     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
                 L.tileLayer(layerUrl).addTo(mechMapInst);
                 mechMarkerInst = L.marker([data.mech_lat, data.mech_lng], { icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] }) }).addTo(mechMapInst);
+                // Agregar marcador del cliente (si tenemos lat/lng del SOS)
+                if (data.lat) {
+                    L.marker([data.lat, data.lng], { icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] }) }).addTo(mechMapInst);
+                }
             } else {
                 mechMarkerInst.setLatLng([data.mech_lat, data.mech_lng]);
                 mechMapInst.invalidateSize();
             }
+        } else {
+            if(mechanicMapDiv) mechanicMapDiv.classList.add('hidden');
         }
 
-        // Escuchar ubicación del mecánico en tiempo real (DENTRO del callback, data existe)
+        // Escuchar ubicación en tiempo real del mecánico (siempre que esté accepted y mech_uid)
         if (data.status === 'accepted' && data.mech_uid) {
             onValue(dbRef(rtdb, 'mecanicos_activos/' + data.mech_uid), (mechSnap) => {
                 if (mechSnap.exists()) {
@@ -878,6 +929,7 @@ function listenToMySOS() {
                         mechMarkerInst.setLatLng([pos.lat, pos.lng]);
                         mechMapInst.setView([pos.lat, pos.lng], 14);
                     } else if (!mechMapInst && pos.lat) {
+                        // crear mapa si se perdió
                         mechMapInst = L.map('mechanic-live-map', { dragging: false, zoomControl: false }).setView([pos.lat, pos.lng], 14);
                         const isLight = document.body.classList.contains('light-mode');
                         const layerUrl = isLight
@@ -891,7 +943,6 @@ function listenToMySOS() {
                 }
             });
         }
-        // FIN de la escucha de ubicación del mecánico
     });
 }
 window.openSOSDetailClient = function() {};
@@ -4205,6 +4256,14 @@ window.requestAppPermissions = async () => {
     }
     toggleModal(modalId, true);
 };
+window.viewActiveWorkshop = async () => {
+    if (!auth.currentUser || !window.currentUserDoc) return;
+    const snap = await getDocs(query(collection(db, "rescates"), where("phone", "==", window.currentUserDoc.phone), where("status", "==", "completed"), where("tallerStatus", "not-in", ["entregada","pagado"]), orderBy("timestamp", "desc"), limit(1)));
+    if (!snap.empty) {
+        window.openClientServiceDetail(snap.docs[0].id);
+    }
+};
+
 // Stubs para funciones no implementadas completamente
 window.sendContactFromModal = async function() {
     const name = document.getElementById('modal-contact-name')?.value.trim();
