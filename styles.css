@@ -709,3 +709,10 @@ nav.fixed.bottom-0 {
     -webkit-user-select: none;
     user-select: none;
 }
+#video-banner-container {
+    padding: 0 1rem;
+    margin-bottom: 1rem;
+}
+#video-banner-container video {
+    border-radius: 1rem;
+}
