@@ -858,7 +858,7 @@ function listenToMySOS() {
             if(activeCard) activeCard.classList.add('hidden');
             if(survey) survey.classList.remove('hidden');
             remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
-            window.loadClientHistory();
+            window.loadClientHistory();if(wsCard) wsCard.classList.add('hidden'); // Asegurar que empieza oculta
             if (mechMapInst) {
                 mechMapInst.remove();
                 mechMapInst = null;
