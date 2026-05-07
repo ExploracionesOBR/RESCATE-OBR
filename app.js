@@ -500,10 +500,7 @@ onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
         window.loadMyOrders();
         updateLandingStatus();
     }
-});        window.loadClientHistory(); listenToMySOS(); window.loadClientCitas(); loadPublicStore();
-        window.loadMyOrders();
-        updateLandingStatus();
-}
+
     // Listener genérico de notificaciones RTDB para cualquier rol
     onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
         if (snap.exists()) {
@@ -514,6 +511,7 @@ onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
             remove(dbRef(rtdb, 'notificaciones/' + user.uid));
         }
     });
+});
 
 function showView(targetId) {
     const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'view-force-setup', 'app-client', 'app-admin'];
