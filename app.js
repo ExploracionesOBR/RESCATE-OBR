@@ -453,7 +453,15 @@ onAuthStateChanged(auth, async user => {
 
     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
         showView('app-admin'); document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
-        window.adminRefreshConfigUI(); window.adminLoadInventory(); window.adminLoadSales(); window.filterSOS('pending'); window.adminListenServices(); window.adminLoadCitas(); window.loadChatList();
+        setTimeout(() => {
+    window.adminRefreshConfigUI();
+    window.adminLoadInventory();
+    window.adminLoadSales();
+    window.filterSOS('pending');
+    window.adminListenServices();
+    window.adminLoadCitas();
+    window.loadChatList();
+}, 100);
         if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
     } else {
         showView('app-client'); document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
