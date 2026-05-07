@@ -2305,10 +2305,9 @@ window.adminLoadUsers = async () => {
         const u = d.data();
 const card = `<div class="bg-white/5 p-2 rounded-xl text-white text-xs flex justify-between items-center cursor-pointer" onclick="window.openUserDetail('${d.id}')">
     <span class="flex-1 truncate">${u.name || (u.phone ? u.phone.replace('+52','') : 'Sin nombre')}</span>
-    <div class="flex items-center space-x-1">
-        ${u.role === 'cliente' ? `<button onclick="event.stopPropagation(); window.promoteToVIP('${d.id}')" class="bg-yellow-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase" title="Promover a VIP"><i class="fas fa-crown"></i></button>` : ''}
-        ${u.role === 'membresia' ? `<button onclick="event.stopPropagation(); window.demoteFromVIP('${d.id}')" class="bg-gray-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase" title="Quitar VIP"><i class="fas fa-user"></i></button>` : ''}
-        <span class="text-naranja text-[10px]"><i class="fas fa-user"></i></span>
+    <div class="flex items-center space-x-1 ml-2">
+        ${u.role === 'cliente' ? `<button onclick="event.stopPropagation(); window.promoteToVIP('${d.id}')" class="bg-yellow-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase flex items-center"><i class="fas fa-crown mr-1"></i>VIP</button>` : ''}
+        ${u.role === 'membresia' ? `<button onclick="event.stopPropagation(); window.demoteFromVIP('${d.id}')" class="bg-gray-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase flex items-center"><i class="fas fa-user mr-1"></i>Quitar</button>` : ''}
     </div>
 </div>`;
         if (u.role === 'cliente' && normalList) normalList.innerHTML += card;
