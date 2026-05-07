@@ -662,6 +662,14 @@
                 <div>
                     <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-video mr-1"></i> Video Banner Semanal</p>
                     <button onclick="toggleModal('modal-video-schedule', true)" class="w-full bg-purple-600 hover:bg-purple-500 p-3 rounded-xl font-black uppercase tracking-widest text-white border border-white/10 transition-all">Programar Videos Semanales</button>
+                    <!-- Previsualización del video de hoy -->
+<div id="promo-video-preview" class="mt-4 hidden">
+    <p class="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-2"><i class="fas fa-play-circle mr-1"></i> Video promocional de hoy</p>
+    <div class="bg-black rounded-xl overflow-hidden">
+        <video id="promo-video-player" controls autoplay muted loop class="w-full max-h-[250px] object-contain"></video>
+    </div>
+    <p id="promo-video-name" class="text-[10px] text-gray-400 mt-1"></p>
+</div>
                 </div>
             </div>
             <div class="bg-gradient-to-r from-blue-900/40 to-asfalto border border-blue-500/30 p-6 rounded-3xl shadow-xl mt-4">
@@ -1099,15 +1107,17 @@
     </div>
 </div>
 
-<!-- Modal video schedule -->
+<!-- Modal video schedule (rediseñado) -->
 <div id="modal-video-schedule" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-lg rounded-[2rem] p-6 relative border border-purple-500/30">
-        <button onclick="toggleModal('modal-video-schedule', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
-        <h2 class="text-xl font-black mb-4 text-white">Programar Video Banner por Día</h2>
-        <div class="space-y-3 max-h-96 overflow-y-auto hide-scroll" id="video-schedule-days">
+    <div class="bg-asfalto w-full max-w-4xl max-h-[90vh] rounded-[2rem] p-6 relative border border-purple-500/30 overflow-y-auto">
+        <button onclick="toggleModal('modal-video-schedule', false)" class="absolute top-4 right-4 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors z-10"><i class="fas fa-times"></i></button>
+        <h2 class="text-2xl font-black mb-6 text-white text-center">Programar Video Banner por Día</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="video-schedule-days"></div>
+        <div class="mt-6 flex space-x-3">
+            <button onclick="window.saveVideoSchedule?.()" class="flex-1 bg-purple-600 hover:bg-purple-500 transition-colors text-white p-4 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95">Guardar Programación</button>
+            <button onclick="toggleModal('modal-video-schedule', false)" class="bg-gray-600 hover:bg-gray-500 text-white px-6 py-4 rounded-xl font-black uppercase text-sm">Cancelar</button>
         </div>
-        <button onclick="window.saveVideoSchedule?.()" class="w-full bg-purple-600 hover:bg-purple-500 transition-colors text-white p-4 rounded-xl mt-4 font-black uppercase tracking-widest shadow-lg active:scale-95">Guardar Programación</button>
-        <p class="text-[9px] text-gray-400 mt-2 text-center">Videos en formato horizontal 16:9. Pega la URL del video o súbelo como archivo.</p>
+        <p class="text-[9px] text-gray-400 mt-3 text-center">Formatos recomendados: MP4 horizontal 16:9. Peso máximo 50 MB.</p>
     </div>
 </div>
 
