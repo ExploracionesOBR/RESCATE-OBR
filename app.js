@@ -801,6 +801,28 @@ function listenToMySOS() {
         }
     });
 }
+// Escuchar ubicación del mecánico en tiempo real
+if (data.status === 'accepted' && data.mech_uid) {
+    onValue(dbRef(rtdb, 'mecanicos_activos/' + data.mech_uid), (mechSnap) => {
+        if (mechSnap.exists()) {
+            const pos = mechSnap.val();
+            if (mechMarkerInst && pos.lat) {
+                mechMarkerInst.setLatLng([pos.lat, pos.lng]);
+                mechMapInst.setView([pos.lat, pos.lng], 14);
+            } else if (!mechMapInst && pos.lat) {
+                mechMapInst = L.map('mechanic-live-map', { dragging: false, zoomControl: false }).setView([pos.lat, pos.lng], 14);
+                const isLight = document.body.classList.contains('light-mode');
+                const layerUrl = isLight
+                    ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+                    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+                L.tileLayer(layerUrl).addTo(mechMapInst);
+                mechMarkerInst = L.marker([pos.lat, pos.lng], {
+                    icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
+                }).addTo(mechMapInst);
+            }
+        }
+    });
+}
 
 window.openSOSDetailClient = function() {};
 
@@ -2480,7 +2502,12 @@ window.renderSOSGlobalMap = async () => {
 
     allSnap.forEach(docSnap => {
         const d = docSnap.data();
-        if (d.status !== filterStatus) return;
+        // Si el filtro es 'accepted', mostrar también 'accepted' y 'repairing'
+if (filterStatus === 'accepted') {
+    if (d.status !== 'accepted' && d.status !== 'repairing') return;
+} else {
+    if (d.status !== filterStatus) return;
+}
 
         const lat = d.lat || TALLER_LAT;
         const lng = d.lng || TALLER_LNG;
@@ -2642,7 +2669,7 @@ async function loadMecanicosActivosParaAsignar(sosId) {
     const lista = document.getElementById('lista-mecanicos-asignar');
     if (!lista) return;
     lista.innerHTML = '<div class="text-center text-gray-400 text-xs"><i class="fas fa-spinner fa-spin"></i> Cargando...</div>';
-    const mechSnap = await getDocs(query(collection(db, "users"), where("role", "==", "mecanico")));
+    const mechSnap = await getDocs(query(collection(db, "users"), where("role", "in", ["mecanico", "admin"])));
     let html = '';
     mechSnap.forEach(docSnap => {
         const user = docSnap.data();
