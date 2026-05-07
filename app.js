@@ -2293,9 +2293,10 @@ window.adminLoadUsers = async () => {
     if (staffList) staffList.innerHTML = '';
     snap.forEach(d => {
         const u = d.data();
-        const card = `<div class="bg-white/5 p-2 rounded-xl text-white text-xs flex justify-between items-center cursor-pointer" onclick="window.openUserDetail('${d.id}')">
-            <span>${u.name || u.phone}</span><span class="text-naranja">${u.role}</span>
-        </div>`;
+const card = `<div class="bg-white/5 p-2 rounded-xl text-white text-xs flex justify-between items-center cursor-pointer" onclick="window.openUserDetail('${d.id}')">
+    <span>${u.name || (u.phone ? u.phone.replace('+52','') : 'Sin nombre')}</span>
+    <span class="text-naranja text-[10px]"><i class="fas fa-user"></i></span>
+</div>`;
         if (u.role === 'cliente' && normalList) normalList.innerHTML += card;
         else if (u.role === 'membresia' && vipList) vipList.innerHTML += card;
         else if (['admin','mecanico','taller','socio'].includes(u.role) && staffList) staffList.innerHTML += `<div class="bg-white/5 p-2 rounded-xl text-white text-xs flex justify-between items-center cursor-pointer" onclick="window.openStaffDetail('${d.id}')">
@@ -2467,6 +2468,13 @@ rescates.sort((a, b) => b.data().timestamp - a.data().timestamp);
 
     const html = `<div class="text-white space-y-2 text-xs">
         <h3 class="font-black text-lg">${user.name}</h3>
+            <div class="flex items-center space-x-2 mb-2">
+        ${[1,2,3,4,5].map(i => `
+            <i class="fas fa-star text-sm ${i <= promedio ? 'text-yellow-400' : 'text-gray-600'}"></i>
+        `).join('')}
+        <span class="text-yellow-400 font-black text-sm">${promedio}</span>
+        <span class="text-gray-400 text-[10px]">(${calificaciones.length} reseñas)</span>
+    </div>
         <p>Servicios realizados: ${servicios}</p>
         <p>Ingresos generados: <span class="text-naranja font-bold">$${ingresos.toFixed(2)}</span></p>
         <p>Calificación promedio: <span class="text-yellow-400 font-black">${promedio} ⭐</span></p>
