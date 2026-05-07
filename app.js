@@ -415,7 +415,7 @@ async function loadPublicStore() {
                     <div class="w-full aspect-square bg-white/5 rounded-2xl mb-3 flex items-center justify-center overflow-hidden relative">${p.imgUrl ? `<img src="${p.imgUrl}" class="w-full h-full object-contain">` : '<i class="fas fa-box text-4xl text-gray-600"></i>'}</div>
                     <p class="text-xs font-black uppercase flex-grow">${p.name}</p>
                     <p class="text-naranja font-black text-lg mb-3">${promo ? `<span class="line-through text-gray-500 text-xs mr-1">$${p.originalPrice.toFixed(2)}</span>` : ''}$${price.toFixed(2)}</p>
-                    <button onclick="event.stopPropagation(); addToCart('${p.name}', ${price})" class="w-full bg-naranja hover:bg-orange-600 transition-colors text-white p-2 rounded-xl text-xs font-black uppercase">Añadir</button>
+                    <button onclick="event.stopPropagation(); addToCart('${p.name}', ${price})" class="shop-add-btn w-full bg-naranja hover:bg-orange-600 transition-colors text-white p-2 rounded-xl text-xs font-black uppercase">Añadir</button>
                 </div>`;
             }
         });
