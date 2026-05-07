@@ -208,19 +208,26 @@ body.light-mode {
 @media (min-width: 1024px) {
     .a-view-alertas .lg\:grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr 2fr;
         gap: 1rem;
-        height: auto;
+        height: calc(100vh - 200px);
     }
     .a-view-alertas .lg\:col-span-2 {
-        height: 65vh;
-        position: sticky;
-        top: 80px;
+        height: 100%;
+        min-height: 500px;
     }
     .a-view-alertas .lg\:col-span-1 {
         overflow-y: auto;
-        max-height: 65vh;
+        max-height: calc(100vh - 200px);
         padding-right: 0.5rem;
+    }
+}
+@media (min-width: 1280px) {
+    .a-view-alertas .lg\:grid {
+        height: calc(100vh - 180px);
+    }
+    .a-view-alertas .lg\:col-span-2 {
+        min-height: 600px;
     }
 }
 
