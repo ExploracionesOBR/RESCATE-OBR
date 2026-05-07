@@ -2378,7 +2378,9 @@ if (vipBtn) {
         bloquearBtn.onclick = () => window.toggleBloquearUsuario(uid, !user.bloqueado);
         bloquearBtn.innerText = user.bloqueado ? 'Desbloquear' : 'Bloquear';
     }
-
+window._currentDetailUid = uid;
+document.getElementById('edit-user-btn').onclick = () => window.adminEditUser(uid);
+document.getElementById('delete-user-btn').onclick = () => window.adminDeleteUser(uid);
     toggleModal('modal-user-detail', true);
 };
 
