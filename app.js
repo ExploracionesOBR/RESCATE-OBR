@@ -2339,35 +2339,7 @@ window.renderVideoScheduleDays = () => {
     });
     container.innerHTML = html;
 };
-        const progressDiv = document.getElementById(`video-progress-${dayIndex}`);
-        const progressBar = document.getElementById(`video-progress-bar-${dayIndex}`);
-        const progressText = document.getElementById(`video-progress-text-${dayIndex}`);
-
-        if (progressDiv) progressDiv.classList.remove('hidden');
-        const reader = new FileReader();
-        reader.onprogress = (e) => {
-            if (e.lengthComputable) {
-                const p = Math.round((e.loaded / e.total) * 100);
-                if (progressBar) progressBar.style.width = p + '%';
-                if (progressText) progressText.innerText = p + '%';
-            }
-        };
-        reader.onload = () => {
-            const dataUrl = reader.result;
-            if (!globalSettings.videoSchedule) globalSettings.videoSchedule = {};
-            globalSettings.videoSchedule[dayIndex] = dataUrl; // base64
-            if (progressDiv) progressDiv.classList.add('hidden');
-            window.renderVideoScheduleDays();
-            showToast("Video cargado correctamente");
-        };
-        reader.onerror = () => {
-            showToast("Error al leer el video", true);
-            if (progressDiv) progressDiv.classList.add('hidden');
-        };
-        reader.readAsDataURL(file);
-    }
-};
-
+      
 window.saveVideoSchedule = async () => {
     await setDoc(doc(db, "settings", "general"), { videoSchedule: globalSettings.videoSchedule }, { merge: true });
     showToast("Programación de videos guardada");
