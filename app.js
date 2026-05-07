@@ -755,7 +755,6 @@ window.submitFinalSOS = async () => {
         btn.disabled = false; btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
     }
 };
-
 function listenToMySOS() {
     if(!auth.currentUser) return;
     if(mySOSListener) mySOSListener();
@@ -764,6 +763,12 @@ function listenToMySOS() {
             document.getElementById('active-sos-card')?.classList.add('hidden');
             document.getElementById('no-active-services-msg')?.classList.remove('hidden');
             window.lastClientSOSStatus = null;
+            // Limpiar mapa del mecánico si se cancela el SOS
+            if (mechMapInst) {
+                mechMapInst.remove();
+                mechMapInst = null;
+                mechMarkerInst = null;
+            }
             return;
         }
         const data = snap.val();
@@ -780,6 +785,12 @@ function listenToMySOS() {
             document.getElementById('satisfaction-survey').classList.remove('hidden');
             remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
             window.loadClientHistory();
+            // Limpiar mapa del mecánico al finalizar
+            if (mechMapInst) {
+                mechMapInst.remove();
+                mechMapInst = null;
+                mechMarkerInst = null;
+            }
         }
         window.lastClientSOSStatus = data.status;
         document.getElementById('sos-status-desc-client').innerText = data.status === 'accepted' ? "Mecánico en camino" : "Esperando confirmación";
@@ -799,31 +810,32 @@ function listenToMySOS() {
                 mechMapInst.invalidateSize();
             }
         }
-    });
-}
-// Escuchar ubicación del mecánico en tiempo real
-if (data.status === 'accepted' && data.mech_uid) {
-    onValue(dbRef(rtdb, 'mecanicos_activos/' + data.mech_uid), (mechSnap) => {
-        if (mechSnap.exists()) {
-            const pos = mechSnap.val();
-            if (mechMarkerInst && pos.lat) {
-                mechMarkerInst.setLatLng([pos.lat, pos.lng]);
-                mechMapInst.setView([pos.lat, pos.lng], 14);
-            } else if (!mechMapInst && pos.lat) {
-                mechMapInst = L.map('mechanic-live-map', { dragging: false, zoomControl: false }).setView([pos.lat, pos.lng], 14);
-                const isLight = document.body.classList.contains('light-mode');
-                const layerUrl = isLight
-                    ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-                    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-                L.tileLayer(layerUrl).addTo(mechMapInst);
-                mechMarkerInst = L.marker([pos.lat, pos.lng], {
-                    icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
-                }).addTo(mechMapInst);
-            }
-        }
-    });
-}
 
+        // Escuchar ubicación del mecánico en tiempo real (DENTRO del callback, data existe)
+        if (data.status === 'accepted' && data.mech_uid) {
+            onValue(dbRef(rtdb, 'mecanicos_activos/' + data.mech_uid), (mechSnap) => {
+                if (mechSnap.exists()) {
+                    const pos = mechSnap.val();
+                    if (mechMarkerInst && pos.lat) {
+                        mechMarkerInst.setLatLng([pos.lat, pos.lng]);
+                        mechMapInst.setView([pos.lat, pos.lng], 14);
+                    } else if (!mechMapInst && pos.lat) {
+                        mechMapInst = L.map('mechanic-live-map', { dragging: false, zoomControl: false }).setView([pos.lat, pos.lng], 14);
+                        const isLight = document.body.classList.contains('light-mode');
+                        const layerUrl = isLight
+                            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+                            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+                        L.tileLayer(layerUrl).addTo(mechMapInst);
+                        mechMarkerInst = L.marker([pos.lat, pos.lng], {
+                            icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
+                        }).addTo(mechMapInst);
+                    }
+                }
+            });
+        }
+        // FIN de la escucha de ubicación del mecánico
+    });
+}
 window.openSOSDetailClient = function() {};
 
 window.setRating = r => {
@@ -3095,12 +3107,6 @@ window.adminRefreshConfigUI = () => {
                 <button onclick="window.removeKmRange(${i})" class="text-red-400"><i class="fas fa-times"></i></button>
             </div>`;
         });
-    }
-    if (adminGeoMap) {
-        adminGeoMap.setView([TALLER_LAT, TALLER_LNG], 13);
-        if (adminGeoCircle) {
-            adminGeoCircle.setRadius(globalSettings.radiusKm * 1000);
-        }
     }
     window.togglePriceMode();
 };
