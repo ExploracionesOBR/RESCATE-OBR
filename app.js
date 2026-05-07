@@ -503,6 +503,7 @@ onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
 });        window.loadClientHistory(); listenToMySOS(); window.loadClientCitas(); loadPublicStore();
         window.loadMyOrders();
         updateLandingStatus();
+}
     // Listener genérico de notificaciones RTDB para cualquier rol
     onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
         if (snap.exists()) {
