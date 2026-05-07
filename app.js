@@ -2107,8 +2107,6 @@ window.adminAddProduct = async () => {
             mediaUrl = await uploadWithTimeout(file, `inventario/${Date.now()}_${file.name}`);
         }
         const originalPrice = parseFloat(publicPrice);
-        // Validar que la categoría no esté vacía
-const category = document.getElementById('inv-category')?.value || '';
 if (!category) return showToast("Selecciona una categoría para el producto", true);
         await addDoc(collection(db, "inventario"), { 
             name, 
