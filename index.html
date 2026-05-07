@@ -130,10 +130,16 @@
         </div>
         <p class="text-xs lg:text-base text-gray-400 mb-4">Explora nuestros productos. Haz tu pedido y recibe actualizaciones en tiempo real.</p>
         <input type="text" id="store-search" placeholder="Buscar refacción..." oninput="filterStore()" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-6 text-white focus:border-naranja">
-        <div class="flex justify-end mb-4">
-            <button onclick="toggleModal('modal-cart', true)" class="relative bg-white/10 p-3 rounded-full text-white"><i class="fas fa-shopping-cart text-xl"></i><span id="cart-count" class="absolute -top-1 -right-1 bg-naranja text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-black">0</span></button>
-            <button onclick="toggleModal('modal-pedidos', true)" class="ml-2 bg-white/10 p-3 rounded-full text-white relative"><i class="fas fa-box text-xl"></i></button>
-        </div>
+
+<!-- NUEVO BANNER VIP (dentro de la tienda) -->
+<div id="vip-banner-shop" class="hidden w-full bg-gradient-to-r from-yellow-500 to-amber-400 text-black py-3 px-4 rounded-xl font-black text-center cursor-pointer shadow-lg mb-4" onclick="window.toggleModal('modal-contact', true)">
+    <span class="text-sm md:text-base">🌟 ¡Únete a VIP y recibe promociones exclusivas! 🌟</span>
+</div>
+
+<div class="flex justify-end mb-4">
+    <button onclick="toggleModal('modal-cart', true)" class="relative bg-white/10 p-3 rounded-full text-white"><i class="fas fa-shopping-cart text-xl"></i><span id="cart-count" class="absolute -top-1 -right-1 bg-naranja text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-black">0</span></button>
+    <button onclick="toggleModal('modal-pedidos', true)" class="ml-2 bg-white/10 p-3 rounded-full text-white relative"><i class="fas fa-box text-xl"></i></button>
+</div>
         <div id="public-store-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-8 w-full"></div>
     </div>
     <button id="float-contact-btn" class="lg:hidden fixed bottom-24 right-6 w-16 h-16 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl z-40" onclick="toggleModal('modal-contact', true)">
