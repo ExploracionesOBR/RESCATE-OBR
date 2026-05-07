@@ -342,6 +342,15 @@ function updateLandingStatus() {
         globalLoginBtn.style.display = auth.currentUser ? 'none' : 'flex';
     }
     window.updateEmergencyButtonState(isOpen, sched);
+    const vipBanner = document.getElementById('vip-banner');
+if (vipBanner) {
+    if (!auth.currentUser || (window.currentUserDoc && window.currentUserDoc.role !== 'membresia')) {
+        vipBanner.classList.remove('hidden');
+    } else {
+        vipBanner.classList.add('hidden');
+    }
+}
+    window.loadPromoVideo();
 }
 
 window.updateEmergencyButtonState = (isOpen, sched) => {
@@ -412,6 +421,7 @@ async function loadPublicStore() {
         });
         if (!html) html = `<div class="col-span-full text-center p-10 flex flex-col items-center"><i class="fas fa-box-open text-6xl text-gray-600 mb-6 opacity-30"></i><h3 class="text-2xl font-black text-naranja uppercase italic mb-2">Próximamente</h3><p class="text-gray-400 text-sm mb-6">Estamos abasteciendo nuestro almacén.</p><button onclick="toggleModal('modal-contact', true)" class="bg-blue-600 text-white px-6 py-3 rounded-full font-black uppercase text-xs"><i class="fas fa-headset mr-2"></i>Contactar al Taller</button></div>`;
         if (grid) grid.innerHTML = html; if (cGrid) cGrid.innerHTML = html;
+        window.loadPromoVideo();
     } catch(e){}
 }
 
@@ -1547,6 +1557,43 @@ window.posFilterProducts = () => {
             <div class="flex justify-between items-center"><span class="text-naranja font-black text-sm">$${p.priceTaller}</span><span class="${p.stock>0?'bg-green-600':'bg-red-600'} text-white text-[8px] px-2 py-0.5 rounded-full font-bold">${p.stock}</span></div>
         </div>`;
     });
+};
+window.addToCart = (productName, price) => {
+    if (!window.cart) window.cart = [];
+    window.cart.push({ name: productName, price: price });
+    // Actualizar contadores visuales
+    const cartCountEl = document.getElementById('cart-count');
+    if (cartCountEl) cartCountEl.innerText = window.cart.length;
+    const cartCountMobile = document.getElementById('cart-count-mobile');
+    if (cartCountMobile) cartCountMobile.innerText = window.cart.length;
+    showToast(`${productName} añadido al carrito`);
+    // Renderizar carrito en modal si está abierto
+    window.renderCartItems?.();
+};
+
+window.renderCartItems = () => {
+    const itemsContainer = document.getElementById('cart-items');
+    const totalEl = document.getElementById('cart-total');
+    if (!itemsContainer || !totalEl) return;
+    itemsContainer.innerHTML = '';
+    let total = 0;
+    (window.cart || []).forEach((item, idx) => {
+        total += item.price;
+        itemsContainer.innerHTML += `<div class="flex justify-between items-center text-white text-sm bg-white/5 p-2 rounded-lg mb-2">
+            <span>${item.name}</span>
+            <div>
+                <span class="font-bold">$${item.price.toFixed(2)}</span>
+                <button onclick="window.removeFromCart(${idx})" class="text-red-400 ml-2"><i class="fas fa-trash"></i></button>
+            </div>
+        </div>`;
+    });
+    totalEl.innerText = total.toFixed(2);
+};
+window.removeFromCart = (idx) => {
+    window.cart.splice(idx, 1);
+    window.renderCartItems();
+    document.getElementById('cart-count').innerText = window.cart.length;
+    document.getElementById('cart-count-mobile').innerText = window.cart.length;
 };
 
 window.applyPosPromoCode = async () => {
@@ -3554,6 +3601,19 @@ window.updateGeofenceRadius = (val) => {
     const radiusKm = parseFloat(val);
     document.getElementById('radius-display').innerText = radiusKm;
     if (adminGeoCircle) adminGeoCircle.setRadius(radiusKm * 1000);
+};
+window.loadPromoVideo = () => {
+    const container = document.getElementById('video-banner-container');
+    if (!container) return;
+    const now = new Date();
+    const dayIndex = now.getDay(); // 0=Domingo, 1=Lunes...
+    const todayVideo = globalSettings.videoSchedule?.[dayIndex];
+    if (todayVideo && todayVideo.trim() !== '') {
+        container.innerHTML = `<video src="${todayVideo}" controls autoplay muted loop class="w-full max-h-[300px] object-contain rounded-xl"></video>`;
+        container.classList.remove('hidden');
+    } else {
+        container.classList.add('hidden');
+    }
 };
 window.initAdminNotifications = () => {
     // Listener de nuevas citas
