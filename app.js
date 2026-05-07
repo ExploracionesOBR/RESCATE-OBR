@@ -610,7 +610,7 @@ window.switchAdminView = (id) => {
 
     if(id === 'a-view-config') { window.adminRefreshConfigUI(); window.renderAdminMap(); }
     if(id === 'a-view-usuarios') window.adminLoadUsers();
-    if(id === 'a-view-promos') { window.adminLoadLoyalty(); populatePromoProductSelect(); }
+    if(id === 'a-view-promos') { window.adminLoadLoyalty(); populatePromoProductSelect(); window.loadPromoPreview?.(); }
     if(id === 'a-view-stats') window.loadStats();
     if(id === 'a-view-citas') window.adminLoadCitas();
     if(id === 'a-view-alertas') window.renderSOSGlobalMap();
@@ -2304,15 +2304,35 @@ window.deletePromo = async (promoId) => {
 window.renderVideoScheduleDays = () => {
     const container = document.getElementById('video-schedule-days');
     if (!container) return;
-    const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     let html = '';
     dias.forEach((dia, index) => {
-        const current = globalSettings.videoSchedule && globalSettings.videoSchedule[index] ? globalSettings.videoSchedule[index] : '';
-        html += `<div class="video-day-row">
-            <p class="font-bold text-xs text-white mb-1">${dia}</p>
-            <input type="file" accept="video/*" class="w-full text-xs text-gray-400 file:bg-naranja file:text-white file:border-0 file:rounded-md file:px-2 file:py-1" onchange="window.handleVideoFile(this, ${index})" />
-            <p class="text-[9px] text-gray-500 mt-1 truncate" id="video-name-${index}">${current ? current : 'Sin video asignado'}</p>
-            <div id="video-preview-${index}" class="mt-2 hidden"></div>
+        const currentURL = globalSettings.videoSchedule?.[index] || '';
+        const tieneVideo = currentURL && currentURL.trim() !== '';
+        const mostrarBotonAnterior = index > 0; // No mostrar en lunes
+        html += `
+        <div class="bg-black/40 p-4 rounded-2xl border border-white/10">
+            <div class="flex justify-between items-center mb-2">
+                <p class="font-black text-sm text-white">${dia}</p>
+                <div class="flex space-x-1">
+                    ${mostrarBotonAnterior ? `<button onclick="window.usePreviousDayVideo(${index})" class="text-[9px] bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded-lg font-bold uppercase" title="Usar video del día anterior"><i class="fas fa-copy mr-1"></i>Usar anterior</button>` : ''}
+                    ${tieneVideo ? `<button onclick="window.removeDayVideo(${index})" class="text-[9px] bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded-lg font-bold uppercase"><i class="fas fa-trash"></i></button>` : ''}
+                </div>
+            </div>
+            <input type="file" accept="video/*" id="video-input-${index}" class="hidden" onchange="window.handleVideoFile(this, ${index})" />
+            <button onclick="document.getElementById('video-input-${index}').click()" class="w-full bg-white/5 border border-dashed border-white/20 p-4 rounded-xl text-xs text-gray-400 hover:border-naranja transition-colors mb-2">
+                <i class="fas fa-cloud-upload-alt mr-2"></i>Seleccionar archivo
+            </button>
+            <div id="video-progress-${index}" class="hidden mt-2">
+                <div class="w-full bg-gray-700 rounded-full h-2">
+                    <div id="video-progress-bar-${index}" class="bg-naranja h-2 rounded-full" style="width: 0%"></div>
+                </div>
+                <p id="video-progress-text-${index}" class="text-[9px] text-gray-400 mt-1">0%</p>
+            </div>
+            <div id="video-preview-${index}" class="mt-2 ${tieneVideo ? '' : 'hidden'}">
+                ${tieneVideo ? `<video src="${currentURL}" controls class="w-full max-h-32 rounded-lg object-contain bg-black"></video>` : ''}
+                <p class="text-[9px] text-gray-400 mt-1 truncate" id="video-name-${index}">${tieneVideo ? currentURL.split('/').pop().substring(0, 40) : 'Sin video'}</p>
+            </div>
         </div>`;
     });
     container.innerHTML = html;
@@ -2321,16 +2341,50 @@ window.renderVideoScheduleDays = () => {
 window.handleVideoFile = (input, dayIndex) => {
     if (input.files && input.files[0]) {
         const file = input.files[0];
-        if (!globalSettings.videoSchedule) globalSettings.videoSchedule = {};
-        globalSettings.videoSchedule[dayIndex] = file.name;
-        const previewDiv = document.getElementById(`video-preview-${dayIndex}`);
-        const nameP = document.getElementById(`video-name-${dayIndex}`);
-        if (nameP) nameP.innerText = file.name;
-        if (previewDiv) {
-            previewDiv.classList.remove('hidden');
-            const videoURL = URL.createObjectURL(file);
-            previewDiv.innerHTML = `<video src="${videoURL}" controls class="w-full max-h-32 rounded-lg"></video>`;
+        
+        // Validar tamaño (50 MB máximo)
+        if (file.size > 50 * 1024 * 1024) {
+            showToast("El video no debe superar 50 MB", true);
+            return;
         }
+
+        const progressDiv = document.getElementById(`video-progress-${dayIndex}`);
+        const progressBar = document.getElementById(`video-progress-bar-${dayIndex}`);
+        const progressText = document.getElementById(`video-progress-text-${dayIndex}`);
+
+        // Mostrar barra de progreso
+        if (progressDiv) progressDiv.classList.remove('hidden');
+        
+        // Subir a Storage
+        const path = `videos_promocionales/${Date.now()}_${file.name}`;
+        const storageRef = sRef(storage, path);
+        const uploadTask = uploadBytesResumable(storageRef, file);
+
+        uploadTask.on('state_changed',
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                if (progressBar) progressBar.style.width = `${progress}%`;
+                if (progressText) progressText.innerText = `${Math.round(progress)}%`;
+            },
+            (error) => {
+                console.error('Error al subir video:', error);
+                showToast("Error al subir el video", true);
+                if (progressDiv) progressDiv.classList.add('hidden');
+            },
+            async () => {
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                // Guardar URL en settings
+                if (!globalSettings.videoSchedule) globalSettings.videoSchedule = {};
+                globalSettings.videoSchedule[dayIndex] = downloadURL;
+                
+                // Ocultar barra de progreso
+                if (progressDiv) progressDiv.classList.add('hidden');
+                
+                // Refrescar el modal
+                window.renderVideoScheduleDays();
+                showToast("Video subido correctamente");
+            }
+        );
     }
 };
 
@@ -2338,6 +2392,9 @@ window.saveVideoSchedule = async () => {
     await setDoc(doc(db, "settings", "general"), { videoSchedule: globalSettings.videoSchedule }, { merge: true });
     showToast("Programación de videos guardada");
     toggleModal('modal-video-schedule', false);
+    // Recargar video del día en el previsualizador
+    window.loadPromoVideo();
+    window.loadPromoPreview?.();
 };
 
 // ======================================================
@@ -3607,6 +3664,25 @@ window.removeKmRange = (index) => {
     window.adminRefreshConfigUI();
 };
 
+window.usePreviousDayVideo = (dayIndex) => {
+    const prevDay = dayIndex - 1;
+    const prevURL = globalSettings.videoSchedule?.[prevDay];
+    if (!prevURL || prevURL.trim() === '') {
+        return showToast("El día anterior no tiene video asignado", true);
+    }
+    globalSettings.videoSchedule[dayIndex] = prevURL;
+    window.renderVideoScheduleDays();
+    showToast("Video copiado del día anterior");
+};
+
+window.removeDayVideo = (dayIndex) => {
+    window.confirmModal("¿Eliminar el video asignado a este día?", () => {
+        globalSettings.videoSchedule[dayIndex] = '';
+        window.renderVideoScheduleDays();
+        showToast("Video eliminado de este día");
+    });
+};
+
 // Inicializar mapa de geofence
 window.renderAdminMap = () => {
     const mapEl = document.getElementById('admin-geofence-map');
@@ -3637,6 +3713,25 @@ window.loadPromoVideo = () => {
         container.classList.remove('hidden');
     } else {
         container.classList.add('hidden');
+    }
+};
+window.loadPromoPreview = () => {
+    const previewContainer = document.getElementById('promo-video-preview');
+    const player = document.getElementById('promo-video-player');
+    const nameDisplay = document.getElementById('promo-video-name');
+    if (!previewContainer || !player) return;
+
+    const now = new Date();
+    const dayIndex = now.getDay(); // 0=Domingo
+    const todayVideo = globalSettings.videoSchedule?.[dayIndex];
+    
+    if (todayVideo && todayVideo.trim() !== '') {
+        previewContainer.classList.remove('hidden');
+        player.src = todayVideo;
+        player.load();
+        nameDisplay.innerText = todayVideo.split('/').pop() || 'Video promocional';
+    } else {
+        previewContainer.classList.add('hidden');
     }
 };
 window.initAdminNotifications = () => {
