@@ -1127,16 +1127,16 @@
 <div id="modal-user-detail" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-md lg:max-w-6x1 h-[90vh] lg:h-auto lg:max-h-[90vh] rounded-[2rem] p-6 relative border border-blue-500/30 flex flex-col shadow-2xl">
         <button onclick="toggleModal('modal-user-detail', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 z-[300] hover:text-white transition-colors"><i class="fas fa-times"></i></button>
-        <div class="flex justify-between items-center mb-6 shrink-0 border-b border-white/10 pb-4">
-            <div class="w-full">
-                <h2 class="text-2xl font-black mb-1 text-white uppercase truncate w-5/6" id="ud-name">Usuario</h2>
-                <div class="flex items-center space-x-3">
-                    <p class="text-sm text-blue-400 font-bold" id="ud-phone"></p>
-                    <span id="ud-rating" class="text-yellow-400 text-xs font-black hidden"><i class="fas fa-star mr-1"></i> <span id="ud-rating-val">5.0</span></span>
-                </div>
-            </div>
-            <button id="promote-vip-btn" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase hidden"><i class="fas fa-crown mr-1"></i>VIP</button>
+        <div class="flex justify-between items-start mb-6 shrink-0 border-b border-white/10 pb-4">
+    <div class="flex-1 pr-2">
+        <h2 class="text-2xl font-black mb-1 text-white uppercase truncate" id="ud-name">Usuario</h2>
+        <div class="flex items-center space-x-3">
+            <p class="text-sm text-blue-400 font-bold" id="ud-phone"></p>
+            <span id="ud-rating" class="text-yellow-400 text-xs font-black hidden"><i class="fas fa-star mr-1"></i> <span id="ud-rating-val">5.0</span></span>
         </div>
+    </div>
+    <button id="promote-vip-btn" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase hidden flex-shrink-0 mt-1"><i class="fas fa-crown mr-1"></i>VIP</button>
+</div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 flex-grow overflow-hidden">
             <div class="flex flex-col h-full bg-black/30 p-4 rounded-2xl border border-white/5 relative">
                 <div class="flex justify-between items-center mb-3 border-b border-white/10 pb-2">
