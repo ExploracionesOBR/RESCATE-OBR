@@ -58,7 +58,7 @@ let activeChatUid = null, chatUnsubscribe = null;
 window.currentRating = 0; let currentDetalleServicioId = null;
 window.currentSOSFilter = 'pending';
 let statsChartInstance = null, statsPieInstance = null;
-let adminSalesCache = {}; let lastNotifiedSOS = null; let mechWatchId = null;
+let adminSalesCache = {}; let lastNotifiedSOS = null; let mechWatchId = null; window.activeMechanicSOSId = null;
 window.activePosFilter = 'todos';
 window.garantiasActivas = [];
 let mySOSListener = null;
@@ -294,7 +294,16 @@ function startMechanicTracking() {
     if(['admin', 'mecanico', 'taller'].includes(window.currentUserDoc?.role)) {
         if(navigator.geolocation) {
             navigator.geolocation.watchPosition(pos => {
-                update(dbRef(rtdb, 'mecanicos_activos/' + auth.currentUser.uid), { lat: pos.coords.latitude, lng: pos.coords.longitude, name: window.currentUserDoc.name, ts: Date.now() });
+                const uid = auth.currentUser.uid;
+                update(dbRef(rtdb, 'mecanicos_activos/' + uid), { lat: pos.coords.latitude, lng: pos.coords.longitude, name: window.currentUserDoc.name, ts: Date.now() });
+                // Si hay un SOS activo, guardar punto de trayectoria
+                if (window.activeMechanicSOSId) {
+                    push(dbRef(rtdb, `sos_tracking/${window.activeMechanicSOSId}/${uid}/points`), {
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude,
+                        ts: Date.now()
+                    });
+                }
             }, e=>console.error(e), {enableHighAccuracy: true, maximumAge: 10000});
         }
     }
@@ -1057,22 +1066,57 @@ window.downloadClientTicket = async (serviceId) => {
     const data = docSnap.data();
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
-    pdfDoc.setFillColor(255, 107, 0);
-    pdfDoc.rect(0, 0, 210, 30, 'F');
-    pdfDoc.setFontSize(18);
-    pdfDoc.setTextColor(255, 255, 255);
-    pdfDoc.text("COMPROBANTE DE SERVICIO OBR", 14, 18);
-    pdfDoc.setTextColor(0, 0, 0);
+    const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE SERVICIO', null);
+    const pageWidth = pdfDoc.internal.pageSize.getWidth();
+
+    let y = 35;
     pdfDoc.setFontSize(10);
-    pdfDoc.text(`Servicio: ${data.shortId || 'Sin ID'}`, 14, 40);
-    pdfDoc.text(`Cliente: ${window.currentUserDoc?.name || ''}`, 14, 46);
-    pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, 14, 52);
-    pdfDoc.text(`Fecha: ${new Date(data.timestamp).toLocaleString()}`, 14, 58);
-    const lines = pdfDoc.splitTextToSize(`Descripción: ${data.falla}`, 180);
-    pdfDoc.text(lines, 14, 65);
-    let y = 65 + (lines.length * 6);
-    pdfDoc.text(`Estado: ${data.status}`, 14, y);
-    if (data.costoRescateEstimado) pdfDoc.text(`Costo: $${data.costoRescateEstimado}`, 14, y + 6);
+    pdfDoc.setTextColor(30,41,59);
+
+    // Tarjeta de datos del servicio
+    pdfDoc.setFillColor(245, 245, 245);
+    pdfDoc.roundedRect(12, y, pageWidth - 24, 28, 3, 3, 'FD');
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.text(`Servicio: ${data.shortId || 'Sin ID'}`, 16, y + 8);
+    pdfDoc.setFont("helvetica", "normal");
+    pdfDoc.text(`Cliente: ${window.currentUserDoc?.name || ''}`, 16, y + 15);
+    pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, 16, y + 22);
+    y += 35;
+
+    // Badge de estado
+    const estado = data.status || 'pendiente';
+    const colorEstado = estado === 'completed' ? [34, 197, 94] : estado === 'cancelled' ? [239, 68, 68] : [251, 191, 36];
+    pdfDoc.setFillColor(...colorEstado);
+    pdfDoc.roundedRect(pageWidth - 50, y - 6, 38, 10, 2, 2, 'F');
+    pdfDoc.setFontSize(7);
+    pdfDoc.setTextColor(255, 255, 255);
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.text(estado.toUpperCase(), pageWidth - 48, y);
+
+    pdfDoc.setFontSize(10);
+    pdfDoc.setTextColor(30,41,59);
+    pdfDoc.setFont("helvetica", "normal");
+
+    // Fecha
+    pdfDoc.text(`Fecha: ${new Date(data.timestamp).toLocaleString('es-MX')}`, 16, y + 6);
+    y += 15;
+
+    // Descripción de la falla
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.text("Descripción:", 16, y);
+    y += 6;
+    pdfDoc.setFont("helvetica", "normal");
+    const lines = pdfDoc.splitTextToSize(data.falla || '', pageWidth - 32);
+    pdfDoc.text(lines, 16, y);
+    y += lines.length * 5 + 8;
+
+    if (data.costoRescateEstimado) {
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.text(`Costo: $${data.costoRescateEstimado}`, 16, y);
+        y += 10;
+    }
+
+    addFooter(pdfDoc);
     pdfDoc.save(`Servicio_${data.shortId || serviceId}.pdf`);
 };
 
@@ -1164,25 +1208,30 @@ window.searchGarantiaByCodigo = () => {
     });
 };
 
-// === REPORTE PDF DE SERVICIO COMPLETADO (con imágenes, bitácora, desglose de costos) ===
+// === REPORTE PDF DE SERVICIO COMPLETADO (con mapa de ruta del mecánico) ===
 window.downloadCompletedServicePDF = async (id) => {
     const docSnap = await getDoc(doc(db, "rescates", id));
     if (!docSnap.exists()) return showToast("Servicio no encontrado", true);
     const data = docSnap.data();
+
     const bSnap = await getDocs(collection(db, "rescates", id, "bitacora"));
     let bitacora = [];
     bSnap.forEach(d => bitacora.push(d.data()));
     bitacora.sort((a, b) => a.ts - b.ts);
+
     const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", id), limit(1)));
     let venta = null;
     ventasSnap.forEach(v => { venta = v.data(); });
+
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
     const addFooter = window._setupProfessionalPDF(pdfDoc, 'REPORTE DE SERVICIO OBR', null);
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
+
     pdfDoc.setFontSize(10);
     pdfDoc.setTextColor(30, 41, 59);
     pdfDoc.setFont("helvetica", "normal");
+
     // Tarjeta de datos del cliente
     let y = 40;
     pdfDoc.setDrawColor(230);
@@ -1194,7 +1243,8 @@ window.downloadCompletedServicePDF = async (id) => {
     pdfDoc.text(`Cliente: ${data.clientName || data.phone || 'No identificado'}`, 20, y + 17);
     pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, 20, y + 24);
     y += 40;
-    // Falla
+
+    // Falla reportada
     pdfDoc.setFont("helvetica", "bold");
     pdfDoc.text("Falla reportada:", 20, y);
     y += 6;
@@ -1202,6 +1252,7 @@ window.downloadCompletedServicePDF = async (id) => {
     const fallaLines = pdfDoc.splitTextToSize(data.falla || '', pageWidth - 40);
     pdfDoc.text(fallaLines, 20, y);
     y += fallaLines.length * 5 + 10;
+
     // Timeline de bitácora
     if (bitacora.length > 0) {
         pdfDoc.setFont("helvetica", "bold");
@@ -1217,6 +1268,7 @@ window.downloadCompletedServicePDF = async (id) => {
         });
         y += 10;
     }
+
     // Tabla de venta si existe
     if (venta) {
         pdfDoc.setFont("helvetica", "bold");
@@ -1240,11 +1292,81 @@ window.downloadCompletedServicePDF = async (id) => {
     } else if (data.costoRescateEstimado) {
         pdfDoc.setFont("helvetica", "bold");
         pdfDoc.text(`Costo estimado: $${data.costoRescateEstimado}`, 20, y);
+        y += 10;
     }
+
+    // Mapa de trayectoria del mecánico (si existe)
+    if (data.mech_track && data.mech_track.length > 1) {
+        try {
+            // Cargar html2canvas si aún no está disponible
+            await window.loadHtml2Canvas();
+            
+            // Crear div oculto para renderizar el mapa
+            const mapId = 'temp-track-map-' + Date.now();
+            const mapDiv = document.createElement('div');
+            mapDiv.id = mapId;
+            mapDiv.style.width = '500px';
+            mapDiv.style.height = '300px';
+            mapDiv.style.position = 'absolute';
+            mapDiv.style.top = '-2000px';
+            mapDiv.style.left = '-2000px';
+            mapDiv.style.zIndex = '-1';
+            mapDiv.style.visibility = 'hidden';
+            document.body.appendChild(mapDiv);
+
+            const trackMap = L.map(mapId, { 
+                zoomControl: false, 
+                attributionControl: false,
+                scrollWheelZoom: false,
+                dragging: false 
+            }).setView([data.mech_track[0].lat, data.mech_track[0].lng], 13);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(trackMap);
+            
+            const coords = data.mech_track.map(p => [p.lat, p.lng]);
+            L.polyline(coords, { color: '#FF6B00', weight: 4, opacity: 0.8 }).addTo(trackMap);
+            
+            // Marcadores de inicio y fin
+            L.circleMarker(coords[0], { radius: 6, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 1 }).addTo(trackMap)
+                .bindPopup('Inicio del recorrido');
+            L.circleMarker(coords[coords.length-1], { radius: 6, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1 }).addTo(trackMap)
+                .bindPopup('Llegada al servicio');
+            
+            trackMap.fitBounds(L.latLngBounds(coords).pad(0.2));
+            
+            // Forzar recálculo de tamaño y esperar carga de teselas
+            mapDiv.style.visibility = 'visible';
+            setTimeout(() => trackMap.invalidateSize(), 300);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Capturar el mapa como imagen
+            const canvas = await html2canvas(mapDiv, { useCORS: true, backgroundColor: '#ffffff' });
+            const imgData = canvas.toDataURL('image/png');
+            
+            // Insertar imagen en el PDF
+            if (y > 220) { pdfDoc.addPage(); y = 25; }
+            pdfDoc.setFont("helvetica", "bold");
+            pdfDoc.setFontSize(10);
+            pdfDoc.text("Ruta seguida por el mecánico:", 20, y);
+            y += 8;
+            pdfDoc.addImage(imgData, 'PNG', 20, y, pageWidth - 40, 75);
+            y += 85;
+            
+            // Limpiar div temporal
+            document.body.removeChild(mapDiv);
+        } catch (mapError) {
+            console.warn('No se pudo generar el mapa:', mapError);
+            pdfDoc.setFontSize(8);
+            pdfDoc.setTextColor(150);
+            pdfDoc.text("(Mapa de ruta no disponible)", 20, y + 10);
+            y += 15;
+        }
+    }
+
     addFooter(pdfDoc);
     pdfDoc.save(`Reporte_${data.shortId || id}.pdf`);
 };
-// === EDICIÓN Y ELIMINACIÓN DE SERVICIOS DEL CATÁLOGO ===
+
 window.editService = (serviceId) => {
     getDoc(doc(db, "servicios", serviceId)).then(snap => {
         if (!snap.exists()) return;
@@ -2739,12 +2861,36 @@ window.changeSOSStatus = async (id, newStatus) => {
     const now = Date.now();
     const updates = {};
     let notifMsg = '';
+    let finalizar = false;
+
     switch(newStatus) {
         case 'repairing': updates.status = 'repairing'; updates.repairedAt = now; notifMsg = 'El mecánico está reparando tu moto.'; break;
         case 'to_shop': updates.status = 'to_shop'; updates.shopAt = now; notifMsg = 'Tu moto será llevada al taller.'; break;
-        case 'ready': updates.status = 'completed'; updates.tallerStatus = 'lista'; notifMsg = 'Tu moto está lista para entregar.'; break;
+        case 'ready': updates.status = 'completed'; updates.tallerStatus = 'lista'; notifMsg = 'Tu moto está lista para entregar.'; finalizar = true; break;
+        case 'cancelled': updates.status = 'cancelled'; notifMsg = 'El taller ha cancelado el servicio.'; finalizar = true; break;
     }
     await updateDoc(docRef, updates);
+
+    // Si es un estado final, consolidar trayectoria del mecánico
+    if (finalizar && window.activeMechanicSOSId === id) {
+        const trackingRef = dbRef(rtdb, `sos_tracking/${id}/${auth.currentUser.uid}/points`);
+        try {
+            const trackingSnap = await new Promise((resolve) => {
+                onValue(trackingRef, resolve, { onlyOnce: true });
+            });
+            if (trackingSnap.exists()) {
+                const points = [];
+                trackingSnap.forEach(child => points.push(child.val()));
+                points.sort((a,b) => a.ts - b.ts);
+                await updateDoc(docRef, { mech_track: points });
+            }
+            await remove(dbRef(rtdb, `sos_tracking/${id}`));
+        } catch(e) {
+            console.warn('Error al consolidar trayectoria:', e);
+        }
+        window.activeMechanicSOSId = null;
+    }
+
     const snap = await getDoc(docRef);
     if (snap.exists() && snap.data().uid) {
         rtdbSet(dbRef(rtdb, 'sos_alerts/' + snap.data().uid), { ...snap.data(), ...updates });
@@ -2837,6 +2983,7 @@ window.asignarMecanicoASOS = async (mechUid, sosId) => {
     if (!mechSnap.exists()) return showToast("Mecánico no encontrado", true);
     const mech = mechSnap.data();
     await updateDoc(doc(db, "rescates", sosId), { status: 'accepted', mech_uid: mechUid, mech_name: mech.name });
+    window.activeMechanicSOSId = sosId;
     const sosSnap = await getDoc(doc(db, "rescates", sosId));
     if (sosSnap.exists() && sosSnap.data().uid) {
         rtdbSet(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid), { ...sosSnap.data(), status: 'accepted' });
@@ -2853,6 +3000,7 @@ window.tomarCasoDirecto = async () => {
     const mech = window.currentUserDoc;
     if (!mech || mech.role !== 'mecanico') return showToast("Solo mecánicos", true);
     await updateDoc(doc(db, "rescates", window.currentSOSId), { status: 'accepted', mech_uid: auth.currentUser.uid, mech_name: mech.name });
+    window.activeMechanicSOSId = sosId;
     const sosSnap = await getDoc(doc(db, "rescates", window.currentSOSId));
     if (sosSnap.exists() && sosSnap.data().uid) {
         rtdbSet(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid), { ...sosSnap.data(), status: 'accepted' });
@@ -3535,54 +3683,123 @@ window.exportUserHistoryPDF = async () => {
     const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("phone", "==", user.phone), orderBy("timestamp", "desc")));
     let historial = [];
     rescatesSnap.forEach(d => historial.push(d.data()));
+
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
-    pdfDoc.setFillColor(255, 107, 0);
-    pdfDoc.rect(0, 0, 210, 30, 'F');
-    pdfDoc.setFontSize(18);
-    pdfDoc.setTextColor(255, 255, 255);
-    pdfDoc.text(`Historial de ${user.name || user.phone}`, 14, 20);
-    pdfDoc.setTextColor(0, 0, 0);
-    pdfDoc.setFontSize(10);
-    let y = 40;
-    historial.forEach(r => {
-        if (y > 270) { pdfDoc.addPage(); y = 20; }
-        pdfDoc.text(`${new Date(r.timestamp).toLocaleDateString()} - ${r.shortId}: ${r.falla}`, 14, y);
-        y += 7;
+    const addFooter = window._setupProfessionalPDF(pdfDoc, `HISTORIAL DE SERVICIOS - ${user.name || user.phone}`, null);
+    const pageWidth = pdfDoc.internal.pageSize.getWidth();
+
+    let y = 38;
+    pdfDoc.setFontSize(9);
+    pdfDoc.setTextColor(30,41,59);
+
+    // Tarjetas de resumen (estilo imagen)
+    const totalServicios = historial.length;
+    const ultimoServicio = historial[0];
+    const totalFacturado = historial.reduce((sum, r) => sum + (r.costoRescateEstimado || 0), 0);
+    const clienteFrecuente = totalServicios >= 3 ? 'Sí' : 'No';
+
+    const metricas = [
+        { label: 'Servicios realizados', value: totalServicios.toString() },
+        { label: 'Último servicio', value: ultimoServicio ? new Date(ultimoServicio.timestamp).toLocaleDateString('es-MX') : 'N/A' },
+        { label: 'Estado cliente', value: clienteFrecuente === 'Sí' ? 'FRECUENTE' : 'OCASIONAL' },
+        { label: 'Total facturado', value: `$${totalFacturado.toFixed(2)}` }
+    ];
+
+    const cardWidth = (pageWidth - 32) / 4;
+    let x = 12;
+    metricas.forEach(m => {
+        pdfDoc.setFillColor(245, 245, 245);
+        pdfDoc.roundedRect(x, y, cardWidth - 2, 16, 2, 2, 'FD');
+        pdfDoc.setFont("helvetica", "normal");
+        pdfDoc.setFontSize(6);
+        pdfDoc.setTextColor(100);
+        pdfDoc.text(m.label, x + 2, y + 5);
+        pdfDoc.setFontSize(9);
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.setTextColor(30,41,59);
+        pdfDoc.text(m.value, x + 2, y + 12);
+        x += cardWidth;
     });
+    y += 22;
+
+    // Listado de servicios con tarjetas y badges
+    pdfDoc.setFontSize(8);
+    historial.forEach((r, index) => {
+        if (y > 260) { pdfDoc.addPage(); y = 25; }
+        // Fondo de tarjeta
+        pdfDoc.setFillColor(250, 250, 250);
+        pdfDoc.roundedRect(12, y, pageWidth - 24, 22, 2, 2, 'FD');
+        
+        // Fecha
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.setTextColor(30,41,59);
+        pdfDoc.text(new Date(r.timestamp).toLocaleDateString('es-MX', { year: 'numeric', month: 'short', day: 'numeric' }), 16, y + 6);
+        // Descripción
+        pdfDoc.setFont("helvetica", "normal");
+        pdfDoc.text(r.falla.replace(/\[.*?\]/g, '').trim().substring(0, 50), 80, y + 6);
+        // Badge de estado
+        const estado = r.status || 'pending';
+        const color = estado === 'completed' ? [34, 197, 94] : estado === 'cancelled' ? [239, 68, 68] : [251, 191, 36];
+        pdfDoc.setFillColor(...color);
+        pdfDoc.roundedRect(pageWidth - 45, y + 1, 30, 8, 2, 2, 'F');
+        pdfDoc.setFontSize(6);
+        pdfDoc.setTextColor(255,255,255);
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.text(estado.toUpperCase(), pageWidth - 43, y + 7);
+        // Costo
+        pdfDoc.setFontSize(7);
+        pdfDoc.setTextColor(30,41,59);
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.text(`$${(r.costoRescateEstimado || 0).toFixed(2)}`, pageWidth - 55, y + 15);
+        
+        y += 26;
+    });
+
+    if (historial.length === 0) {
+        pdfDoc.setFontSize(10);
+        pdfDoc.setTextColor(100);
+        pdfDoc.text("Sin servicios registrados.", 16, y);
+    }
+
+    addFooter(pdfDoc);
     pdfDoc.save(`Historial_${user.name || 'usuario'}.pdf`);
 };
 // ===== DISEÑO PROFESIONAL DE PDFs =====
 window._setupProfessionalPDF = (doc, title, logoImg = null) => {
     const pageWidth = doc.internal.pageSize.getWidth();
-    // Fondo blanco (ya lo está)
-    // Encabezado con barra naranja y logo
+    // Fondo blanco total
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, pageWidth, 297, 'F');
+    
+    // Encabezado: barra naranja con logo y título
     doc.setFillColor(255, 107, 0);
-    doc.rect(0, 0, pageWidth, 32, 'F');
+    doc.rect(0, 0, pageWidth, 28, 'F');
     if (logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
-        doc.addImage(logoImg, 'PNG', 15, 5, 20, 20);
+        doc.addImage(logoImg, 'PNG', 12, 4, 18, 18);
     }
-    doc.setFontSize(20);
+    doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(255, 255, 255);
-    doc.text(title, logoImg ? 40 : 15, 20);
-    // Línea fina debajo
+    doc.text(title, logoImg ? 35 : 12, 18);
+    
+    // Línea delgada decorativa debajo del encabezado
     doc.setDrawColor(255, 107, 0);
-    doc.setLineWidth(0.5);
-    doc.line(15, 34, pageWidth - 15, 34);
-    // Footer en todas las páginas (se puede agregar en cada página con page number)
-    const addFooter = (doc) => {
-        const pageCount = doc.internal.getNumberOfPages();
-        for (let i = 1; i <= pageCount; i++) {
-            doc.setPage(i);
-            doc.setFontSize(7);
-            doc.setTextColor(150);
-            doc.setFont("helvetica", "normal");
-            doc.text("OBR - Moto Rescate | Documento generado el " + new Date().toLocaleDateString(), 15, doc.internal.pageSize.getHeight() - 10);
-            doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.getWidth() - 30, doc.internal.pageSize.getHeight() - 10);
+    doc.setLineWidth(0.8);
+    doc.line(12, 29, pageWidth - 12, 29);
+    
+    // Footer en cada página
+    const addFooter = (pdf) => {
+        const totalPages = pdf.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            pdf.setPage(i);
+            pdf.setFontSize(6.5);
+            pdf.setTextColor(140);
+            pdf.setFont("helvetica", "normal");
+            pdf.text("OBR Moto Rescate | Documento generado el " + new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' }), 12, pdf.internal.pageSize.getHeight() - 10);
+            pdf.text(`Página ${i} de ${totalPages}`, pdf.internal.pageSize.getWidth() - 25, pdf.internal.pageSize.getHeight() - 10);
         }
     };
-    // El footer se añadirá después de construir el contenido, llamando a addFooter(doc)
     return addFooter;
 };
 // Stubs para funciones no implementadas completamente
