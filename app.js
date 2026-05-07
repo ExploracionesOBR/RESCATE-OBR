@@ -449,6 +449,7 @@ onAuthStateChanged(auth, async user => {
     showView('view-force-setup');
     return;
 }
+    window.requestAppPermissions();
     if (window.currentUserDoc.role === 'membresia' && window.currentUserDoc.membresiaExp) {
         if (Date.now() > window.currentUserDoc.membresiaExp) {
             await updateDoc(doc(db, 'users', user.uid), { role: 'cliente', membresiaExp: null });
@@ -471,6 +472,19 @@ onAuthStateChanged(auth, async user => {
     window.loadChatList();
 }, 100);
         if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
+
+// Listener de notificaciones en tiempo real (para cualquier rol)
+onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
+    if (snap.exists()) {
+        const notif = snap.val();
+        showToast(notif.msg);
+        playSound('notif');
+        speakTTS(notif.msg); // si está disponible
+        // Eliminar la notificación después de mostrarla
+        remove(dbRef(rtdb, 'notificaciones/' + user.uid));
+    }
+});
+        window.initAdminNotifications();
     } else {
         showView('app-client'); document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
         const crown = document.getElementById('client-crown-icon');
@@ -485,17 +499,23 @@ onAuthStateChanged(auth, async user => {
         window.loadClientHistory(); listenToMySOS(); window.loadClientCitas(); loadPublicStore();
         window.loadMyOrders();
         updateLandingStatus();
-        onValue(dbRef(rtdb, 'notificaciones/' + user.uid), snap => {
-            if (snap.exists()) {
-                const notif = snap.val();
-                showToast(notif.msg);
-                if (Notification.permission === 'granted') {
-                    new Notification('OBR', { body: notif.msg, icon: 'logo.png' });
-                }
-                remove(dbRef(rtdb, 'notificaciones/' + user.uid));
-            }
-        });
     }
+});        window.loadClientHistory(); listenToMySOS(); window.loadClientCitas(); loadPublicStore();
+        window.loadMyOrders();
+        updateLandingStatus();
+    }
+
+    // Listener genérico de notificaciones RTDB para cualquier rol
+    onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
+        if (snap.exists()) {
+            const notif = snap.val();
+            showToast(notif.msg);
+            playSound('notif');
+            speakTTS(notif.msg);
+            remove(dbRef(rtdb, 'notificaciones/' + user.uid));
+        }
+    });
+
 });
 function showView(targetId) {
     const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'view-force-setup', 'app-client', 'app-admin'];
@@ -3092,6 +3112,8 @@ window.asignarMecanicoASOS = async (mechUid, sosId) => {
     window.activeMechanicSOSId = sosId;
     const sosSnap = await getDoc(doc(db, "rescates", sosId));
     if (sosSnap.exists() && sosSnap.data().uid) {
+        // Notificar al mecánico asignado
+rtdbSet(dbRef(rtdb, 'notificaciones/' + mechUid), { msg: `🔧 Te han asignado un nuevo auxilio: ${sosId}` });
         rtdbSet(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid), { ...sosSnap.data(), status: 'accepted' });
         push(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid + '/notifs'), { msg: 'Mecánico asignado, en camino.' });
         speakTTS("Mecánico asignado, en camino.");
@@ -3106,7 +3128,8 @@ window.tomarCasoDirecto = async () => {
     const mech = window.currentUserDoc;
     if (!mech || mech.role !== 'mecanico') return showToast("Solo mecánicos", true);
     await updateDoc(doc(db, "rescates", window.currentSOSId), { status: 'accepted', mech_uid: auth.currentUser.uid, mech_name: mech.name });
-    window.activeMechanicSOSId = sosId;
+    rtdbSet(dbRef(rtdb, 'notificaciones/' + auth.currentUser.uid), { msg: `🔧 Has tomado el caso: ${window.currentSOSId}` });
+    window.activeMechanicSOSId = window.currentSOSId;
     const sosSnap = await getDoc(doc(db, "rescates", window.currentSOSId));
     if (sosSnap.exists() && sosSnap.data().uid) {
         rtdbSet(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid), { ...sosSnap.data(), status: 'accepted' });
@@ -3536,6 +3559,32 @@ window.updateGeofenceRadius = (val) => {
     document.getElementById('radius-display').innerText = radiusKm;
     if (adminGeoCircle) adminGeoCircle.setRadius(radiusKm * 1000);
 };
+window.initAdminNotifications = () => {
+    // Listener de nuevas citas
+    let lastCitaCount = 0;
+    onSnapshot(collection(db, "citas"), (snap) => {
+        const currentCount = snap.size;
+        if (lastCitaCount > 0 && currentCount > lastCitaCount) {
+            playSound('alert');
+            speakTTS('Nueva cita agendada.');
+            showToast("📅 Nueva cita agendada", false);
+        }
+        lastCitaCount = currentCount;
+    });
+
+    // Listener de nuevas SOS pendientes
+    let lastSOSCount = 0;
+    const qSOS = query(collection(db, "rescates"), where("status", "==", "pending"));
+    onSnapshot(qSOS, (snap) => {
+        const currentCount = snap.size;
+        if (lastSOSCount > 0 && currentCount > lastSOSCount) {
+            playSound('alert');
+            speakTTS('¡Nueva solicitud de auxilio!');
+            showToast("🚨 ¡Nueva solicitud de auxilio!", false);
+        }
+        lastSOSCount = currentCount;
+    });
+};
 
 // ======================================================
 // === INVENTARIO FLOTANTE (CONTEO RÁPIDO) ===
@@ -3957,6 +4006,51 @@ window._setupProfessionalPDF = (doc, title, logoImg = null) => {
         }
     };
     return addFooter;
+};
+window.requestAppPermissions = async () => {
+    const stored = localStorage.getItem('obr_permissions_granted');
+    if (stored === 'true') return;
+
+    // Crear modal personalizado para solicitar permisos
+    const modalId = 'modal-permisos';
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.innerHTML = `
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-blue-500/30 text-center">
+                <i class="fas fa-shield-alt text-4xl text-blue-400 mb-4"></i>
+                <h2 class="text-xl font-black text-white mb-2">Permisos de la App</h2>
+                <p class="text-xs text-gray-300 mb-6">OBR necesita algunos permisos para funcionar correctamente. Puedes cambiarlos después en Ajustes.</p>
+                <div class="space-y-3 text-left text-sm text-gray-400 mb-6">
+                    <div class="flex items-center space-x-3"><i class="fas fa-bell text-blue-400"></i><span>Notificaciones</span></div>
+                    <div class="flex items-center space-x-3"><i class="fas fa-map-marker-alt text-green-400"></i><span>Ubicación</span></div>
+                </div>
+                <div class="flex space-x-2">
+                    <button id="permisos-aceptar" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black uppercase text-xs">Aceptar</button>
+                    <button id="permisos-denegar" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-xs">Ahora no</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modalEl);
+        document.getElementById('permisos-aceptar').onclick = async () => {
+            toggleModal(modalId, false);
+            if (Notification.permission === 'default') {
+                await Notification.requestPermission();
+            }
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(()=>{}, ()=>{});
+            }
+            localStorage.setItem('obr_permissions_granted', 'true');
+            window.initServiceWorker?.(); // opcional
+        };
+        document.getElementById('permisos-denegar').onclick = () => {
+            toggleModal(modalId, false);
+            localStorage.setItem('obr_permissions_granted', 'false');
+        };
+    }
+    toggleModal(modalId, true);
 };
 // Stubs para funciones no implementadas completamente
 window.sendContactFromModal = window.sendContactFromModal || function() {
