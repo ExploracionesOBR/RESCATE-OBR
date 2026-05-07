@@ -679,3 +679,16 @@ nav.fixed.bottom-0 {
 #a-view-pos {
     max-width: 100%;
 }
+#video-banner-container {
+    width: 100%;
+    max-width: 100%;
+    margin-top: 1rem;
+    border-radius: 1rem;
+    overflow: hidden;
+    background: #000;
+}
+#video-banner-container video {
+    width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+}
