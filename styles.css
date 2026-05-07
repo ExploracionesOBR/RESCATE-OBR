@@ -703,3 +703,9 @@ nav.fixed.bottom-0 {
     background: #000;
     border-radius: 0.5rem;
 }
+#video-banner-container video,
+#promo-video-preview video {
+    pointer-events: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
