@@ -2294,8 +2294,12 @@ window.adminLoadUsers = async () => {
     snap.forEach(d => {
         const u = d.data();
 const card = `<div class="bg-white/5 p-2 rounded-xl text-white text-xs flex justify-between items-center cursor-pointer" onclick="window.openUserDetail('${d.id}')">
-    <span>${u.name || (u.phone ? u.phone.replace('+52','') : 'Sin nombre')}</span>
-    <span class="text-naranja text-[10px]"><i class="fas fa-user"></i></span>
+    <span class="flex-1 truncate">${u.name || (u.phone ? u.phone.replace('+52','') : 'Sin nombre')}</span>
+    <div class="flex items-center space-x-1">
+        ${u.role === 'cliente' ? `<button onclick="event.stopPropagation(); window.promoteToVIP('${d.id}')" class="bg-yellow-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase" title="Promover a VIP"><i class="fas fa-crown"></i></button>` : ''}
+        ${u.role === 'membresia' ? `<button onclick="event.stopPropagation(); window.demoteFromVIP('${d.id}')" class="bg-gray-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase" title="Quitar VIP"><i class="fas fa-user"></i></button>` : ''}
+        <span class="text-naranja text-[10px]"><i class="fas fa-user"></i></span>
+    </div>
 </div>`;
         if (u.role === 'cliente' && normalList) normalList.innerHTML += card;
         else if (u.role === 'membresia' && vipList) vipList.innerHTML += card;
@@ -2386,6 +2390,32 @@ playSound('notif');
 speakTTS(notifMsg);
     toggleModal('modal-user-detail', false);
     window.adminLoadUsers();
+};
+
+window.demoteFromVIP = async (uid) => {
+    window.confirmModal("¿Quitar membresía VIP a este usuario? Volverá a Cliente Estándar.", async () => {
+        const userRef = doc(db, "users", uid);
+        const userSnap = await getDoc(userRef);
+        if (!userSnap.exists()) return showToast("Usuario no encontrado", true);
+        const user = userSnap.data();
+        const now = Date.now();
+        const historialVIP = user.historialVIP || [];
+        // Si tiene membresía activa, cerramos el período actual
+        if (user.membresiaExp && user.membresiaExp > now) {
+            for (let i = historialVIP.length - 1; i >= 0; i--) {
+                if (historialVIP[i].fin > now || !historialVIP[i].fin) {
+                    historialVIP[i].fin = now;
+                    break;
+                }
+            }
+        }
+        await updateDoc(userRef, { role: 'cliente', membresiaExp: null, historialVIP });
+        showToast("Usuario vuelve a Cliente Estándar");
+        window.adminLoadUsers();
+        if (!document.getElementById('modal-user-detail')?.classList.contains('hidden')) {
+            window.openUserDetail(uid);
+        }
+    });
 };
 
 window.toggleBloquearUsuario = async (uid, bloquear) => {
