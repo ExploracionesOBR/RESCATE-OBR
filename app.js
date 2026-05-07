@@ -342,16 +342,17 @@ function updateLandingStatus() {
         globalLoginBtn.style.display = auth.currentUser ? 'none' : 'flex';
     }
     window.updateEmergencyButtonState(isOpen, sched);
-    const vipBanner = document.getElementById('vip-banner');
+const vipBanner = document.getElementById('vip-banner');
 if (vipBanner) {
     if (!auth.currentUser || (window.currentUserDoc && window.currentUserDoc.role !== 'membresia')) {
         vipBanner.classList.remove('hidden');
+        vipBanner.style.display = 'block'; // fuerza visible
     } else {
         vipBanner.classList.add('hidden');
+        vipBanner.style.display = 'none';
     }
-}
-    window.loadPromoVideo();
-}
+    window.loadPromoVideo(); // ✅ dentro del if(vipBanner), fuera del else
+} // ← esta llave cierra el if(vipBanner)
 
 window.updateEmergencyButtonState = (isOpen, sched) => {
     const emBtn = document.getElementById('emergency-client-btn');
