@@ -961,18 +961,25 @@
     </div>
 </div>
 
-<!-- Modal contacto -->
+<!-- Modal contacto (rediseñado) -->
 <div id="modal-contact" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-white/10">
         <button onclick="toggleModal('modal-contact', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
-        <h2 class="text-xl font-black mb-4 text-white">Soporte OBR</h2>
-        <input type="text" id="modal-contact-name" placeholder="Nombre" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
-        <input type="tel" id="modal-contact-phone" placeholder="Teléfono" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
-        <textarea id="modal-contact-msg" placeholder="Mensaje" rows="2" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white resize-none"></textarea>
-        <button onclick="window.sendContactFromModal?.()" class="w-full bg-naranja text-white p-3 rounded-xl font-black uppercase mb-2 hover:bg-orange-600 transition-colors"><i class="fab fa-whatsapp mr-2"></i>Enviar por WhatsApp</button>
+        <h2 class="text-xl font-black mb-4 text-white text-center">Soporte OBR</h2>
+        <p class="text-xs text-gray-400 text-center mb-4">Comunícate con nosotros. Te responderemos a la brevedad.</p>
+        <input type="text" id="modal-contact-name" placeholder="Tu nombre" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
+        <input type="tel" id="modal-contact-phone" placeholder="Teléfono (opcional)" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
+        <textarea id="modal-contact-msg" placeholder="Escribe tu mensaje..." rows="2" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white resize-none"></textarea>
+        <button onclick="window.sendContactFromModal?.()" class="w-full bg-naranja text-white p-3 rounded-xl font-black uppercase mb-3 hover:bg-orange-600 transition-colors">
+            <i class="fas fa-paper-plane mr-2"></i>Enviar mensaje
+        </button>
         <div class="flex space-x-2">
-            <button onclick="window.open('tel:6311551533', '_self')" class="flex-1 bg-green-600 hover:bg-green-500 transition-colors text-center p-3 rounded-xl font-black text-xs text-white"><i class="fas fa-phone mr-1"></i>Llamar 1</button>
-            <button onclick="window.open('tel:6441106011', '_self')" class="flex-1 bg-green-600 hover:bg-green-500 transition-colors text-center p-3 rounded-xl font-black text-xs text-white"><i class="fas fa-phone mr-1"></i>Llamar 2</button>
+            <button onclick="window.open('tel:6311551533', '_self')" class="flex-1 bg-green-600 hover:bg-green-500 transition-colors text-center p-3 rounded-xl font-black text-xs text-white">
+                <i class="fas fa-phone mr-1"></i>631 155 1533
+            </button>
+            <button onclick="window.open('tel:6441106011', '_self')" class="flex-1 bg-green-600 hover:bg-green-500 transition-colors text-center p-3 rounded-xl font-black text-xs text-white">
+                <i class="fas fa-phone mr-1"></i>644 110 6011
+            </button>
         </div>
     </div>
 </div>
