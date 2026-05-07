@@ -158,6 +158,18 @@ window.toggleModal = (id, show) => {
         }
     }
 };
+window.getStatusInfo = (status) => {
+    const map = {
+        'pending':    { text: 'Pendiente',  color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
+        'accepted':   { text: 'Aceptado',   color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+        'repairing':  { text: 'Reparando',   color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+        'to_shop':    { text: 'En taller',   color: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+        'ready':      { text: 'Listo',       color: 'bg-green-500/20 text-green-400 border-green-500/30' },
+        'completed':  { text: 'Completado',  color: 'bg-green-500/20 text-green-400 border-green-500/30' },
+        'cancelled':  { text: 'Cancelado',   color: 'bg-red-500/20 text-red-400 border-red-500/30' }
+    };
+    return map[status] || { text: status, color: 'bg-gray-500/20 text-gray-400 border-gray-500/30' };
+};
 
 window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -821,7 +833,8 @@ function listenToMySOS() {
         const noServicesMsg = document.getElementById('no-active-services-msg');
         const survey = document.getElementById('satisfaction-survey');
         const mechanicMapDiv = document.getElementById('mechanic-live-map');
-        const statusDesc = document.getElementById('sos-status-desc-client');
+        const statusInfo = window.getStatusInfo(data.status);
+document.getElementById('sos-status-desc-client').innerText = statusInfo.text;
         const wsCard = document.getElementById('active-workshop-card');
         const wsTimeline = document.getElementById('workshop-timeline-client'); // si existe
         const wsProgress = document.getElementById('client-ws-progress');
@@ -1122,7 +1135,7 @@ window.loadClientHistory = async () => {
         const v = d.data();
         html += `<div class="bg-white/5 p-3 rounded-xl border border-white/10 flex justify-between items-center mb-2 cursor-pointer" onclick="window.openClientServiceDetail('${d.id}')">
             <span class="text-xs text-white truncate w-2/3">${v.shortId || 'Sin ID'} - ${v.falla}</span>
-            <span class="text-[9px] bg-blue-600/30 text-blue-400 px-2 py-1 rounded font-bold uppercase">${v.status || 'pendiente'}</span>
+            <span class="text-[9px] px-2 py-1 rounded font-bold uppercase ${window.getStatusInfo(v.status).color}">${window.getStatusInfo(v.status).text}</span>
         </div>`;
     });
     if(html) list.innerHTML = html;
@@ -1142,7 +1155,7 @@ window.openClientServiceDetail = async (id) => {
             <h3 class="font-black text-lg">Servicio: ${data.shortId || 'Sin ID'}</h3>
             <p class="text-xs text-gray-400">Moto: ${data.marca || ''} ${data.modelo || ''} (${data.cc || ''})</p>
             <p class="text-sm">${data.falla}</p>
-            <p class="text-xs">Estado: <span class="font-bold text-naranja">${data.status}</span></p>
+            <p class="text-xs">Estado: <span class="font-bold ${window.getStatusInfo(data.status).color.replace('bg-', 'text-').replace(/\/\d+/, '')}">${window.getStatusInfo(data.status).text}</span></p>
             ${data.tallerStatus ? `<p class="text-xs">Taller: ${data.tallerStatus}</p>` : ''}
             <p class="text-xs text-gray-500">${new Date(data.timestamp).toLocaleString()}</p>
             ${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('${id}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">Descargar Ticket PDF</button>` : ''}
@@ -3067,7 +3080,7 @@ if (filterStatus === 'accepted') {
         <div class="sos-card-compact" onclick="openDetalleServicio('${docSnap.id}')">
             <div class="flex justify-between items-center">
                 <span class="text-[0.8rem] font-bold">${d.phone || ''}</span>
-                <span class="text-[0.6rem] capitalize bg-${filterStatus==='pending'?'yellow':filterStatus==='accepted'?'blue':'green'}-600/20 text-${filterStatus==='pending'?'yellow':filterStatus==='accepted'?'blue':'green'}-400 px-1.5 py-0.5 rounded font-bold uppercase">${d.status}</span>
+                <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${window.getStatusInfo(d.status).color}">${window.getStatusInfo(d.status).text}</span>
             </div>
             <p class="text-[0.7rem] text-gray-400 truncate">${d.falla || ''}</p>
             <div class="flex gap-1 mt-1 flex-wrap">${actions}</div>
