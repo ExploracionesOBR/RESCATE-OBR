@@ -3653,6 +3653,14 @@ window.usePreviousDayVideo = (dayIndex) => {
     window.renderVideoScheduleDays();
     showToast("Video copiado del día anterior");
 };
+window.removeDayVideo = (dayIndex) => {
+    window.confirmModal("¿Eliminar el video asignado a este día?", () => {
+        document.getElementById(`video-url-${dayIndex}`).value = '';
+        window.previewVideoURL(dayIndex, '');
+        window.renderVideoScheduleDays();
+        showToast("Video eliminado de este día");
+    });
+};
 window.previewVideoURL = (dayIndex, url) => {
     const previewDiv = document.getElementById(`video-preview-${dayIndex}`);
     if (!previewDiv) return;
