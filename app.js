@@ -2299,13 +2299,16 @@ window.openUserDetail = async (uid) => {
     document.getElementById('ud-name').innerText = user.name || 'Sin nombre';
     document.getElementById('ud-phone').innerText = user.phone;
 
-    const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("phone", "==", user.phone), orderBy("timestamp", "desc")));
-    const historyDiv = document.getElementById('ud-history');
-    historyDiv.innerHTML = '';
-    rescatesSnap.forEach(r => {
-        const rData = r.data();
-        historyDiv.innerHTML += `<div class="bg-white/5 p-2 rounded text-xs text-white"><span class="font-bold">${rData.shortId || ''}</span> - ${rData.falla}</div>`;
-    });
+const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("phone", "==", user.phone)));
+let rescates = [];
+rescatesSnap.forEach(r => rescates.push(r));
+rescates.sort((a, b) => b.data().timestamp - a.data().timestamp);
+const historyDiv = document.getElementById('ud-history');
+historyDiv.innerHTML = '';
+rescates.forEach(r => {
+    const rData = r.data();
+    historyDiv.innerHTML += `<div class="bg-white/5 p-2 rounded text-xs text-white"><span class="font-bold">${rData.shortId || ''}</span> - ${rData.falla}</div>`;
+});
 
     const comprasSnap = await getDocs(query(collection(db, "ventas"), where("clienteCel", "==", user.phone), orderBy("fecha", "desc"), limit(10)));
     const comprasDiv = document.getElementById('ud-compras');
@@ -2358,7 +2361,16 @@ window.promoteToVIP = async (uid) => {
     const historialVIP = user.historialVIP || [];
     historialVIP.push({ inicio: now, fin: exp.getTime() });
     await updateDoc(doc(db, "users", uid), { role: 'membresia', membresiaExp: exp.getTime(), historialVIP });
-    showToast("Usuario promovido a VIP por 30 días");
+    // Enviar WhatsApp de bienvenida
+const mensajeVIP = encodeURIComponent(`🎉 ¡Felicitaciones ${user.name}! Has sido ascendido a SOCIO VIP de OBR. Disfruta de envíos gratis, descuentos exclusivos y atención prioritaria. Bienvenido al club.`);
+window.open(`https://api.whatsapp.com/send?phone=${user.phone}&text=${mensajeVIP}`, '_blank');
+
+// Enviar notificación sonora y visual dentro de la app
+const notifMsg = `🎉 ¡${user.name} ha sido promovido a VIP!`;
+showToast("Usuario promovido a VIP. WhatsApp enviado.");
+rtdbSet(dbRef(rtdb, 'notificaciones/' + uid), { msg: notifMsg });
+playSound('notif');
+speakTTS(notifMsg);
     toggleModal('modal-user-detail', false);
     window.adminLoadUsers();
 };
@@ -2402,11 +2414,14 @@ window.openStaffDetail = async (uid) => {
     if (!userDoc.exists()) return;
     const user = userDoc.data();
 
-    const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("mech_uid", "==", uid), orderBy("timestamp", "desc")));
+    const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("mech_uid", "==", uid)));
+let rescates = [];
+rescatesSnap.forEach(r => rescates.push(r));
+rescates.sort((a, b) => b.data().timestamp - a.data().timestamp);
     let servicios = 0;
     let ingresos = 0;
     let listaServicios = '';
-    rescatesSnap.forEach(r => {
+    rescates.forEach(r => {
         const rData = r.data();
         if (rData.status === 'completed' || rData.status === 'repairing') {
             servicios++;
