@@ -2341,8 +2341,6 @@ window.renderVideoScheduleDays = () => {
 window.handleVideoFile = (input, dayIndex) => {
     if (input.files && input.files[0]) {
         const file = input.files[0];
-        
-        // Validar tamaño (50 MB máximo)
         if (file.size > 50 * 1024 * 1024) {
             showToast("El video no debe superar 50 MB", true);
             return;
@@ -2352,39 +2350,28 @@ window.handleVideoFile = (input, dayIndex) => {
         const progressBar = document.getElementById(`video-progress-bar-${dayIndex}`);
         const progressText = document.getElementById(`video-progress-text-${dayIndex}`);
 
-        // Mostrar barra de progreso
         if (progressDiv) progressDiv.classList.remove('hidden');
-        
-        // Subir a Storage
-        const path = `videos_promocionales/${Date.now()}_${file.name}`;
-        const storageRef = sRef(storage, path);
-        const uploadTask = uploadBytesResumable(storageRef, file);
-
-        uploadTask.on('state_changed',
-            (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                if (progressBar) progressBar.style.width = `${progress}%`;
-                if (progressText) progressText.innerText = `${Math.round(progress)}%`;
-            },
-            (error) => {
-                console.error('Error al subir video:', error);
-                showToast("Error al subir el video", true);
-                if (progressDiv) progressDiv.classList.add('hidden');
-            },
-            async () => {
-                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                // Guardar URL en settings
-                if (!globalSettings.videoSchedule) globalSettings.videoSchedule = {};
-                globalSettings.videoSchedule[dayIndex] = downloadURL;
-                
-                // Ocultar barra de progreso
-                if (progressDiv) progressDiv.classList.add('hidden');
-                
-                // Refrescar el modal
-                window.renderVideoScheduleDays();
-                showToast("Video subido correctamente");
+        const reader = new FileReader();
+        reader.onprogress = (e) => {
+            if (e.lengthComputable) {
+                const p = Math.round((e.loaded / e.total) * 100);
+                if (progressBar) progressBar.style.width = p + '%';
+                if (progressText) progressText.innerText = p + '%';
             }
-        );
+        };
+        reader.onload = () => {
+            const dataUrl = reader.result;
+            if (!globalSettings.videoSchedule) globalSettings.videoSchedule = {};
+            globalSettings.videoSchedule[dayIndex] = dataUrl; // base64
+            if (progressDiv) progressDiv.classList.add('hidden');
+            window.renderVideoScheduleDays();
+            showToast("Video cargado correctamente");
+        };
+        reader.onerror = () => {
+            showToast("Error al leer el video", true);
+            if (progressDiv) progressDiv.classList.add('hidden');
+        };
+        reader.readAsDataURL(file);
     }
 };
 
@@ -3706,15 +3693,18 @@ window.loadPromoVideo = () => {
     const container = document.getElementById('video-banner-container');
     if (!container) return;
     const now = new Date();
-    const dayIndex = now.getDay(); // 0=Domingo, 1=Lunes...
+    const dayIndex = now.getDay();
     const todayVideo = globalSettings.videoSchedule?.[dayIndex];
     if (todayVideo && todayVideo.trim() !== '') {
         container.innerHTML = `<video src="${todayVideo}" controls autoplay muted loop class="w-full max-h-[300px] object-contain rounded-xl"></video>`;
         container.classList.remove('hidden');
+        container.style.display = 'block';
     } else {
         container.classList.add('hidden');
+        container.style.display = 'none';
     }
 };
+
 window.loadPromoPreview = () => {
     const previewContainer = document.getElementById('promo-video-preview');
     const player = document.getElementById('promo-video-player');
