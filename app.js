@@ -3680,7 +3680,7 @@ window.loadPromoVideo = () => {
     const dayIndex = now.getDay();
     const todayVideo = globalSettings.videoSchedule?.[dayIndex];
     if (todayVideo && todayVideo.trim() !== '') {
-        container.innerHTML = `<video src="${todayVideo}" controls autoplay muted loop class="w-full max-h-[300px] object-contain rounded-xl"></video>`;
+        container.innerHTML = `<div style="pointer-events:none; user-select:none;" oncontextmenu="return false;"><video src="${todayVideo}" autoplay muted loop playsinline controlsList="nodownload nofullscreen" class="w-full max-h-[300px] object-contain rounded-xl"></video></div>`;
         container.classList.remove('hidden');
         container.style.display = 'block';
     } else {
@@ -3701,8 +3701,12 @@ window.loadPromoPreview = () => {
     
     if (todayVideo && todayVideo.trim() !== '') {
         previewContainer.classList.remove('hidden');
-        player.src = todayVideo;
-        player.load();
+        player.setAttribute('controlsList', 'nodownload nofullscreen');
+player.setAttribute('oncontextmenu', 'return false');
+player.style.pointerEvents = 'none';
+player.removeAttribute('controls');
+player.src = todayVideo;
+player.load();
         nameDisplay.innerText = todayVideo.split('/').pop() || 'Video promocional';
     } else {
         previewContainer.classList.add('hidden');
