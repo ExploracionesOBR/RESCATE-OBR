@@ -2440,16 +2440,34 @@ window.toggleBloquearUsuario = async (uid, bloquear) => {
     }
 };
 
-window.adminEditUser = (uid) => {
-    window.promptModal("Nuevo nombre:", window.currentUserDoc?.name || '', async (newName) => {
-        if (newName) {
-            await updateDoc(doc(db, "users", uid), { name: newName });
-            showToast("Nombre actualizado");
+window.adminEditUser = async (uid) => {
+    const userSnap = await getDoc(doc(db, "users", uid));
+    if (!userSnap.exists()) return showToast("Usuario no encontrado", true);
+    const user = userSnap.data();
+    const currentName = user.name || '';
+    const currentPhone = (user.phone || '').replace('+52', '');
+    window.promptModal("Nuevo nombre:", currentName, async (newName) => {
+        if (newName === null) return; // cancelado
+        window.promptModal("Nuevo teléfono (10 dígitos):", currentPhone, async (newPhone) => {
+            if (newPhone === null) return;
+            const cleanPhone = newPhone.trim();
+            if (cleanPhone && !/^\d{10}$/.test(cleanPhone)) {
+                return showToast("El teléfono debe tener 10 dígitos", true);
+            }
+            const updates = {};
+            if (newName && newName !== currentName) updates.name = newName;
+            if (cleanPhone && '+52' + cleanPhone !== user.phone) updates.phone = '+52' + cleanPhone;
+            if (Object.keys(updates).length === 0) {
+                showToast("Sin cambios");
+                return;
+            }
+            await updateDoc(doc(db, "users", uid), updates);
+            showToast("Usuario actualizado");
             window.adminLoadUsers();
-            if (!document.getElementById('modal-user-detail').classList.contains('hidden')) {
+            if (!document.getElementById('modal-user-detail')?.classList.contains('hidden')) {
                 window.openUserDetail(uid);
             }
-        }
+        });
     });
 };
 
