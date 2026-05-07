@@ -1,4 +1,4 @@
-const CACHE_NAME = 'obr-cache-v7';
+const CACHE_NAME = 'obr-cache-v8';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
@@ -8,7 +8,6 @@ const ALL_FILES = [
   `${BASE_PATH}/styles.css`,
   `${BASE_PATH}/logo.png`,
   `${BASE_PATH}/sw.js`,
-  'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
