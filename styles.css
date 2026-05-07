@@ -755,3 +755,12 @@ nav.fixed.bottom-0 {
 #modal-contact button {
     white-space: nowrap;
 }
+.status-badge {
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 0.5rem;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.6rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
