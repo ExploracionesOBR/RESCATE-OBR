@@ -1284,5 +1284,37 @@
     });
   }
 </script>
+    <script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/RESCATE-OBR/sw.js').then(reg => {
+      // Si hay una nueva versión esperando, preguntar al usuario
+      if (reg.waiting) {
+        if (confirm('Nueva versión disponible. ¿Actualizar?')) {
+          reg.waiting.postMessage('skipWaiting');
+        }
+      }
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            if (confirm('Nueva versión disponible. ¿Actualizar?')) {
+              newWorker.postMessage('skipWaiting');
+              window.location.reload();
+            }
+          }
+        });
+      });
+    }).catch(err => console.warn('SW:', err));
+
+    // Recargar cuando el SW tome control
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
+  }
+</script>
 </body>
 </html>
