@@ -2392,17 +2392,20 @@ window.promoteToVIP = async (uid) => {
     historialVIP.push({ inicio: now, fin: exp.getTime() });
     await updateDoc(doc(db, "users", uid), { role: 'membresia', membresiaExp: exp.getTime(), historialVIP });
     // Enviar WhatsApp de bienvenida
-const mensajeVIP = encodeURIComponent(`🎉 ¡Felicitaciones ${user.name}! Has sido ascendido a SOCIO VIP de OBR. Disfruta de envíos gratis, descuentos exclusivos y atención prioritaria. Bienvenido al club.`);
-window.open(`https://api.whatsapp.com/send?phone=${user.phone}&text=${mensajeVIP}`, '_blank');
+    const mensajeVIP = encodeURIComponent(`🎉 ¡Felicitaciones ${user.name}! Has sido ascendido a SOCIO VIP de OBR. Disfruta de envíos gratis, descuentos exclusivos y atención prioritaria. Bienvenido al club.`);
+    window.open(`https://api.whatsapp.com/send?phone=${user.phone}&text=${mensajeVIP}`, '_blank');
 
-// Enviar notificación sonora y visual dentro de la app
-const notifMsg = `🎉 ¡${user.name} ha sido promovido a VIP!`;
-showToast("Usuario promovido a VIP. WhatsApp enviado.");
-rtdbSet(dbRef(rtdb, 'notificaciones/' + uid), { msg: notifMsg });
-playSound('notif');
-speakTTS(notifMsg);
-    toggleModal('modal-user-detail', false);
+    // Enviar notificación sonora y visual dentro de la app
+    const notifMsg = `🎉 ¡${user.name} ha sido promovido a VIP!`;
+    showToast("Usuario promovido a VIP. WhatsApp enviado.");
+    rtdbSet(dbRef(rtdb, 'notificaciones/' + uid), { msg: notifMsg });
+    playSound('notif');
+    speakTTS(notifMsg);
     window.adminLoadUsers();
+    // Refrescar el detalle si el modal sigue abierto
+    if (document.getElementById('modal-user-detail') && !document.getElementById('modal-user-detail').classList.contains('hidden')) {
+        window.openUserDetail(uid);
+    }
 };
 
 window.demoteFromVIP = async (uid) => {
@@ -2425,7 +2428,7 @@ window.demoteFromVIP = async (uid) => {
         await updateDoc(userRef, { role: 'cliente', membresiaExp: null, historialVIP });
         showToast("Usuario vuelve a Cliente Estándar");
         window.adminLoadUsers();
-        if (!document.getElementById('modal-user-detail')?.classList.contains('hidden')) {
+        if (document.getElementById('modal-user-detail') && !document.getElementById('modal-user-detail').classList.contains('hidden')) {
             window.openUserDetail(uid);
         }
     });
