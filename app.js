@@ -1173,109 +1173,77 @@ window.downloadCompletedServicePDF = async (id) => {
     let bitacora = [];
     bSnap.forEach(d => bitacora.push(d.data()));
     bitacora.sort((a, b) => a.ts - b.ts);
-
     const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", id), limit(1)));
     let venta = null;
     ventasSnap.forEach(v => { venta = v.data(); });
-
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
+    const addFooter = window._setupProfessionalPDF(pdfDoc, 'REPORTE DE SERVICIO OBR', null);
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
-    const logoImg = new Image();
-    logoImg.src = 'logo.png';
-
-    const generar = () => {
-        // Encabezado
-        pdfDoc.setFillColor(255, 107, 0);
-        pdfDoc.rect(0, 0, 210, 30, 'F');
-        if (logoImg.complete && logoImg.naturalWidth > 0) {
-            pdfDoc.addImage(logoImg, 'PNG', 10, 5, 20, 20);
-        }
-        pdfDoc.setFontSize(18);
-        pdfDoc.setTextColor(255, 255, 255);
-        pdfDoc.text("REPORTE DE SERVICIO OBR", logoImg.complete ? 40 : 14, 18);
-        pdfDoc.setTextColor(0, 0, 0);
-        pdfDoc.setFontSize(11);
+    pdfDoc.setFontSize(10);
+    pdfDoc.setTextColor(30, 41, 59);
+    pdfDoc.setFont("helvetica", "normal");
+    // Tarjeta de datos del cliente
+    let y = 40;
+    pdfDoc.setDrawColor(230);
+    pdfDoc.setFillColor(248, 248, 248);
+    pdfDoc.roundedRect(15, y, pageWidth - 30, 30, 3, 3, 'FD');
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.text(`Servicio: ${data.shortId || id}`, 20, y + 10);
+    pdfDoc.setFont("helvetica", "normal");
+    pdfDoc.text(`Cliente: ${data.clientName || data.phone || 'No identificado'}`, 20, y + 17);
+    pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, 20, y + 24);
+    y += 40;
+    // Falla
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.text("Falla reportada:", 20, y);
+    y += 6;
+    pdfDoc.setFont("helvetica", "normal");
+    const fallaLines = pdfDoc.splitTextToSize(data.falla || '', pageWidth - 40);
+    pdfDoc.text(fallaLines, 20, y);
+    y += fallaLines.length * 5 + 10;
+    // Timeline de bitácora
+    if (bitacora.length > 0) {
         pdfDoc.setFont("helvetica", "bold");
-        pdfDoc.text(`Servicio: ${data.shortId}`, 14, 40);
+        pdfDoc.text("Bitácora del taller:", 20, y);
+        y += 8;
         pdfDoc.setFont("helvetica", "normal");
-        pdfDoc.setFontSize(10);
-        pdfDoc.text(`Cliente: ${data.clientName || data.phone || ''}`, 14, 48);
-        pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, 14, 55);
-        pdfDoc.text(`Falla:`, 14, 62);
-        const fallaLines = pdfDoc.splitTextToSize(data.falla || '', 180);
-        pdfDoc.text(fallaLines, 14, 69);
-        let y = 69 + (fallaLines.length * 6);
-        pdfDoc.text(`Inicio: ${new Date(data.timestamp).toLocaleString()}`, 14, y);
+        bitacora.forEach(entry => {
+            if (y > 260) { pdfDoc.addPage(); y = 20; }
+            const entryText = `${new Date(entry.ts).toLocaleString()} - ${entry.mechName}: ${entry.text}`;
+            const lines = pdfDoc.splitTextToSize(entryText, pageWidth - 40);
+            pdfDoc.text(lines, 20, y);
+            y += lines.length * 5 + 3;
+        });
         y += 10;
-
-        if (bitacora.length) {
-            y += 5;
-            if (y > 270) { pdfDoc.addPage(); y = 20; }
-            pdfDoc.setFontSize(11);
-            pdfDoc.setFont("helvetica", "bold");
-            pdfDoc.text("Bitácora del Mecánico:", 14, y);
-            y += 8;
-            pdfDoc.setFontSize(9);
-            pdfDoc.setFont("helvetica", "normal");
-            bitacora.forEach(m => {
-                if (y > 275) { pdfDoc.addPage(); y = 20; }
-                const entry = `- [${new Date(m.ts).toLocaleString()}] ${m.mechName}: ${m.text}`;
-                const entryLines = pdfDoc.splitTextToSize(entry, 180);
-                pdfDoc.text(entryLines, 14, y);
-                y += entryLines.length * 5 + 2;
-            });
-        }
-
-        if (venta) {
-            y += 10;
-            if (y > 250) { pdfDoc.addPage(); y = 20; }
-            pdfDoc.setFont("helvetica", "bold");
-            pdfDoc.text("Detalle de Venta:", 14, y);
-            y += 8;
-            pdfDoc.setFont("helvetica", "normal");
-            pdfDoc.setFontSize(10);
-            pdfDoc.text(`Ticket: ${venta.shortId}`, 14, y); y += 6;
-            pdfDoc.text(`Total: $${venta.total.toFixed(2)}`, 14, y); y += 6;
-            if (venta.ticket && Array.isArray(venta.ticket)) {
-                const body = venta.ticket.map(item => [
-                    item.name,
-                    `$${item.price.toFixed(2)}`
-                ]);
-                y += 2;
-                pdfDoc.autoTable({
-                    startY: y,
-                    head: [['Producto', 'Precio']],
-                    body: body,
-                    styles: { fontSize: 8, cellPadding: 2 },
-                    headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
-                    columnStyles: {
-                        0: { cellWidth: 'auto' },
-                        1: { cellWidth: 25, halign: 'right' }
-                    },
-                    margin: { left: 14 }
-                });
-                y = pdfDoc.lastAutoTable.finalY + 10;
-            }
-        } else if (data.costoRescateEstimado) {
-            pdfDoc.text(`Costo estimado: $${data.costoRescateEstimado}`, 14, y);
-            y += 10;
-        }
-
-        pdfDoc.setFontSize(7);
-        pdfDoc.setTextColor(120);
-        pdfDoc.text("Gracias por confiar en OBR – Reporte generado automáticamente", 14, y + 5);
-        pdfDoc.save(`Reporte_${data.shortId}.pdf`);
-    };
-
-    if (logoImg.complete) {
-        generar();
-    } else {
-        logoImg.onload = generar;
-        logoImg.onerror = generar;
     }
+    // Tabla de venta si existe
+    if (venta) {
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.text("Detalle de Venta:", 20, y);
+        y += 8;
+        const body = venta.ticket.map(item => [item.name, `$${item.price.toFixed(2)}`, item.garantia || '']);
+        pdfDoc.autoTable({
+            startY: y,
+            head: [['Producto', 'Precio', 'Garantía']],
+            body: body,
+            theme: 'grid',
+            styles: { fontSize: 8, cellPadding: 2, textColor: [30,41,59] },
+            headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
+            columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 25, halign: 'right' }, 2: { cellWidth: 40 } },
+            margin: { left: 20 }
+        });
+        y = pdfDoc.lastAutoTable.finalY + 10;
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.text(`Total: $${venta.total.toFixed(2)}`, 20, y);
+        y += 15;
+    } else if (data.costoRescateEstimado) {
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.text(`Costo estimado: $${data.costoRescateEstimado}`, 20, y);
+    }
+    addFooter(pdfDoc);
+    pdfDoc.save(`Reporte_${data.shortId || id}.pdf`);
 };
-
 // === EDICIÓN Y ELIMINACIÓN DE SERVICIOS DEL CATÁLOGO ===
 window.editService = (serviceId) => {
     getDoc(doc(db, "servicios", serviceId)).then(snap => {
@@ -2492,76 +2460,115 @@ window.openStaffDetail = async (uid) => {
     if (!userDoc.exists()) return;
     const user = userDoc.data();
 
-    const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("mech_uid", "==", uid)));
-let rescates = [];
-rescatesSnap.forEach(r => rescates.push(r));
-rescates.sort((a, b) => b.data().timestamp - a.data().timestamp);
-    let servicios = 0;
-    let ingresos = 0;
-    let listaServicios = '';
-    rescates.forEach(r => {
-        const rData = r.data();
-        if (rData.status === 'completed' || rData.status === 'repairing') {
-            servicios++;
-            if (rData.costoRescateEstimado) ingresos += rData.costoRescateEstimado;
-            listaServicios += `<div class="text-[10px] text-gray-400">${rData.shortId} - ${rData.falla?.substring(0,30)}</div>`;
-        }
-    });
+    const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("mech_uid", "==", uid), orderBy("timestamp", "desc")));
+    let rescates = [];
+    rescatesSnap.forEach(r => rescates.push({ id: r.id, ...r.data() }));
+    rescates.sort((a, b) => b.timestamp - a.timestamp);
 
-    const satisfactionSnap = await getDocs(query(collection(db, "satisfaction"), where("uid", "==", uid)));
-    let calificaciones = [];
-    let comentarios = '';
-    satisfactionSnap.forEach(s => {
-        const sData = s.data();
-        calificaciones.push(sData.rating);
-        if (sData.comments) comentarios += `<div class="text-[10px] text-gray-500">"${sData.comments}" (${sData.rating}★)</div>`;
-    });
+    let servicios = rescates.length;
+    let ingresos = 0;
+    rescates.forEach(r => { if (r.costoRescateEstimado) ingresos += r.costoRescateEstimado; });
+
+    const satisfactionSnap = await getDocs(query(collection(db, "satisfaction"), where("uid", "==", uid), orderBy("timestamp", "desc")));
+    let resenas = [];
+    satisfactionSnap.forEach(s => resenas.push(s.data()));
+    const calificaciones = resenas.map(r => r.rating);
     const promedio = calificaciones.length ? (calificaciones.reduce((a,b)=>a+b,0)/calificaciones.length).toFixed(1) : 'N/A';
 
-    // Checkboxes de vistas permitidas
+    // Permisos
     const vistas = ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas'];
     const vistasNombres = ['Caja','Taller','SOS','Almacén','Promos','Usuarios','Ajustes','Estadíst.','Citas'];
     const vistasActuales = user.vistasPermitidas || vistas;
-    let vistasHTML = '';
-    vistas.forEach((v, i) => {
+    let vistasHTML = vistas.map((v,i) => {
         const checked = vistasActuales.includes(v) ? 'checked' : '';
-        vistasHTML += `<label class="flex items-center space-x-2 text-xs text-white cursor-pointer">
+        return `<label class="flex items-center space-x-2 text-xs text-white cursor-pointer">
             <input type="checkbox" ${checked} onchange="window.toggleVistaPermitida('${uid}', '${v}', this.checked)">
             <span>${vistasNombres[i]}</span>
         </label>`;
-    });
+    }).join('');
 
-    const html = `<div class="text-white space-y-2 text-xs">
-        <h3 class="font-black text-lg">${user.name}</h3>
-            <div class="flex items-center space-x-2 mb-2">
-        ${[1,2,3,4,5].map(i => `
-            <i class="fas fa-star text-sm ${i <= promedio ? 'text-yellow-400' : 'text-gray-600'}"></i>
-        `).join('')}
-        <span class="text-yellow-400 font-black text-sm">${promedio}</span>
-        <span class="text-gray-400 text-[10px]">(${calificaciones.length} reseñas)</span>
-    </div>
-        <p>Servicios realizados: ${servicios}</p>
-        <p>Ingresos generados: <span class="text-naranja font-bold">$${ingresos.toFixed(2)}</span></p>
-        <p>Calificación promedio: <span class="text-yellow-400 font-black">${promedio} ⭐</span></p>
-        <div class="max-h-32 overflow-y-auto hide-scroll bg-black/30 p-2 rounded mt-2">${listaServicios || 'Sin servicios'}</div>
-        <div class="max-h-32 overflow-y-auto hide-scroll bg-black/30 p-2 rounded mt-2">${comentarios || 'Sin comentarios'}</div>
-        <p class="font-black text-blue-400 mt-2">Permisos de Vista:</p>
-        <div class="grid grid-cols-2 gap-1 bg-black/30 p-2 rounded">${vistasHTML}</div>
-        <div class="flex space-x-2 mt-3">
-            <button onclick="window.togglePausarCuenta('${uid}', ${!user.pausada})" class="flex-1 bg-yellow-600 text-white py-2 rounded-xl font-black uppercase text-[10px]">${user.pausada ? 'Reactivar Cuenta' : 'Pausar Cuenta'}</button>
-            <button onclick="window.downloadStaffReport('${uid}')" class="flex-1 bg-blue-600 text-white py-2 rounded-xl font-black uppercase text-[10px]">Descargar Reporte</button>
+    // Estructura del modal en 2 columnas (izquierda: perfil, stats, permisos; derecha: servicios recientes, reseñas)
+    const html = `
+    <div class="flex flex-col lg:flex-row gap-6">
+        <!-- Columna izquierda -->
+        <div class="lg:w-1/3 space-y-4">
+            <div class="flex items-center space-x-4">
+                <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center text-blue-400 text-2xl"><i class="fas fa-user-cog"></i></div>
+                <div>
+                    <h3 class="text-xl font-black text-white">${user.name}</h3>
+                    <p class="text-xs text-gray-400">${user.role}</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                ${[1,2,3,4,5].map(i => `<i class="fas fa-star text-lg ${i <= promedio ? 'text-yellow-400' : 'text-gray-600'}"></i>`).join('')}
+                <span class="text-yellow-400 font-black text-lg ml-2">${promedio}</span>
+                <span class="text-gray-400 text-xs">(${resenas.length} reseñas)</span>
+            </div>
+            <div class="bg-white/5 p-4 rounded-xl border border-white/10">
+                <p class="text-xs text-gray-400">Servicios realizados</p>
+                <p class="text-2xl font-black text-white">${servicios}</p>
+            </div>
+            <div class="bg-white/5 p-4 rounded-xl border border-white/10">
+                <p class="text-xs text-gray-400">Ingresos generados</p>
+                <p class="text-2xl font-black text-naranja">$${ingresos.toFixed(2)}</p>
+            </div>
+            <div class="bg-white/5 p-4 rounded-xl border border-white/10">
+                <p class="text-xs font-black text-blue-400 uppercase mb-3">Permisos de Vista</p>
+                <div class="grid grid-cols-2 gap-2">${vistasHTML}</div>
+            </div>
+            <div class="flex space-x-2">
+                <button onclick="window.togglePausarCuenta('${uid}', ${!user.pausada})" class="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white py-2 rounded-xl font-black uppercase text-xs">${user.pausada ? 'Reactivar Cuenta' : 'Pausar Cuenta'}</button>
+                <button onclick="window.downloadStaffReport('${uid}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl font-black uppercase text-xs">Descargar Reporte</button>
+            </div>
+        </div>
+        <!-- Columna derecha -->
+        <div class="lg:w-2/3 space-y-6">
+            <div>
+                <h4 class="text-sm font-black text-white uppercase border-b border-white/10 pb-2 mb-3">Últimos Servicios</h4>
+                <div class="space-y-2 max-h-60 overflow-y-auto hide-scroll">
+                    ${rescates.length === 0 ? '<p class="text-xs text-gray-500 italic">Sin servicios registrados.</p>' :
+                    rescates.slice(0,10).map(r => `
+                        <div class="bg-black/30 p-3 rounded-xl flex justify-between items-center">
+                            <div>
+                                <p class="text-xs font-bold text-white">${r.shortId || 'Sin ID'}</p>
+                                <p class="text-[10px] text-gray-400 truncate max-w-[200px]">${r.falla || ''}</p>
+                            </div>
+                            <span class="text-[10px] text-naranja font-bold">$${r.costoRescateEstimado?.toFixed(2) || '0.00'}</span>
+                        </div>`).join('')
+                    }
+                </div>
+            </div>
+            <div>
+                <h4 class="text-sm font-black text-white uppercase border-b border-white/10 pb-2 mb-3">Reseñas de Clientes</h4>
+                <div class="space-y-3 max-h-60 overflow-y-auto hide-scroll">
+                    ${resenas.length === 0 ? '<p class="text-xs text-gray-500 italic">Sin reseñas aún.</p>' :
+                    resenas.map(r => `
+                        <div class="bg-black/30 p-4 rounded-xl">
+                            <div class="flex justify-between items-start mb-2">
+                                <div class="flex items-center space-x-1">
+                                    ${[1,2,3,4,5].map(i => `<i class="fas fa-star text-xs ${i <= r.rating ? 'text-yellow-400' : 'text-gray-600'}"></i>`).join('')}
+                                </div>
+                                <span class="text-[10px] text-gray-500">${new Date(r.timestamp).toLocaleDateString()}</span>
+                            </div>
+                            <p class="text-xs text-gray-300">${r.comments || 'Sin comentario'}</p>
+                            ${r.mechName ? `<p class="text-[10px] text-gray-500 mt-1">Atendido por: ${r.mechName}</p>` : ''}
+                        </div>`).join('')
+                    }
+                </div>
+            </div>
         </div>
     </div>`;
+
     const modalId = 'modal-staff-detail';
     let modalEl = document.getElementById(modalId);
     if (!modalEl) {
         modalEl = document.createElement('div');
         modalEl.id = modalId;
         modalEl.className = 'fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-        modalEl.innerHTML = `<div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-blue-500/30" id="${modalId}-content"></div>`;
+        modalEl.innerHTML = `<div class="bg-asfalto w-full max-w-6xl max-h-[90vh] rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl overflow-y-auto" id="${modalId}-content"><button onclick="toggleModal('${modalId}',false)" class="absolute top-4 right-4 text-gray-400 hover:text-white z-10"><i class="fas fa-times"></i></button></div>`;
         document.body.appendChild(modalEl);
     }
-    document.getElementById(`${modalId}-content`).innerHTML = `<button onclick="toggleModal('${modalId}',false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>${html}`;
+    document.getElementById(`${modalId}-content`).innerHTML = `<button onclick="toggleModal('${modalId}',false)" class="absolute top-4 right-4 text-gray-400 hover:text-white z-10"><i class="fas fa-times"></i></button>${html}`;
     toggleModal(modalId, true);
 };
 
@@ -3544,6 +3551,39 @@ window.exportUserHistoryPDF = async () => {
         y += 7;
     });
     pdfDoc.save(`Historial_${user.name || 'usuario'}.pdf`);
+};
+// ===== DISEÑO PROFESIONAL DE PDFs =====
+window._setupProfessionalPDF = (doc, title, logoImg = null) => {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    // Fondo blanco (ya lo está)
+    // Encabezado con barra naranja y logo
+    doc.setFillColor(255, 107, 0);
+    doc.rect(0, 0, pageWidth, 32, 'F');
+    if (logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
+        doc.addImage(logoImg, 'PNG', 15, 5, 20, 20);
+    }
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 255, 255);
+    doc.text(title, logoImg ? 40 : 15, 20);
+    // Línea fina debajo
+    doc.setDrawColor(255, 107, 0);
+    doc.setLineWidth(0.5);
+    doc.line(15, 34, pageWidth - 15, 34);
+    // Footer en todas las páginas (se puede agregar en cada página con page number)
+    const addFooter = (doc) => {
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(7);
+            doc.setTextColor(150);
+            doc.setFont("helvetica", "normal");
+            doc.text("OBR - Moto Rescate | Documento generado el " + new Date().toLocaleDateString(), 15, doc.internal.pageSize.getHeight() - 10);
+            doc.text(`Página ${i} de ${pageCount}`, doc.internal.pageSize.getWidth() - 30, doc.internal.pageSize.getHeight() - 10);
+        }
+    };
+    // El footer se añadirá después de construir el contenido, llamando a addFooter(doc)
+    return addFooter;
 };
 // Stubs para funciones no implementadas completamente
 window.sendContactFromModal = window.sendContactFromModal || function() {
