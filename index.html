@@ -1294,29 +1294,50 @@
     });
   }
 </script>
-    <script>
+ <script>
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/RESCATE-OBR/sw.js').then(reg => {
-      // Si hay una nueva versión esperando, preguntar al usuario
-      if (reg.waiting) {
-        if (confirm('Nueva versión disponible. ¿Actualizar?')) {
-          reg.waiting.postMessage('skipWaiting');
+      console.log('SW registrado:', reg.scope);
+
+      // Si hay una nueva versión esperando, usar el modal de la app
+      const notificarActualizacion = (worker) => {
+        if (typeof window.confirmModal === 'function') {
+          window.confirmModal(
+            '📢 Nueva versión disponible. ¿Quieres actualizar ahora para ver las mejoras?',
+            () => {
+              worker.postMessage('skipWaiting');
+              setTimeout(() => window.location.reload(), 500);
+            },
+            () => { /* El usuario cancela, la actualización se aplicará en la próxima recarga */ }
+          );
+        } else {
+          // Fallback si el modal aún no está disponible
+          if (confirm('Nueva versión disponible. ¿Actualizar?')) {
+            worker.postMessage('skipWaiting');
+            window.location.reload();
+          }
         }
+      };
+
+      // Si ya hay un worker esperando al registrar
+      if (reg.waiting) {
+        notificarActualizacion(reg.waiting);
       }
+
+      // Cuando se detecta una nueva versión
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            if (confirm('Nueva versión disponible. ¿Actualizar?')) {
-              newWorker.postMessage('skipWaiting');
-              window.location.reload();
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              notificarActualizacion(newWorker);
             }
-          }
-        });
+          });
+        }
       });
-    }).catch(err => console.warn('SW:', err));
+    }).catch(err => console.warn('Error al registrar SW:', err));
 
-    // Recargar cuando el SW tome control
+    // Recargar automáticamente cuando el SW tome el control
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!refreshing) {
