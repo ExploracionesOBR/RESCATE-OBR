@@ -243,7 +243,6 @@ function getDistanceKm(lat1, lon1, lat2, lon2) {
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
-
 function playSound(type) {
     try {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -270,6 +269,18 @@ function playSound(type) {
     } catch(e) {}
 }
 if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+
+function speakTTS(message) {
+    if ('speechSynthesis' in window) {
+        const utterance = new SpeechSynthesisUtterance(message);
+        utterance.lang = 'es-MX';
+        utterance.rate = 1.1;
+        window.speechSynthesis.cancel(); // evita solapamientos
+        window.speechSynthesis.speak(utterance);
+    }
+}
+// Exponer globalmente por si se llama desde window.speakTTS
+window.speakTTS = speakTTS;
 
 // === TEMA ===
 window.changeThemeMode = async (mode) => {
