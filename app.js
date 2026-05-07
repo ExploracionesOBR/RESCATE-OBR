@@ -878,7 +878,7 @@ window.adminListenServices = () => {
         const pdfBtn = v.tallerStatus === 'lista' ? `<button onclick="event.stopPropagation(); window.downloadCompletedServicePDF('${v.id}')" class="bg-purple-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase mt-1">📄 PDF</button>` : '';
         html += `<div class="bg-white/5 border border-white/10 p-6 rounded-2xl cursor-pointer hover:bg-white/10 transition shadow-lg w-full" onclick="openDetalleServicio('${v.id}')">
             <div class="flex justify-between items-start">
-                <span class="font-black text-white text-lg break-words">${v.clientName || v.phone || 'Sin nombre'}</span>
+                <span class="font-black text-white text-base break-words">${v.clientName || (v.phone ? v.phone.replace('+52', '') : 'Sin nombre')}</span>
                 <span class="text-[12px] font-black uppercase px-3 py-1 rounded ${statusColor} shrink-0">${v.tallerStatus}</span>
             </div>
             <p class="text-sm text-gray-400 mt-2">${v.falla}</p>
