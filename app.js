@@ -528,6 +528,7 @@ function showView(targetId) {
     views.forEach(id => { const el = document.getElementById(id); if(el) { el.classList.add('hidden'); el.classList.remove('flex'); el.style.display = 'none'; } });
     const target = document.getElementById(targetId);
     if(target) { target.classList.remove('hidden'); target.classList.add('flex'); target.style.display = 'flex'; }
+    toggleModal('modal-user-detail', false);
     window.fixMaps?.();
 }
 window.showView = showView;
@@ -569,6 +570,7 @@ window.resetAndGoHome = () => {
 };
 
 window.switchClientView = (id) => {
+    toggleModal('modal-user-detail', false);
     document.querySelectorAll('.c-view').forEach(v => v.classList.add('hidden')); document.getElementById(id).classList.remove('hidden');
     document.querySelectorAll('.c-nav-btn').forEach(b => b.classList.remove('tab-active'));
     const btn = Array.from(document.querySelectorAll('.c-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
@@ -576,6 +578,7 @@ window.switchClientView = (id) => {
 };
 
 window.switchAdminView = (id) => {
+    toggleModal('modal-user-detail', false);
     document.querySelectorAll('.a-view').forEach(v => v.classList.add('hidden')); document.getElementById(id).classList.remove('hidden');
     document.querySelectorAll('.a-nav-btn').forEach(b => b.classList.remove('tab-active'));
     const btn = Array.from(document.querySelectorAll('.a-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
@@ -4223,3 +4226,4 @@ window.autoCalcInv = window.autoCalcInv || function() {
         document.getElementById('inv-price-public').value = (cost * 1.6).toFixed(2);
     }
 };
+window.loadMyOrders = window.loadMyOrders || async function() {};
