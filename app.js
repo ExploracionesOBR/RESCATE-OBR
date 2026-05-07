@@ -353,8 +353,8 @@ if (vipBanner) {
         vipBanner.style.display = 'none';
     }
     window.loadPromoVideo(); // ✅ dentro del if(vipBanner), fuera del else
-} // ← esta llave cierra el if(vipBanner)
-
+  } // ← esta llave cierra el if(vipBanner)
+} // ← AÑADE ESTA LLAVE 
 window.updateEmergencyButtonState = (isOpen, sched) => {
     const emBtn = document.getElementById('emergency-client-btn');
     const emText = document.getElementById('emergency-closed-text');
