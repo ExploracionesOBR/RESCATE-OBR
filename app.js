@@ -343,18 +343,24 @@ function updateLandingStatus() {
         globalLoginBtn.style.display = auth.currentUser ? 'none' : 'flex';
     }
     window.updateEmergencyButtonState(isOpen, sched);
-const vipBanner = document.getElementById('vip-banner');
-if (vipBanner) {
-    if (!auth.currentUser || (window.currentUserDoc && window.currentUserDoc.role !== 'membresia')) {
-        vipBanner.classList.remove('hidden');
-        vipBanner.style.display = 'block'; // fuerza visible
-    } else {
-        vipBanner.classList.add('hidden');
-        vipBanner.style.display = 'none';
-    }
-    window.loadPromoVideo(); // ✅ dentro del if(vipBanner), fuera del else
-  } // ← esta llave cierra el if(vipBanner)
-} // ← AÑADE ESTA LLAVE 
+
+    // Mostrar/ocultar banners VIP en la tienda pública y en la tienda del cliente
+    const vipBannerShop = document.getElementById('vip-banner-shop');
+    const vipBannerShopClient = document.getElementById('vip-banner-shop-client');
+    [vipBannerShop, vipBannerShopClient].forEach(banner => {
+        if (banner) {
+            if (!auth.currentUser || (window.currentUserDoc && window.currentUserDoc.role !== 'membresia')) {
+                banner.classList.remove('hidden');
+            } else {
+                banner.classList.add('hidden');
+            }
+        }
+    });
+
+    // Cargar video promocional si está programado para hoy
+    window.loadPromoVideo();
+}
+
 window.updateEmergencyButtonState = (isOpen, sched) => {
     const emBtn = document.getElementById('emergency-client-btn');
     const emText = document.getElementById('emergency-closed-text');
