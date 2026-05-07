@@ -752,3 +752,6 @@ nav.fixed.bottom-0 {
     transform: translateX(0%);
   }
 }
+#modal-contact button {
+    white-space: nowrap;
+}
