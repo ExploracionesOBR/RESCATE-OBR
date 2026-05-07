@@ -40,14 +40,6 @@
 </head>
 <body class="bg-asfalto text-white font-sans antialiased overflow-x-hidden">
 
-    <!-- Indicador de sesión -->
-<div id="user-session-indicator" class="fixed top-4 right-4 z-[9999] hidden items-center space-x-2">
-    <div class="bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-naranja/30 shadow-lg flex items-center space-x-2">
-        <i class="fas fa-user-circle text-naranja text-lg"></i>
-        <span id="session-name-display" class="text-white text-sm font-bold truncate max-w-[150px]"></span>
-    </div>
-</div>
-
 <!-- Botón de sesión unificado (iniciar/cerrar) -->
 <button id="global-login-btn" class="fixed top-4 right-4 z-[9999] w-12 h-12 bg-naranja text-white rounded-full flex items-center justify-center shadow-2xl border border-naranja/50 hidden transition-colors">
     <i id="global-login-icon" class="fas fa-sign-in-alt text-xl"></i>
@@ -141,9 +133,6 @@
 </div>
         <div id="public-store-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-8 w-full"></div>
     </div>
-    <button id="float-contact-btn" class="lg:hidden fixed bottom-24 right-6 w-16 h-16 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl z-40" onclick="toggleModal('modal-contact', true)">
-        <i class="fas fa-headset text-2xl"></i>
-    </button>
     <div id="video-banner-container" class="w-full max-w-full lg:max-w-[1200px] mt-8 hidden"></div>
 </div>
 
