@@ -1338,10 +1338,41 @@ window.modificarStock = (productId) => {
         if (newStock === null || newStock === '') return;
         const stockNum = parseInt(newStock);
         if (isNaN(stockNum)) return showToast("Valor inválido", true);
-        await updateDoc(doc(db, "inventario", productId), { stock: stockNum });
-        showToast("Stock actualizado");
-        window.adminLoadInventory();
-        loadPublicStore();
+        
+        // Preguntar si quiere cambiar también los precios
+        window.confirmModal("¿Quieres actualizar también los precios de venta?", 
+            async () => {
+                window.promptModal("Nuevo precio de compra (costo):", p.cost?.toString() || '0', async (newCost) => {
+                    if (newCost === null || newCost === '') return;
+                    const costNum = parseFloat(newCost);
+                    if (isNaN(costNum)) return showToast("Valor inválido", true);
+                    
+                    // Recalcular automáticamente los tres precios
+                    const newTaller = (costNum * 1.3).toFixed(2);
+                    const newMember = (costNum * 1.4).toFixed(2);
+                    const newPublic = (costNum * 1.6).toFixed(2);
+                    
+                    await updateDoc(doc(db, "inventario", productId), {
+                        stock: stockNum,
+                        cost: costNum,
+                        priceTaller: parseFloat(newTaller),
+                        priceMember: parseFloat(newMember),
+                        pricePublic: parseFloat(newPublic),
+                        originalPrice: parseFloat(newPublic)
+                    });
+                    showToast(`Stock y precios actualizados. Público: $${newPublic}`);
+                    window.adminLoadInventory();
+                    loadPublicStore();
+                });
+            },
+            async () => {
+                // Solo actualizar stock
+                await updateDoc(doc(db, "inventario", productId), { stock: stockNum });
+                showToast("Stock actualizado");
+                window.adminLoadInventory();
+                loadPublicStore();
+            }
+        );
     });
 };
 
@@ -1879,6 +1910,9 @@ window.adminAddProduct = async () => {
             mediaUrl = await uploadWithTimeout(file, `inventario/${Date.now()}_${file.name}`);
         }
         const originalPrice = parseFloat(publicPrice);
+        // Validar que la categoría no esté vacía
+const category = document.getElementById('inv-category')?.value || '';
+if (!category) return showToast("Selecciona una categoría para el producto", true);
         await addDoc(collection(db, "inventario"), { 
             name, 
             desc: document.getElementById('inv-desc')?.value.trim() || '', 
@@ -2200,10 +2234,21 @@ window.generateAIDescription = () => {
 window.generateAIInvDescription = () => {
     const nameEl = document.getElementById('inv-name');
     const descEl = document.getElementById('inv-desc');
-    if(nameEl && descEl) {
-        const name = nameEl.value.trim() || 'este producto';
-        descEl.value = `Repuesto original OBR: ${name}. La mejor calidad para tu moto. Aprovecha esta pieza de alto rendimiento.`;
-    }
+    if (!nameEl || !descEl) return;
+    const name = nameEl.value.trim() || 'este producto';
+    const prompts = [
+        `Repuesto original OBR: ${name}. La mejor calidad para tu moto. Aprovecha esta pieza de alto rendimiento.`,
+        `${name} – Fabricado con los más altos estándares de calidad. Dale a tu moto el cuidado que merece con este componente OBR.`,
+        `¿Buscas durabilidad? ${name} es la elección perfecta. Compatible, resistente y listo para instalarse.`,
+        `${name}: la solución definitiva para mantener tu moto en perfecto estado. Solo en OBR.`,
+        `Calidad y precio se unen en ${name}. No comprometas el rendimiento de tu moto, elige OBR.`,
+        `Diseñado para durar. ${name} te ofrece la tranquilidad de una pieza fiable para el día a día.`,
+        `${name} – Recomendado por mecánicos profesionales. Instálalo y siente la diferencia en cada kilómetro.`,
+        `Tecnología y resistencia en ${name}. Pensado para quienes exigen lo mejor de su moto.`,
+        `${name}: pieza esencial para el mantenimiento preventivo de tu motocicleta. Disponible ahora en OBR.`,
+        `Confía en la calidad OBR. ${name} es justo lo que necesitas para seguir rodando sin preocupaciones.`
+    ];
+    descEl.value = prompts[Math.floor(Math.random() * prompts.length)];
 };
 
 // ======================================================
