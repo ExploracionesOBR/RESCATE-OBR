@@ -436,9 +436,10 @@ onAuthStateChanged(auth, async user => {
     if (userSnap.exists()) { window.currentUserDoc = userSnap.data(); window.currentUserDoc.id = user.uid; }
     else { window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; }
 
-    if (window.currentUserDoc.firstLogin) {
-        showView('view-force-setup');
-        return;
+  if (window.currentUserDoc.firstLogin && !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
+    showView('view-force-setup');
+    return;
+}
     }
 
     if (window.currentUserDoc.role === 'membresia' && window.currentUserDoc.membresiaExp) {
@@ -2303,18 +2304,18 @@ window.adminLoadUsers = async () => {
     if (staffList) staffList.innerHTML = '';
     snap.forEach(d => {
         const u = d.data();
-const card = `<div class="bg-white/5 p-2 rounded-xl text-white text-xs flex justify-between items-center cursor-pointer" onclick="window.openUserDetail('${d.id}')">
-    <span class="flex-1 truncate">${u.name || (u.phone ? u.phone.replace('+52','') : 'Sin nombre')}</span>
-    <div class="flex items-center space-x-1 ml-2">
-        ${u.role === 'cliente' ? `<button onclick="event.stopPropagation(); window.promoteToVIP('${d.id}')" class="bg-yellow-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase flex items-center"><i class="fas fa-crown mr-1"></i>VIP</button>` : ''}
-        ${u.role === 'membresia' ? `<button onclick="event.stopPropagation(); window.demoteFromVIP('${d.id}')" class="bg-gray-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase flex items-center"><i class="fas fa-user mr-1"></i>Quitar</button>` : ''}
+const card = `<div class="bg-white/5 p-4 rounded-xl text-white text-sm flex justify-between items-center cursor-pointer" onclick="window.openUserDetail('${d.id}')">
+    <span class="flex-1 truncate text-base">${u.name || (u.phone ? u.phone.replace('+52','') : 'Sin nombre')}</span>
+    <div class="flex items-center space-x-2 ml-3">
+        ${u.role === 'cliente' ? `<button onclick="event.stopPropagation(); window.promoteToVIP('${d.id}')" class="bg-yellow-600 text-white px-3 py-1 rounded-lg text-xs font-bold uppercase flex items-center"><i class="fas fa-crown mr-1"></i>VIP</button>` : ''}
+        ${u.role === 'membresia' ? `<button onclick="event.stopPropagation(); window.demoteFromVIP('${d.id}')" class="bg-gray-600 text-white px-3 py-1 rounded-lg text-xs font-bold uppercase flex items-center"><i class="fas fa-user mr-1"></i>Quitar</button>` : ''}
     </div>
 </div>`;
         if (u.role === 'cliente' && normalList) normalList.innerHTML += card;
         else if (u.role === 'membresia' && vipList) vipList.innerHTML += card;
-        else if (['admin','mecanico','taller','socio'].includes(u.role) && staffList) staffList.innerHTML += `<div class="bg-white/5 p-2 rounded-xl text-white text-xs flex justify-between items-center cursor-pointer" onclick="window.openStaffDetail('${d.id}')">
-            <span>${u.name || u.phone}</span><span class="text-naranja">${u.role}</span>
-        </div>`;
+        else if (['admin','mecanico','taller','socio'].includes(u.role) && staffList) staffList.innerHTML += `<div class="bg-white/5 p-4 rounded-xl text-white text-sm flex justify-between items-center cursor-pointer" onclick="window.openStaffDetail('${d.id}')">
+    <span class="text-base font-bold">${u.name || u.phone}</span><span class="text-yellow-400 text-sm"><i class="fas fa-star"></i> --</span>
+</div>`;
     });
 };
 
@@ -3520,7 +3521,32 @@ window.addEventListener('click', function(e) {
         toggleModal(modalId, true);
     }
 });
-
+window.exportUserHistoryPDF = async () => {
+    const uid = window._currentDetailUid;
+    if (!uid) return showToast("Error: usuario no identificado", true);
+    const userDoc = await getDoc(doc(db, "users", uid));
+    if (!userDoc.exists()) return showToast("Usuario no encontrado", true);
+    const user = userDoc.data();
+    const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("phone", "==", user.phone), orderBy("timestamp", "desc")));
+    let historial = [];
+    rescatesSnap.forEach(d => historial.push(d.data()));
+    const { jsPDF } = window.jspdf;
+    const pdfDoc = new jsPDF();
+    pdfDoc.setFillColor(255, 107, 0);
+    pdfDoc.rect(0, 0, 210, 30, 'F');
+    pdfDoc.setFontSize(18);
+    pdfDoc.setTextColor(255, 255, 255);
+    pdfDoc.text(`Historial de ${user.name || user.phone}`, 14, 20);
+    pdfDoc.setTextColor(0, 0, 0);
+    pdfDoc.setFontSize(10);
+    let y = 40;
+    historial.forEach(r => {
+        if (y > 270) { pdfDoc.addPage(); y = 20; }
+        pdfDoc.text(`${new Date(r.timestamp).toLocaleDateString()} - ${r.shortId}: ${r.falla}`, 14, y);
+        y += 7;
+    });
+    pdfDoc.save(`Historial_${user.name || 'usuario'}.pdf`);
+};
 // Stubs para funciones no implementadas completamente
 window.sendContactFromModal = window.sendContactFromModal || function() {
     const name = document.getElementById('modal-contact-name')?.value.trim();
