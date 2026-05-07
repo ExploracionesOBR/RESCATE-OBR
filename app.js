@@ -4256,14 +4256,6 @@ window.requestAppPermissions = async () => {
     }
     toggleModal(modalId, true);
 };
-window.viewActiveWorkshop = async () => {
-    if (!auth.currentUser || !window.currentUserDoc) return;
-    const snap = await getDocs(query(collection(db, "rescates"), where("phone", "==", window.currentUserDoc.phone), where("status", "==", "completed"), where("tallerStatus", "not-in", ["entregada","pagado"]), orderBy("timestamp", "desc"), limit(1)));
-    if (!snap.empty) {
-        window.openClientServiceDetail(snap.docs[0].id);
-    }
-};
-
 // Stubs para funciones no implementadas completamente
 window.sendContactFromModal = async function() {
     const name = document.getElementById('modal-contact-name')?.value.trim();
@@ -4401,4 +4393,12 @@ window.autoCalcInv = window.autoCalcInv || function() {
         document.getElementById('inv-price-public').value = (cost * 1.6).toFixed(2);
     }
 };
+window.viewActiveWorkshop = async () => {
+    if (!auth.currentUser || !window.currentUserDoc) return;
+    const snap = await getDocs(query(collection(db, "rescates"), where("phone", "==", window.currentUserDoc.phone), where("status", "==", "completed"), where("tallerStatus", "not-in", ["entregada","pagado"]), orderBy("timestamp", "desc"), limit(1)));
+    if (!snap.empty) {
+        window.openClientServiceDetail(snap.docs[0].id);
+    }
+};
+
 window.loadMyOrders = window.loadMyOrders || async function() {};
