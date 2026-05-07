@@ -4206,12 +4206,34 @@ window.requestAppPermissions = async () => {
     toggleModal(modalId, true);
 };
 // Stubs para funciones no implementadas completamente
-window.sendContactFromModal = window.sendContactFromModal || function() {
+window.sendContactFromModal = async function() {
     const name = document.getElementById('modal-contact-name')?.value.trim();
     const phone = document.getElementById('modal-contact-phone')?.value.trim();
     const msg = document.getElementById('modal-contact-msg')?.value.trim();
     if(!name || !msg) return showToast("Nombre y mensaje requeridos", true);
-    window.open(`https://wa.me/526311551533?text=${encodeURIComponent(`Hola, soy ${name}${phone ? ' ('+phone+')' : ''}. ${msg}`)}`, '_blank');
+
+    if (auth.currentUser) {
+        // Usuario autenticado: guardar mensaje en Firestore como solicitud de soporte
+        try {
+            await addDoc(collection(db, "soporte"), {
+                uid: auth.currentUser.uid,
+                name: name,
+                phone: phone || window.currentUserDoc?.phone || '',
+                mensaje: msg,
+                timestamp: Date.now(),
+                leido: false
+            });
+            showToast("Mensaje enviado al taller. Te contactaremos pronto.");
+            toggleModal('modal-contact', false);
+        } catch (e) {
+            showToast("Error al enviar. Intenta de nuevo.", true);
+        }
+    } else {
+        // No autenticado: abrir WhatsApp con el mensaje
+        const cleanPhone = '526311551533'; // número principal del taller
+        window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(`Hola, soy ${name}${phone ? ' ('+phone+')' : ''}. ${msg}`)}`, '_blank');
+        toggleModal('modal-contact', false);
+    }
 };
 window.loadChatList = window.loadChatList || async function() {};
 window.sendMessage = window.sendMessage || async function() {};
