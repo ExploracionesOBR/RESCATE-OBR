@@ -1167,7 +1167,15 @@ window.openClientServiceDetail = async (id) => {
             <p class="text-xs text-gray-400">Moto: ${data.marca || ''} ${data.modelo || ''} (${data.cc || ''})</p>
             <p class="text-sm">${data.falla}</p>
             <p class="text-xs">Estado: <span class="font-bold ${window.getStatusInfo(data.status).color.replace('bg-', 'text-').replace(/\/\d+/, '')}">${window.getStatusInfo(data.status).text}</span></p>
-            ${data.tallerStatus ? `<p class="text-xs">Taller: ${data.tallerStatus}</p>` : ''}
+            ${data.status === 'cancelled' 
+    ? `<div class="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
+           <p class="text-xs text-yellow-300 italic leading-relaxed">💡 Un cambio oportuno de aceite puede hacer la diferencia en la vida de tu motor.</p>
+           <button onclick="event.stopPropagation(); window.startFlow?.('tienda_publica')" class="mt-2 bg-naranja hover:bg-orange-600 text-white text-xs px-4 py-2 rounded-full font-black uppercase transition-colors w-full">
+               <i class="fas fa-shopping-bag mr-1"></i> Cotizalo ahora
+           </button>
+       </div>`
+    : (data.tallerStatus ? `<p class="text-xs">Taller: ${data.tallerStatus}</p>` : '')
+}
             <p class="text-xs text-gray-500">${new Date(data.timestamp).toLocaleString()}</p>
             ${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('${id}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">Descargar Ticket PDF</button>` : ''}
         </div>
