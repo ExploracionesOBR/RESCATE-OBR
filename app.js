@@ -440,8 +440,6 @@ onAuthStateChanged(auth, async user => {
     showView('view-force-setup');
     return;
 }
-    }
-
     if (window.currentUserDoc.role === 'membresia' && window.currentUserDoc.membresiaExp) {
         if (Date.now() > window.currentUserDoc.membresiaExp) {
             await updateDoc(doc(db, 'users', user.uid), { role: 'cliente', membresiaExp: null });
