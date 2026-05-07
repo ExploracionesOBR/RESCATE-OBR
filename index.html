@@ -413,10 +413,13 @@
                 <button onclick="window.submitSurvey?.()" class="w-full bg-naranja hover:bg-orange-600 text-white text-xs font-black uppercase py-3 rounded-xl transition-colors">Enviar Calificación</button>
             </div>
         </section>
-
         <section id="c-view-tienda" class="c-view hidden space-y-6">
-            <h2 class="text-2xl font-black italic uppercase text-center">Refacciones</h2>
-            <div class="flex justify-end mb-4">
+<h2 class="text-2xl font-black italic uppercase text-center">Refacciones</h2>
+<!-- BANNER VIP EN TIENDA DEL CLIENTE -->
+<div id="vip-banner-shop-client" class="hidden w-full bg-gradient-to-r from-yellow-500 to-amber-400 text-black py-3 px-4 rounded-xl font-black text-center cursor-pointer shadow-lg mb-4" onclick="window.toggleModal('modal-contact', true)">
+    <span class="text-sm md:text-base">🌟 ¡Únete a VIP y recibe promociones exclusivas! 🌟</span>
+</div>
+<div class="flex justify-end mb-4">
                 <button onclick="toggleModal('modal-cart', true)" class="relative bg-naranja text-white p-3 rounded-full shadow-lg"><i class="fas fa-shopping-cart text-xl"></i><span id="cart-count-mobile" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-black">0</span></button>
                 <button onclick="toggleModal('modal-pedidos', true)" class="ml-2 bg-white/10 p-3 rounded-full text-white relative"><i class="fas fa-box text-xl"></i></button>
             </div>
