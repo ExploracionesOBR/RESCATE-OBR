@@ -679,3 +679,9 @@ nav.fixed.bottom-0 {
 #a-view-pos {
     max-width: 100%;
 }
+/* Ocultar botones de administrador en la tienda */
+#public-store-grid button:not(.add-to-cart-btn),
+#client-store-grid button:not(.add-to-cart-btn),
+.c-view button:not(.c-nav-btn):not(.emergency-btn) {
+    display: none !important;
+}
