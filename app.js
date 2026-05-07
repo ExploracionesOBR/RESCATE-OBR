@@ -338,9 +338,21 @@ function updateLandingStatus() {
         if (nextOpen) closedText.innerText = `Abrimos el ${nextOpen.day} a las ${nextOpen.time}`;
         else closedText.innerText = `Abrimos a las ${sched.o}`;
     }
-    const globalLoginBtn = document.getElementById('global-login-btn');
-    if (globalLoginBtn) {
-        globalLoginBtn.style.display = auth.currentUser ? 'none' : 'flex';
+    const loginBtn = document.getElementById('global-login-btn');
+    const loginIcon = document.getElementById('global-login-icon');
+    if (loginBtn && loginIcon) {
+        if (auth.currentUser) {
+            loginIcon.className = 'fas fa-sign-out-alt text-xl';
+            loginBtn.classList.add('bg-red-600', 'border-red-500/30');
+            loginBtn.classList.remove('bg-naranja', 'border-naranja/50');
+            loginBtn.onclick = () => window.logout();
+        } else {
+            loginIcon.className = 'fas fa-sign-in-alt text-xl';
+            loginBtn.classList.add('bg-naranja', 'border-naranja/50');
+            loginBtn.classList.remove('bg-red-600', 'border-red-500/30');
+            loginBtn.onclick = () => window.showView('view-login');
+        }
+        loginBtn.style.display = 'flex'; // siempre visible
     }
     window.updateEmergencyButtonState(isOpen, sched);
 
@@ -477,6 +489,7 @@ onAuthStateChanged(auth, async user => {
     }
 
     applyTheme(); startMechanicTracking();
+        updateLandingStatus(); // Refresca el botón de sesión al cambiar de usuario
 
     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
         showView('app-admin'); document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
