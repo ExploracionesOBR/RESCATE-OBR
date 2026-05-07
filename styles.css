@@ -692,3 +692,14 @@ nav.fixed.bottom-0 {
     max-height: 300px;
     object-fit: contain;
 }
+#modal-video-schedule .bg-black\/40 {
+    min-height: 200px;
+}
+#modal-video-schedule video {
+    max-height: 150px !important;
+    width: 100%;
+}
+#promo-video-player {
+    background: #000;
+    border-radius: 0.5rem;
+}
