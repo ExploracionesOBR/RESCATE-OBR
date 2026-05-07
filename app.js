@@ -46,6 +46,7 @@ let globalSettings = {
     rescueKmRanges: [{ km: 1, price: 20 }, { km: 1.5, price: 25 }, { km: 2, price: 30 }],
     themeMode: 'auto', videoSchedule: {}
 };
+window.globalSettings = globalSettings;
 let sosMapInstance = null, mechMapInst = null, mechMarkerInst = null;
 let adminGeoMap = null, adminGeoCircle = null;
 let adminSOSGlobalMapInst = null, adminSOSMarkers = {};
