@@ -2190,6 +2190,16 @@ window.adminSaveConfig = async () => {
     }
     updateLandingStatus();
 };
+window.adminSaveMemPrice = async () => {
+    const priceInput = document.getElementById('config-mem-price');
+    if (!priceInput) return;
+    const price = parseFloat(priceInput.value);
+    if (isNaN(price) || price <= 0) return showToast("Ingresa un precio válido", true);
+    globalSettings.membershipPrice = price;
+    await setDoc(doc(db, "settings", "general"), { membershipPrice: price }, { merge: true });
+    showToast(`Precio de membresía guardado: $${price.toFixed(2)}`);
+    priceInput.value = price.toFixed(2);
+};
 
 window.set24HSchedule = async () => {
     const days = ['L','M','X','J','V','S','D'];
@@ -2349,15 +2359,19 @@ rescates.forEach(r => {
         }
     }
 
-    const vipBtn = document.getElementById('promote-vip-btn');
-    if (vipBtn) {
-        if (user.role === 'membresia') {
-            vipBtn.classList.add('hidden');
-        } else {
-            vipBtn.classList.remove('hidden');
-            vipBtn.onclick = () => window.promoteToVIP(uid);
-        }
+const vipBtn = document.getElementById('promote-vip-btn');
+if (vipBtn) {
+    vipBtn.classList.remove('hidden');
+    if (user.role === 'membresia') {
+        vipBtn.innerHTML = '<i class="fas fa-user mr-1"></i>Quitar VIP';
+        vipBtn.className = 'bg-gray-600 hover:bg-gray-500 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase flex-shrink-0 mt-1';
+        vipBtn.onclick = () => window.demoteFromVIP(uid);
+    } else {
+        vipBtn.innerHTML = '<i class="fas fa-crown mr-1"></i>VIP';
+        vipBtn.className = 'bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase flex-shrink-0 mt-1';
+        vipBtn.onclick = () => window.promoteToVIP(uid);
     }
+}
 
     const bloquearBtn = document.getElementById('bloquear-usuario-btn');
     if (bloquearBtn) {
@@ -3147,6 +3161,10 @@ window.adminRefreshConfigUI = () => {
         });
     }
     window.togglePriceMode();
+    const memPriceInput = document.getElementById('config-mem-price');
+if (memPriceInput && globalSettings.membershipPrice) {
+    memPriceInput.value = globalSettings.membershipPrice;
+}
 };
 
 window.adminAddKmRange = () => {
