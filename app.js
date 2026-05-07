@@ -2309,43 +2309,36 @@ window.renderVideoScheduleDays = () => {
     dias.forEach((dia, index) => {
         const currentURL = globalSettings.videoSchedule?.[index] || '';
         const tieneVideo = currentURL && currentURL.trim() !== '';
-        const mostrarBotonAnterior = index > 0; // No mostrar en lunes
+        const mostrarBotonAnterior = index > 0;
         html += `
         <div class="bg-black/40 p-4 rounded-2xl border border-white/10">
             <div class="flex justify-between items-center mb-2">
                 <p class="font-black text-sm text-white">${dia}</p>
                 <div class="flex space-x-1">
                     ${mostrarBotonAnterior ? `<button onclick="window.usePreviousDayVideo(${index})" class="text-[9px] bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded-lg font-bold uppercase" title="Usar video del día anterior"><i class="fas fa-copy mr-1"></i>Usar anterior</button>` : ''}
-                    ${tieneVideo ? `<button onclick="window.removeDayVideo(${index})" class="text-[9px] bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded-lg font-bold uppercase"><i class="fas fa-trash"></i></button>` : ''}
+                    ${tieneVideo ? `<button onclick="window.clearVideoURL(${index})" class="text-[9px] bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded-lg font-bold uppercase"><i class="fas fa-trash"></i></button>` : ''}
                 </div>
             </div>
-            <input type="file" accept="video/*" id="video-input-${index}" class="hidden" onchange="window.handleVideoFile(this, ${index})" />
-            <button onclick="document.getElementById('video-input-${index}').click()" class="w-full bg-white/5 border border-dashed border-white/20 p-4 rounded-xl text-xs text-gray-400 hover:border-naranja transition-colors mb-2">
-                <i class="fas fa-cloud-upload-alt mr-2"></i>Seleccionar archivo
-            </button>
-            <div id="video-progress-${index}" class="hidden mt-2">
-                <div class="w-full bg-gray-700 rounded-full h-2">
-                    <div id="video-progress-bar-${index}" class="bg-naranja h-2 rounded-full" style="width: 0%"></div>
-                </div>
-                <p id="video-progress-text-${index}" class="text-[9px] text-gray-400 mt-1">0%</p>
+            <div class="flex space-x-2 mb-2">
+                <input type="url" id="video-url-${index}" 
+                       placeholder="https://ik.imagekit.io/obr/video.mp4" 
+                       value="${currentURL || ''}" 
+                       class="flex-1 bg-white/5 border border-white/10 p-2 rounded-lg text-white text-xs" 
+                       oninput="window.previewVideoURL(${index}, this.value)">
+                <button onclick="window.open('https://imagekit.io/dashboard/media-library', '_blank')" 
+                        class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-[9px] font-bold uppercase flex items-center"
+                        title="Ir a ImageKit para subir videos">
+                    <i class="fas fa-cloud-upload-alt mr-1"></i> Cargar Video
+                </button>
             </div>
             <div id="video-preview-${index}" class="mt-2 ${tieneVideo ? '' : 'hidden'}">
-                ${tieneVideo ? `<video src="${currentURL}" controls class="w-full max-h-32 rounded-lg object-contain bg-black"></video>` : ''}
+                ${tieneVideo ? `<video src="${currentURL}" controls class="w-full max-h-32 rounded-lg object-contain bg-black" onerror="this.style.display='none'; document.getElementById('video-name-${index}').innerText='URL no válida o video no accesible'"></video>` : ''}
                 <p class="text-[9px] text-gray-400 mt-1 truncate" id="video-name-${index}">${tieneVideo ? currentURL.split('/').pop().substring(0, 40) : 'Sin video'}</p>
             </div>
         </div>`;
     });
     container.innerHTML = html;
 };
-
-window.handleVideoFile = (input, dayIndex) => {
-    if (input.files && input.files[0]) {
-        const file = input.files[0];
-        if (file.size > 50 * 1024 * 1024) {
-            showToast("El video no debe superar 50 MB", true);
-            return;
-        }
-
         const progressDiv = document.getElementById(`video-progress-${dayIndex}`);
         const progressBar = document.getElementById(`video-progress-bar-${dayIndex}`);
         const progressText = document.getElementById(`video-progress-text-${dayIndex}`);
@@ -2379,7 +2372,6 @@ window.saveVideoSchedule = async () => {
     await setDoc(doc(db, "settings", "general"), { videoSchedule: globalSettings.videoSchedule }, { merge: true });
     showToast("Programación de videos guardada");
     toggleModal('modal-video-schedule', false);
-    // Recargar video del día en el previsualizador
     window.loadPromoVideo();
     window.loadPromoPreview?.();
 };
@@ -3661,13 +3653,27 @@ window.usePreviousDayVideo = (dayIndex) => {
     window.renderVideoScheduleDays();
     showToast("Video copiado del día anterior");
 };
+window.previewVideoURL = (dayIndex, url) => {
+    const previewDiv = document.getElementById(`video-preview-${dayIndex}`);
+    if (!previewDiv) return;
+    if (url && url.trim() !== '') {
+        previewDiv.classList.remove('hidden');
+        previewDiv.innerHTML = `
+            <video src="${url}" controls class="w-full max-h-32 rounded-lg object-contain bg-black" onerror="this.style.display='none'; document.getElementById('video-name-${dayIndex}').innerText='URL no válida o video no accesible'"></video>
+            <p class="text-[9px] text-gray-400 mt-1 truncate" id="video-name-${dayIndex}">${url.split('/').pop().substring(0, 40)}</p>
+        `;
+        if (!globalSettings.videoSchedule) globalSettings.videoSchedule = {};
+        globalSettings.videoSchedule[dayIndex] = url;
+    } else {
+        previewDiv.classList.add('hidden');
+        delete globalSettings.videoSchedule[dayIndex];
+    }
+};
 
-window.removeDayVideo = (dayIndex) => {
-    window.confirmModal("¿Eliminar el video asignado a este día?", () => {
-        globalSettings.videoSchedule[dayIndex] = '';
-        window.renderVideoScheduleDays();
-        showToast("Video eliminado de este día");
-    });
+window.clearVideoURL = (dayIndex) => {
+    const urlInput = document.getElementById(`video-url-${dayIndex}`);
+    if (urlInput) urlInput.value = '';
+    window.previewVideoURL(dayIndex, '');
 };
 
 // Inicializar mapa de geofence
