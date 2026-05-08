@@ -41,7 +41,7 @@
 <body class="bg-asfalto text-white font-sans antialiased overflow-x-hidden">
 
 <!-- Botón de sesión unificado (iniciar/cerrar) -->
-<button id="global-login-btn" class="fixed top-4 right-4 z-[9999] w-12 h-12 bg-naranja text-white rounded-full flex items-center justify-center shadow-2xl border border-naranja/50 transition-colors" style="display: none;">
+<button id="global-login-btn" class="fixed bottom-24 left-4 z-[9999] w-12 h-12 bg-naranja text-white rounded-full flex items-center justify-center shadow-2xl border border-naranja/50 transition-colors" style="display: none;">
     <i id="global-login-icon" class="fas fa-sign-in-alt text-xl"></i>
 </button>
 
@@ -102,14 +102,6 @@
                 <i class="fas fa-chevron-right text-gray-600 lg:text-xl"></i>
             </button>
         </div>
-
-        <!-- Botón de sesión centrado y accesible -->
-        <div id="landing-login-btn" class="mb-8 flex justify-center lg:mb-10">
-            <button class="w-14 h-14 lg:w-16 lg:h-16 bg-naranja text-white rounded-full flex items-center justify-center shadow-2xl border border-naranja/50 transition-colors text-2xl" onclick="if(auth.currentUser) window.logout(); else window.showView('view-login');">
-                <i id="landing-login-icon" class="fas fa-sign-in-alt text-xl lg:text-2xl"></i>
-            </button>
-        </div>
-
         <div class="text-center bg-black/40 border border-white/5 p-4 rounded-2xl w-full backdrop-blur-sm lg:w-2/3 mx-auto">
             <p class="text-[9px] lg:text-[11px] text-gray-500 uppercase tracking-widest font-black mb-2">Líneas de Atención OBR</p>
             <div class="flex items-center justify-center space-x-4">
