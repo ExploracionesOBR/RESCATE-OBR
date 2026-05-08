@@ -567,10 +567,6 @@ function showView(targetId) {
         // Mostrar/ocultar el botón de sesión unificado
     const sessionBtn = document.getElementById('session-btn');
     if (sessionBtn) {
-        // Opcional: ocultar en panel de administración (si no quieres que aparezca ahí)
-        if (targetId === 'app-admin') {
-            sessionBtn.style.display = 'none';
-        } else {
             sessionBtn.style.display = 'block';
         }
     }
