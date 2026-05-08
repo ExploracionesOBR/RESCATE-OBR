@@ -569,7 +569,6 @@ function showView(targetId) {
     if (sessionBtn) {
             sessionBtn.style.display = 'block';
         }
-    }
     if(target) { target.classList.remove('hidden'); target.classList.add('flex'); target.style.display = 'flex'; }
     toggleModal('modal-user-detail', false);
     window.fixMaps?.();
