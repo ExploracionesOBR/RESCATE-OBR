@@ -347,7 +347,6 @@ async function loadGlobalSettings() {
     globalSettings.centerLat = TALLER_LAT; globalSettings.centerLng = TALLER_LNG;
     applyTheme(); updateLandingStatus(); loadPublicStore(); loadServicesCatalog();
 }
-
 function updateLandingStatus() {
     const now = new Date(); const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
     const sched = globalSettings.schedule[dayIndex] || { o: "08:00", c: "20:00" };
@@ -359,7 +358,7 @@ function updateLandingStatus() {
     if(lo) lo.style.display = isOpen ? 'flex' : 'none'; if(lc) lc.style.display = isOpen ? 'none' : 'flex';
     const badge = document.getElementById('landing-status-badge');
     if (badge) {
-        badge.innerText = isOpen ? 'Plataforma Activa' : 'Fuera de Horario';
+        badge.innerText = isOpen ? 'Plataforma Activa' : 'Taller Fuera de Horario';
         badge.className = isOpen ? 'text-naranja font-black tracking-widest text-[10px] lg:text-xs mb-8 lg:mb-12 uppercase border border-naranja/30 px-6 py-2 rounded-full bg-naranja/10' : 'text-red-500 font-black tracking-widest text-[10px] lg:text-xs mb-8 lg:mb-12 uppercase border border-red-500/30 px-6 py-2 rounded-full bg-red-500/10';
     }
     const closedText = document.getElementById('closed-hours-text');
@@ -368,23 +367,9 @@ function updateLandingStatus() {
         if (nextOpen) closedText.innerText = `Abrimos el ${nextOpen.day} a las ${nextOpen.time}`;
         else closedText.innerText = `Abrimos a las ${sched.o}`;
     }
-    if (loginBtn && loginIcon) {
-        if (auth.currentUser) {
-            loginIcon.className = 'fas fa-sign-out-alt text-xl';
-            loginBtn.classList.add('bg-red-600', 'border-red-500/30');
-            loginBtn.classList.remove('bg-naranja', 'border-naranja/50');
-            loginBtn.onclick = () => window.logout();
-        } else {
-            loginIcon.className = 'fas fa-sign-in-alt text-xl';
-            loginBtn.classList.add('bg-naranja', 'border-naranja/50');
-            loginBtn.classList.remove('bg-red-600', 'border-red-500/30');
-            loginBtn.onclick = () => window.showView('view-login');
-        }
-        loginBtn.style.display = 'flex'; // siempre visible
-    }
+
     window.updateEmergencyButtonState(isOpen, sched);
 
-    // Mostrar/ocultar banners VIP en la tienda pública y en la tienda del cliente
     const vipBannerShop = document.getElementById('vip-banner-shop');
     const vipBannerShopClient = document.getElementById('vip-banner-shop-client');
     [vipBannerShop, vipBannerShopClient].forEach(banner => {
@@ -397,9 +382,9 @@ function updateLandingStatus() {
         }
     });
 
-    // Cargar video promocional si está programado para hoy
     window.loadPromoVideo();
-        // Actualizar icono del botón de sesión unificado
+
+    // Actualizar icono del botón de sesión unificado
     const sessionBtnIcon = document.getElementById('session-btn-icon');
     if (sessionBtnIcon) {
         if (auth.currentUser) {
@@ -408,7 +393,7 @@ function updateLandingStatus() {
             sessionBtnIcon.className = 'fas fa-sign-in-alt text-xl';
         }
     }
-   }
+}
 
 window.updateEmergencyButtonState = (isOpen, sched) => {
     const emBtn = document.getElementById('emergency-client-btn');
