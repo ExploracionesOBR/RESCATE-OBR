@@ -39,12 +39,6 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-asfalto text-white font-sans antialiased overflow-x-hidden">
-
-<!-- Botón de sesión unificado (iniciar/cerrar) -->
-<button id="global-login-btn" class="fixed bottom-24 left-4 z-[9999] w-12 h-12 bg-naranja text-white rounded-full flex items-center justify-center shadow-2xl border border-naranja/50 transition-colors" style="display: none;">
-    <i id="global-login-icon" class="fas fa-sign-in-alt text-xl"></i>
-</button>
-
 <!-- TOAST -->
 <div id="status-toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[3000] hidden transition-all duration-300 w-[90%] max-w-sm">
     <div class="bg-naranja text-white px-6 py-3 rounded-full shadow-2xl flex items-center space-x-3 font-bold text-sm">
@@ -71,11 +65,11 @@
 <div id="view-landing" class="app-view min-h-screen hidden flex-col items-center justify-center p-6 lg:p-12 bg-gradient-to-b from-asfalto via-black to-[#3a1800] relative overflow-hidden">
     <div class="absolute top-[-10%] left-[-20%] w-96 h-96 bg-naranja/10 rounded-full blur-[100px] pointer-events-none"></div>
     <img src="logo.png" alt="OBR" class="w-24 lg:w-32 mb-4 lg:mb-6 z-10 drop-shadow-[0_0_20px_rgba(255,107,0,0.5)]" style="mix-blend-mode: multiply;" onerror="this.src='https://via.placeholder.com/150/FF6B00/FFFFFF?text=OBR'">
-<!-- Botón de sesión (esquina superior derecha dentro del landing) -->
-<div id="landing-login-btn" class="absolute top-10 right-10 z-20">
+<!-- Botón de sesión unificado (siempre presente) -->
+<div id="session-btn" class="absolute top-10 right-10 z-20">
     <button class="w-12 h-12 bg-naranja text-white rounded-full flex items-center justify-center shadow-2xl border border-naranja/50 transition-colors"
             onclick="if(auth.currentUser) window.logout(); else window.showView('view-login');">
-        <i id="landing-login-icon" class="fas fa-sign-in-alt text-xl"></i>
+        <i id="session-btn-icon" class="fas fa-sign-in-alt text-xl"></i>
     </button>
 </div>
     <div class="z-10 flex flex-col items-center w-full max-w-sm lg:max-w-4xl animate-fade-in">
