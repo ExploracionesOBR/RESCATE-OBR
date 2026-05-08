@@ -394,15 +394,7 @@ function updateLandingStatus() {
 
     // Cargar video promocional si está programado para hoy
     window.loadPromoVideo();
-    const landingLoginIcon = document.getElementById('landing-login-icon');
-if (landingLoginIcon) {
-    if (auth.currentUser) {
-        landingLoginIcon.className = 'fas fa-sign-out-alt text-xl';
-    } else {
-        landingLoginIcon.className = 'fas fa-sign-in-alt text-xl';
-    }
-}
-}
+   }
 
 window.updateEmergencyButtonState = (isOpen, sched) => {
     const emBtn = document.getElementById('emergency-client-btn');
@@ -579,15 +571,6 @@ function showView(targetId) {
     const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'view-force-setup', 'app-client', 'app-admin'];
     views.forEach(id => { const el = document.getElementById(id); if(el) { el.classList.add('hidden'); el.classList.remove('flex'); el.style.display = 'none'; } });
     const target = document.getElementById(targetId);
-    const landingLoginBtn = document.getElementById('landing-login-btn');
-const globalLoginBtn = document.getElementById('global-login-btn');
-if (targetId === 'view-landing') {
-    if (landingLoginBtn) landingLoginBtn.style.display = 'flex';
-    if (globalLoginBtn) globalLoginBtn.style.display = 'none';
-} else {
-    if (landingLoginBtn) landingLoginBtn.style.display = 'none';
-    // El globalLoginBtn se mostrará según la lógica de updateLandingStatus
-}
     if(target) { target.classList.remove('hidden'); target.classList.add('flex'); target.style.display = 'flex'; }
     toggleModal('modal-user-detail', false);
     window.fixMaps?.();
