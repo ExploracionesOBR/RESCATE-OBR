@@ -359,7 +359,7 @@ function updateLandingStatus() {
     if(lo) lo.style.display = isOpen ? 'flex' : 'none'; if(lc) lc.style.display = isOpen ? 'none' : 'flex';
     const badge = document.getElementById('landing-status-badge');
     if (badge) {
-        badge.innerText = isOpen ? 'Plataforma Activa' : 'Taller Fuera de Horario';
+        badge.innerText = isOpen ? 'Plataforma Activa' : 'Fuera de Horario';
         badge.className = isOpen ? 'text-naranja font-black tracking-widest text-[10px] lg:text-xs mb-8 lg:mb-12 uppercase border border-naranja/30 px-6 py-2 rounded-full bg-naranja/10' : 'text-red-500 font-black tracking-widest text-[10px] lg:text-xs mb-8 lg:mb-12 uppercase border border-red-500/30 px-6 py-2 rounded-full bg-red-500/10';
     }
     const closedText = document.getElementById('closed-hours-text');
@@ -745,6 +745,13 @@ window.processRecovery = () => {
     if(!realAnswer) return showToast("Sin pregunta configurada", true);
     if(answer === realAnswer) document.getElementById('recovery-form-area').innerHTML = `<div class="animate-fade-in mb-6 bg-black/50 border border-green-500 p-6 rounded-2xl text-center"><p class="text-[10px] font-black text-green-400 mb-2">Contraseña Recuperada</p><p class="font-black text-3xl text-white tracking-widest bg-white/5 py-3 rounded-xl border border-white/10">${window.currentUserDoc.pwd}</p></div>`;
     else showToast("Respuesta incorrecta", true);
+};
+window.toggleSession = () => {
+    if (auth.currentUser) {
+        window.logout();
+    } else {
+        window.showView('view-login');
+    }
 };
 
 window.logout = () => signOut(auth).then(() => window.location.href = window.location.pathname);
