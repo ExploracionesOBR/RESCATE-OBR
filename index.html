@@ -68,10 +68,10 @@
 <!-- Botón de sesión unificado (siempre presente) -->
 <div id="session-btn" class="absolute top-10 right-10 z-20">
     <button class="w-12 h-12 bg-naranja text-white rounded-full flex items-center justify-center shadow-2xl border border-naranja/50 transition-colors"
-            onclick="if(auth.currentUser) window.logout(); else window.showView('view-login');">
-        <i id="session-btn-icon" class="fas fa-sign-in-alt text-xl"></i>
-    </button>
-</div>
+        onclick="window.toggleSession()">
+    <i id="session-btn-icon" class="fas fa-sign-in-alt text-xl"></i>
+</button>
+    </div>
     <div class="z-10 flex flex-col items-center w-full max-w-sm lg:max-w-4xl animate-fade-in">
         <p id="landing-status-badge" class="text-naranja font-black tracking-widest text-[10px] lg:text-xs mb-8 lg:mb-12 uppercase border border-naranja/30 px-6 py-2 rounded-full bg-naranja/10">Plataforma Activa</p>
         <div id="landing-open" class="flex flex-col items-center w-full">
