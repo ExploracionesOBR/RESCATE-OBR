@@ -298,24 +298,21 @@ function applyTheme() {
 }
 
 function switchMapLayer(isLight) {
-    // Filtro para modo claro (tono café, texto oscuro)
-    // Filtro para modo oscuro (grisáceo, texto claro)
-    const filterValue = isLight
-        ? 'sepia(0.6) hue-rotate(-10deg) saturate(1.2)' // aspecto café
-        : 'invert(1) hue-rotate(180deg) brightness(1.2) saturate(0.8)'; // gris oscuro con texto blanco
+    const layerUrl = isLight
+        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    const attribution = '&copy; <a href="https://carto.com/">CARTO</a>';
 
-    // Aplicar el filtro a todas las instancias de mapas Leaflet
-    document.documentElement.style.setProperty('--map-filter', filterValue);
+    // Quitar cualquier filtro residual
+    document.documentElement.style.setProperty('--map-filter', 'none');
 
-    // También actualizar el filtro en las capas de mosaicos ya existentes (por si alguna no se ha creado aún)
     const maps = [adminSOSGlobalMapInst, adminGeoMap, mechMapInst, sosMapInstance];
     maps.forEach(map => {
         if (map) {
             map.eachLayer(layer => {
-                if (layer instanceof L.TileLayer) {
-                    layer.getContainer().style.filter = filterValue;
-                }
+                if (layer instanceof L.TileLayer) map.removeLayer(layer);
             });
+            L.tileLayer(layerUrl, { attribution }).addTo(map);
         }
     });
 }
