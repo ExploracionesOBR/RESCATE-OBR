@@ -361,8 +361,6 @@ function updateLandingStatus() {
         if (nextOpen) closedText.innerText = `Abrimos el ${nextOpen.day} a las ${nextOpen.time}`;
         else closedText.innerText = `Abrimos a las ${sched.o}`;
     }
-    const loginBtn = document.getElementById('global-login-btn');
-    const loginIcon = document.getElementById('global-login-icon');
     if (loginBtn && loginIcon) {
         if (auth.currentUser) {
             loginIcon.className = 'fas fa-sign-out-alt text-xl';
@@ -394,6 +392,15 @@ function updateLandingStatus() {
 
     // Cargar video promocional si está programado para hoy
     window.loadPromoVideo();
+        // Actualizar icono del botón de sesión unificado
+    const sessionBtnIcon = document.getElementById('session-btn-icon');
+    if (sessionBtnIcon) {
+        if (auth.currentUser) {
+            sessionBtnIcon.className = 'fas fa-sign-out-alt text-xl';
+        } else {
+            sessionBtnIcon.className = 'fas fa-sign-in-alt text-xl';
+        }
+    }
    }
 
 window.updateEmergencyButtonState = (isOpen, sched) => {
@@ -482,16 +489,10 @@ async function loadServicesCatalog() {
 // === FLUJO DE VISTAS Y AUTENTICACIÓN ===
 onAuthStateChanged(auth, async user => {
     document.getElementById('loading-screen').classList.add('hidden');
-    const globalLoginBtn = document.getElementById('global-login-btn');
-
     if (!user) {
         if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
-        if(globalLoginBtn) globalLoginBtn.style.display = 'flex';
         loadGlobalSettings(); document.getElementById('view-landing').classList.remove('hidden'); document.getElementById('view-landing').classList.add('flex'); return;
     }
-
-    if(globalLoginBtn) globalLoginBtn.style.display = 'none';
-
     document.getElementById('view-landing').classList.add('hidden');
 
     const userSnap = await getDoc(doc(db, 'users', user.uid));
@@ -571,6 +572,16 @@ function showView(targetId) {
     const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'view-force-setup', 'app-client', 'app-admin'];
     views.forEach(id => { const el = document.getElementById(id); if(el) { el.classList.add('hidden'); el.classList.remove('flex'); el.style.display = 'none'; } });
     const target = document.getElementById(targetId);
+        // Mostrar/ocultar el botón de sesión unificado
+    const sessionBtn = document.getElementById('session-btn');
+    if (sessionBtn) {
+        // Opcional: ocultar en panel de administración (si no quieres que aparezca ahí)
+        if (targetId === 'app-admin') {
+            sessionBtn.style.display = 'none';
+        } else {
+            sessionBtn.style.display = 'block';
+        }
+    }
     if(target) { target.classList.remove('hidden'); target.classList.add('flex'); target.style.display = 'flex'; }
     toggleModal('modal-user-detail', false);
     window.fixMaps?.();
