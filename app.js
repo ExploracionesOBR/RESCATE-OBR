@@ -293,6 +293,7 @@ function applyTheme() {
     if (mode === 'auto') { const h = new Date().getHours(); mode = (h >= 7 && h < 19) ? 'light' : 'dark'; }
     document.body.classList.toggle('light-mode', mode === 'light');
     const sel = document.getElementById('theme-selector'); if(sel) sel.value = globalSettings.themeMode || 'auto';
+    updateLogo(); // <-- añadido
     switchMapLayer(mode === 'light');
 }
 
@@ -311,6 +312,12 @@ function switchMapLayer(isLight) {
             L.tileLayer(layerUrl, { attribution }).addTo(map);
         }
     });
+}
+function updateLogo() {
+    const logo = document.getElementById('landing-logo');
+    if (!logo) return;
+    const isLight = document.body.classList.contains('light-mode');
+    logo.src = isLight ? 'logo_claro.png' : 'logo_oscuro.png';
 }
 
 // === RASTREO MECÁNICO ===
