@@ -1715,6 +1715,7 @@ window.createOrder = () => {
     // Si no hay sesión, redirigir al login y guardar el carrito para después
     if (!auth.currentUser) {
         window.pendingItemToBuy = 'cart'; // para restaurar carrito después de login
+        toggleModal('modal-cart', false);
         showToast("Inicia sesión para realizar el pedido");
         showView('view-login');
         return;
@@ -1727,11 +1728,87 @@ window.createOrder = () => {
 window.selectOrderOption = (option) => {
     toggleModal('modal-order-options', false);
     if (option === 'recoger') {
-        // Flujo recoger en taller (punto 2.2 más adelante)
-        window.submitPickupOrder?.();
+        window.submitPickupOrder();
     } else if (option === 'domicilio') {
-        // Flujo envío a domicilio (punto 2.3 más adelante)
-        window.submitDeliveryOrder?.();
+        window.submitDeliveryOrder?.(); // lo implementaremos después
+    }
+};
+// Mapa de recogida en taller
+window.submitPickupOrder = () => {
+    const modalId = 'modal-pickup-map';
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.innerHTML = `
+            <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 relative border border-naranja/30 shadow-2xl">
+                <button onclick="toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+                <h2 class="text-xl font-black mb-4 text-white">Recoger en Taller</h2>
+                <div id="pickup-map" class="h-48 bg-white rounded-xl mb-4"></div>
+                <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${TALLER_LAT},${TALLER_LNG}', '_blank')" class="w-full bg-blue-600 text-white p-3 rounded-xl font-black uppercase mb-2"><i class="fas fa-map-signs mr-2"></i>Cómo llegar</button>
+                <button id="btn-confirm-pickup" class="w-full bg-naranja hover:bg-orange-600 text-white p-3 rounded-xl font-black uppercase"><i class="fas fa-check mr-2"></i>Confirmar pedido</button>
+            </div>
+        `;
+        document.body.appendChild(modalEl);
+        document.getElementById('btn-confirm-pickup').addEventListener('click', () => {
+            window.finalizeOrder('recoger');
+        });
+    }
+    toggleModal(modalId, true);
+    // Inicializar mapa Leaflet después de que el modal sea visible
+    setTimeout(() => {
+        const mapEl = document.getElementById('pickup-map');
+        if (mapEl && !mapEl._leaflet_map) {
+            const map = L.map('pickup-map', { zoomControl: false, dragging: false }).setView([TALLER_LAT, TALLER_LNG], 15);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+            L.marker([TALLER_LAT, TALLER_LNG], { icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }) }).addTo(map);
+            mapEl._leaflet_map = map;
+        }
+    }, 300);
+};
+
+// Finalizar pedido (común para recoger y envío)
+window.finalizeOrder = async (tipoEntrega, extraData = {}) => {
+    if (!window.cart || window.cart.length === 0) {
+        showToast("El carrito está vacío", true);
+        return;
+    }
+    const cartItems = [...window.cart];
+    const total = cartItems.reduce((s, i) => s + i.price, 0);
+    const orderData = {
+        uid: auth.currentUser.uid,
+        cliente: window.currentUserDoc?.name || 'Cliente',
+        phone: window.currentUserDoc?.phone || '',
+        items: cartItems,
+        total: total,
+        tipoEntrega: tipoEntrega,
+        status: 'pendiente',
+        timestamp: Date.now(),
+        ...extraData
+    };
+    try {
+        const docRef = await addDoc(collection(db, "pedidos_online"), orderData);
+        // Notificar a CAJA mediante RTDB
+        rtdbSet(dbRef(rtdb, 'notificaciones_caja/pedido_' + Date.now()), { 
+            msg: 'Nuevo pedido en línea pendiente', 
+            type: 'pedido_online',
+            pedidoId: docRef.id,
+            cliente: orderData.cliente,
+            total: total
+        });
+        showToast("Pedido enviado. Espera confirmación del taller.");
+        // Limpiar carrito
+        window.cart = [];
+        window.renderCartItems?.();
+        document.getElementById('cart-count').innerText = '0';
+        document.getElementById('cart-count-mobile').innerText = '0';
+        // Cerrar modales relacionados
+        toggleModal('modal-pickup-map', false);
+        toggleModal('modal-order-options', false);
+    } catch (e) {
+        console.error('Error al crear pedido:', e);
+        showToast("Error al enviar pedido. Intenta de nuevo.", true);
     }
 };
 window.removeFromCart = (idx) => {
