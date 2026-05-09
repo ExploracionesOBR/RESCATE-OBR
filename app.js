@@ -1730,7 +1730,7 @@ window.selectOrderOption = (option) => {
     if (option === 'recoger') {
         window.submitPickupOrder();
     } else if (option === 'domicilio') {
-        window.submitDeliveryOrder?.(); // lo implementaremos después
+    window.submitDeliveryOrder();
     }
 };
 // Mapa de recogida en taller
@@ -1767,7 +1767,84 @@ window.submitPickupOrder = () => {
         }
     }, 300);
 };
+// Flujo de envío a domicilio
+window.submitDeliveryOrder = () => {
+    const modalId = 'modal-delivery-order';
+    let modalEl = document.getElementById(modalId);
+    // Si el modal no existe, lo creamos dinámicamente (ya debería existir en el HTML, pero por si acaso)
+    if (!modalEl) {
+        // (Ya lo agregamos en el HTML, así que solo lo mostramos)
+    }
+    
+    // Variables para almacenar la ubicación seleccionada
+    let selectedLat = null;
+    let selectedLng = null;
 
+    toggleModal(modalId, true);
+
+    // Inicializar mapa Leaflet dentro del modal
+    setTimeout(() => {
+        const mapEl = document.getElementById('delivery-map');
+        if (mapEl && !mapEl._delivery_map) {
+            const map = L.map('delivery-map', { zoomControl: false }).setView([TALLER_LAT, TALLER_LNG], 13);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+            
+            let marker = null;
+            map.on('click', (e) => {
+                const { lat, lng } = e.latlng;
+                selectedLat = lat;
+                selectedLng = lng;
+                if (marker) {
+                    marker.setLatLng([lat, lng]);
+                } else {
+                    marker = L.marker([lat, lng]).addTo(map);
+                }
+            });
+
+            // Botón "Usar ubicación actual"
+            document.getElementById('btn-use-my-location').onclick = () => {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition((pos) => {
+                        const lat = pos.coords.latitude;
+                        const lng = pos.coords.longitude;
+                        selectedLat = lat;
+                        selectedLng = lng;
+                        if (marker) {
+                            marker.setLatLng([lat, lng]);
+                        } else {
+                            marker = L.marker([lat, lng]).addTo(map);
+                        }
+                        map.setView([lat, lng], 16);
+                    }, () => {
+                        showToast("No se pudo obtener tu ubicación. Selecciona manualmente en el mapa.", true);
+                    });
+                } else {
+                    showToast("Tu navegador no soporta geolocalización.", true);
+                }
+            };
+
+            // Confirmar pedido
+            document.getElementById('btn-confirm-delivery').onclick = () => {
+                if (!selectedLat || !selectedLng) {
+                    showToast("Selecciona una ubicación en el mapa o usa 'Usar ubicación actual'", true);
+                    return;
+                }
+                const referencia = document.getElementById('delivery-reference').value.trim();
+                const metodoPago = document.getElementById('delivery-payment').value;
+                // Cerrar modal y llamar a finalizeOrder con datos extra
+                toggleModal(modalId, false);
+                window.finalizeOrder('domicilio', {
+                    lat: selectedLat,
+                    lng: selectedLng,
+                    referencia: referencia,
+                    metodoPago: metodoPago
+                });
+            };
+
+            mapEl._delivery_map = map;
+        }
+    }, 300);
+};
 // Finalizar pedido (común para recoger y envío)
 window.finalizeOrder = async (tipoEntrega, extraData = {}) => {
     if (!window.cart || window.cart.length === 0) {
@@ -1798,7 +1875,7 @@ window.finalizeOrder = async (tipoEntrega, extraData = {}) => {
             total: total
         });
         showToast("Pedido enviado. Espera confirmación del taller.");
-        // Limpiar carrito
+                // Limpiar carrito
         window.cart = [];
         window.renderCartItems?.();
         document.getElementById('cart-count').innerText = '0';
@@ -1806,10 +1883,7 @@ window.finalizeOrder = async (tipoEntrega, extraData = {}) => {
         // Cerrar modales relacionados
         toggleModal('modal-pickup-map', false);
         toggleModal('modal-order-options', false);
-    } catch (e) {
-        console.error('Error al crear pedido:', e);
-        showToast("Error al enviar pedido. Intenta de nuevo.", true);
-    }
+        toggleModal('modal-delivery-order', false); // <-- añadir    }
 };
 window.removeFromCart = (idx) => {
     window.cart.splice(idx, 1);
