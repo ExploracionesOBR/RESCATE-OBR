@@ -548,6 +548,11 @@ onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
             }
         } else crown.classList.add('hidden');
         window.loadClientHistory(); listenToMySOS(); window.loadClientCitas(); loadPublicStore();
+        if (window.pendingItemToBuy === 'cart') {
+    window.pendingItemToBuy = null;
+    // Redirigir al modal del carrito después de un pequeño retraso para que cargue la vista
+    setTimeout(() => toggleModal('modal-cart', true), 500);
+}
         window.loadMyOrders();
         updateLandingStatus();
     }
@@ -1704,6 +1709,30 @@ window.renderCartItems = () => {
         </div>`;
     });
     totalEl.innerText = total.toFixed(2);
+};
+// ===== FLUJO DE PEDIDOS EN LÍNEA =====
+window.createOrder = () => {
+    // Si no hay sesión, redirigir al login y guardar el carrito para después
+    if (!auth.currentUser) {
+        window.pendingItemToBuy = 'cart'; // para restaurar carrito después de login
+        showToast("Inicia sesión para realizar el pedido");
+        showView('view-login');
+        return;
+    }
+    // Abrir modal de opciones de entrega
+    toggleModal('modal-order-options', true);
+    toggleModal('modal-cart', false); // cerrar carrito
+};
+
+window.selectOrderOption = (option) => {
+    toggleModal('modal-order-options', false);
+    if (option === 'recoger') {
+        // Flujo recoger en taller (punto 2.2 más adelante)
+        window.submitPickupOrder?.();
+    } else if (option === 'domicilio') {
+        // Flujo envío a domicilio (punto 2.3 más adelante)
+        window.submitDeliveryOrder?.();
+    }
 };
 window.removeFromCart = (idx) => {
     window.cart.splice(idx, 1);
