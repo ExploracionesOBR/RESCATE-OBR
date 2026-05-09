@@ -1289,7 +1289,28 @@
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30" id="modal-garantias-venta-content">
     </div>
 </div>
-
+<!-- Modal envío a domicilio -->
+<div id="modal-delivery-order" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl">
+        <button onclick="toggleModal('modal-delivery-order', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        <h2 class="text-xl font-black mb-4 text-white">Envío a Domicilio</h2>
+        <p class="text-xs text-gray-400 mb-4">Confirma tu ubicación de entrega.</p>
+        <div id="delivery-map" class="h-48 bg-white rounded-xl mb-4"></div>
+        <button id="btn-use-my-location" class="w-full bg-green-600 hover:bg-green-500 text-white p-3 rounded-xl font-black uppercase mb-2">
+            <i class="fas fa-location-arrow mr-2"></i>Usar ubicación actual
+        </button>
+        <input type="text" id="delivery-reference" placeholder="Referencia (Ej. Casa blanca frente al parque)" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
+        <select id="delivery-payment" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
+            <option value="">Método de pago (opcional)</option>
+            <option value="Efectivo">Efectivo</option>
+            <option value="Tarjeta">Tarjeta</option>
+            <option value="Transferencia">Transferencia</option>
+        </select>
+        <button id="btn-confirm-delivery" class="w-full bg-naranja hover:bg-orange-600 text-white p-3 rounded-xl font-black uppercase">
+            <i class="fas fa-check mr-2"></i>Confirmar pedido
+        </button>
+    </div>
+</div>
 <!-- FIN DE MODALES -->
 <script type="module" src="app.js"></script>
 <script>
