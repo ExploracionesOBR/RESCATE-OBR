@@ -1875,7 +1875,7 @@ window.finalizeOrder = async (tipoEntrega, extraData = {}) => {
             total: total
         });
         showToast("Pedido enviado. Espera confirmación del taller.");
-                // Limpiar carrito
+        // Limpiar carrito
         window.cart = [];
         window.renderCartItems?.();
         document.getElementById('cart-count').innerText = '0';
@@ -1883,7 +1883,11 @@ window.finalizeOrder = async (tipoEntrega, extraData = {}) => {
         // Cerrar modales relacionados
         toggleModal('modal-pickup-map', false);
         toggleModal('modal-order-options', false);
-        toggleModal('modal-delivery-order', false); // <-- añadir    }
+        toggleModal('modal-delivery-order', false);
+    } catch (e) {
+        console.error('Error al crear pedido:', e);
+        showToast("Error al enviar pedido. Intenta de nuevo.", true);
+    }
 };
 window.removeFromCart = (idx) => {
     window.cart.splice(idx, 1);
