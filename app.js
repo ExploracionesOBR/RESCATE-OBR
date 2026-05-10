@@ -651,6 +651,7 @@ window.switchAdminView = (id) => {
     window.loadVentasRealizadas(); 
     // Activar listener de compras online (con retraso para asegurar DOM listo)
     setTimeout(() => window.loadOnlineOrders?.(), 200);
+        if(id === 'a-view-entregas') { window.loadEntregas(); }
 }
     if(id === 'a-view-inventario') {
         window.adminLoadInventory();
@@ -2882,7 +2883,7 @@ window.adminAddUser = async () => {
     const fakeEmail = `${phone}@motorescateobr.com`;
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, '123456');
-        await setDoc(doc(db, "users", userCredential.user.uid), { phone: "+52"+phone, name, role, pwd: '123456', firstLogin: true, vistasPermitidas: ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas'] });
+        await setDoc(doc(db, "users", userCredential.user.uid), { phone: "+52"+phone, name, role, pwd: '123456', firstLogin: true, vistasPermitidas: ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas','a-view-entregas'] });
         showToast('Usuario creado. Deberá cambiar contraseña en su primer inicio.');
         window.adminLoadUsers();
     } catch (e) {
@@ -3107,8 +3108,8 @@ window.openStaffDetail = async (uid) => {
     const promedio = calificaciones.length ? (calificaciones.reduce((a,b)=>a+b,0)/calificaciones.length).toFixed(1) : 'N/A';
 
     // Permisos
-    const vistas = ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas'];
-    const vistasNombres = ['Caja','Taller','SOS','Almacén','Promos','Usuarios','Ajustes','Estadíst.','Citas'];
+    const vistas = ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas','a-view-entregas'];
+const vistasNombres = ['Caja','Taller','SOS','Almacén','Promos','Usuarios','Ajustes','Estadíst.','Citas','Entregas'];
     const vistasActuales = user.vistasPermitidas || vistas;
     let vistasHTML = vistas.map((v,i) => {
         const checked = vistasActuales.includes(v) ? 'checked' : '';
@@ -3206,7 +3207,7 @@ window.openStaffDetail = async (uid) => {
 window.toggleVistaPermitida = async (uid, vista, permitir) => {
     const userDoc = await getDoc(doc(db, "users", uid));
     const user = userDoc.data();
-    let vistas = user.vistasPermitidas || ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas'];
+    let vistas = user.vistasPermitidas || ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas','a-view-entregas'];
     if (permitir) {
         if (!vistas.includes(vista)) vistas.push(vista);
     } else {
@@ -4383,6 +4384,144 @@ window.searchServiceStatus = async () => {
                 <p class="text-xs mt-4 text-gray-500">Última actualización: ${new Date(rescue.timestamp).toLocaleString()}</p>
             </div>
         `;
+    }
+};
+// ===== ENTREGAS A DOMICILIO =====
+let entregaSeleccionadaId = null;
+let entregaMapaInst = null;
+
+window.loadEntregas = () => {
+    if (!auth.currentUser) return;
+    const lista = document.getElementById('entregas-list');
+    if (!lista) return;
+    const q = query(collection(db, "pedidos_online"), 
+                    where("repartidor_uid", "==", auth.currentUser.uid),
+                    where("status", "==", "aceptado"),
+                    where("estado_entrega", "in", ["pendiente", "en_camino"]));
+    onSnapshot(q, (snap) => {
+        lista.innerHTML = '';
+        if (snap.empty) {
+            lista.innerHTML = '<p class="text-gray-500 text-xs italic">No tienes entregas pendientes.</p>';
+            return;
+        }
+        snap.forEach(dSnap => {
+            const p = dSnap.data();
+            const id = dSnap.id;
+            lista.innerHTML += `
+            <div class="bg-white/5 border border-white/10 p-4 rounded-xl cursor-pointer" onclick="window.seleccionarEntrega('${id}')">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="font-bold text-white">${p.cliente || 'Cliente'}</span>
+                    <span class="text-[0.6rem] font-bold uppercase ${p.estado_entrega==='en_camino'?'text-blue-400':'text-yellow-400'}">${p.estado_entrega==='en_camino'?'En camino':'Pendiente'}</span>
+                </div>
+                <p class="text-xs text-gray-400">${p.items.map(i=>i.name).join(', ')}</p>
+                <p class="text-xs text-naranja font-bold mt-1">$${p.total.toFixed(2)}</p>
+            </div>`;
+        });
+    });
+};
+
+window.seleccionarEntrega = async (pedidoId) => {
+    entregaSeleccionadaId = pedidoId;
+    const snap = await getDoc(doc(db, "pedidos_online", pedidoId));
+    if (!snap.exists()) return;
+    const data = snap.data();
+    // Mostrar contenedor del mapa
+    const mapContainer = document.getElementById('entrega-mapa-container');
+    if (mapContainer) mapContainer.classList.remove('hidden');
+    // Inicializar mapa
+    const mapEl = document.getElementById('entrega-mapa');
+    if (mapEl && data.lat && data.lng) {
+        if (entregaMapaInst) entregaMapaInst.remove();
+        entregaMapaInst = L.map('entrega-mapa', { zoomControl: false }).setView([data.lat, data.lng], 15);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(entregaMapaInst);
+        L.marker([data.lat, data.lng]).addTo(entregaMapaInst);
+        L.marker([TALLER_LAT, TALLER_LNG], { icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }) }).addTo(entregaMapaInst);
+    }
+    // Actualizar botones según estado
+    const btnIniciar = document.getElementById('btn-iniciar-entrega');
+    const btnCobrar = document.getElementById('btn-cobrar-entrega');
+    if (data.estado_entrega === 'pendiente') {
+        if (btnIniciar) btnIniciar.style.display = 'block';
+        if (btnCobrar) btnCobrar.style.display = 'none';
+    } else if (data.estado_entrega === 'en_camino') {
+        if (btnIniciar) btnIniciar.style.display = 'none';
+        if (btnCobrar) btnCobrar.style.display = 'block';
+    }
+};
+
+window.iniciarEntrega = async () => {
+    if (!entregaSeleccionadaId) return;
+    await updateDoc(doc(db, "pedidos_online", entregaSeleccionadaId), { estado_entrega: 'en_camino' });
+    showToast("Entrega iniciada. Dirígete al cliente.");
+    window.seleccionarEntrega(entregaSeleccionadaId);
+    window.loadEntregas();
+};
+
+window.abrirCobroEntrega = async () => {
+    if (!entregaSeleccionadaId) return;
+    const snap = await getDoc(doc(db, "pedidos_online", entregaSeleccionadaId));
+    if (!snap.exists()) return;
+    const data = snap.data();
+    let total = data.total || 0;
+    // Aplicar descuento por promo si existe
+    if (data.descuento) total -= data.descuento;
+    if (total < 0) total = 0;
+    document.getElementById('cobro-entrega-total').innerText = `$${total.toFixed(2)}`;
+    toggleModal('modal-cobro-entrega', true);
+};
+
+window.confirmarCobroEntrega = async () => {
+    if (!entregaSeleccionadaId) return;
+    const metodo = document.getElementById('cobro-entrega-metodo')?.value || 'Efectivo';
+    const snap = await getDoc(doc(db, "pedidos_online", entregaSeleccionadaId));
+    if (!snap.exists()) return;
+    const data = snap.data();
+    const total = data.total || 0;
+
+    try {
+        // Marcar entrega como completada
+        await updateDoc(doc(db, "pedidos_online", entregaSeleccionadaId), { estado_entrega: 'entregado', metodoPago: metodo });
+
+        // Registrar cobro pendiente para el repartidor
+        await addDoc(collection(db, "cobros_pendientes"), {
+            mech_uid: auth.currentUser.uid,
+            mech_name: window.currentUserDoc?.name || 'Repartidor',
+            concepto: `Entrega pedido ${entregaSeleccionadaId}`,
+            monto: total,
+            metodo: metodo,
+            estado: 'pendiente',
+            pedidoId: entregaSeleccionadaId,
+            timestamp: Date.now()
+        });
+
+        // Descontar inventario
+        if (data.items) {
+            for (let item of data.items) {
+                const prodSnap = await getDocs(query(collection(db, "inventario"), where("name", "==", item.name), limit(1)));
+                prodSnap.forEach(async (prodDoc) => {
+                    const stockActual = prodDoc.data().stock || 0;
+                    if (stockActual > 0) {
+                        await updateDoc(doc(db, "inventario", prodDoc.id), { stock: stockActual - 1 });
+                    }
+                });
+            }
+        }
+
+        // Notificar a CAJA
+        rtdbSet(dbRef(rtdb, 'notificaciones_caja/pedido_' + Date.now()), {
+            msg: 'Cobro de entrega pendiente por confirmar en CAJA',
+            type: 'cobro_entrega',
+            pedidoId: entregaSeleccionadaId,
+            monto: total
+        });
+
+        showToast("Cobro registrado. Entrega finalizada.");
+        toggleModal('modal-cobro-entrega', false);
+        window.loadEntregas();
+        document.getElementById('entrega-mapa-container').classList.add('hidden');
+        entregaSeleccionadaId = null;
+    } catch (e) {
+        showToast("Error al procesar cobro", true);
     }
 };
 // ======================================================
