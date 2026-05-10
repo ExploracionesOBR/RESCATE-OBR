@@ -1951,6 +1951,35 @@ window.acceptOnlineOrder = async (pedidoId) => {
             }
         }
         speakTTS('Pedido aceptado, en breve verás actualizaciones desde tu app.');
+                // Crear chat temporal "COMPRA EN LINEA" entre admin y cliente
+        const adminUid = auth.currentUser.uid;
+        const clienteUid = data.uid;
+        if (clienteUid) {
+            const chatQuery = query(
+                collection(db, "chats"),
+                where("participantes", "array-contains", adminUid)
+            );
+            const chatSnap = await getDocs(chatQuery);
+            let chatId = null;
+            chatSnap.forEach(doc => {
+                const d = doc.data();
+                if (d.participantes.includes(clienteUid) && d.titulo === 'COMPRA EN LINEA') {
+                    chatId = doc.id;
+                }
+            });
+            if (!chatId) {
+                const chatRef = await addDoc(collection(db, "chats"), {
+                    titulo: 'COMPRA EN LINEA',
+                    participantes: [adminUid, clienteUid],
+                    nombres: {
+                        [adminUid]: window.currentUserDoc?.name || 'Taller',
+                        [clienteUid]: data.cliente || 'Cliente'
+                    },
+                    creado: Date.now()
+                });
+                chatId = chatRef.id;
+            }
+        }
     } catch (e) {
         showToast("Error al aceptar pedido", true);
     }
@@ -4594,14 +4623,94 @@ window.sendContactFromModal = async function() {
         toggleModal('modal-contact', false);
     }
 };
-window.loadChatList = window.loadChatList || async function() {};
-window.sendMessage = window.sendMessage || async function() {};
-window.openChat = window.openChat || function(uid, isClient) {
-    activeChatUid = uid;
-    document.getElementById('chat-title').innerText = isClient ? 'Soporte OBR' : (window.currentUserDoc?.name || 'Chat');
-    toggleModal('modal-chat', true);
+// ===== SISTEMA DE CHAT =====
+window.loadChatList = async () => {
+    const listEl = document.getElementById('chat-list-items');
+    if (!listEl) return;
+    listEl.innerHTML = '<p class="text-xs text-gray-500 text-center">Cargando chats...</p>';
+
+    if (!auth.currentUser) return;
+
+    const q = query(collection(db, "chats"), where("participantes", "array-contains", auth.currentUser.uid));
+    const snap = await getDocs(q);
+    listEl.innerHTML = '';
+
+    if (snap.empty) {
+        listEl.innerHTML = '<p class="text-xs text-gray-500 text-center">No hay chats activos</p>';
+        return;
+    }
+
+    snap.forEach(docSnap => {
+        const chat = docSnap.data();
+        const otroNombre = chat.nombres ? (chat.nombres[auth.currentUser.uid] || 'Desconocido') : 'Cliente';
+        listEl.innerHTML += `
+            <div class="bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10" onclick="window.openChat('${docSnap.id}')">
+                <p class="text-sm font-bold text-white">${chat.titulo || 'Chat'}</p>
+                <p class="text-xs text-gray-400">${otroNombre}</p>
+            </div>
+        `;
+    });
 };
-window.closeChat = window.closeChat || function() {
+
+window.openChat = (chatId) => {
+    // Cerrar suscripción previa si existe
+    if (chatUnsubscribe) chatUnsubscribe();
+    activeChatUid = chatId;
+
+    // Título del chat
+    getDoc(doc(db, "chats", chatId)).then(snap => {
+        if (snap.exists()) {
+            const data = snap.data();
+            document.getElementById('chat-title').innerText = data.titulo || 'Chat';
+        }
+    });
+
+    toggleModal('modal-chat-list', false);
+    toggleModal('modal-chat', true);
+
+    const messagesContainer = document.getElementById('chat-messages');
+    messagesContainer.innerHTML = '';
+
+    chatUnsubscribe = onSnapshot(collection(db, "chats", chatId, "mensajes"), (snap) => {
+        messagesContainer.innerHTML = '';
+        snap.forEach(doc => {
+            const msg = doc.data();
+            const isMine = msg.uid === auth.currentUser.uid;
+            messagesContainer.innerHTML += `
+                <div class="flex ${isMine ? 'justify-end' : 'justify-start'} mb-2">
+                    <div class="${isMine ? 'bg-naranja text-white' : 'bg-white/10 text-white'} p-3 rounded-2xl max-w-[75%] text-xs">
+                        <p>${msg.texto}</p>
+                        <span class="text-[0.6rem] opacity-60">${new Date(msg.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                </div>
+            `;
+        });
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    });
+};
+
+window.sendMessage = async () => {
+    const input = document.getElementById('chat-input');
+    const texto = input?.value.trim();
+    if (!texto || !activeChatUid) return;
+
+    try {
+        await addDoc(collection(db, "chats", activeChatUid, "mensajes"), {
+            uid: auth.currentUser.uid,
+            texto: texto,
+            timestamp: Date.now()
+        });
+        input.value = '';
+    } catch (e) {
+        console.warn('Error al enviar mensaje', e);
+    }
+};
+
+window.closeChat = () => {
+    if (chatUnsubscribe) {
+        chatUnsubscribe();
+        chatUnsubscribe = null;
+    }
     activeChatUid = null;
     toggleModal('modal-chat', false);
 };
