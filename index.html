@@ -460,8 +460,17 @@
     </div>
 
     <div class="flex flex-col lg:grid lg:grid-cols-12 lg:gap-4 h-auto min-h-[600px]">
+                <!-- Compras en línea (3 columnas) -->
+        <div class="lg:col-span-2 w-full bg-white/5 border border-white/10 rounded-3xl p-4 flex flex-col shadow-xl h-auto space-y-4 order-2 lg:order-2" id="panel-compras-online">
+            <h4 class="text-white font-black text-sm uppercase mb-2 flex items-center">
+                <i class="fas fa-shopping-bag text-green-400 mr-2"></i> Compras en línea
+            </h4>
+            <div id="compras-online-list" class="space-y-2 max-h-60 overflow-y-auto hide-scroll flex-grow">
+                <p class="text-xs text-gray-500 italic">Sin pedidos pendientes</p>
+            </div>
+        </div>
         <!-- Panel de Notificaciones (3 columnas) -->
-        <div class="lg:col-span-3 w-full bg-white/5 border border-white/10 rounded-3xl p-4 flex flex-col shadow-xl h-auto space-y-4 order-3 lg:order-1" id="panel-notificaciones">
+        <div class="lg:col-span-2 w-full bg-white/5 border border-white/10 rounded-3xl p-4 flex flex-col shadow-xl h-auto space-y-4 order-1 lg:order-1" id="panel-notificaciones">
             <!-- Citas pendientes -->
             <div>
                 <h4 class="text-white font-black text-sm uppercase mb-2 flex items-center">
@@ -480,7 +489,7 @@
         </div>
 
         <!-- Terminal POS (5 columnas) -->
-        <div class="lg:col-span-5 flex-1 bg-white/5 border border-white/10 rounded-3xl p-4 flex flex-col shadow-xl overflow-hidden order-1 lg:order-2">
+        <div class="lg:col-span-4 flex-1 bg-white/5 border border-white/10 rounded-3xl p-4 flex flex-col shadow-xl overflow-hidden order-3 lg:order-3">
             <div class="flex space-x-2 mb-4 shrink-0">
                 <div class="relative flex-grow">
                     <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -499,7 +508,7 @@
         </div>
 
         <!-- Ticket de venta (4 columnas) -->
-        <div class="lg:col-span-4 w-full bg-white rounded-3xl p-6 flex flex-col shadow-2xl relative border-t-8 border-naranja shrink-0 h-auto order-2 lg:order-3">
+        <div class="lg:col-span-4 w-full bg-white rounded-3xl p-6 flex flex-col shadow-2xl relative border-t-8 border-naranja shrink-0 h-auto order-4 lg:order-4">
             <div class="flex space-x-2 mb-4 shrink-0">
                 <div class="relative flex-grow">
                     <i class="fas fa-user absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
