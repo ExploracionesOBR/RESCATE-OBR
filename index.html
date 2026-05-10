@@ -948,7 +948,17 @@
         <button onclick="window.tomarCasoDirecto?.()" class="w-full bg-green-600 hover:bg-green-500 text-white p-4 rounded-xl font-black uppercase text-xs transition-colors shadow-lg mt-2">Tomar el caso yo mismo</button>
     </div>
 </div>
-
+<!-- Modal Asignar Repartidor -->
+<div id="modal-asignar-repartidor" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl">
+        <button onclick="toggleModal('modal-asignar-repartidor', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        <h2 class="text-xl font-black mb-4 text-white flex items-center">
+            <i class="fas fa-truck mr-2 text-green-400"></i> Asignar Entrega
+        </h2>
+        <p class="text-xs text-gray-400 mb-4">Selecciona quién realizará la entrega a domicilio.</p>
+        <div id="lista-repartidores-asignar" class="space-y-2 max-h-60 overflow-y-auto hide-scroll"></div>
+    </div>
+</div>
 <!-- Modal abrir caja -->
 <div id="modal-caja" class="fixed inset-0 bg-black/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30">
