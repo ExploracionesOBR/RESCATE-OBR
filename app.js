@@ -649,6 +649,7 @@ window.switchAdminView = (id) => {
     window.cargarNotificacionesCitas(); 
     window.cargarCobrosMecanicosPanel(); 
     window.loadVentasRealizadas(); 
+    window.loadOnlineOrders(); // <-- añadir
 }
     if(id === 'a-view-inventario') {
         window.adminLoadInventory();
@@ -1888,6 +1889,88 @@ window.finalizeOrder = async (tipoEntrega, extraData = {}) => {
         console.error('Error al crear pedido:', e);
         showToast("Error al enviar pedido. Intenta de nuevo.", true);
     }
+};
+// Cargar pedidos online en el panel de CAJA
+let onlineOrdersListener = null;
+
+window.loadOnlineOrders = () => {
+    const container = document.getElementById('compras-online-list');
+    if (!container) return;
+
+    // Si ya hay un listener, lo desvinculamos para evitar duplicados
+    if (onlineOrdersListener) onlineOrdersListener();
+
+    const q = query(collection(db, "pedidos_online"), where("status", "==", "pendiente"), orderBy("timestamp", "desc"));
+    onlineOrdersListener = onSnapshot(q, (snap) => {
+        container.innerHTML = '';
+        if (snap.empty) {
+            container.innerHTML = '<p class="text-xs text-gray-500 italic">Sin pedidos pendientes</p>';
+            return;
+        }
+        snap.forEach(docSnap => {
+            const p = docSnap.data();
+            const id = docSnap.id;
+            const metodoPago = p.metodoPago || 'No especificado';
+            const referencia = p.referencia || '';
+            const entrega = p.tipoEntrega === 'domicilio' ? '🏠 Domicilio' : '🏍️ Recoger';
+            
+            container.innerHTML += `
+            <div class="bg-black/30 p-3 rounded-xl border border-white/10 text-xs">
+                <div class="flex justify-between items-start mb-1">
+                    <span class="font-bold text-white">${p.cliente || 'Sin nombre'}</span>
+                    <span class="text-[0.6rem] font-bold uppercase text-yellow-400">${entrega}</span>
+                </div>
+                <p class="text-gray-400 truncate">${p.items.map(i => i.name).join(', ')}</p>
+                <div class="flex justify-between items-center mt-2">
+                    <span class="text-naranja font-bold">$${p.total.toFixed(2)}</span>
+                    <div class="flex space-x-1">
+                        <button onclick="window.acceptOnlineOrder('${id}')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase">Aceptar</button>
+                        <button onclick="window.cancelOnlineOrder('${id}')" class="bg-red-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase">Cancelar</button>
+                    </div>
+                </div>
+                ${metodoPago !== 'No especificado' ? `<p class="text-[0.6rem] text-gray-500 mt-1">💳 ${metodoPago}</p>` : ''}
+                ${referencia ? `<p class="text-[0.6rem] text-gray-500">📌 ${referencia}</p>` : ''}
+            </div>`;
+        });
+    });
+};
+
+// Aceptar un pedido online
+window.acceptOnlineOrder = async (pedidoId) => {
+    try {
+        await updateDoc(doc(db, "pedidos_online", pedidoId), { status: 'aceptado' });
+        showToast("Pedido aceptado. Se notificará al cliente.");
+        // Notificar al cliente (guardamos su uid en el documento)
+        const snap = await getDoc(doc(db, "pedidos_online", pedidoId));
+        if (snap.exists()) {
+            const data = snap.data();
+            if (data.uid) {
+                rtdbSet(dbRef(rtdb, 'notificaciones/' + data.uid), { 
+                    msg: '✅ Tu pedido ha sido aceptado. El taller se pondrá en contacto contigo.' 
+                });
+            }
+        }
+        speakTTS('Pedido aceptado, en breve verás actualizaciones desde tu app.');
+    } catch (e) {
+        showToast("Error al aceptar pedido", true);
+    }
+};
+
+// Cancelar un pedido online
+window.cancelOnlineOrder = (pedidoId) => {
+    window.confirmModal("¿Cancelar este pedido? Se notificará al cliente.", async () => {
+        await updateDoc(doc(db, "pedidos_online", pedidoId), { status: 'cancelado' });
+        showToast("Pedido cancelado.");
+        const snap = await getDoc(doc(db, "pedidos_online", pedidoId));
+        if (snap.exists()) {
+            const data = snap.data();
+            if (data.uid) {
+                rtdbSet(dbRef(rtdb, 'notificaciones/' + data.uid), { 
+                    msg: '❌ Tu pedido ha sido cancelado por el taller. Contacta a soporte si tienes dudas.' 
+                });
+            }
+        }
+    });
 };
 window.removeFromCart = (idx) => {
     window.cart.splice(idx, 1);
