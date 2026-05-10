@@ -649,7 +649,8 @@ window.switchAdminView = (id) => {
     window.cargarNotificacionesCitas(); 
     window.cargarCobrosMecanicosPanel(); 
     window.loadVentasRealizadas(); 
-    window.loadOnlineOrders(); // <-- añadir
+    // Activar listener de compras online (con retraso para asegurar DOM listo)
+    setTimeout(() => window.loadOnlineOrders?.(), 200);
 }
     if(id === 'a-view-inventario') {
         window.adminLoadInventory();
@@ -4818,4 +4819,69 @@ window.viewActiveWorkshop = async () => {
     }
 };
 
-window.loadMyOrders = window.loadMyOrders || async function() {};
+window.loadMyOrders = () => {
+    if (!auth.currentUser) return;
+    const q = query(collection(db, "pedidos_online"), where("uid", "==", auth.currentUser.uid), orderBy("timestamp", "desc"));
+    onSnapshot(q, (snap) => {
+        const container = document.getElementById('pedidos-list');
+        if (!container) return;
+        container.innerHTML = '';
+        if (snap.empty) {
+            container.innerHTML = '<p class="text-xs text-gray-500 italic text-center py-4">No tienes pedidos aún.</p>';
+            return;
+        }
+        snap.forEach(docSnap => {
+            const p = docSnap.data();
+            const id = docSnap.id;
+            const estado = p.status || 'pendiente';
+            const colorEstado = estado === 'aceptado' ? 'text-green-400' : (estado === 'cancelado' ? 'text-red-400' : 'text-yellow-400');
+            container.innerHTML += `
+            <div class="bg-white/5 p-3 rounded-xl text-white text-xs cursor-pointer hover:bg-white/10" onclick="window.openOrderDetail?.('${id}')">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="font-bold">${estado === 'aceptado' ? '✅' : estado === 'cancelado' ? '❌' : '⏳'} Pedido ${new Date(p.timestamp).toLocaleDateString()}</span>
+                    <span class="${colorEstado} font-bold uppercase text-[0.6rem]">${estado}</span>
+                </div>
+                <p class="text-gray-400 truncate">${p.items.map(i => i.name).join(', ')}</p>
+                <div class="flex justify-between items-center mt-2">
+                    <span class="text-naranja font-bold">$${p.total.toFixed(2)}</span>
+                    <span class="text-gray-500 text-[0.6rem]">${p.tipoEntrega === 'domicilio' ? '🏠 Domicilio' : '🏍️ Recoger'}</span>
+                </div>
+            </div>`;
+        });
+    });
+};
+window.openOrderDetail = async (pedidoId) => {
+    const snap = await getDoc(doc(db, "pedidos_online", pedidoId));
+    if (!snap.exists()) return showToast("Pedido no encontrado", true);
+    const p = snap.data();
+    const estado = p.status || 'pendiente';
+    const colorEstado = estado === 'aceptado' ? 'text-green-400' : (estado === 'cancelado' ? 'text-red-400' : 'text-yellow-400');
+    const html = `
+        <div class="text-white space-y-2 text-xs">
+            <h3 class="font-black text-lg">Detalle del Pedido</h3>
+            <p>Estado: <span class="${colorEstado} font-bold uppercase">${estado}</span></p>
+            <p>Entrega: ${p.tipoEntrega === 'domicilio' ? '🏠 Envío a domicilio' : '🏍️ Recoger en taller'}</p>
+            ${p.referencia ? `<p>Referencia: ${p.referencia}</p>` : ''}
+            ${p.metodoPago ? `<p>Método de pago: ${p.metodoPago}</p>` : ''}
+            <div class="bg-black/30 p-2 rounded-lg">
+                <p class="font-bold mb-1">Productos:</p>
+                ${p.items.map(i => `<p>• ${i.name} - $${i.price.toFixed(2)}</p>`).join('')}
+            </div>
+            <p class="font-bold text-lg text-naranja">Total: $${p.total.toFixed(2)}</p>
+            <p class="text-gray-500">${new Date(p.timestamp).toLocaleString()}</p>
+            ${estado === 'aceptado' ? '<p class="text-green-400 mt-2">✅ Tu pedido ha sido aceptado. El taller se pondrá en contacto contigo.</p>' : ''}
+            ${estado === 'cancelado' ? '<p class="text-red-400 mt-2">❌ Tu pedido ha sido cancelado por el taller.</p>' : ''}
+        </div>
+    `;
+    const modalId = 'modal-order-detail';
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.innerHTML = `<div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-naranja/30 shadow-2xl" id="${modalId}-content"><button onclick="toggleModal('${modalId}',false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button></div>`;
+        document.body.appendChild(modalEl);
+    }
+    document.getElementById(`${modalId}-content`).innerHTML = `<button onclick="toggleModal('${modalId}',false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>${html}`;
+    toggleModal(modalId, true);
+};
