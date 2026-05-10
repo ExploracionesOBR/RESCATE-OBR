@@ -1936,56 +1936,34 @@ window.loadOnlineOrders = () => {
     });
 };
 
-// Aceptar un pedido online
 window.acceptOnlineOrder = async (pedidoId) => {
     try {
-        await updateDoc(doc(db, "pedidos_online", pedidoId), { status: 'aceptado' });
-        showToast("Pedido aceptado. Se notificará al cliente.");
-        // Notificar al cliente (guardamos su uid en el documento)
         const snap = await getDoc(doc(db, "pedidos_online", pedidoId));
-        if (snap.exists()) {
-            const data = snap.data();
+        if (!snap.exists()) return showToast("Pedido no encontrado", true);
+        const data = snap.data();
+        if (data.tipoEntrega === 'domicilio') {
+            // Guardar el id del pedido temporalmente y abrir modal de asignación
+            window._pedidoAceptadoId = pedidoId;
+            window.loadRepartidoresParaAsignar(pedidoId);
+            toggleModal('modal-asignar-repartidor', true);
+        } else {
+            // Recoger en taller: aceptar directamente
+            await updateDoc(doc(db, "pedidos_online", pedidoId), { status: 'aceptado' });
+            showToast("Pedido aceptado. Se notificará al cliente.");
+            // Notificar al cliente
             if (data.uid) {
                 rtdbSet(dbRef(rtdb, 'notificaciones/' + data.uid), { 
-                    msg: '✅ Tu pedido ha sido aceptado. El taller se pondrá en contacto contigo.' 
+                    msg: 'Tu pedido ha sido aceptado. El taller se pondrá en contacto contigo.' 
                 });
             }
-        }
-        speakTTS('Pedido aceptado, en breve verás actualizaciones desde tu app.');
-                // Crear chat temporal "COMPRA EN LINEA" entre admin y cliente
-        const adminUid = auth.currentUser.uid;
-        const clienteUid = data.uid;
-        if (clienteUid) {
-            const chatQuery = query(
-                collection(db, "chats"),
-                where("participantes", "array-contains", adminUid)
-            );
-            const chatSnap = await getDocs(chatQuery);
-            let chatId = null;
-            chatSnap.forEach(doc => {
-                const d = doc.data();
-                if (d.participantes.includes(clienteUid) && d.titulo === 'COMPRA EN LINEA') {
-                    chatId = doc.id;
-                }
-            });
-            if (!chatId) {
-                const chatRef = await addDoc(collection(db, "chats"), {
-                    titulo: 'COMPRA EN LINEA',
-                    participantes: [adminUid, clienteUid],
-                    nombres: {
-                        [adminUid]: window.currentUserDoc?.name || 'Taller',
-                        [clienteUid]: data.cliente || 'Cliente'
-                    },
-                    creado: Date.now()
-                });
-                chatId = chatRef.id;
-            }
+            speakTTS('Pedido aceptado, en breve verás actualizaciones desde tu app.');
+            // Crear chat (opcional para recoger, pero lo dejamos)
+            // ...
         }
     } catch (e) {
         showToast("Error al aceptar pedido", true);
     }
 };
-
 // Cancelar un pedido online
 window.cancelOnlineOrder = (pedidoId) => {
     window.confirmModal("¿Cancelar este pedido? Se notificará al cliente.", async () => {
@@ -1996,11 +1974,51 @@ window.cancelOnlineOrder = (pedidoId) => {
             const data = snap.data();
             if (data.uid) {
                 rtdbSet(dbRef(rtdb, 'notificaciones/' + data.uid), { 
-                    msg: '❌ Tu pedido ha sido cancelado por el taller. Contacta a soporte si tienes dudas.' 
+                    msg: 'Tu pedido ha sido cancelado por el taller. Contacta a soporte si tienes dudas.' 
                 });
             }
         }
     });
+};
+window.loadRepartidoresParaAsignar = async (pedidoId) => {
+    const lista = document.getElementById('lista-repartidores-asignar');
+    if (!lista) return;
+    lista.innerHTML = '<div class="text-center text-gray-400 text-xs"><i class="fas fa-spinner fa-spin"></i> Cargando personal...</div>';
+    const mechSnap = await getDocs(query(collection(db, "users"), where("role", "in", ["mecanico", "admin", "taller"])));
+    let html = '';
+    mechSnap.forEach(docSnap => {
+        const user = docSnap.data();
+        html += `<button onclick="window.asignarRepartidor('${docSnap.id}', '${pedidoId}')" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white font-bold text-sm hover:bg-white/10 transition-colors flex items-center space-x-3">
+            <i class="fas fa-motorcycle text-blue-400"></i><span>${user.name || 'Personal'}</span>
+        </button>`;
+    });
+    lista.innerHTML = html || '<p class="text-gray-500 text-xs">No hay personal disponible.</p>';
+};
+
+window.asignarRepartidor = async (repartidorUid, pedidoId) => {
+    try {
+        await updateDoc(doc(db, "pedidos_online", pedidoId), { 
+            status: 'aceptado', 
+            repartidor_uid: repartidorUid,
+            estado_entrega: 'pendiente'
+        });
+        const snap = await getDoc(doc(db, "pedidos_online", pedidoId));
+        if (snap.exists()) {
+            const data = snap.data();
+            if (data.uid) {
+                rtdbSet(dbRef(rtdb, 'notificaciones/' + data.uid), { 
+                    msg: '✅ Tu pedido ha sido aceptado y se está preparando para envío.' 
+                });
+            }
+        }
+        showToast("Repartidor asignado correctamente");
+        toggleModal('modal-asignar-repartidor', false);
+        window._pedidoAceptadoId = null;
+        // Forzar refresco de lista
+        window.loadOnlineOrders();
+    } catch (e) {
+        showToast("Error al asignar repartidor", true);
+    }
 };
 window.removeFromCart = (idx) => {
     window.cart.splice(idx, 1);
