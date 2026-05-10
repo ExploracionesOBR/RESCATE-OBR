@@ -898,6 +898,22 @@
             </div>
             <div id="admin-citas-list" class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4"></div>
         </section>
+                <!-- ENTREGAS A DOMICILIO -->
+        <section id="a-view-entregas" class="a-view hidden space-y-4">
+            <h3 class="text-2xl font-black italic uppercase text-white">Entregas <span class="text-green-400">Asignadas</span></h3>
+            <div id="entregas-list" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <p class="text-gray-500 text-xs italic">No tienes entregas pendientes.</p>
+            </div>
+            <!-- Mapa de la entrega seleccionada -->
+            <div id="entrega-mapa-container" class="hidden mt-4">
+                <h4 class="text-sm font-black text-white uppercase mb-2"><i class="fas fa-map-marked-alt mr-2 text-green-400"></i>Ubicación de entrega</h4>
+                <div id="entrega-mapa" class="h-64 bg-white rounded-xl"></div>
+                <div class="flex space-x-2 mt-3">
+                    <button onclick="window.iniciarEntrega?.()" id="btn-iniciar-entrega" class="flex-1 bg-blue-600 text-white p-3 rounded-xl font-black uppercase text-xs">Iniciar Entrega</button>
+                    <button onclick="window.abrirCobroEntrega?.()" id="btn-cobrar-entrega" class="flex-1 bg-naranja text-white p-3 rounded-xl font-black uppercase text-xs">Cobrar / Finalizar</button>
+                </div>
+            </div>
+        </section>
     </main>
 
     <!-- BARRA DE NAVEGACIÓN INFERIOR DEL ADMIN -->
@@ -906,6 +922,7 @@
             <button onclick="window.switchAdminView?.('a-view-pos')" class="a-nav-btn tab-active flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-naranja min-w-[60px]"><i class="fas fa-cash-register text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Caja</span></button>
             <button onclick="window.switchAdminView?.('a-view-servicios')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-blue-400 min-w-[60px]"><i class="fas fa-clipboard-list text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Taller</span></button>
             <button onclick="window.switchAdminView?.('a-view-alertas')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-red-500 min-w-[60px]"><i class="fas fa-exclamation-triangle text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">SOS</span></button>
+            <button onclick="window.switchAdminView?.('a-view-entregas')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-green-400 min-w-[60px]"><i class="fas fa-truck text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Entregas</span></button>
             <button onclick="window.switchAdminView?.('a-view-inventario')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-green-400 min-w-[60px]"><i class="fas fa-box-open text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Almacén</span></button>
             <button onclick="window.switchAdminView?.('a-view-promos')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-purple-400 min-w-[60px]"><i class="fas fa-percent text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Promos</span></button>
             <button onclick="window.switchAdminView?.('a-view-usuarios')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-blue-400 min-w-[60px]"><i class="fas fa-users text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Usuarios</span></button>
@@ -1246,7 +1263,20 @@
         </div>
     </div>
 </div>
-
+<!-- Modal cobro de entrega -->
+<div id="modal-cobro-entrega" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full max-w-xs rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl">
+        <button onclick="toggleModal('modal-cobro-entrega', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        <h2 class="text-xl font-black mb-4 text-white text-center">Cobro de Entrega</h2>
+        <p class="text-white text-sm font-bold mb-1">Total a cobrar:</p>
+        <p class="text-naranja text-3xl font-black mb-4" id="cobro-entrega-total">$0.00</p>
+        <select id="cobro-entrega-metodo" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-4 text-white">
+            <option value="Efectivo">Efectivo</option>
+            <option value="Tarjeta">Tarjeta</option>
+        </select>
+        <button onclick="window.confirmarCobroEntrega?.()" class="w-full bg-green-500 hover:bg-green-400 text-white p-3 rounded-xl font-black uppercase">Confirmar Cobro</button>
+    </div>
+</div>
 <!-- Modal de garantías -->
 <div id="modal-garantias" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-lg h-[80vh] rounded-[2rem] p-6 relative border border-green-500/30 flex flex-col shadow-2xl">
