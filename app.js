@@ -306,7 +306,7 @@ function switchMapLayer(isLight) {
     // Quitar cualquier filtro residual
     document.documentElement.style.setProperty('--map-filter', 'none');
 
-    const maps = [adminSOSGlobalMapInst, adminGeoMap, mechMapInst, sosMapInstance];
+   const maps = [adminSOSGlobalMapInst, adminGeoMap, mechMapInst, sosMapInstance, entregasMapInst];
     maps.forEach(map => {
         if (map) {
             map.eachLayer(layer => {
@@ -315,6 +315,7 @@ function switchMapLayer(isLight) {
             L.tileLayer(layerUrl, { attribution }).addTo(map);
         }
     });
+    if(entregasMapInst) entregasMapInst.invalidateSize();
 }
 
 function updateLogo() {
@@ -495,10 +496,35 @@ onAuthStateChanged(auth, async user => {
     if (userSnap.exists()) { window.currentUserDoc = userSnap.data(); window.currentUserDoc.id = user.uid; }
     else { window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; }
 
-  if (window.currentUserDoc.firstLogin && !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
-    showView('view-force-setup');
-    return;
-}
+    // Listener para detectar bloqueo o pausa en tiempo real (fuera del bloque firstLogin)
+    if (user) {
+        onSnapshot(doc(db, 'users', user.uid), (snap) => {
+            if (snap.exists()) {
+                const data = snap.data();
+                if (data.bloqueado) {
+                    signOut(auth).then(() => {
+                        const outModal = document.getElementById('out-of-zone-modal');
+                        const outTitle = document.getElementById('out-of-zone-title');
+                        const outMsg = document.getElementById('out-of-zone-msg');
+                        if (outModal) outModal.classList.remove('hidden');
+                        if (outTitle) outTitle.innerText = 'CUENTA BLOQUEADA';
+                        if (outMsg) outMsg.innerHTML = 'Tu cuenta ha sido bloqueada. Contacta a soporte.<br><button onclick="toggleModal(\'modal-contact\', true)" class="mt-4 bg-blue-600 text-white px-6 py-3 rounded-xl font-black uppercase text-xs">Soporte OBR</button>';
+                        document.getElementById('view-landing').classList.add('hidden');
+                    });
+                } else if (data.pausada) {
+                    signOut(auth).then(() => {
+                        showToast("Cuenta pausada. Revisa tu usuario y contraseña o contacta a soporte.", true);
+                        showView('view-login');
+                    });
+                }
+            }
+        });
+    }
+
+    if (window.currentUserDoc.firstLogin && !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
+        showView('view-force-setup');
+        return;
+    }
     window.requestAppPermissions();
     if (window.currentUserDoc.role === 'membresia' && window.currentUserDoc.membresiaExp) {
         if (Date.now() > window.currentUserDoc.membresiaExp) {
@@ -509,32 +535,33 @@ onAuthStateChanged(auth, async user => {
     }
 
     applyTheme(); startMechanicTracking();
-        updateLandingStatus(); // Refresca el botón de sesión al cambiar de usuario
+    updateLandingStatus(); // Refresca el botón de sesión al cambiar de usuario
 
     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
         showView('app-admin'); document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
         setTimeout(() => {
-    window.adminRefreshConfigUI();
-    window.adminLoadInventory();
-    window.adminLoadSales();
-    window.filterSOS('pending');
-    window.adminListenServices();
-    window.adminLoadCitas();
-    window.loadChatList();
-}, 100);
+            window.adminRefreshConfigUI();
+            window.adminLoadInventory();
+            window.adminLoadSales();
+            window.filterSOS('pending');
+            window.adminListenServices();
+            window.adminLoadCitas();
+            window.loadChatList();
+            window.applyViewPermissions(); // aplicar permisos de vista
+        }, 100);
+
         if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
 
-// Listener de notificaciones en tiempo real (para cualquier rol)
-onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
-    if (snap.exists()) {
-        const notif = snap.val();
-        showToast(notif.msg);
-        playSound('notif');
-        speakTTS(notif.msg); // si está disponible
-        // Eliminar la notificación después de mostrarla
-        remove(dbRef(rtdb, 'notificaciones/' + user.uid));
-    }
-});
+        // Listener de notificaciones en tiempo real (para cualquier rol)
+        onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
+            if (snap.exists()) {
+                const notif = snap.val();
+                showToast(notif.msg);
+                playSound('notif');
+                speakTTS(notif.msg);
+                remove(dbRef(rtdb, 'notificaciones/' + user.uid));
+            }
+        });
         window.initAdminNotifications();
     } else {
         showView('app-client'); document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
@@ -548,11 +575,6 @@ onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
             }
         } else crown.classList.add('hidden');
         window.loadClientHistory(); listenToMySOS(); window.loadClientCitas(); loadPublicStore();
-        if (window.pendingItemToBuy === 'cart') {
-    window.pendingItemToBuy = null;
-    // Redirigir al modal del carrito después de un pequeño retraso para que cargue la vista
-    setTimeout(() => toggleModal('modal-cart', true), 500);
-}
         window.loadMyOrders();
         updateLandingStatus();
     }
@@ -568,7 +590,6 @@ onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
         }
     });
 });
-
 function showView(targetId) {
     const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'view-force-setup', 'app-client', 'app-admin'];
     views.forEach(id => { const el = document.getElementById(id); if(el) { el.classList.add('hidden'); el.classList.remove('flex'); el.style.display = 'none'; } });
@@ -630,7 +651,8 @@ window.switchClientView = (id) => {
 
 window.switchAdminView = (id) => {
     toggleModal('modal-user-detail', false);
-    document.querySelectorAll('.a-view').forEach(v => v.classList.add('hidden')); document.getElementById(id).classList.remove('hidden');
+    document.querySelectorAll('.a-view').forEach(v => v.classList.add('hidden')); 
+    document.getElementById(id).classList.remove('hidden');
     document.querySelectorAll('.a-nav-btn').forEach(b => b.classList.remove('tab-active'));
     const btn = Array.from(document.querySelectorAll('.a-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
     if(btn) btn.classList.add('tab-active');
@@ -645,29 +667,66 @@ window.switchAdminView = (id) => {
     if(id === 'a-view-citas') window.adminLoadCitas();
     if(id === 'a-view-alertas') window.renderSOSGlobalMap();
     if(id === 'a-view-pos') { 
-    window.posFilterProducts(); 
-    window.cargarNotificacionesCitas(); 
-    window.cargarCobrosMecanicosPanel(); 
-    window.loadVentasRealizadas(); 
-    // Activar listener de compras online (con retraso para asegurar DOM listo)
-    setTimeout(() => window.loadOnlineOrders?.(), 200);
-        if(id === 'a-view-entregas') { window.loadEntregas(); }
-}
-    if(id === 'a-view-inventario') {
-        window.adminLoadInventory();
-        if (!document.getElementById('float-inventory-btn')) {
-            const btn = document.createElement('button');
-            btn.id = 'float-inventory-btn';
-            btn.className = 'fixed bottom-24 right-28 w-14 h-14 bg-green-600 rounded-full flex items-center justify-center text-white shadow-2xl z-40';
-            btn.onclick = () => window.openInventoryCount();
-            btn.innerHTML = '<i class="fas fa-clipboard-list text-2xl"></i>';
-            document.body.appendChild(btn);
-        }
-    } else {
-        const btn = document.getElementById('float-inventory-btn');
-        if (btn) btn.remove();
+        window.posFilterProducts(); 
+        window.cargarNotificacionesCitas(); 
+        window.cargarCobrosMecanicosPanel(); 
+        window.loadVentasRealizadas(); 
+        setTimeout(() => window.loadOnlineOrders?.(), 200);
     }
+    if(id === 'a-view-entregas') { 
+        setTimeout(() => window.loadEntregas?.(), 300);
+        window.fixMaps?.();
+    }
+
+    // Ocultar panel de acciones de entregas al salir de esa vista
+    const entregaPanel = document.getElementById('entrega-actions-panel');
+    if (entregaPanel) entregaPanel.classList.add('hidden');
+
     window.fixMaps?.();
+};
+
+    // Ocultar panel de acciones de entregas al salir de la vista
+    const entregaPanel = document.getElementById('entrega-actions-panel');
+    if (entregaPanel) entregaPanel.classList.add('hidden');
+
+    window.fixMaps?.();
+};
+window.applyViewPermissions = () => {
+    const vistas = window.currentUserDoc?.vistasPermitidas;
+    if (!vistas || !Array.isArray(vistas)) return;
+
+    document.querySelectorAll('.a-nav-btn').forEach(btn => {
+        const onclick = btn.getAttribute('onclick') || '';
+        const match = onclick.match(/'([^']+)'/);
+        if (match) {
+            const vistaId = match[1];
+            if (!vistas.includes(vistaId)) {
+                btn.style.display = 'none';
+            } else {
+                btn.style.display = '';
+            }
+        }
+    });
+
+    const currentActive = document.querySelector('.a-view:not(.hidden)');
+    if (currentActive) {
+        const currentId = currentActive.getAttribute('id');
+        if (!vistas.includes(currentId)) {
+            const primera = vistas[0];
+            if (primera) window.switchAdminView(primera);
+        }
+    }
+};
+    // Si la vista activa actual no está permitida, redirigir a la primera disponible
+    const currentActive = document.querySelector('.a-view:not(.hidden)');
+    if (currentActive) {
+        const currentId = currentActive.getAttribute('id');
+        if (!vistas.includes(currentId)) {
+            // Buscar la primera vista permitida
+            const primera = vistas[0];
+            if (primera) window.switchAdminView(primera);
+        }
+    }
 };
 
 // === LOGIN LOGIC ===
@@ -4386,60 +4445,83 @@ window.searchServiceStatus = async () => {
         `;
     }
 };
-// ===== ENTREGAS A DOMICILIO =====
-let entregaSeleccionadaId = null;
-let entregaMapaInst = null;
+// ===== ENTREGAS A DOMICILIO (MAPA) =====
+let entregasMapInst = null;
+let entregasMarkers = {};
+window.entregaSeleccionadaId = null;
 
 window.loadEntregas = () => {
     if (!auth.currentUser) return;
-    const lista = document.getElementById('entregas-list');
-    if (!lista) return;
-    const q = query(collection(db, "pedidos_online"), 
-                    where("repartidor_uid", "==", auth.currentUser.uid),
-                    where("status", "==", "aceptado"),
-                    where("estado_entrega", "in", ["pendiente", "en_camino"]));
+    const mapEl = document.getElementById('entregas-map-container');
+    if (!mapEl) return;
+
+    // Inicializar mapa si no existe
+    if (!entregasMapInst) {
+        const isLight = document.body.classList.contains('light-mode');
+        const layerUrl = isLight ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        entregasMapInst = L.map('entregas-map-container', { zoomControl: true, scrollWheelZoom: false }).setView([TALLER_LAT, TALLER_LNG], 11);
+        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
+    } else {
+        // Limpiar marcadores anteriores
+        Object.values(entregasMarkers).forEach(m => m.remove());
+        entregasMarkers = {};
+    }
+
+    const q = query(collection(db, "pedidos_online"),
+        where("repartidor_uid", "==", auth.currentUser.uid),
+        where("status", "==", "aceptado"),
+        where("estado_entrega", "in", ["pendiente", "en_camino"]));
     onSnapshot(q, (snap) => {
-        lista.innerHTML = '';
-        if (snap.empty) {
-            lista.innerHTML = '<p class="text-gray-500 text-xs italic">No tienes entregas pendientes.</p>';
-            return;
-        }
+        // Limpiar marcadores existentes en cada actualización
+        Object.values(entregasMarkers).forEach(m => m.remove());
+        entregasMarkers = {};
+        const markersGroup = [];
+
         snap.forEach(dSnap => {
             const p = dSnap.data();
             const id = dSnap.id;
-            lista.innerHTML += `
-            <div class="bg-white/5 border border-white/10 p-4 rounded-xl cursor-pointer" onclick="window.seleccionarEntrega('${id}')">
-                <div class="flex justify-between items-center mb-1">
-                    <span class="font-bold text-white">${p.cliente || 'Cliente'}</span>
-                    <span class="text-[0.6rem] font-bold uppercase ${p.estado_entrega==='en_camino'?'text-blue-400':'text-yellow-400'}">${p.estado_entrega==='en_camino'?'En camino':'Pendiente'}</span>
+            if (!p.lat || !p.lng) return; // ignorar si no tiene ubicación
+            const marker = L.marker([p.lat, p.lng], {
+                icon: L.divIcon({
+                    className: 'entrega-marker',
+                    html: `<div style="background:#FF6B00;width:20px;height:20px;border-radius:50%;border:2px solid white;"></div>`,
+                    iconSize: [20,20],
+                    iconAnchor: [10,10]
+                })
+            }).addTo(entregasMapInst);
+            marker.bindPopup(`
+                <div style="font-family:sans-serif;font-size:12px;">
+                    <b>${p.cliente || 'Cliente'}</b><br>
+                    ${p.items.map(i=>i.name).join(', ')}<br>
+                    <b>$${p.total.toFixed(2)}</b> | ${p.metodoPago || 'N/A'}<br>
+                    <button onclick="window.seleccionarEntregaDesdeMarker('${id}')" style="background:#FF6B00;color:white;border:none;padding:4px 8px;border-radius:4px;font-size:11px;margin-top:4px;">Detalles</button>
                 </div>
-                <p class="text-xs text-gray-400">${p.items.map(i=>i.name).join(', ')}</p>
-                <p class="text-xs text-naranja font-bold mt-1">$${p.total.toFixed(2)}</p>
-            </div>`;
+            `);
+            marker.on('click', () => {
+                window.seleccionarEntregaDesdeMarker(id);
+            });
+            entregasMarkers[id] = marker;
+            markersGroup.push(marker);
         });
+        if (markersGroup.length > 0) {
+            const group = new L.featureGroup(markersGroup);
+            entregasMapInst.fitBounds(group.getBounds().pad(0.1));
+        } else {
+            entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
+        }
     });
 };
 
-window.seleccionarEntrega = async (pedidoId) => {
-    entregaSeleccionadaId = pedidoId;
+window.seleccionarEntregaDesdeMarker = async (pedidoId) => {
+    window.entregaSeleccionadaId = pedidoId;
     const snap = await getDoc(doc(db, "pedidos_online", pedidoId));
     if (!snap.exists()) return;
     const data = snap.data();
-    // Mostrar contenedor del mapa
-    const mapContainer = document.getElementById('entrega-mapa-container');
-    if (mapContainer) mapContainer.classList.remove('hidden');
-    // Inicializar mapa
-    const mapEl = document.getElementById('entrega-mapa');
-    if (mapEl && data.lat && data.lng) {
-        if (entregaMapaInst) entregaMapaInst.remove();
-        entregaMapaInst = L.map('entrega-mapa', { zoomControl: false }).setView([data.lat, data.lng], 15);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(entregaMapaInst);
-        L.marker([data.lat, data.lng]).addTo(entregaMapaInst);
-        L.marker([TALLER_LAT, TALLER_LNG], { icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }) }).addTo(entregaMapaInst);
-    }
-    // Actualizar botones según estado
-    const btnIniciar = document.getElementById('btn-iniciar-entrega');
-    const btnCobrar = document.getElementById('btn-cobrar-entrega');
+    // Mostrar/ocultar botones según estado
+    const panel = document.getElementById('entrega-actions-panel');
+    const btnIniciar = document.getElementById('btn-iniciar-entrega-main');
+    const btnCobrar = document.getElementById('btn-cobrar-entrega-main');
+    if (panel) panel.classList.remove('hidden');
     if (data.estado_entrega === 'pendiente') {
         if (btnIniciar) btnIniciar.style.display = 'block';
         if (btnCobrar) btnCobrar.style.display = 'none';
@@ -4447,23 +4529,26 @@ window.seleccionarEntrega = async (pedidoId) => {
         if (btnIniciar) btnIniciar.style.display = 'none';
         if (btnCobrar) btnCobrar.style.display = 'block';
     }
+    // Centrar mapa en el marcador seleccionado
+    if (entregasMapInst && data.lat && data.lng) {
+        entregasMapInst.setView([data.lat, data.lng], 15);
+    }
 };
 
 window.iniciarEntrega = async () => {
-    if (!entregaSeleccionadaId) return;
-    await updateDoc(doc(db, "pedidos_online", entregaSeleccionadaId), { estado_entrega: 'en_camino' });
+    if (!window.entregaSeleccionadaId) return;
+    await updateDoc(doc(db, "pedidos_online", window.entregaSeleccionadaId), { estado_entrega: 'en_camino' });
     showToast("Entrega iniciada. Dirígete al cliente.");
-    window.seleccionarEntrega(entregaSeleccionadaId);
-    window.loadEntregas();
+    // Refrescar marcadores (se actualiza automáticamente con onSnapshot)
+    window.seleccionarEntregaDesdeMarker(window.entregaSeleccionadaId);
 };
 
 window.abrirCobroEntrega = async () => {
-    if (!entregaSeleccionadaId) return;
-    const snap = await getDoc(doc(db, "pedidos_online", entregaSeleccionadaId));
+    if (!window.entregaSeleccionadaId) return;
+    const snap = await getDoc(doc(db, "pedidos_online", window.entregaSeleccionadaId));
     if (!snap.exists()) return;
     const data = snap.data();
     let total = data.total || 0;
-    // Aplicar descuento por promo si existe
     if (data.descuento) total -= data.descuento;
     if (total < 0) total = 0;
     document.getElementById('cobro-entrega-total').innerText = `$${total.toFixed(2)}`;
@@ -4471,29 +4556,25 @@ window.abrirCobroEntrega = async () => {
 };
 
 window.confirmarCobroEntrega = async () => {
-    if (!entregaSeleccionadaId) return;
+    if (!window.entregaSeleccionadaId) return;
     const metodo = document.getElementById('cobro-entrega-metodo')?.value || 'Efectivo';
-    const snap = await getDoc(doc(db, "pedidos_online", entregaSeleccionadaId));
+    const snap = await getDoc(doc(db, "pedidos_online", window.entregaSeleccionadaId));
     if (!snap.exists()) return;
     const data = snap.data();
     const total = data.total || 0;
 
     try {
-        // Marcar entrega como completada
-        await updateDoc(doc(db, "pedidos_online", entregaSeleccionadaId), { estado_entrega: 'entregado', metodoPago: metodo });
-
-        // Registrar cobro pendiente para el repartidor
+        await updateDoc(doc(db, "pedidos_online", window.entregaSeleccionadaId), { estado_entrega: 'entregado', metodoPago: metodo });
         await addDoc(collection(db, "cobros_pendientes"), {
             mech_uid: auth.currentUser.uid,
             mech_name: window.currentUserDoc?.name || 'Repartidor',
-            concepto: `Entrega pedido ${entregaSeleccionadaId}`,
+            concepto: `Entrega pedido ${window.entregaSeleccionadaId}`,
             monto: total,
             metodo: metodo,
             estado: 'pendiente',
-            pedidoId: entregaSeleccionadaId,
+            pedidoId: window.entregaSeleccionadaId,
             timestamp: Date.now()
         });
-
         // Descontar inventario
         if (data.items) {
             for (let item of data.items) {
@@ -4506,20 +4587,17 @@ window.confirmarCobroEntrega = async () => {
                 });
             }
         }
-
-        // Notificar a CAJA
         rtdbSet(dbRef(rtdb, 'notificaciones_caja/pedido_' + Date.now()), {
             msg: 'Cobro de entrega pendiente por confirmar en CAJA',
             type: 'cobro_entrega',
-            pedidoId: entregaSeleccionadaId,
+            pedidoId: window.entregaSeleccionadaId,
             monto: total
         });
-
         showToast("Cobro registrado. Entrega finalizada.");
         toggleModal('modal-cobro-entrega', false);
-        window.loadEntregas();
-        document.getElementById('entrega-mapa-container').classList.add('hidden');
-        entregaSeleccionadaId = null;
+        document.getElementById('entrega-actions-panel').classList.add('hidden');
+        window.entregaSeleccionadaId = null;
+        // Recalcular mapa (marcador se actualizará automáticamente)
     } catch (e) {
         showToast("Error al procesar cobro", true);
     }
