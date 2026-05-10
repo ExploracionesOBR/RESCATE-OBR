@@ -656,8 +656,10 @@ window.checkUserExists = async () => {
 };
 
 window.processLogin = async () => {
-    const rawPhone = document.getElementById('phone-input').value.trim(); const password = document.getElementById('login-password').value.trim();
-    if(!password) return showToast("Ingresa contraseña", true);
+    const rawPhone = document.getElementById('phone-input').value.trim();
+    const password = document.getElementById('login-password').value.trim();
+    if (rawPhone.length !== 10) return showToast("Celular de 10 dígitos", true);
+    if (!password) return showToast("Ingresa contraseña", true);
     try {
         await signInWithEmailAndPassword(auth, `${rawPhone}@motorescateobr.com`, password);
     } catch(e) {
@@ -5029,3 +5031,9 @@ window.openOrderDetail = async (pedidoId) => {
     document.getElementById(`${modalId}-content`).innerHTML = `<button onclick="toggleModal('${modalId}',false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>${html}`;
     toggleModal(modalId, true);
 };
+document.addEventListener('DOMContentLoaded', () => {
+    const btnLogin = document.getElementById('btn-login');
+    if (btnLogin) {
+        btnLogin.addEventListener('click', window.processLogin);
+    }
+});
