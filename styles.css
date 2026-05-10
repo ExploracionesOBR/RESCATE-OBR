@@ -771,3 +771,32 @@ nav.fixed.bottom-0 {
         grid-template-columns: repeat(16, 1fr) !important;
     }
 }
+/* --- Ticket de venta adaptativo --- */
+.ticket-container {
+    color: var(--text);
+    transition: background-color 0.4s ease, color 0.4s ease;
+}
+.ticket-container .text-black {
+    color: var(--text) !important;
+}
+.ticket-container .text-gray-600 {
+    color: #888 !important;
+}
+.ticket-container .bg-gray-100 {
+    background-color: rgba(128,128,128,0.15) !important;
+}
+.ticket-container input {
+    background-color: rgba(128,128,128,0.1) !important;
+    color: var(--text) !important;
+}
+.ticket-container select {
+    background-color: rgba(128,128,128,0.1) !important;
+    color: var(--text) !important;
+}
+
+/* --- Transición suave del tema --- */
+body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10, 
+.bg-black\/40, .bg-black\/50, nav, .ticket-container, 
+#app-admin main, #app-client main, header {
+    transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease;
+}
