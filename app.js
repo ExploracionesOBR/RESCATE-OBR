@@ -497,6 +497,7 @@ onAuthStateChanged(auth, async user => {
     else { window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; }
 
     // Listener genérico de notificaciones RTDB para cualquier rol
+        // Listener genérico de notificaciones RTDB para cualquier rol
     onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
         if (snap.exists()) {
             const notif = snap.val();
