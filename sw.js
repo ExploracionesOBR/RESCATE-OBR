@@ -1,4 +1,4 @@
-const CACHE_NAME = 'obr-cache-v2';
+const CACHE_NAME = 'obr-cache-v3';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
@@ -6,7 +6,7 @@ const ALL_FILES = [
   `${BASE_PATH}/index.html`,
   `${BASE_PATH}/app.js`,
   `${BASE_PATH}/styles.css`,
-  `${BASE_PATH}/logo.png`,
+  `${BASE_PATH}/icono.png`,
   `${BASE_PATH}/sw.js`,
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap',
