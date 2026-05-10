@@ -496,89 +496,6 @@ onAuthStateChanged(auth, async user => {
     if (userSnap.exists()) { window.currentUserDoc = userSnap.data(); window.currentUserDoc.id = user.uid; }
     else { window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; }
 
-    // Listener para detectar bloqueo o pausa en tiempo real (fuera del bloque firstLogin)
-    if (user) {
-        onSnapshot(doc(db, 'users', user.uid), (snap) => {
-            if (snap.exists()) {
-                const data = snap.data();
-                if (data.bloqueado) {
-                    signOut(auth).then(() => {
-                        const outModal = document.getElementById('out-of-zone-modal');
-                        const outTitle = document.getElementById('out-of-zone-title');
-                        const outMsg = document.getElementById('out-of-zone-msg');
-                        if (outModal) outModal.classList.remove('hidden');
-                        if (outTitle) outTitle.innerText = 'CUENTA BLOQUEADA';
-                        if (outMsg) outMsg.innerHTML = 'Tu cuenta ha sido bloqueada. Contacta a soporte.<br><button onclick="toggleModal(\'modal-contact\', true)" class="mt-4 bg-blue-600 text-white px-6 py-3 rounded-xl font-black uppercase text-xs">Soporte OBR</button>';
-                        document.getElementById('view-landing').classList.add('hidden');
-                    });
-                } else if (data.pausada) {
-                    signOut(auth).then(() => {
-                        showToast("Cuenta pausada. Revisa tu usuario y contraseña o contacta a soporte.", true);
-                        showView('view-login');
-                    });
-                }
-            }
-        });
-    }
-
-    if (window.currentUserDoc.firstLogin && !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
-        showView('view-force-setup');
-        return;
-    }
-    window.requestAppPermissions();
-    if (window.currentUserDoc.role === 'membresia' && window.currentUserDoc.membresiaExp) {
-        if (Date.now() > window.currentUserDoc.membresiaExp) {
-            await updateDoc(doc(db, 'users', user.uid), { role: 'cliente', membresiaExp: null });
-            window.currentUserDoc.role = 'cliente';
-            showToast("Tu membresía VIP ha expirado. Has vuelto a Cliente Estándar.");
-        }
-    }
-
-    applyTheme(); startMechanicTracking();
-    updateLandingStatus(); // Refresca el botón de sesión al cambiar de usuario
-
-    if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
-        showView('app-admin'); document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
-        setTimeout(() => {
-            window.adminRefreshConfigUI();
-            window.adminLoadInventory();
-            window.adminLoadSales();
-            window.filterSOS('pending');
-            window.adminListenServices();
-            window.adminLoadCitas();
-            window.loadChatList();
-            window.applyViewPermissions(); // aplicar permisos de vista
-        }, 100);
-
-        if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
-
-        // Listener de notificaciones en tiempo real (para cualquier rol)
-        onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
-            if (snap.exists()) {
-                const notif = snap.val();
-                showToast(notif.msg);
-                playSound('notif');
-                speakTTS(notif.msg);
-                remove(dbRef(rtdb, 'notificaciones/' + user.uid));
-            }
-        });
-        window.initAdminNotifications();
-    } else {
-        showView('app-client'); document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
-        const crown = document.getElementById('client-crown-icon');
-        if (window.currentUserDoc.role === 'membresia') {
-            crown.classList.remove('hidden'); const exp = window.currentUserDoc.membresiaExp;
-            if (exp) {
-                const daysLeft = (exp - Date.now()) / (1000 * 60 * 60 * 24);
-                if (daysLeft <= 3 && daysLeft > 0) showToast(`Tu membresía vence en ${Math.ceil(daysLeft)} días`);
-                if (daysLeft <= 0) { await updateDoc(doc(db, 'users', user.uid), { role: 'cliente', membresiaExp: null }); window.currentUserDoc.role = 'cliente'; crown.classList.add('hidden'); }
-            }
-        } else crown.classList.add('hidden');
-        window.loadClientHistory(); listenToMySOS(); window.loadClientCitas(); loadPublicStore();
-        window.loadMyOrders();
-        updateLandingStatus();
-    }
-
     // Listener genérico de notificaciones RTDB para cualquier rol
     onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
         if (snap.exists()) {
@@ -590,15 +507,16 @@ onAuthStateChanged(auth, async user => {
         }
     });
 });
+
 function showView(targetId) {
     const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'view-force-setup', 'app-client', 'app-admin'];
     views.forEach(id => { const el = document.getElementById(id); if(el) { el.classList.add('hidden'); el.classList.remove('flex'); el.style.display = 'none'; } });
     const target = document.getElementById(targetId);
-        // Mostrar/ocultar el botón de sesión unificado
+    // Mostrar/ocultar el botón de sesión unificado
     const sessionBtn = document.getElementById('session-btn');
     if (sessionBtn) {
-            sessionBtn.style.display = 'block';
-        }
+        sessionBtn.style.display = 'block';
+    }
     if(target) { target.classList.remove('hidden'); target.classList.add('flex'); target.style.display = 'flex'; }
     toggleModal('modal-user-detail', false);
     window.fixMaps?.();
@@ -607,8 +525,12 @@ window.showView = showView;
 
 window.fixMaps = () => {
     setTimeout(() => {
-        if(adminGeoMap) adminGeoMap.invalidateSize(); if(adminSOSGlobalMapInst) adminSOSGlobalMapInst.invalidateSize();
-        if(sosMapInstance) sosMapInstance.invalidateSize(); if(mechMapInst) mechMapInst.invalidateSize(); if(sosDetailMapInst) sosDetailMapInst.invalidateSize();
+        if(adminGeoMap) adminGeoMap.invalidateSize();
+        if(adminSOSGlobalMapInst) adminSOSGlobalMapInst.invalidateSize();
+        if(sosMapInstance) sosMapInstance.invalidateSize();
+        if(mechMapInst) mechMapInst.invalidateSize();
+        if(sosDetailMapInst) sosDetailMapInst.invalidateSize();
+        if(entregasMapInst) entregasMapInst.invalidateSize();
     }, 400);
 };
 
@@ -625,6 +547,7 @@ window.startFlow = (intent) => {
         showView('view-login');
     }
 };
+
 window.cancelFlow = () => {
     showView('view-landing'); window.pendingItemToBuy = null;
     ['auth-step-1','auth-step-login','auth-step-register','auth-step-recovery'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
