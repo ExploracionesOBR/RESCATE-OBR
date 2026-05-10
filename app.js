@@ -488,16 +488,62 @@ onAuthStateChanged(auth, async user => {
     document.getElementById('loading-screen').classList.add('hidden');
     if (!user) {
         if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
-        loadGlobalSettings(); document.getElementById('view-landing').classList.remove('hidden'); document.getElementById('view-landing').classList.add('flex'); return;
+        loadGlobalSettings(); 
+        document.getElementById('view-landing').classList.remove('hidden'); 
+        document.getElementById('view-landing').classList.add('flex'); 
+        return;
     }
     document.getElementById('view-landing').classList.add('hidden');
 
     const userSnap = await getDoc(doc(db, 'users', user.uid));
-    if (userSnap.exists()) { window.currentUserDoc = userSnap.data(); window.currentUserDoc.id = user.uid; }
-    else { window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; }
+    if (userSnap.exists()) { 
+        window.currentUserDoc = userSnap.data(); 
+        window.currentUserDoc.id = user.uid; 
+    } else { 
+        window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; 
+    }
 
-    // Listener genérico de notificaciones RTDB para cualquier rol
-        // Listener genérico de notificaciones RTDB para cualquier rol
+    // Verificar bloqueo/pausa
+    if (window.currentUserDoc.bloqueado) {
+        signOut(auth).then(() => {
+            document.getElementById('out-of-zone-modal').classList.remove('hidden');
+            document.getElementById('view-landing').classList.add('hidden');
+        });
+        return;
+    }
+
+    if (window.currentUserDoc.firstLogin && !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
+        showView('view-force-setup');
+        return;
+    }
+
+    if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
+        showView('app-admin');
+        document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
+        setTimeout(() => {
+            window.adminRefreshConfigUI();
+            window.adminLoadInventory();
+            window.adminLoadSales();
+            window.filterSOS('pending');
+            window.adminListenServices();
+            window.adminLoadCitas();
+            window.loadChatList();
+            window.applyViewPermissions?.();
+        }, 100);
+        if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
+    } else {
+        showView('app-client');
+        document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
+        // Resto de lógica de cliente...
+        window.loadClientHistory(); 
+        listenToMySOS(); 
+        window.loadClientCitas(); 
+        loadPublicStore();
+        window.loadMyOrders();
+        updateLandingStatus();
+    }
+
+    // Listener de notificaciones RTDB
     onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
         if (snap.exists()) {
             const notif = snap.val();
