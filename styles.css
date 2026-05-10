@@ -766,3 +766,9 @@ nav.fixed.bottom-0 {
     font-weight: 800;
     text-transform: uppercase;
 }
+@media (min-width: 1400px) {
+    .custom-grid-16 {
+        display: grid;
+        grid-template-columns: repeat(16, 1fr);
+    }
+}
