@@ -602,23 +602,18 @@ window.switchAdminView = (id) => {
         window.fixMaps?.();
     }
 
-    // Ocultar panel de acciones de entregas al salir de esa vista
+       // Ocultar panel de acciones de entregas al salir de esa vista
     const entregaPanel = document.getElementById('entrega-actions-panel');
     if (entregaPanel) entregaPanel.classList.add('hidden');
 
     window.fixMaps?.();
 };
 
-    // Ocultar panel de acciones de entregas al salir de la vista
-    const entregaPanel = document.getElementById('entrega-actions-panel');
-    if (entregaPanel) entregaPanel.classList.add('hidden');
-
-    window.fixMaps?.();
-};
 window.applyViewPermissions = () => {
     const vistas = window.currentUserDoc?.vistasPermitidas;
     if (!vistas || !Array.isArray(vistas)) return;
 
+    // Ocultar/mostrar botones en la barra de navegación
     document.querySelectorAll('.a-nav-btn').forEach(btn => {
         const onclick = btn.getAttribute('onclick') || '';
         const match = onclick.match(/'([^']+)'/);
@@ -627,20 +622,11 @@ window.applyViewPermissions = () => {
             if (!vistas.includes(vistaId)) {
                 btn.style.display = 'none';
             } else {
-                btn.style.display = '';
+                btn.style.display = ''; // restablecer
             }
         }
     });
 
-    const currentActive = document.querySelector('.a-view:not(.hidden)');
-    if (currentActive) {
-        const currentId = currentActive.getAttribute('id');
-        if (!vistas.includes(currentId)) {
-            const primera = vistas[0];
-            if (primera) window.switchAdminView(primera);
-        }
-    }
-};
     // Si la vista activa actual no está permitida, redirigir a la primera disponible
     const currentActive = document.querySelector('.a-view:not(.hidden)');
     if (currentActive) {
@@ -652,7 +638,6 @@ window.applyViewPermissions = () => {
         }
     }
 };
-
 // === LOGIN LOGIC ===
 window.checkUserExists = async () => {
     const rawPhone = document.getElementById('phone-input').value.trim();
