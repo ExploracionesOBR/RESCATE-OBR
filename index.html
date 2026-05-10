@@ -1353,6 +1353,18 @@
         </button>
     </div>
 </div>
+    <!-- Modal Ingresar Moto -->
+<div id="modal-nuevo-servicio" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl">
+        <button onclick="toggleModal('modal-nuevo-servicio', false)" class="absolute top-4 right-4 w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20"><i class="fas fa-times"></i></button>
+        <h2 class="text-xl font-black mb-4 text-white">Ingresar Moto al Taller</h2>
+        <input id="manual-srv-phone" type="tel" maxlength="10" placeholder="Celular del cliente (opcional)" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
+        <input id="manual-srv-moto" type="text" placeholder="Marca y modelo" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
+        <textarea id="manual-srv-falla" rows="2" placeholder="Falla o trabajo a realizar" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white"></textarea>
+        <input type="file" id="manual-srv-media" accept="image/*" capture="environment" multiple class="w-full bg-white/5 border border-white/10 p-2 rounded-xl mb-4 text-xs text-gray-400 file:bg-naranja file:text-white file:border-0 file:rounded-md file:px-3 file:py-1">
+        <button onclick="window.adminIngresarServicioManual?.()" class="w-full bg-green-500 hover:bg-green-400 text-white p-4 rounded-xl font-black uppercase transition-colors"><i class="fas fa-check mr-2"></i>INGRESAR</button>
+    </div>
+</div>
 <!-- FIN DE MODALES -->
 <script type="module" src="app.js"></script>
 <script>
