@@ -46,12 +46,11 @@
         <span id="status-msg">Mensaje</span>
     </div>
 </div>
-
-<!-- FUERA DE ZONA -->
+<!-- FUERA DE ZONA (también usado para bloqueo) -->
 <div id="out-of-zone-modal" class="fixed inset-0 z-[2000] hidden flex-col items-center justify-center p-6 text-center bg-[repeating-linear-gradient(45deg,#1a1a1a,#1a1a1a_10px,#2a0808_10px,#2a0808_20px)]">
     <i class="fas fa-map-marker-alt text-6xl text-red-500 mb-4 animate-bounce"></i>
-    <h1 class="text-3xl font-black text-white uppercase italic tracking-widest mb-2">FUERA DE ZONA</h1>
-    <p class="text-sm text-gray-300 bg-black/80 p-6 rounded-2xl border border-red-500 shadow-2xl">POR EL MOMENTO NO ESTAMOS DISPONIBLES EN TU ZONA.<br><br><span class="text-naranja font-bold">ESTAMOS TRABAJANDO PARA RESOLVERLO.</span></p>
+    <h1 id="out-of-zone-title" class="text-3xl font-black text-white uppercase italic tracking-widest mb-2">FUERA DE ZONA</h1>
+    <p id="out-of-zone-msg" class="text-sm text-gray-300 bg-black/80 p-6 rounded-2xl border border-red-500 shadow-2xl">POR EL MOMENTO NO ESTAMOS DISPONIBLES EN TU ZONA.<br><br><span class="text-naranja font-bold">ESTAMOS TRABAJANDO PARA RESOLVERLO.</span></p>
     <button onclick="document.getElementById('out-of-zone-modal').classList.add('hidden')" class="mt-8 bg-white text-black px-8 py-3 rounded-full font-black uppercase shadow-lg active:scale-95">Entendido</button>
 </div>
 
