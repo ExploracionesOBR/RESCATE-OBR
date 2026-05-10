@@ -768,7 +768,6 @@ nav.fixed.bottom-0 {
 }
 @media (min-width: 1400px) {
     .custom-grid-16 {
-        display: grid;
-        grid-template-columns: repeat(16, 1fr);
+        grid-template-columns: repeat(16, 1fr) !important;
     }
 }
