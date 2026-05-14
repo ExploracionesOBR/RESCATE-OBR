@@ -119,6 +119,14 @@
         <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=27.446859,-109.943861', '_blank')" class="mt-4 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-full font-black uppercase text-xs tracking-widest border border-white/20"><i class="fas fa-map-signs mr-2"></i> Cómo llegar al taller</button>
     </div>
 </div>
+    <!-- VISTA PRÓXIMAMENTE -->
+<div id="view-proximamente" class="app-view min-h-screen hidden flex-col items-center justify-center p-6 bg-gradient-to-b from-asfalto to-black text-center">
+    <i class="fas fa-rocket text-6xl text-naranja mb-8 animate-bounce"></i>
+    <h1 class="text-4xl font-black italic uppercase text-white mb-4">Próximamente</h1>
+    <p class="text-gray-400 text-sm max-w-md mb-8">Estamos ultimando detalles para ofrecerte la mejor experiencia. Mientras tanto, puedes registrarte y asegurar tu lugar.</p>
+    <button onclick="window.showView('view-login')" class="bg-naranja text-white px-8 py-4 rounded-full font-black uppercase shadow-xl">Registrarme</button>
+    <p class="text-xs text-gray-500 mt-8">Fecha de lanzamiento: <span id="fecha-lanzamiento">próximamente</span></p>
+</div>
 <!-- TIENDA PÚBLICA -->
 <div id="view-public-store" class="app-view min-h-screen hidden flex-col items-center p-6 lg:p-12 bg-asfalto pt-8">
     <div class="w-full max-w-full lg:max-w-[1200px] flex flex-col flex-grow">
