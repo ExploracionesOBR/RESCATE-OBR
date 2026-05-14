@@ -1365,6 +1365,22 @@
         <button onclick="window.adminIngresarServicioManual?.()" class="w-full bg-green-500 hover:bg-green-400 text-white p-4 rounded-xl font-black uppercase transition-colors"><i class="fas fa-check mr-2"></i>INGRESAR</button>
     </div>
 </div>
+    <!-- Modal Aplicar Garantía -->
+<div id="modal-aplicar-garantia" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl">
+        <button onclick="toggleModal('modal-aplicar-garantia', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        <h2 class="text-xl font-black mb-4 text-white text-center">Aplicar Garantía</h2>
+        <p class="text-xs text-gray-400 mb-4">Selecciona el tipo de cobertura de la garantía.</p>
+        <select id="garantia-tipo-uso" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-4 text-white">
+            <option value="">Selecciona el tipo...</option>
+            <option value="cambio_producto">Cambio de producto (mismo modelo)</option>
+            <option value="cambio_por_otro">Cambio por otro producto</option>
+            <option value="devolucion_pago">Devolución de pago</option>
+        </select>
+        <textarea id="garantia-observaciones" placeholder="Observaciones (opcional)" rows="2" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-4 text-white resize-none"></textarea>
+        <button onclick="window.aplicarGarantia?.()" class="w-full bg-green-500 hover:bg-green-400 text-white p-3 rounded-xl font-black uppercase">Confirmar Aplicación</button>
+    </div>
+</div>
 <!-- FIN DE MODALES -->
 <script type="module" src="app.js"></script>
 <script>
