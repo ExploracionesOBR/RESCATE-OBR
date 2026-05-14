@@ -4067,7 +4067,6 @@ window.adminRefreshConfigUI = () => {
     const memPriceInput = document.getElementById('config-mem-price');
 if (memPriceInput && globalSettings.membershipPrice) {
     memPriceInput.value = globalSettings.membershipPrice;
-}
 };
 
 window.adminAddKmRange = () => {
