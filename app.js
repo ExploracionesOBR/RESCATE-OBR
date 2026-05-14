@@ -374,7 +374,6 @@ function updateLandingStatus() {
     }
 
     window.updateEmergencyButtonState(isOpen, sched);
-
     const vipBannerShop = document.getElementById('vip-banner-shop');
     const vipBannerShopClient = document.getElementById('vip-banner-shop-client');
     [vipBannerShop, vipBannerShopClient].forEach(banner => {
@@ -386,6 +385,13 @@ function updateLandingStatus() {
             }
         }
     });
+    //Para activar el modo, un administrador puede ejecutar en la consola o desde un botón oculto:
+//await setDoc(doc(db, 'settings', 'general'), { modoProximamente: true, fechaLanzamiento: '2025-12-01' }, { merge: true });
+    // Mostrar fecha de lanzamiento en vista próximamente
+    if (globalSettings.fechaLanzamiento) {
+        const fechaEl = document.getElementById('fecha-lanzamiento');
+        if (fechaEl) fechaEl.innerText = new Date(globalSettings.fechaLanzamiento).toLocaleDateString();
+    }
 
     window.loadPromoVideo();
 
@@ -4455,53 +4461,71 @@ window.loadEntregas = () => {
     const mapEl = document.getElementById('entregas-map-container');
     if (!mapEl) return;
 
-    // Inicializar mapa si no existe
+    // --- Inicializar mapa (solo una vez) ---
     if (!entregasMapInst) {
         const isLight = document.body.classList.contains('light-mode');
         const layerUrl = isLight ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
         entregasMapInst = L.map('entregas-map-container', { zoomControl: true, scrollWheelZoom: false }).setView([TALLER_LAT, TALLER_LNG], 11);
         L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
-    } else {
-        // Limpiar marcadores anteriores
-        Object.values(entregasMarkers).forEach(m => m.remove());
-        entregasMarkers = {};
     }
 
+    // --- Marcador del taller (fijo, se añade una sola vez si no existe) ---
+    let tallerMarker = null;
+    entregasMapInst.eachLayer(layer => {
+        if (layer._isTaller) tallerMarker = layer;
+    });
+    if (!tallerMarker) {
+        const marker = L.marker([TALLER_LAT, TALLER_LNG], {
+            icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }),
+            interactive: false
+        }).addTo(entregasMapInst);
+        marker._isTaller = true;
+    }
+
+    // --- Limpiar listener anterior de repartidores ---
+    if (window._entregasRepartidoresListener) {
+        window._entregasRepartidoresListener();
+        window._entregasRepartidoresListener = null;
+    }
+
+    // --- Escuchar ubicaciones de repartidores activos (en tiempo real) ---
+    window._entregasRepartidoresListener = onValue(dbRef(rtdb, 'mecanicos_activos'), (snap) => {
+        // Eliminar marcadores de repartidores previos
+        entregasMapInst.eachLayer(layer => {
+            if (layer._isRepartidor) entregasMapInst.removeLayer(layer);
+        });
+        if (snap.exists()) {
+            snap.forEach(child => {
+                const pos = child.val();
+                if (pos.lat && pos.lng) {
+                    const marker = L.marker([pos.lat, pos.lng], {
+                        icon: L.divIcon({
+                            className: 'entrega-marker',
+                            html: `<div style="background:#22c55e;width:16px;height:16px;border-radius:50%;border:2px solid white;"></div>`,
+                            iconSize: [16,16],
+                            iconAnchor: [8,8]
+                        })
+                    }).addTo(entregasMapInst);
+                    marker._isRepartidor = true;
+                }
+            });
+        }
+    });
+
+    // --- Limpiar listener anterior de pedidos ---
+    if (window._entregasPedidosListener) {
+        window._entregasPedidosListener();
+        window._entregasPedidosListener = null;
+    }
+
+    // --- Escuchar pedidos asignados al repartidor actual ---
     const q = query(collection(db, "pedidos_online"),
         where("repartidor_uid", "==", auth.currentUser.uid),
         where("status", "==", "aceptado"),
         where("estado_entrega", "in", ["pendiente", "en_camino"]));
-    // Marcador del taller
-L.marker([TALLER_LAT, TALLER_LNG], {
-    icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }),
-    interactive: false
-}).addTo(entregasMapInst);
 
-// Escuchar repartidores activos
-onValue(dbRef(rtdb, 'mecanicos_activos'), (snap) => {
-    // Eliminar marcadores de repartidores previos
-    entregasMapInst.eachLayer(layer => {
-        if (layer._isRepartidor) entregasMapInst.removeLayer(layer);
-    });
-    if (snap.exists()) {
-        snap.forEach(child => {
-            const pos = child.val();
-            if (pos.lat && pos.lng) {
-                const marker = L.marker([pos.lat, pos.lng], {
-                    icon: L.divIcon({
-                        className: 'entrega-marker',
-                        html: `<div style="background:#22c55e;width:16px;height:16px;border-radius:50%;border:2px solid white;"></div>`,
-                        iconSize: [16,16],
-                        iconAnchor: [8,8]
-                    })
-                }).addTo(entregasMapInst);
-                marker._isRepartidor = true;
-            }
-        });
-    }
-});
-    onSnapshot(q, (snap) => {
-        // Limpiar marcadores existentes en cada actualización
+    window._entregasPedidosListener = onSnapshot(q, (snap) => {
+        // Limpiar marcadores de pedidos existentes
         Object.values(entregasMarkers).forEach(m => m.remove());
         entregasMarkers = {};
         const markersGroup = [];
@@ -4532,6 +4556,7 @@ onValue(dbRef(rtdb, 'mecanicos_activos'), (snap) => {
             entregasMarkers[id] = marker;
             markersGroup.push(marker);
         });
+
         if (markersGroup.length > 0) {
             const group = new L.featureGroup(markersGroup);
             entregasMapInst.fitBounds(group.getBounds().pad(0.1));
@@ -4540,7 +4565,6 @@ onValue(dbRef(rtdb, 'mecanicos_activos'), (snap) => {
         }
     });
 };
-
 window.seleccionarEntregaDesdeMarker = async (pedidoId) => {
     window.entregaSeleccionadaId = pedidoId;
     const snap = await getDoc(doc(db, "pedidos_online", pedidoId));
