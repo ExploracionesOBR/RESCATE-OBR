@@ -834,7 +834,7 @@
                         </table>
                     </div>
                     <label class="flex items-center space-x-2 text-[10px] text-white w-full mt-4 cursor-pointer bg-black/40 p-3 rounded-xl border border-white/5 hover:bg-white/5 transition-colors">
-                        <input type="checkbox" id="config-apply-all" class="accent-naranja w-4 h-4">
+                        <input type="checkbox" id="config-apply-all" class="accent-naranja w-4 h-4" onchange="if(this.checked) window.aplicarHorarioALunes()">
                         <span class="font-bold">Igualar horario toda la semana</span>
                     </label>
                     <button onclick="window.set24HSchedule?.()" class="w-full bg-green-600 hover:bg-green-500 mt-3 p-3 rounded-xl font-black uppercase text-xs tracking-widest text-white shadow-lg active:scale-95 transition-colors"><i class="fas fa-clock mr-2"></i>Activar 24h</button>
