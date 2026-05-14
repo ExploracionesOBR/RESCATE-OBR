@@ -1340,6 +1340,7 @@ window.openImageLightbox = (url) => {
 window.calcularFechaFinGarantia = (tipo) => {
     if (!tipo || tipo === 'Sin garantía' || tipo === 'No aplica') return null;
     const ahora = new Date();
+    // Buscar patrón "número días" o "número mes(es)"
     const match = tipo.match(/(\d+)\s*(días|dias|día|dia|mes|meses)/i);
     if (match) {
         const cantidad = parseInt(match[1]);
@@ -1350,7 +1351,9 @@ window.calcularFechaFinGarantia = (tipo) => {
         }
         return ahora.toISOString();
     }
-    return null;
+    // Si no coincide, asumir 30 días por defecto
+    ahora.setDate(ahora.getDate() + 30);
+    return ahora.toISOString();
 };
 
 window.searchGarantiaByCodigo = () => {
