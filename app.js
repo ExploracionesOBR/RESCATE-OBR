@@ -556,10 +556,15 @@ onAuthStateChanged(auth, async user => {
 });
 
 function showView(targetId) {
-    const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'view-force-setup', 'app-client', 'app-admin'];
+    // Modo Próximamente: redirigir a 'view-proximamente' excepto landing, login y force-setup
+    if (globalSettings.modoProximamente && !['view-landing','view-login','view-force-setup'].includes(targetId)) {
+        targetId = 'view-proximamente';
+    }
+
+    const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'view-force-setup', 'app-client', 'app-admin', 'view-proximamente'];
     views.forEach(id => { const el = document.getElementById(id); if(el) { el.classList.add('hidden'); el.classList.remove('flex'); el.style.display = 'none'; } });
     const target = document.getElementById(targetId);
-    // Mostrar/ocultar el botón de sesión unificado
+    // Mostrar/ocultar el botón de sesión unificado (opcional, no necesario si ya es global)
     const sessionBtn = document.getElementById('session-btn');
     if (sessionBtn) {
         sessionBtn.style.display = 'block';
