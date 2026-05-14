@@ -58,6 +58,7 @@ window.cart = []; window.cartDescuento = 0; window.retiros = []; window.cajaAbie
 let activeChatUid = null, chatUnsubscribe = null;
 window.currentRating = 0; let currentDetalleServicioId = null;
 window.currentSOSFilter = 'pending';
+window.currentEntregaFilter = 'pendiente_asignar';
 let statsChartInstance = null, statsPieInstance = null;
 let adminSalesCache = {}; let lastNotifiedSOS = null; let mechWatchId = null; window.activeMechanicSOSId = null;
 window.activePosFilter = 'todos';
@@ -4470,7 +4471,7 @@ window.loadEntregas = () => {
         L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
     }
 
-    // --- Marcador del taller (fijo, se añade una sola vez si no existe) ---
+    // --- Marcador del taller (fijo) ---
     let tallerMarker = null;
     entregasMapInst.eachLayer(layer => {
         if (layer._isTaller) tallerMarker = layer;
@@ -4483,35 +4484,26 @@ window.loadEntregas = () => {
         marker._isTaller = true;
     }
 
-    // --- Limpiar listener anterior de repartidores ---
-    if (window._entregasRepartidoresListener) {
-        window._entregasRepartidoresListener();
-        window._entregasRepartidoresListener = null;
-    }
-
-    // --- Escuchar ubicaciones de repartidores activos (en tiempo real) ---
-    window._entregasRepartidoresListener = onValue(dbRef(rtdb, 'mecanicos_activos'), (snap) => {
-        // Eliminar marcadores de repartidores previos
-        entregasMapInst.eachLayer(layer => {
-            if (layer._isRepartidor) entregasMapInst.removeLayer(layer);
-        });
-        if (snap.exists()) {
-            snap.forEach(child => {
-                const pos = child.val();
-                if (pos.lat && pos.lng) {
-                    const marker = L.marker([pos.lat, pos.lng], {
-                        icon: L.divIcon({
-                            className: 'entrega-marker',
-                            html: `<div style="background:#22c55e;width:16px;height:16px;border-radius:50%;border:2px solid white;"></div>`,
-                            iconSize: [16,16],
-                            iconAnchor: [8,8]
-                        })
-                    }).addTo(entregasMapInst);
-                    marker._isRepartidor = true;
-                }
-            });
+    // --- Determinar la consulta según el rol ---
+    const role = window.currentUserDoc?.role;
+    let q;
+    if (['admin', 'taller', 'socio'].includes(role)) {
+        // Admin: ve todos los pedidos según el filtro activo
+        const filtro = window.currentEntregaFilter || 'pendiente_asignar';
+        if (filtro === 'pendiente_asignar') {
+            q = query(collection(db, "pedidos_online"), where("status", "==", "pendiente"));
+        } else if (filtro === 'pendiente') {
+            q = query(collection(db, "pedidos_online"), where("status", "==", "aceptado"), where("estado_entrega", "in", ["pendiente", "en_camino"]));
+        } else if (filtro === 'entregado') {
+            q = query(collection(db, "pedidos_online"), where("estado_entrega", "==", "entregado"));
         }
-    });
+    } else {
+        // Repartidor: solo sus pedidos aceptados y pendientes/en camino
+        q = query(collection(db, "pedidos_online"),
+            where("repartidor_uid", "==", auth.currentUser.uid),
+            where("status", "==", "aceptado"),
+            where("estado_entrega", "in", ["pendiente", "en_camino"]));
+    }
 
     // --- Limpiar listener anterior de pedidos ---
     if (window._entregasPedidosListener) {
@@ -4519,22 +4511,24 @@ window.loadEntregas = () => {
         window._entregasPedidosListener = null;
     }
 
-    // --- Escuchar pedidos asignados al repartidor actual ---
-    const q = query(collection(db, "pedidos_online"),
-        where("repartidor_uid", "==", auth.currentUser.uid),
-        where("status", "==", "aceptado"),
-        where("estado_entrega", "in", ["pendiente", "en_camino"]));
+    // --- Mostrar/ocultar barra de filtros según rol ---
+    const filterBar = document.getElementById('entregas-filter-bar');
+    if (filterBar) {
+        filterBar.style.display = ['admin', 'taller', 'socio'].includes(role) ? 'flex' : 'none';
+    }
 
+    // --- Escuchar pedidos ---
     window._entregasPedidosListener = onSnapshot(q, (snap) => {
-        // Limpiar marcadores de pedidos existentes
-        Object.values(entregasMarkers).forEach(m => m.remove());
-        entregasMarkers = {};
+        // Limpiar marcadores existentes (excepto taller)
+        entregasMapInst.eachLayer(layer => {
+            if (layer._isPedido) entregasMapInst.removeLayer(layer);
+        });
         const markersGroup = [];
 
         snap.forEach(dSnap => {
             const p = dSnap.data();
             const id = dSnap.id;
-            if (!p.lat || !p.lng) return; // ignorar si no tiene ubicación
+            if (!p.lat || !p.lng) return;
             const marker = L.marker([p.lat, p.lng], {
                 icon: L.divIcon({
                     className: 'entrega-marker',
@@ -4543,18 +4537,23 @@ window.loadEntregas = () => {
                     iconAnchor: [10,10]
                 })
             }).addTo(entregasMapInst);
+            marker._isPedido = true;
+
+            // Popup con detalles y botón "Ver detalles"
+            const estadoEntrega = p.estado_entrega || 'pendiente';
+            const textoEstado = estadoEntrega === 'en_camino' ? 'En camino' : (estadoEntrega === 'entregado' ? 'Entregado' : 'Pendiente');
             marker.bindPopup(`
                 <div style="font-family:sans-serif;font-size:12px;">
                     <b>${p.cliente || 'Cliente'}</b><br>
                     ${p.items.map(i=>i.name).join(', ')}<br>
                     <b>$${p.total.toFixed(2)}</b> | ${p.metodoPago || 'N/A'}<br>
-                    <button onclick="window.seleccionarEntregaDesdeMarker('${id}')" style="background:#FF6B00;color:white;border:none;padding:4px 8px;border-radius:4px;font-size:11px;margin-top:4px;">Detalles</button>
+                    <span style="color:#FF6B00;">Estado: ${textoEstado}</span><br>
+                    <button onclick="window.seleccionarEntregaDesdeMarker('${id}')" style="background:#FF6B00;color:white;border:none;padding:4px 8px;border-radius:4px;font-size:11px;margin-top:4px;">Ver detalles</button>
                 </div>
             `);
             marker.on('click', () => {
                 window.seleccionarEntregaDesdeMarker(id);
             });
-            entregasMarkers[id] = marker;
             markersGroup.push(marker);
         });
 
@@ -4565,6 +4564,12 @@ window.loadEntregas = () => {
             entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
         }
     });
+};
+
+// Filtro de entregas (para admin)
+window.filterEntregas = (filtro) => {
+    window.currentEntregaFilter = filtro;
+    window.loadEntregas();
 };
 window.seleccionarEntregaDesdeMarker = async (pedidoId) => {
     window.entregaSeleccionadaId = pedidoId;
