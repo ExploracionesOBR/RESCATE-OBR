@@ -71,6 +71,13 @@
     <i id="session-btn-icon" class="fas fa-sign-in-alt text-xl"></i>
 </button>
     </div>
+    <!-- Botón de sesión global (siempre visible) -->
+<div id="session-btn" class="fixed top-4 right-4 z-[9999]">
+    <button class="w-12 h-12 bg-naranja text-white rounded-full flex items-center justify-center shadow-2xl border border-naranja/50 transition-colors"
+            onclick="window.toggleSession()">
+        <i id="session-btn-icon" class="fas fa-sign-in-alt text-xl"></i>
+    </button>
+</div>
     <div class="z-10 flex flex-col items-center w-full max-w-sm lg:max-w-4xl animate-fade-in">
         <p id="landing-status-badge" class="text-naranja font-black tracking-widest text-[10px] lg:text-xs mb-8 lg:mb-12 uppercase border border-naranja/30 px-6 py-2 rounded-full bg-naranja/10">Plataforma Activa</p>
         <div id="landing-open" class="flex flex-col items-center w-full">
@@ -1088,11 +1095,11 @@
 </div>
 
 <!-- Modal detalle servicio taller -->
-<div id="modal-detalle-servicio" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-3xl h-[90vh] lg:h-auto lg:max-h-[90vh] rounded-[2rem] relative border border-blue-500/30 flex flex-col overflow-hidden shadow-2xl">
+<div id="modal-detalle-servicio" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-0 lg:p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full h-full lg:w-auto lg:max-w-3xl lg:h-auto lg:max-h-[90vh] rounded-none lg:rounded-[2rem] relative border-0 lg:border border-blue-500/30 flex flex-col overflow-hidden shadow-2xl">
         <div class="bg-blue-600/20 border-b border-blue-500/30 p-4 flex justify-between items-center z-10">
             <div><p class="text-[10px] font-black text-blue-400 uppercase">Detalle y Bitácora del Servicio</p><p id="servicio-detalle-phone" class="text-sm text-white font-bold truncate max-w-[250px]"></p></div>
-            <button onclick="toggleModal('modal-detalle-servicio', false)" class="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors"><i class="fas fa-times"></i></button>
+            <button onclick="toggleModal('modal-detalle-servicio', false)" class="w-12 h-12 lg:w-10 lg:h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors"><i class="fas fa-times text-xl"></i></button>
         </div>
         <div class="flex-grow p-4 overflow-y-auto hide-scroll flex flex-col lg:flex-row gap-4">
             <div class="w-full lg:w-1/2 flex flex-col space-y-4">
