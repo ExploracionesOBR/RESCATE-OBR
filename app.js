@@ -2471,9 +2471,42 @@ window.loadGarantias = async () => {
                 <span class="${estadoColor} font-black uppercase">${g.estado}</span>
             </div>
             <p class="text-gray-400">Garantía: ${g.tipoGarantia} | Vence: ${g.fechaFin ? new Date(g.fechaFin).toLocaleDateString() : 'N/A'}</p>
+            ${g.estado === 'activa' ? `<button onclick="event.stopPropagation(); window.prepararAplicarGarantia('${d.id}')" class="mt-2 bg-blue-600 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">Aplicar Garantía</button>` : ''}
             ${g.ventaId ? `<p class="text-gray-500">Venta: ${g.ventaId}</p>` : ''}
         </div>`;
     });
+};
+window.garantiaSeleccionadaId = null;
+
+window.prepararAplicarGarantia = (garantiaId) => {
+    window.garantiaSeleccionadaId = garantiaId;
+    toggleModal('modal-aplicar-garantia', true);
+};
+
+window.aplicarGarantia = async () => {
+    if (!window.garantiaSeleccionadaId) return;
+    const tipoUso = document.getElementById('garantia-tipo-uso')?.value;
+    const observaciones = document.getElementById('garantia-observaciones')?.value.trim();
+    if (!tipoUso) return showToast("Selecciona el tipo de cobertura", true);
+
+    const garantiaRef = doc(db, "garantias", window.garantiaSeleccionadaId);
+    const snap = await getDoc(garantiaRef);
+    if (!snap.exists()) return showToast("Garantía no encontrada", true);
+    const data = snap.data();
+
+    // Actualizar la garantía con la información de uso
+    await updateDoc(garantiaRef, {
+        estado: 'usada',
+        tipoUso: tipoUso,
+        observaciones: observaciones,
+        fechaUso: new Date().toISOString()
+    });
+
+    showToast("Garantía aplicada correctamente");
+    toggleModal('modal-aplicar-garantia', false);
+    window.garantiaSeleccionadaId = null;
+    // Opcional: si es cambio por otro producto, abrir POS o alguna acción adicional
+    window.loadGarantias(); // Refrescar lista
 };
 // ======================================================
 // === INVENTARIO Y PRODUCTOS ===
