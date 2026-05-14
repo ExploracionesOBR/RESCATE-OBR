@@ -906,6 +906,11 @@
 <!-- ENTREGAS A DOMICILIO (MAPA) -->
 <section id="a-view-entregas" class="a-view hidden flex-col h-full space-y-0">
     <h3 class="text-2xl font-black italic uppercase text-white p-4">Entregas <span class="text-green-400">Mapa</span></h3>
+    <div id="entregas-filter-bar" class="flex space-x-2 overflow-x-auto hide-scroll pb-2 border-b border-white/10 shrink-0 px-4">
+    <button onclick="window.filterEntregas?.('pendiente_asignar')" class="bg-yellow-600/20 text-yellow-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-yellow-500/30">Por Asignar</button>
+    <button onclick="window.filterEntregas?.('pendiente')" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-blue-500/30">Pendientes</button>
+    <button onclick="window.filterEntregas?.('entregado')" class="bg-green-600/20 text-green-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-green-500/30">Entregados</button>
+</div>
     <div id="entregas-map-container" class="flex-grow w-full bg-white rounded-3xl z-0 border border-green-500/20 shadow-xl relative" style="min-height:60vh;"></div>
     <!-- Panel de acciones flotante (se muestra al seleccionar una entrega) -->
     <div id="entrega-actions-panel" class="p-4 bg-asfalto border-t border-white/10 hidden">
