@@ -17,10 +17,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-window.setDoc = setDoc; // ← justo aquí
-window.doc = doc;       // ← y aquí (por si necesitas doc también)
 const rtdb = getDatabase(app);
 const storage = getStorage(app);
+window.setDoc = setDoc;
+window.doc = doc;
 
 // === CARGA DIFERIDA DE html2canvas ===
 window.loadHtml2Canvas = () => {
@@ -527,6 +527,11 @@ onAuthStateChanged(auth, async user => {
     }
 
     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
+                // Recargar ajustes desde Firestore (para que el radio y otros valores se actualicen)
+        const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
+        if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
+        globalSettings.centerLat = TALLER_LAT;
+        globalSettings.centerLng = TALLER_LNG;
         showView('app-admin');
         document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
         setTimeout(() => {
@@ -4215,7 +4220,19 @@ window.initAdminNotifications = () => {
         lastSOSCount = currentCount;
     });
 };
-
+// ===== GUARDADO AUTOMÁTICO DE AJUSTES =====
+window.bindAutoSave = () => {
+    const ids = ['config-price-mode','config-base-price','config-km-extra','config-radius',
+                 'sch-0-o','sch-0-c','sch-1-o','sch-1-c','sch-2-o','sch-2-c',
+                 'sch-3-o','sch-3-c','sch-4-o','sch-4-c','sch-5-o','sch-5-c','sch-6-o','sch-6-c'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el._autoSaveBound) {
+            el.addEventListener('change', window.adminSaveConfig);
+            el._autoSaveBound = true;
+        }
+    });
+};
 // ======================================================
 // === INVENTARIO FLOTANTE (CONTEO RÁPIDO) ===
 // ======================================================
