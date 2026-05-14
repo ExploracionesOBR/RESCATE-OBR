@@ -4464,6 +4464,35 @@ window.loadEntregas = () => {
         where("repartidor_uid", "==", auth.currentUser.uid),
         where("status", "==", "aceptado"),
         where("estado_entrega", "in", ["pendiente", "en_camino"]));
+    // Marcador del taller
+L.marker([TALLER_LAT, TALLER_LNG], {
+    icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }),
+    interactive: false
+}).addTo(entregasMapInst);
+
+// Escuchar repartidores activos
+onValue(dbRef(rtdb, 'mecanicos_activos'), (snap) => {
+    // Eliminar marcadores de repartidores previos
+    entregasMapInst.eachLayer(layer => {
+        if (layer._isRepartidor) entregasMapInst.removeLayer(layer);
+    });
+    if (snap.exists()) {
+        snap.forEach(child => {
+            const pos = child.val();
+            if (pos.lat && pos.lng) {
+                const marker = L.marker([pos.lat, pos.lng], {
+                    icon: L.divIcon({
+                        className: 'entrega-marker',
+                        html: `<div style="background:#22c55e;width:16px;height:16px;border-radius:50%;border:2px solid white;"></div>`,
+                        iconSize: [16,16],
+                        iconAnchor: [8,8]
+                    })
+                }).addTo(entregasMapInst);
+                marker._isRepartidor = true;
+            }
+        });
+    }
+});
     onSnapshot(q, (snap) => {
         // Limpiar marcadores existentes en cada actualización
         Object.values(entregasMarkers).forEach(m => m.remove());
@@ -5119,3 +5148,14 @@ document.addEventListener('DOMContentLoaded', () => {
         btnLogin.addEventListener('click', window.processLogin);
     }
 });
+window.aplicarHorarioALunes = () => {
+    const lunesO = document.getElementById('sch-0-o')?.value;
+    const lunesC = document.getElementById('sch-0-c')?.value;
+    if (!lunesO || !lunesC) return;
+    for (let i = 1; i < 7; i++) {
+        const openEl = document.getElementById(`sch-${i}-o`);
+        const closeEl = document.getElementById(`sch-${i}-c`);
+        if (openEl) openEl.value = lunesO;
+        if (closeEl) closeEl.value = lunesC;
+    }
+};
