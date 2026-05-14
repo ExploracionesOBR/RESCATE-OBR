@@ -4037,6 +4037,8 @@ window.adminRefreshConfigUI = () => {
                 <td class="text-center"><input id="sch-${i}-c" type="time" value="${s.c}" class="bg-black/30 border border-white/10 p-1 rounded text-white text-xs w-20"></td>
             </tr>`;
         });
+        window.bindAutoSave();
+};
     }
     const kmRangesList = document.getElementById('km-ranges-list');
     if (kmRangesList) {
@@ -4623,6 +4625,18 @@ window.confirmarCobroEntrega = async () => {
     } catch (e) {
         showToast("Error al procesar cobro", true);
     }
+};
+window.bindAutoSave = () => {
+    const ids = ['config-price-mode','config-base-price','config-km-extra','config-radius',
+                 'sch-0-o','sch-0-c','sch-1-o','sch-1-c','sch-2-o','sch-2-c',
+                 'sch-3-o','sch-3-c','sch-4-o','sch-4-c','sch-5-o','sch-5-c','sch-6-o','sch-6-c'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el._autoSaveBound) {
+            el.addEventListener('change', window.adminSaveConfig);
+            el._autoSaveBound = true;
+        }
+    });
 };
 // ======================================================
 // === CIERRE Y STUBS (SIN MANIFIESTO DINÁMICO) ===
