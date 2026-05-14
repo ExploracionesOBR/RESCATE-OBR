@@ -739,6 +739,8 @@ window.processRegister = async () => {
         if (e.code === 'auth/email-already-in-use') {
             try {
                 await signInWithEmailAndPassword(auth, fakeEmail, password);
+            window._lastLoginPhone = rawPhone;
+            window._lastLoginPassword = password;
             } catch(loginErr) {
                 showToast("Ya existe. Inicia sesión con tu contraseña.", true);
                 document.getElementById('auth-step-register').classList.add('hidden');
