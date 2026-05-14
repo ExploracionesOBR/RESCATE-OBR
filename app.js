@@ -17,6 +17,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+window.setDoc = setDoc; // ← justo aquí
+window.doc = doc;       // ← y aquí (por si necesitas doc también)
 const rtdb = getDatabase(app);
 const storage = getStorage(app);
 
