@@ -17,6 +17,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+window.db = db;
 const rtdb = getDatabase(app);
 const storage = getStorage(app);
 window.setDoc = setDoc;
@@ -352,8 +353,51 @@ function startMechanicTracking() {
 async function loadGlobalSettings() {
     const snap = await getDoc(doc(db, 'settings', 'general'));
     if (snap.exists()) Object.assign(globalSettings, snap.data());
-    globalSettings.centerLat = TALLER_LAT; globalSettings.centerLng = TALLER_LNG;
-    applyTheme(); updateLandingStatus(); loadPublicStore(); loadServicesCatalog();
+    globalSettings.centerLat = TALLER_LAT;
+    globalSettings.centerLng = TALLER_LNG;
+    applyTheme();
+    updateLandingStatus();
+    loadPublicStore();
+    loadServicesCatalog();
+
+    // --- Listener en tiempo real ---
+    if (window._settingsUnsubscribe) window._settingsUnsubscribe();
+    window._settingsUnsubscribe = onSnapshot(doc(db, 'settings', 'general'), (docSnap) => {
+        if (docSnap.exists()) {
+            const newSettings = docSnap.data();
+            Object.assign(globalSettings, newSettings);
+            globalSettings.centerLat = TALLER_LAT;
+            globalSettings.centerLng = TALLER_LNG;
+            applyTheme();
+            updateLandingStatus();
+
+            // Si la vista de configuración está abierta, refrescar la UI
+            const configView = document.getElementById('a-view-config');
+            if (configView && !configView.classList.contains('hidden')) {
+                window.adminRefreshConfigUI();
+            }
+
+            // Verificar modo "próximamente"
+            if (globalSettings.modoProximamente) {
+                const currentView = document.querySelector('.view:not(.hidden)')?.id;
+                if (currentView && !['view-landing','view-login','view-force-setup'].includes(currentView)) {
+                    showView('view-proximamente');
+                }
+            } else {
+                // Si se desactiva el modo, restaurar la vista que corresponda según el usuario
+                if (auth.currentUser) {
+                    const role = window.currentUserDoc?.role;
+                    if (role && ['admin','mecanico','taller','socio'].includes(role)) {
+                        showView('app-admin');
+                    } else if (role === 'cliente' || role === 'membresia') {
+                        showView('app-client');
+                    }
+                } else {
+                    showView('view-landing');
+                }
+            }
+        }
+    });
 }
 function updateLandingStatus() {
     const now = new Date(); const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
@@ -2856,6 +2900,10 @@ window.adminSaveConfig = async () => {
         adminGeoMap.setView([TALLER_LAT, TALLER_LNG], 13);
         if (adminGeoCircle) {
             adminGeoCircle.setRadius(radius * 1000);
+            if (adminGeoMap && adminGeoCircle) {
+    const bounds = adminGeoCircle.getBounds();
+    if (bounds.isValid()) adminGeoMap.fitBounds(bounds, { padding: [30,30] });
+}
             const circleBounds = adminGeoCircle.getBounds();
             if (circleBounds.isValid()) adminGeoMap.fitBounds(circleBounds, { padding: [30,30] });
         }
@@ -4038,6 +4086,7 @@ window.cargarCobrosMecanicosPanel = async () => {
 // === ADMIN REFRESH CONFIG UI ===
 // ======================================================
 window.adminRefreshConfigUI = () => {
+    // Cargar valores actuales
     const modeEl = document.getElementById('config-price-mode');
     if (modeEl) modeEl.value = globalSettings.priceMode;
     const basePriceEl = document.getElementById('config-base-price');
@@ -4046,6 +4095,8 @@ window.adminRefreshConfigUI = () => {
     if (kmExtraEl) kmExtraEl.value = globalSettings.rescueKmExtra;
     const radiusEl = document.getElementById('config-radius');
     if (radiusEl) radiusEl.value = globalSettings.radiusKm;
+    document.getElementById('radius-display').innerText = globalSettings.radiusKm;
+
     const days = ['L','M','X','J','V','S','D'];
     const tbody = document.getElementById('schedule-tbody');
     if (tbody) {
@@ -4058,9 +4109,8 @@ window.adminRefreshConfigUI = () => {
                 <td class="text-center"><input id="sch-${i}-c" type="time" value="${s.c}" class="bg-black/30 border border-white/10 p-1 rounded text-white text-xs w-20"></td>
             </tr>`;
         });
-        window.bindAutoSave();
-};
     }
+
     const kmRangesList = document.getElementById('km-ranges-list');
     if (kmRangesList) {
         kmRangesList.innerHTML = '';
@@ -4072,11 +4122,40 @@ window.adminRefreshConfigUI = () => {
         });
     }
     window.togglePriceMode();
+
     const memPriceInput = document.getElementById('config-mem-price');
-if (memPriceInput && globalSettings.membershipPrice) {
-    memPriceInput.value = globalSettings.membershipPrice;
+    if (memPriceInput && globalSettings.membershipPrice) {
+        memPriceInput.value = globalSettings.membershipPrice;
+    }
+
+    // --- Enlazar eventos de auto-guardado (únicamente aquí) ---
+    const autoSaveFields = [
+        'config-price-mode', 'config-base-price', 'config-km-extra', 'config-radius',
+        'sch-0-o', 'sch-0-c', 'sch-1-o', 'sch-1-c', 'sch-2-o', 'sch-2-c',
+        'sch-3-o', 'sch-3-c', 'sch-4-o', 'sch-4-c', 'sch-5-o', 'sch-5-c', 'sch-6-o', 'sch-6-c'
+    ];
+    autoSaveFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el._autoSaveBound) {
+            el.addEventListener('change', window.adminSaveConfig);
+            el._autoSaveBound = true;
+        }
+    });
+
+    // Campo de radio: actualizar círculo en tiempo real y guardar al soltar
+    const radiusInput = document.getElementById('config-radius');
+    if (radiusInput && !radiusInput._radiusBound) {
+        radiusInput.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            document.getElementById('radius-display').innerText = val;
+            if (adminGeoCircle) adminGeoCircle.setRadius(val * 1000);
+        });
+        radiusInput.addEventListener('change', window.adminSaveConfig);
+        radiusInput._radiusBound = true;
+    }
 };
 
+// Funciones auxiliares (deben estar fuera de adminRefreshConfigUI)
 window.adminAddKmRange = () => {
     const kmLimit = parseFloat(document.getElementById('new-km-limit')?.value);
     const price = parseFloat(document.getElementById('new-km-price')?.value);
@@ -4105,6 +4184,7 @@ window.usePreviousDayVideo = (dayIndex) => {
     window.renderVideoScheduleDays();
     showToast("Video copiado del día anterior");
 };
+
 window.removeDayVideo = (dayIndex) => {
     window.confirmModal("¿Eliminar el video asignado a este día?", () => {
         document.getElementById(`video-url-${dayIndex}`).value = '';
@@ -4113,6 +4193,7 @@ window.removeDayVideo = (dayIndex) => {
         showToast("Video eliminado de este día");
     });
 };
+
 window.previewVideoURL = (dayIndex, url) => {
     const previewDiv = document.getElementById(`video-preview-${dayIndex}`);
     if (!previewDiv) return;
@@ -4136,7 +4217,6 @@ window.clearVideoURL = (dayIndex) => {
     window.previewVideoURL(dayIndex, '');
 };
 
-// Inicializar mapa de geofence
 window.renderAdminMap = () => {
     const mapEl = document.getElementById('admin-geofence-map');
     if (!mapEl || adminGeoMap) return;
@@ -4155,6 +4235,7 @@ window.updateGeofenceRadius = (val) => {
     document.getElementById('radius-display').innerText = radiusKm;
     if (adminGeoCircle) adminGeoCircle.setRadius(radiusKm * 1000);
 };
+
 window.loadPromoVideo = () => {
     const container = document.getElementById('video-banner-container');
     if (!container) return;
@@ -4178,24 +4259,24 @@ window.loadPromoPreview = () => {
     if (!previewContainer || !player) return;
 
     const now = new Date();
-    const dayIndex = now.getDay(); // 0=Domingo
+    const dayIndex = now.getDay();
     const todayVideo = globalSettings.videoSchedule?.[dayIndex];
     
     if (todayVideo && todayVideo.trim() !== '') {
         previewContainer.classList.remove('hidden');
         player.setAttribute('controlsList', 'nodownload nofullscreen');
-player.setAttribute('oncontextmenu', 'return false');
-player.style.pointerEvents = 'none';
-player.removeAttribute('controls');
-player.src = todayVideo;
-player.load();
+        player.setAttribute('oncontextmenu', 'return false');
+        player.style.pointerEvents = 'none';
+        player.removeAttribute('controls');
+        player.src = todayVideo;
+        player.load();
         nameDisplay.innerText = todayVideo.split('/').pop() || 'Video promocional';
     } else {
         previewContainer.classList.add('hidden');
     }
 };
+
 window.initAdminNotifications = () => {
-    // Listener de nuevas citas
     let lastCitaCount = 0;
     onSnapshot(collection(db, "citas"), (snap) => {
         const currentCount = snap.size;
@@ -4207,7 +4288,6 @@ window.initAdminNotifications = () => {
         lastCitaCount = currentCount;
     });
 
-    // Listener de nuevas SOS pendientes
     let lastSOSCount = 0;
     const qSOS = query(collection(db, "rescates"), where("status", "==", "pending"));
     onSnapshot(qSOS, (snap) => {
@@ -4218,19 +4298,6 @@ window.initAdminNotifications = () => {
             showToast("🚨 ¡Nueva solicitud de auxilio!", false);
         }
         lastSOSCount = currentCount;
-    });
-};
-// ===== GUARDADO AUTOMÁTICO DE AJUSTES =====
-window.bindAutoSave = () => {
-    const ids = ['config-price-mode','config-base-price','config-km-extra','config-radius',
-                 'sch-0-o','sch-0-c','sch-1-o','sch-1-c','sch-2-o','sch-2-c',
-                 'sch-3-o','sch-3-c','sch-4-o','sch-4-c','sch-5-o','sch-5-c','sch-6-o','sch-6-c'];
-    ids.forEach(id => {
-        const el = document.getElementById(id);
-        if (el && !el._autoSaveBound) {
-            el.addEventListener('change', window.adminSaveConfig);
-            el._autoSaveBound = true;
-        }
     });
 };
 // ======================================================
@@ -4679,18 +4746,6 @@ window.confirmarCobroEntrega = async () => {
     } catch (e) {
         showToast("Error al procesar cobro", true);
     }
-};
-window.bindAutoSave = () => {
-    const ids = ['config-price-mode','config-base-price','config-km-extra','config-radius',
-                 'sch-0-o','sch-0-c','sch-1-o','sch-1-c','sch-2-o','sch-2-c',
-                 'sch-3-o','sch-3-c','sch-4-o','sch-4-c','sch-5-o','sch-5-c','sch-6-o','sch-6-c'];
-    ids.forEach(id => {
-        const el = document.getElementById(id);
-        if (el && !el._autoSaveBound) {
-            el.addEventListener('change', window.adminSaveConfig);
-            el._autoSaveBound = true;
-        }
-    });
 };
 // ======================================================
 // === CIERRE Y STUBS (SIN MANIFIESTO DINÁMICO) ===
