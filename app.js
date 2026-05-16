@@ -288,8 +288,11 @@ window.speakTTS = speakTTS;
 
 // === TEMA ===
 window.changeThemeMode = async (mode) => {
-    globalSettings.themeMode = mode; applyTheme();
-    if(auth.currentUser && window.currentUserDoc?.role === 'admin') await setDoc(doc(db, "settings", "general"), { themeMode: mode }, { merge: true });
+    globalSettings.themeMode = mode;
+    applyTheme();
+    if (auth.currentUser && window.currentUserDoc?.role === 'admin') {
+        await setDoc(doc(db, "settings", "general"), { themeMode: mode }, { merge: true });
+    }
 };
 
 function applyTheme() {
@@ -4299,6 +4302,17 @@ window.initAdminNotifications = () => {
         }
         lastSOSCount = currentCount;
     });
+    // --- Sincronizar selector de tema ---
+const themeSelector = document.getElementById('theme-selector');
+if (themeSelector) {
+    themeSelector.value = globalSettings.themeMode || 'auto';
+    if (!themeSelector._themeBound) {
+        themeSelector.addEventListener('change', (e) => {
+            window.changeThemeMode(e.target.value);
+        });
+        themeSelector._themeBound = true;
+    }
+}
 };
 // ======================================================
 // === INVENTARIO FLOTANTE (CONTEO RÁPIDO) ===
