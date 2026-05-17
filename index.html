@@ -40,7 +40,7 @@
 </head>
 <body class="bg-asfalto text-white font-sans antialiased overflow-x-hidden">
     <!-- Botón de sesión global (visible en todas las vistas) -->
-<div id="session-btn" class="fixed top-10 right-10 z-[9999]">
+<div id="session-btn" class="fixed top-4 right-4 z-[100]">
     <button class="w-12 h-12 bg-naranja text-white rounded-full flex items-center justify-center shadow-2xl border border-naranja/50 transition-colors"
         onclick="window.toggleSession()">
         <i id="session-btn-icon" class="fas fa-sign-in-alt text-xl"></i>
@@ -445,7 +445,7 @@
             <h2 id="admin-phone-display" class="font-bold text-white text-sm">Cargando...</h2>
         </div>
         <div class="flex items-center space-x-2">
-            <button id="admin-chat-float-btn" class="hidden fixed bottom-20 left-4 z-[9998] w-12 h-12 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl border border-naranja/50 transition-transform hover:scale-110" onclick="toggleModal('modal-chat-list', true)"><i class="fas fa-comments text-xl"></i></button>
+            <button id="admin-chat-float-btn" class="hidden fixed bottom-24 left-4 z-[40] w-12 h-12 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl border border-naranja/50 transition-transform hover:scale-110" onclick="toggleModal('modal-chat-list', true)"><i class="fas fa-comments text-xl"></i></button>
         </div>
     </header>
 
@@ -1018,7 +1018,7 @@
 
 <!-- Modal contacto (rediseñado) -->
 <div id="modal-contact" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-white/10">
+    <div class="bg-asfalto w-full max-w-sm lg:max-w-lg rounded-[2rem] p-6 relative border border-white/10">
         <button onclick="toggleModal('modal-contact', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white text-center">Soporte OBR</h2>
         <p class="text-xs text-gray-400 text-center mb-4">Comunícate con nosotros. Te responderemos a la brevedad.</p>
@@ -1041,7 +1041,7 @@
 
 <!-- Modal nueva cita (con bloqueo de fechas pasadas) -->
 <div id="modal-nueva-cita" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 relative border border-green-500/30">
+    <div class="bg-asfalto w-full max-w-md lg:max-w-2xl rounded-[2rem] p-6 relative border border-green-500/30">
         <button onclick="toggleModal('modal-nueva-cita', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Agendar Cita</h2>
         <input id="cita-phone" type="tel" maxlength="10" placeholder="Celular Cliente" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
@@ -1055,7 +1055,7 @@
 
 <!-- Modal EDITAR cita -->
 <div id="modal-edit-cita" class="fixed inset-0 bg-black/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 relative border border-green-500/30">
+    <div class="bg-asfalto w-full max-w-md lg:max-w-2xl rounded-[2rem] p-6 relative border border-green-500/30">
         <button onclick="toggleModal('modal-edit-cita', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Detalle de Cita</h2>
         <input type="hidden" id="edit-cita-id">
@@ -1073,7 +1073,7 @@
 
 <!-- Modal lista de chats admin -->
 <div id="modal-chat-list" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-md h-auto lg:max-h-[80vh] rounded-[2rem] relative border border-blue-500/30 flex flex-col shadow-2xl">
+    <div class="bg-asfalto w-full max-w-md lg:max-w-2xl h-auto lg:max-h-[80vh] rounded-[2rem] relative border border-blue-500/30 flex flex-col shadow-2xl">
         <button onclick="toggleModal('modal-chat-list', false)" class="absolute top-4 right-4 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white z-10 hover:bg-white/20 transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black p-6 border-b border-white/10 text-white"><i class="fas fa-comments text-blue-400 mr-2"></i>Chats Activos</h2>
         <div id="chat-list-items" class="flex-grow overflow-y-auto p-4 space-y-2"></div>
@@ -1082,7 +1082,7 @@
 
 <!-- Modal chat -->
 <div id="modal-chat" class="fixed inset-0 bg-black/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-md h-[80vh] lg:h-auto lg:min-h-[600px] lg:max-h-[80vh] rounded-[2rem] relative border border-blue-500/30 flex flex-col overflow-hidden shadow-2xl">
+    <div class="bg-asfalto w-full max-w-md lg:max-w-2xl h-[80vh] lg:h-auto lg:min-h-[600px] lg:max-h-[80vh] rounded-[2rem] relative border border-blue-500/30 flex flex-col overflow-hidden shadow-2xl">
         <div class="bg-blue-600/20 border-b border-blue-500/30 p-4 flex items-center justify-between">
             <div class="flex items-center">
                 <button onclick="window.closeChat?.()" class="w-8 h-8 mr-3 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors"><i class="fas fa-arrow-left"></i></button>
@@ -1139,7 +1139,7 @@
 
 <!-- Modal carrito -->
 <div id="modal-cart" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 relative border border-naranja/30 shadow-2xl">
+    <div class="bg-asfalto w-full max-w-md lg:max-w-xl rounded-[2rem] p-6 relative border border-naranja/30 shadow-2xl">
         <button onclick="toggleModal('modal-cart', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-2xl font-black mb-4 text-center">Tu Carrito</h2>
         <div id="cart-items" class="max-h-60 overflow-y-auto hide-scroll mb-4 space-y-2"></div>
@@ -1248,7 +1248,7 @@
 
 <!-- Modal pedidos (cliente) -->
 <div id="modal-pedidos" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-lg h-[80vh] rounded-[2rem] p-6 relative border border-green-500/30 flex flex-col">
+    <div class="bg-asfalto w-full max-w-lg lg:max-w-3xl h-[80vh] rounded-[2rem] p-6 relative border border-green-500/30 flex flex-col">
         <button onclick="toggleModal('modal-pedidos', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Mis Pedidos</h2>
         <div id="pedidos-list" class="flex-grow overflow-y-auto hide-scroll space-y-3"></div>
@@ -1295,7 +1295,7 @@
 </div>
 <!-- Modal de garantías -->
 <div id="modal-garantias" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-lg h-[80vh] rounded-[2rem] p-6 relative border border-green-500/30 flex flex-col shadow-2xl">
+    <div class="bg-asfalto w-full max-w-lg lg:max-w-3xl h-[80vh] rounded-[2rem] p-6 relative border border-green-500/30 flex flex-col shadow-2xl">
         <button onclick="toggleModal('modal-garantias', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white"><i class="fas fa-shield-alt mr-2 text-green-400"></i>Garantías</h2>
         <div id="garantias-list" class="flex-grow overflow-y-auto hide-scroll space-y-2"></div>
@@ -1310,7 +1310,7 @@
 
 <!-- Modal opciones de entrega (pedido con domicilio) -->
 <div id="modal-order-options" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 relative border border-naranja/30 shadow-2xl text-center">
+    <div class="bg-asfalto w-full max-w-md lg:max-w-xl rounded-[2rem] p-6 relative border border-naranja/30 shadow-2xl text-center">
         <button onclick="toggleModal('modal-order-options', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Opciones de Entrega</h2>
         <p class="text-xs text-gray-400 mb-6">Elige cómo quieres recibir tu pedido.</p>
@@ -1344,7 +1344,7 @@
 </div>
 <!-- Modal envío a domicilio -->
 <div id="modal-delivery-order" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl">
+    <div class="bg-asfalto w-full max-w-md lg:max-w-2xl rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl">
         <button onclick="toggleModal('modal-delivery-order', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Envío a Domicilio</h2>
         <p class="text-xs text-gray-400 mb-4">Confirma tu ubicación de entrega.</p>
@@ -1366,7 +1366,7 @@
 </div>
     <!-- Modal Ingresar Moto -->
 <div id="modal-nuevo-servicio" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl">
+    <div class="bg-asfalto w-full max-w-md lg:max-w-2xl rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl">
         <button onclick="toggleModal('modal-nuevo-servicio', false)" class="absolute top-4 right-4 w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Ingresar Moto al Taller</h2>
         <input id="manual-srv-phone" type="tel" maxlength="10" placeholder="Celular del cliente (opcional)" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
