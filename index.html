@@ -379,8 +379,9 @@
                 <p id="sos-status-desc-client" class="text-xs text-gray-300 mb-4">El taller OBR ha recibido tu ubicación y detalles de la falla.</p>
                 <div id="mechanic-live-map" class="h-40 w-full bg-white rounded-xl mb-4 border border-red-500/30 hidden z-0"></div>
                 <div id="client-sos-actions" class="flex space-x-2 mt-4">
-                    <button id="btn-contacto-taller" onclick="event.stopPropagation();" class="flex-1 bg-blue-600 text-white text-[10px] px-4 py-3 rounded-xl font-black uppercase flex items-center justify-center"><i class="fas fa-headset text-sm mr-2"></i>Contactar al Taller</button>
-                </div>
+    <button id="btn-contacto-taller" onclick="event.stopPropagation();" class="flex-1 bg-blue-600 text-white text-[10px] px-4 py-3 rounded-xl font-black uppercase flex items-center justify-center"><i class="fas fa-headset text-sm mr-2"></i>Contactar al Taller</button>
+    <button id="btn-chat-sos" onclick="event.stopPropagation(); window.abrirChatSOS?.()" class="flex-1 bg-green-600 text-white text-[10px] px-4 py-3 rounded-xl font-black uppercase flex items-center justify-center hidden"><i class="fas fa-comments text-sm mr-2"></i>Chat Mecánico</button>
+</div>
             </div>
 
             <div id="active-workshop-card" class="hidden bg-gradient-to-b from-black to-asfalto border border-blue-500/30 p-6 lg:p-8 rounded-3xl shadow-xl relative overflow-hidden animate-fade-in cursor-pointer" onclick="window.viewActiveWorkshop?.()">
