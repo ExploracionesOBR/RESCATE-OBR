@@ -754,6 +754,7 @@ window.switchAdminView = (id) => {
         window.cargarNotificacionesCitas(); 
         window.cargarCobrosMecanicosPanel(); 
         window.loadVentasRealizadas(); 
+        window.cargarChatsPendientesAdmin();
         setTimeout(() => window.loadOnlineOrders?.(), 200);
     }
     if(id === 'a-view-entregas') { 
@@ -1184,9 +1185,9 @@ window.submitFinalSOS = async () => {
     }
 };
 function listenToMySOS() {
-    if(!auth.currentUser) return;
-    if(mySOSListener) mySOSListener();
-            mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), async (snap) => {
+    if (!auth.currentUser) return;
+    if (mySOSListener) mySOSListener();
+    mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), async (snap) => {
         const activeCard = document.getElementById('active-sos-card');
         const noServicesMsg = document.getElementById('no-active-services-msg');
         const survey = document.getElementById('satisfaction-survey');
@@ -1194,145 +1195,198 @@ function listenToMySOS() {
         const wsCard = document.getElementById('active-workshop-card');
         const wsTimeline = document.getElementById('workshop-timeline-client');
         const wsProgress = document.getElementById('client-ws-progress');
-        const wsTexts = ['ws-text-1','ws-text-2','ws-text-3','ws-text-4'];
-        
-        if(!snap.exists()) {
-            if(activeCard) activeCard.classList.add('hidden');
-            if(noServicesMsg) noServicesMsg.classList.remove('hidden');
-            if(survey) survey.classList.add('hidden');
-            if(mechanicMapDiv) mechanicMapDiv.classList.add('hidden');
-            if(wsCard) wsCard.classList.add('hidden');
+        const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
+
+        if (!snap.exists()) {
+            if (activeCard) activeCard.classList.add('hidden');
+            if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+            if (survey) survey.classList.add('hidden');
+            if (mechanicMapDiv) mechanicMapDiv.classList.add('hidden');
+            if (wsCard) wsCard.classList.add('hidden');
             if (mechMapInst) {
                 mechMapInst.remove();
                 mechMapInst = null;
                 mechMarkerInst = null;
+                if (window._mechRouteLine) window._mechRouteLine = null;
             }
             window.lastClientSOSStatus = null;
             return;
         }
-        const data = snap.val();
-        if(activeCard) activeCard.classList.remove('hidden');
-        if(noServicesMsg) noServicesMsg.classList.add('hidden');
 
-        if(data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
+        const data = snap.val();
+        if (activeCard) activeCard.classList.remove('hidden');
+        if (noServicesMsg) noServicesMsg.classList.add('hidden');
+
+        // --- Manejo de aceptación y chat ---
+        if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
             speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
             playSound('notif');
-                    // Crear o recuperar el chat del SOS entre el cliente y el mecánico
-        if (data.status === 'accepted' && data.mech_uid) {
-            const chatQuery = query(
-                collection(db, "chats"),
-                where("participantes", "array-contains", auth.currentUser.uid)
-            );
-            const chatSnap = await getDocs(chatQuery);
-            let chatId = null;
-            chatSnap.forEach(doc => {
-                const d = doc.data();
-                if (d.participantes.includes(data.mech_uid) && d.titulo === 'SOS EN CURSO') {
-                    chatId = doc.id;
-                }
-            });
-            if (!chatId) {
-                const chatRef = await addDoc(collection(db, "chats"), {
-                    titulo: 'SOS EN CURSO',
-                    participantes: [auth.currentUser.uid, data.mech_uid],
-                    nombres: {
-                        [auth.currentUser.uid]: window.currentUserDoc?.name || 'Cliente',
-                        [data.mech_uid]: data.mech_name || 'Mecánico'
-                    },
-                    creado: Date.now()
+            if (data.status === 'accepted' && data.mech_uid) {
+                const chatQuery = query(
+                    collection(db, "chats"),
+                    where("participantes", "array-contains", auth.currentUser.uid)
+                );
+                const chatSnap = await getDocs(chatQuery);
+                let chatId = null;
+                chatSnap.forEach(doc => {
+                    const d = doc.data();
+                    if (d.participantes.includes(data.mech_uid) && d.titulo === 'SOS EN CURSO') {
+                        chatId = doc.id;
+                    }
                 });
-                chatId = chatRef.id;
+                if (!chatId) {
+                    const chatRef = await addDoc(collection(db, "chats"), {
+                        titulo: 'SOS EN CURSO',
+                        participantes: [auth.currentUser.uid, data.mech_uid],
+                        nombres: {
+                            [auth.currentUser.uid]: window.currentUserDoc?.name || 'Cliente',
+                            [data.mech_uid]: data.mech_name || 'Mecánico'
+                        },
+                        creado: Date.now()
+                    });
+                    chatId = chatRef.id;
+                }
+                window._sosChatId = chatId;
+                const btnChatSOS = document.getElementById('btn-chat-sos');
+                if (btnChatSOS) btnChatSOS.classList.remove('hidden');
             }
-            // Guardar el ID del chat para usarlo en el botón
-            window._sosChatId = chatId;
-            // Mostrar el botón de chat
+        } 
+        else if ((data.status === 'completed' || data.status === 'cancelled') && window.lastClientSOSStatus !== 'completed' && window.lastClientSOSStatus !== 'cancelled') {
             const btnChatSOS = document.getElementById('btn-chat-sos');
-            if (btnChatSOS) btnChatSOS.classList.remove('hidden');
-        }
-        } else if ((data.status === 'completed' || data.status === 'cancelled') && window.lastClientSOSStatus !== 'completed' && window.lastClientSOSStatus !== 'cancelled') {
-            const btnChatSOS = document.getElementById('btn-chat-sos');
-if (btnChatSOS) btnChatSOS.classList.add('hidden');
-window._sosChatId = null;
+            if (btnChatSOS) btnChatSOS.classList.add('hidden');
+            window._sosChatId = null;
             speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
             playSound('notif');
-            if(activeCard) activeCard.classList.add('hidden');
-            if(survey) survey.classList.remove('hidden');
+            if (activeCard) activeCard.classList.add('hidden');
+            if (survey) survey.classList.remove('hidden');
             remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
             window.loadClientHistory();
-            if(wsCard) wsCard.classList.add('hidden');
+            if (wsCard) wsCard.classList.add('hidden');
             if (mechMapInst) {
                 mechMapInst.remove();
                 mechMapInst = null;
                 mechMarkerInst = null;
+                if (window._mechRouteLine) window._mechRouteLine = null;
             }
-            if (data.tallerStatus && !['entregada','pagado'].includes(data.tallerStatus)) {
-                if(wsCard) {
+            if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
+                if (wsCard) {
                     wsCard.classList.remove('hidden');
-                    const steps = { 'recibida':1, 'mecanica':2, 'pruebas':3, 'lista':4 };
+                    const steps = { 'recibida': 1, 'mecanica': 2, 'pruebas': 3, 'lista': 4 };
                     const currentStep = steps[data.tallerStatus] || 0;
-                    if(wsProgress) wsProgress.style.width = ((currentStep-1)*33.33) + '%';
+                    if (wsProgress) wsProgress.style.width = ((currentStep - 1) * 33.33) + '%';
                     wsTexts.forEach((id, idx) => {
                         const el = document.getElementById(id);
-                        if(el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
+                        if (el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
                     });
                 }
                 if (data.tallerServiceId) {
                     window.loadClientWorkshopTimeline?.(data.tallerServiceId);
                 }
             } else {
-                if(wsCard) wsCard.classList.add('hidden');
+                if (wsCard) wsCard.classList.add('hidden');
             }
             window.lastClientSOSStatus = data.status;
             return;
         }
+
         window.lastClientSOSStatus = data.status;
         const statusDesc = document.getElementById('sos-status-desc-client');
-        if(statusDesc) {
-            statusDesc.innerText = data.status === 'accepted' ? "Mecánico en camino" : 
-                                    data.status === 'completed' ? "Servicio finalizado" : 
-                                    "Esperando confirmación";
+        if (statusDesc) {
+            statusDesc.innerText = data.status === 'accepted' ? "Mecánico en camino" :
+                data.status === 'completed' ? "Servicio finalizado" :
+                "Esperando confirmación";
         }
 
-        if(data.status === 'accepted' && data.mech_lat) {
-            if(mechanicMapDiv) mechanicMapDiv.classList.remove('hidden');
-            if(!mechMapInst) {
-                mechMapInst = L.map('mechanic-live-map', { dragging: false, zoomControl: false }).setView([data.mech_lat, data.mech_lng], 14);
+        // --- Mapa en tiempo real (mejorado) ---
+        if (data.status === 'accepted' && data.mech_uid) {
+            if (mechanicMapDiv) mechanicMapDiv.classList.remove('hidden');
+
+            // Crear mapa si no existe
+            if (!mechMapInst) {
+                const centerLat = data.lat || TALLER_LAT;
+                const centerLng = data.lng || TALLER_LNG;
+                mechMapInst = L.map('mechanic-live-map', { dragging: true, zoomControl: true }).setView([centerLat, centerLng], 14);
                 const isLight = document.body.classList.contains('light-mode');
                 const layerUrl = isLight
                     ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
                     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
                 L.tileLayer(layerUrl).addTo(mechMapInst);
-                mechMarkerInst = L.marker([data.mech_lat, data.mech_lng], { 
-                    icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] }) 
-                }).addTo(mechMapInst);
-                if (data.lat) {
-                    L.marker([data.lat, data.lng], { 
-                        icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] }) 
-                    }).addTo(mechMapInst);
-                }
             } else {
-                mechMarkerInst.setLatLng([data.mech_lat, data.mech_lng]);
                 mechMapInst.invalidateSize();
             }
-        } else {
-            if(mechanicMapDiv) mechanicMapDiv.classList.add('hidden');
-        }
 
-        if (data.status === 'accepted' && data.mech_uid) {
-            const trackingRef = dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`);
-            onValue(trackingRef, (trackSnap) => {
-                if (trackSnap.exists() && mechMapInst) {
-                    const coords = [];
-                    trackSnap.forEach(child => {
-                        const p = child.val();
-                        if (p.lat && p.lng) coords.push([p.lat, p.lng]);
-                    });
-                    if (coords.length > 1) {
-                        if (window._mechRouteLine) window._mechRouteLine.remove();
-                        window._mechRouteLine = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.7 }).addTo(mechMapInst);
+            // Marcador del cliente (ubicación fija del SOS)
+            if (data.lat && data.lng) {
+                if (window._clientMarker) mechMapInst.removeLayer(window._clientMarker);
+                window._clientMarker = L.marker([data.lat, data.lng], {
+                    icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28, 28], iconAnchor: [14, 28] })
+                }).addTo(mechMapInst).bindPopup("Tu ubicación").openPopup();
+            }
+
+            // Marcador del mecánico (se actualizará en tiempo real)
+            let mechMarker = window._mechMarker;
+            if (!mechMarker) {
+                mechMarker = L.marker([data.lat || TALLER_LAT, data.lng || TALLER_LNG], {
+                    icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32, 32], iconAnchor: [16, 32] })
+                }).addTo(mechMapInst).bindPopup("Mecánico en camino");
+                window._mechMarker = mechMarker;
+            }
+
+            // Función para actualizar la posición del mecánico y la ruta
+            const updateMechPositionAndRoute = (lat, lng) => {
+                if (mechMarker) mechMarker.setLatLng([lat, lng]);
+                // Centrar el mapa en la posición actual del mecánico
+                mechMapInst.setView([lat, lng], 14);
+                // Obtener historial de tracking para dibujar la ruta completa
+                const trackingRef = dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`);
+                onValue(trackingRef, (trackSnap) => {
+                    if (trackSnap.exists() && mechMapInst) {
+                        const coords = [];
+                        trackSnap.forEach(child => {
+                            const p = child.val();
+                            if (p.lat && p.lng) coords.push([p.lat, p.lng]);
+                        });
+                        if (coords.length > 1) {
+                            if (window._mechRouteLine) mechMapInst.removeLayer(window._mechRouteLine);
+                            window._mechRouteLine = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.7 }).addTo(mechMapInst);
+                            // Ajustar vista para mostrar toda la ruta (opcional, puede ser molesto si se actualiza mucho)
+                            // mechMapInst.fitBounds(L.latLngBounds(coords).pad(0.1));
+                        }
+                    }
+                }, { onlyOnce: false });
+            };
+
+            // Escuchar cambios en la posición en tiempo real del mecánico
+            const mechPosRef = dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`);
+            if (window._mechPosUnsubscribe) window._mechPosUnsubscribe();
+            window._mechPosUnsubscribe = onValue(mechPosRef, (posSnap) => {
+                if (posSnap.exists()) {
+                    const pos = posSnap.val();
+                    if (pos.lat && pos.lng) {
+                        updateMechPositionAndRoute(pos.lat, pos.lng);
+                    }
+                } else {
+                    // Si no hay posición activa, usar la última conocida del rescate
+                    if (data.mech_lat && data.mech_lng) {
+                        updateMechPositionAndRoute(data.mech_lat, data.mech_lng);
                     }
                 }
             });
+        } else {
+            // Si no está aceptado, ocultar el mapa
+            if (mechanicMapDiv) mechanicMapDiv.classList.add('hidden');
+            // Limpiar listeners y marcadores
+            if (window._mechPosUnsubscribe) {
+                window._mechPosUnsubscribe();
+                window._mechPosUnsubscribe = null;
+            }
+            if (mechMapInst) {
+                mechMapInst.remove();
+                mechMapInst = null;
+                window._mechMarker = null;
+                window._clientMarker = null;
+                if (window._mechRouteLine) window._mechRouteLine = null;
+            }
         }
     }); // cierra onValue
 } // cierra listenToMySOS
@@ -1453,7 +1507,8 @@ window.openDetalleServicio = async (id) => {
     const docSnap = await getDoc(doc(db, "rescates", id)); if(!docSnap.exists()) return;
     const data = docSnap.data(); currentDetalleServicioId = id;
     const soloLectura = data.tallerStatus === 'lista' || data.tallerStatus === 'pagado';
-    document.getElementById('servicio-detalle-phone').innerText = `${data.shortId || ''} - ${data.phone || 'Sin teléfono'}`;
+    const clientDisplayName = data.clientName || (data.phone ? data.phone.replace('+52', '') : 'Cliente');
+    document.getElementById('servicio-detalle-phone').innerText = `${data.shortId || ''} - ${clientDisplayName}`;
     document.getElementById('servicio-detalle-info').innerHTML = `<p class="text-xs text-white">Moto: ${data.marca||''} ${data.modelo||''} ${data.cc||''}<br><br>${data.falla}</p>`;
 
     const mediaContainer = document.getElementById('servicio-fotos-container');
@@ -5280,25 +5335,7 @@ window.addEventListener('click', function(e) {
     if (e.target.closest('#btn-contacto-taller')) {
         e.stopPropagation();
         e.preventDefault();
-        const optionsHTML = `
-            <div class="text-center">
-                <p class="text-white font-bold mb-4">Contactar al Taller</p>
-                <button onclick="window.open('tel:6311551533')" class="w-full bg-green-600 text-white p-3 rounded-xl font-black mb-2 flex items-center justify-center"><i class="fas fa-phone mr-2"></i> Llamar 631 155 1533</button>
-                <button onclick="window.open('tel:6441106011')" class="w-full bg-green-600 text-white p-3 rounded-xl font-black mb-4 flex items-center justify-center"><i class="fas fa-phone mr-2"></i> Llamar 644 110 6011</button>
-                <button onclick="toggleModal('modal-contact-taller', false)" class="text-gray-400 text-sm">Cancelar</button>
-            </div>
-        `;
-        const modalId = 'modal-contact-taller';
-        let modalEl = document.getElementById(modalId);
-        if (!modalEl) {
-            modalEl = document.createElement('div');
-            modalEl.id = modalId;
-            modalEl.className = 'fixed inset-0 bg-black/95 z-[350] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-            modalEl.innerHTML = `<div class="bg-asfalto w-full max-w-xs rounded-[2rem] p-6 relative border border-blue-500/30" id="${modalId}-content"></div>`;
-            document.body.appendChild(modalEl);
-        }
-        document.getElementById(`${modalId}-content`).innerHTML = optionsHTML;
-        toggleModal(modalId, true);
+        window.mostrarOpcionesContacto();
     }
 });
 window.exportUserHistoryPDF = async () => {
@@ -5609,7 +5646,32 @@ window.openChat = (chatId) => {
     const messagesContainer = document.getElementById('chat-messages');
     messagesContainer.innerHTML = '';
 
+    // Función auxiliar para escapar HTML (evita inyección)
+    const escapeHtml = (str) => {
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    };
+
     chatUnsubscribe = onSnapshot(collection(db, "chats", chatId, "mensajes"), (snap) => {
+        // Detectar mensajes nuevos (solo los que se añaden)
+        snap.docChanges().forEach(change => {
+            if (change.type === 'added') {
+                const msg = change.doc.data();
+                // Si el mensaje NO es del usuario actual, notificar
+                if (msg.uid !== auth.currentUser.uid) {
+                    playSound('notif');
+                    // Extraer un número corto del chatId (por ejemplo, últimos 6 caracteres)
+                    const shortId = chatId.slice(-6);
+                    speakTTS(`Tienes un nuevo mensaje del servicio OBR-${shortId}`);
+                }
+            }
+        });
+
+        // Renderizar todos los mensajes (igual que antes)
         messagesContainer.innerHTML = '';
         snap.forEach(doc => {
             const msg = doc.data();
@@ -5617,7 +5679,7 @@ window.openChat = (chatId) => {
             messagesContainer.innerHTML += `
                 <div class="flex ${isMine ? 'justify-end' : 'justify-start'} mb-2">
                     <div class="${isMine ? 'bg-naranja text-white' : 'bg-white/10 text-white'} p-3 rounded-2xl max-w-[75%] text-xs">
-                        <p>${msg.texto}</p>
+                        <p>${escapeHtml(msg.texto)}</p>
                         <span class="text-[0.6rem] opacity-60">${new Date(msg.timestamp).toLocaleTimeString()}</span>
                     </div>
                 </div>
@@ -5651,6 +5713,134 @@ window.closeChat = () => {
     }
     activeChatUid = null;
     toggleModal('modal-chat', false);
+};
+window.mostrarOpcionesContacto = () => {
+    const modalId = 'modal-contacto-taller-opciones';
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.innerHTML = `
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-blue-500/30 text-center">
+                <i class="fas fa-headset text-4xl text-blue-400 mb-4"></i>
+                <h2 class="text-xl font-black text-white mb-4">Contactar al Taller</h2>
+                <div class="space-y-3">
+                    <button id="contact-call-1" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase flex items-center justify-center"><i class="fas fa-phone mr-2"></i> Llamar 631 155 1533</button>
+                    <button id="contact-call-2" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase flex items-center justify-center"><i class="fas fa-phone mr-2"></i> Llamar 644 110 6011</button>
+                    <button id="contact-chat" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black uppercase flex items-center justify-center"><i class="fas fa-comments mr-2"></i> Chat con Soporte</button>
+                    <button onclick="toggleModal('${modalId}', false)" class="w-full bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Cancelar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modalEl);
+        // Asignar eventos una sola vez
+        document.getElementById('contact-call-1').onclick = () => window.open('tel:6311551533', '_self');
+        document.getElementById('contact-call-2').onclick = () => window.open('tel:6441106011', '_self');
+        document.getElementById('contact-chat').onclick = () => {
+            window.toggleModal(modalId, false);
+            window.openChatWithTaller(); // Función dinámica que crea chat pendiente
+        };
+    }
+    window.toggleModal(modalId, true);
+};
+window.openChatWithTaller = async () => {
+    if (!auth.currentUser) {
+        window.showToast("Debes iniciar sesión para usar el chat.", true);
+        return;
+    }
+    const clienteUID = auth.currentUser.uid;
+    const clienteNombre = window.currentUserDoc?.name || "Cliente";
+
+    // Buscar si ya existe un chat activo (no pendiente) donde participe este cliente
+    const qActivo = query(
+        collection(db, "chats"),
+        where("participantes", "array-contains", clienteUID),
+        where("estado", "in", ["activo", "cerrado"])
+    );
+    const snapActivo = await getDocs(qActivo);
+    let chatActivo = null;
+    snapActivo.forEach(doc => {
+        if (doc.data().estado === 'activo') chatActivo = doc;
+    });
+    if (chatActivo) {
+        window.openChat(chatActivo.id);
+        return;
+    }
+
+    // Buscar si ya existe un chat pendiente (sin admin asignado)
+    const qPendiente = query(
+        collection(db, "chats"),
+        where("participantes", "array-contains", clienteUID),
+        where("estado", "==", "pendiente")
+    );
+    const snapPendiente = await getDocs(qPendiente);
+    let chatPendienteId = null;
+    snapPendiente.forEach(doc => {
+        chatPendienteId = doc.id;
+    });
+
+    if (chatPendienteId) {
+        window.showToast("Tu solicitud está pendiente. Espera a que un administrador la atienda.", false);
+        return;
+    }
+
+    // Crear nuevo chat pendiente
+    const chatRef = await addDoc(collection(db, "chats"), {
+        titulo: "Soporte General",
+        participantes: [clienteUID],
+        nombres: {
+            [clienteUID]: clienteNombre
+        },
+        estado: "pendiente",
+        creado: Date.now()
+    });
+    window.showToast("Solicitud enviada. Un administrador te atenderá pronto.", false);
+};
+window.cargarChatsPendientesAdmin = () => {
+    const container = document.getElementById('admin-chats-pendientes-list');
+    if (!container) return;
+    const q = query(collection(db, "chats"), where("estado", "==", "pendiente"));
+    onSnapshot(q, (snap) => {
+        container.innerHTML = '';
+        snap.forEach(doc => {
+            const chat = doc.data();
+            const clienteNombre = chat.nombres?.[chat.participantes[0]] || "Cliente";
+            container.innerHTML += `
+                <div class="bg-white/5 p-3 rounded-xl mb-2 flex justify-between items-center">
+                    <div>
+                        <p class="text-sm font-bold">${clienteNombre}</p>
+                        <p class="text-xs text-gray-400">${new Date(chat.creado).toLocaleString()}</p>
+                    </div>
+                    <button onclick="window.tomarChatPendiente('${doc.id}')" class="bg-green-600 text-white px-3 py-1 rounded text-xs">Atender</button>
+                </div>
+            `;
+        });
+        if (snap.empty) container.innerHTML = '<p class="text-gray-500 text-xs">Sin solicitudes pendientes</p>';
+    });
+};
+
+window.tomarChatPendiente = async (chatId) => {
+    const adminUID = auth.currentUser.uid;
+    const adminNombre = window.currentUserDoc?.name || "Administrador";
+    const chatRef = doc(db, "chats", chatId);
+    const chatSnap = await getDoc(chatRef);
+    if (!chatSnap.exists()) return;
+    const chat = chatSnap.data();
+    if (chat.estado !== 'pendiente') {
+        window.showToast("Este chat ya fue atendido.", true);
+        return;
+    }
+    const nuevosParticipantes = [...chat.participantes, adminUID];
+    const nuevosNombres = { ...chat.nombres, [adminUID]: adminNombre };
+    await updateDoc(chatRef, {
+        participantes: nuevosParticipantes,
+        nombres: nuevosNombres,
+        estado: 'activo',
+        atendidoPor: adminUID,
+        atendidoEn: Date.now()
+    });
+    window.openChat(chatId);
 };
 
 window.loadMechPendingCharges = window.loadMechPendingCharges || async function() {};
