@@ -960,21 +960,17 @@ function listenToMySOS() {
         const noServicesMsg = document.getElementById('no-active-services-msg');
         const survey = document.getElementById('satisfaction-survey');
         const mechanicMapDiv = document.getElementById('mechanic-live-map');
-        const statusInfo = window.getStatusInfo(data.status);
-document.getElementById('sos-status-desc-client').innerText = statusInfo.text;
         const wsCard = document.getElementById('active-workshop-card');
-        const wsTimeline = document.getElementById('workshop-timeline-client'); // si existe
+        const wsTimeline = document.getElementById('workshop-timeline-client');
         const wsProgress = document.getElementById('client-ws-progress');
         const wsTexts = ['ws-text-1','ws-text-2','ws-text-3','ws-text-4'];
         
         if(!snap.exists()) {
-            // No hay SOS activo
             if(activeCard) activeCard.classList.add('hidden');
             if(noServicesMsg) noServicesMsg.classList.remove('hidden');
             if(survey) survey.classList.add('hidden');
             if(mechanicMapDiv) mechanicMapDiv.classList.add('hidden');
             if(wsCard) wsCard.classList.add('hidden');
-            // Limpiar mapa del mecánico
             if (mechMapInst) {
                 mechMapInst.remove();
                 mechMapInst = null;
@@ -984,11 +980,9 @@ document.getElementById('sos-status-desc-client').innerText = statusInfo.text;
             return;
         }
         const data = snap.val();
-        // Mostrar tarjeta de SOS activo
         if(activeCard) activeCard.classList.remove('hidden');
         if(noServicesMsg) noServicesMsg.classList.add('hidden');
 
-        // === Manejo de estados ===
         if(data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
             speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
             playSound('notif');
@@ -998,18 +992,16 @@ document.getElementById('sos-status-desc-client').innerText = statusInfo.text;
             if(activeCard) activeCard.classList.add('hidden');
             if(survey) survey.classList.remove('hidden');
             remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
-            window.loadClientHistory();if(wsCard) wsCard.classList.add('hidden'); // Asegurar que empieza oculta
+            window.loadClientHistory();
+            if(wsCard) wsCard.classList.add('hidden');
             if (mechMapInst) {
                 mechMapInst.remove();
                 mechMapInst = null;
                 mechMarkerInst = null;
             }
-            // Verificar si la moto está en taller (tallerStatus != 'entregada')
             if (data.tallerStatus && !['entregada','pagado'].includes(data.tallerStatus)) {
-                // Mostrar timeline del taller
                 if(wsCard) {
                     wsCard.classList.remove('hidden');
-                    // Actualizar progreso y textos basado en tallerStatus
                     const steps = { 'recibida':1, 'mecanica':2, 'pruebas':3, 'lista':4 };
                     const currentStep = steps[data.tallerStatus] || 0;
                     if(wsProgress) wsProgress.style.width = ((currentStep-1)*33.33) + '%';
@@ -1018,9 +1010,6 @@ document.getElementById('sos-status-desc-client').innerText = statusInfo.text;
                         if(el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
                     });
                 }
-                // Cargar bitácora (si hay listener de taller activo)
-                // La bitácora se escucha en tiempo real desde Firestore? No tenemos listener para cliente.
-                // Podemos cargarla al vuelo si existe un ID de servicio en taller.
                 if (data.tallerServiceId) {
                     window.loadClientWorkshopTimeline?.(data.tallerServiceId);
                 }
@@ -1031,13 +1020,13 @@ document.getElementById('sos-status-desc-client').innerText = statusInfo.text;
             return;
         }
         window.lastClientSOSStatus = data.status;
+        const statusDesc = document.getElementById('sos-status-desc-client');
         if(statusDesc) {
             statusDesc.innerText = data.status === 'accepted' ? "Mecánico en camino" : 
                                     data.status === 'completed' ? "Servicio finalizado" : 
                                     "Esperando confirmación";
         }
 
-        // Mapa del mecánico
         if(data.status === 'accepted' && data.mech_lat) {
             if(mechanicMapDiv) mechanicMapDiv.classList.remove('hidden');
             if(!mechMapInst) {
@@ -1047,10 +1036,13 @@ document.getElementById('sos-status-desc-client').innerText = statusInfo.text;
                     ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
                     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
                 L.tileLayer(layerUrl).addTo(mechMapInst);
-                mechMarkerInst = L.marker([data.mech_lat, data.mech_lng], { icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] }) }).addTo(mechMapInst);
-                // Agregar marcador del cliente (si tenemos lat/lng del SOS)
+                mechMarkerInst = L.marker([data.mech_lat, data.mech_lng], { 
+                    icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] }) 
+                }).addTo(mechMapInst);
                 if (data.lat) {
-                    L.marker([data.lat, data.lng], { icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] }) }).addTo(mechMapInst);
+                    L.marker([data.lat, data.lng], { 
+                        icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] }) 
+                    }).addTo(mechMapInst);
                 }
             } else {
                 mechMarkerInst.setLatLng([data.mech_lat, data.mech_lng]);
@@ -1060,9 +1052,7 @@ document.getElementById('sos-status-desc-client').innerText = statusInfo.text;
             if(mechanicMapDiv) mechanicMapDiv.classList.add('hidden');
         }
 
-        // Escuchar ubicación en tiempo real del mecánico (siempre que esté accepted y mech_uid)
         if (data.status === 'accepted' && data.mech_uid) {
-            // Dibujar la ruta del mecánico en el mapa del cliente
             const trackingRef = dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`);
             onValue(trackingRef, (trackSnap) => {
                 if (trackSnap.exists() && mechMapInst) {
@@ -1072,16 +1062,21 @@ document.getElementById('sos-status-desc-client').innerText = statusInfo.text;
                         if (p.lat && p.lng) coords.push([p.lat, p.lng]);
                     });
                     if (coords.length > 1) {
-                        // Eliminar ruta anterior si existe
                         if (window._mechRouteLine) window._mechRouteLine.remove();
                         window._mechRouteLine = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.7 }).addTo(mechMapInst);
                     }
                 }
             });
+        }
+    }); // cierra onValue
+} // cierra listenToMySOS
+
+// ===== Funciones globales que estaban mal ubicadas dentro de listenToMySOS =====
 window.openSOSDetailClient = function() {};
 
 window.setRating = r => {
-    window.currentRating = r; const stars = document.getElementById('star-rating').children;
+    window.currentRating = r; 
+    const stars = document.getElementById('star-rating').children;
     for(let i=0; i<5; i++) stars[i].classList.toggle('text-naranja', i < r);
     document.getElementById('survey-comments').classList.toggle('hidden', r >= 3);
 };
@@ -1090,10 +1085,17 @@ window.submitSurvey = async () => {
     if(!window.currentRating) return showToast("Selecciona una calificación", true);
     const comments = document.getElementById('survey-comments').value.trim();
     if(window.currentRating < 3 && !comments) return showToast("¿Qué mejorarías?", true);
-    await addDoc(collection(db, "satisfaction"), { uid: auth.currentUser.uid, rating: window.currentRating, comments, timestamp: Date.now(), mechName: window.currentUserDoc.name || 'Mecánico' });
-    document.getElementById('satisfaction-survey').classList.add('hidden'); document.getElementById('no-active-services-msg')?.classList.remove('hidden'); showToast("¡Gracias!");
+    await addDoc(collection(db, "satisfaction"), { 
+        uid: auth.currentUser.uid, 
+        rating: window.currentRating, 
+        comments, 
+        timestamp: Date.now(), 
+        mechName: window.currentUserDoc.name || 'Mecánico' 
+    });
+    document.getElementById('satisfaction-survey').classList.add('hidden'); 
+    document.getElementById('no-active-services-msg')?.classList.remove('hidden'); 
+    showToast("¡Gracias!");
 };
-
 // === ADMIN TALLER Y CITAS (organizado por bloques, solo "lista" es solo lectura) ===
 window.adminListenServices = () => {
     if (serviciosListener) serviciosListener();
