@@ -338,7 +338,29 @@ function startMechanicTracking() {
         if(navigator.geolocation) {
             navigator.geolocation.watchPosition(pos => {
                 const uid = auth.currentUser.uid;
-                update(dbRef(rtdb, 'mecanicos_activos/' + uid), { lat: pos.coords.latitude, lng: pos.coords.longitude, name: window.currentUserDoc.name, ts: Date.now() });
+                const currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, name: window.currentUserDoc.name, ts: Date.now() };
+                update(dbRef(rtdb, 'mecanicos_activos/' + uid), currentPos);
+                
+                // Guardar en historial de tracking (últimas 50 posiciones)
+                const trackingRef = dbRef(rtdb, `mecanicos_tracking/${uid}`);
+                push(trackingRef, currentPos).then(() => {
+                    // Mantener solo los últimos 50 puntos para no sobrecargar
+                    onValue(trackingRef, (snap) => {
+                        if (snap.exists()) {
+                            const arr = [];
+                            snap.forEach(child => arr.push(child.val()));
+                            arr.sort((a,b) => a.ts - b.ts);
+                            if (arr.length > 50) {
+                                const toRemove = arr.slice(0, arr.length - 50);
+                                toRemove.forEach(old => {
+                                    const oldKey = Object.keys(snap.val()).find(key => snap.val()[key].ts === old.ts);
+                                    if (oldKey) remove(dbRef(rtdb, `mecanicos_tracking/${uid}/${oldKey}`));
+                                });
+                            }
+                        }
+                    }, { onlyOnce: true });
+                });
+                
                 // Si hay un SOS activo, guardar punto de trayectoria
                 if (window.activeMechanicSOSId) {
                     push(dbRef(rtdb, `sos_tracking/${window.activeMechanicSOSId}/${uid}/points`), {
@@ -542,6 +564,8 @@ async function loadServicesCatalog() {
 // === FLUJO DE VISTAS Y AUTENTICACIÓN ===
 onAuthStateChanged(auth, async user => {
     document.getElementById('loading-screen').classList.add('hidden');
+    if (window._adminCreatingUser) return;  // <-- nueva línea
+
     if (!user) {
         if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
         loadGlobalSettings(); 
@@ -774,6 +798,8 @@ window.processLogin = async () => {
     if (!password) return showToast("Ingresa contraseña", true);
     try {
         await signInWithEmailAndPassword(auth, `${rawPhone}@motorescateobr.com`, password);
+        window._lastLoginPhone = rawPhone;
+        window._lastLoginPassword = password;
     } catch(e) {
         if (e.code === 'auth/user-not-found') showToast("Usuario no registrado", true);
         else if (e.code === 'auth/wrong-password') showToast("Contraseña incorrecta", true);
@@ -782,20 +808,37 @@ window.processLogin = async () => {
 };
 
 window.processRegister = async () => {
-    const rawPhone = document.getElementById('phone-input').value.trim(); const name = document.getElementById('reg-name').value.trim();
-    const password = document.getElementById('reg-password').value.trim(); const question = document.getElementById('reg-question').value;
+    const rawPhone = document.getElementById('phone-input').value.trim();
+    const name = document.getElementById('reg-name').value.trim();
+    const password = document.getElementById('reg-password').value.trim();
+    const question = document.getElementById('reg-question').value;
     const answer = document.getElementById('reg-answer').value.trim();
     if (!name || password.length < 6 || !question || !answer) return showToast("Completa datos (Pass min 6)", true);
     const fakeEmail = `${rawPhone}@motorescateobr.com`;
     try {
         const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
-        await setDoc(doc(db, "users", userCredential.user.uid), { phone: "+52" + rawPhone, name, role: 'cliente', secQuestion: question, secAnswer: answer.toLowerCase(), pwd: password, created: new Date().toISOString() });
+        await setDoc(doc(db, "users", userCredential.user.uid), {
+            phone: "+52" + rawPhone,
+            name,
+            role: 'cliente',
+            secQuestion: question,
+            secAnswer: answer.toLowerCase(),
+            pwd: password,
+            firstLogin: true,
+            created: new Date().toISOString()
+        });
+        // Enviar WhatsApp de invitación
+        const mensajeInvitacion = encodeURIComponent(`¡Hola ${name}! 🎉 Te has registrado exitosamente en OBR Moto Rescate. Descarga la app aquí: https://exploracionesobr.github.io/RESCATE-OBR`);
+        window.open(`https://api.whatsapp.com/send?phone=+52${rawPhone}&text=${mensajeInvitacion}`, '_blank');
+        // Recargar para que onAuthStateChanged detecte firstLogin y muestre view-force-setup
+        showToast("Registro exitoso. Serás redirigido para completar tu perfil.");
+        setTimeout(() => {
+            window.location.reload();
+        }, 800);
     } catch (e) {
         if (e.code === 'auth/email-already-in-use') {
             try {
                 await signInWithEmailAndPassword(auth, fakeEmail, password);
-            window._lastLoginPhone = rawPhone;
-            window._lastLoginPassword = password;
             } catch(loginErr) {
                 showToast("Ya existe. Inicia sesión con tu contraseña.", true);
                 document.getElementById('auth-step-register').classList.add('hidden');
@@ -804,34 +847,6 @@ window.processRegister = async () => {
         } else showToast("Error en registro", true);
     }
 };
-
-window.forceSetupSubmit = async () => {
-    const pwd = document.getElementById('force-password').value.trim(); const q = document.getElementById('force-question').value;
-    const ans = document.getElementById('force-answer').value.trim(); const name = document.getElementById('force-name').value.trim();
-    if(pwd.length < 6 || !q || !ans || !name) return showToast("Llena todos los campos", true);
-    await setDoc(doc(db, "users", auth.currentUser.uid), { name, secQuestion: q, secAnswer: ans.toLowerCase(), pwd, firstLogin: false }, {merge: true});
-    showToast("Seguridad actualizada"); setTimeout(() => window.location.reload(), 1000);
-};
-
-window.showRecoveryFlow = () => { document.getElementById('auth-step-login').classList.add('hidden'); document.getElementById('auth-step-recovery').classList.remove('hidden'); document.getElementById('recovery-question-display').innerText = window.currentUserDoc?.secQuestion || "¿No hay pregunta?"; };
-window.backToLoginStep = () => { document.getElementById('auth-step-recovery').classList.add('hidden'); document.getElementById('auth-step-login').classList.remove('hidden'); };
-
-window.processRecovery = () => {
-    const answer = document.getElementById('recovery-answer-input').value.trim().toLowerCase(); const realAnswer = window.currentUserDoc?.secAnswer?.toLowerCase();
-    if(!realAnswer) return showToast("Sin pregunta configurada", true);
-    if(answer === realAnswer) document.getElementById('recovery-form-area').innerHTML = `<div class="animate-fade-in mb-6 bg-black/50 border border-green-500 p-6 rounded-2xl text-center"><p class="text-[10px] font-black text-green-400 mb-2">Contraseña Recuperada</p><p class="font-black text-3xl text-white tracking-widest bg-white/5 py-3 rounded-xl border border-white/10">${window.currentUserDoc.pwd}</p></div>`;
-    else showToast("Respuesta incorrecta", true);
-};
-window.toggleSession = () => {
-    if (auth.currentUser) {
-        window.logout();
-    } else {
-        window.showView('view-login');
-    }
-};
-
-window.logout = () => signOut(auth).then(() => window.location.href = window.location.pathname);
-
 // === SOS CLIENTE ===
 window.launchSOSForm = () => {
     showView('view-sos-form'); document.getElementById('manual-address-container').classList.add('hidden'); document.getElementById('llanta-type-container').classList.add('hidden');
@@ -1047,29 +1062,22 @@ document.getElementById('sos-status-desc-client').innerText = statusInfo.text;
 
         // Escuchar ubicación en tiempo real del mecánico (siempre que esté accepted y mech_uid)
         if (data.status === 'accepted' && data.mech_uid) {
-            onValue(dbRef(rtdb, 'mecanicos_activos/' + data.mech_uid), (mechSnap) => {
-                if (mechSnap.exists()) {
-                    const pos = mechSnap.val();
-                    if (mechMarkerInst && pos.lat) {
-                        mechMarkerInst.setLatLng([pos.lat, pos.lng]);
-                        mechMapInst.setView([pos.lat, pos.lng], 14);
-                    } else if (!mechMapInst && pos.lat) {
-                        // crear mapa si se perdió
-                        mechMapInst = L.map('mechanic-live-map', { dragging: false, zoomControl: false }).setView([pos.lat, pos.lng], 14);
-                        const isLight = document.body.classList.contains('light-mode');
-                        const layerUrl = isLight
-                            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-                            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-                        L.tileLayer(layerUrl).addTo(mechMapInst);
-                        mechMarkerInst = L.marker([pos.lat, pos.lng], {
-                            icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
-                        }).addTo(mechMapInst);
+            // Dibujar la ruta del mecánico en el mapa del cliente
+            const trackingRef = dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`);
+            onValue(trackingRef, (trackSnap) => {
+                if (trackSnap.exists() && mechMapInst) {
+                    const coords = [];
+                    trackSnap.forEach(child => {
+                        const p = child.val();
+                        if (p.lat && p.lng) coords.push([p.lat, p.lng]);
+                    });
+                    if (coords.length > 1) {
+                        // Eliminar ruta anterior si existe
+                        if (window._mechRouteLine) window._mechRouteLine.remove();
+                        window._mechRouteLine = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.7 }).addTo(mechMapInst);
                     }
                 }
             });
-        }
-    });
-}
 window.openSOSDetailClient = function() {};
 
 window.setRating = r => {
@@ -2914,7 +2922,15 @@ window.togglePriceMode = () => {
     if (fijoDiv) fijoDiv.style.display = mode === 'fijo' ? 'block' : 'none';
     if (kmDiv) kmDiv.style.display = mode === 'km' ? 'block' : 'none';
 };
-
+window.cerrarDia = (i) => {
+    const openEl = document.getElementById(`sch-${i}-o`);
+    const closeEl = document.getElementById(`sch-${i}-c`);
+    if (openEl) openEl.value = '00:00';
+    if (closeEl) closeEl.value = '00:00';
+    // Disparar evento change para que se guarde automáticamente
+    openEl.dispatchEvent(new Event('change'));
+    closeEl.dispatchEvent(new Event('change'));
+};
 // ======================================================
 // === CATÁLOGO DE SERVICIOS (con IA y edición) ===
 // ======================================================
@@ -2973,11 +2989,26 @@ window.adminAddUser = async () => {
     if (!phone || !name) return showToast("Completa celular y nombre", true);
     const fakeEmail = `${phone}@motorescateobr.com`;
     try {
+        // Activar bandera para que onAuthStateChanged ignore el cambio de sesión
+        window._adminCreatingUser = true;
         const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, '123456');
-        await setDoc(doc(db, "users", userCredential.user.uid), { phone: "+52"+phone, name, role, pwd: '123456', firstLogin: true, vistasPermitidas: ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas','a-view-entregas'] });
+        await setDoc(doc(db, "users", userCredential.user.uid), {
+            phone: "+52"+phone,
+            name,
+            role,
+            pwd: '123456',
+            firstLogin: true,
+            vistasPermitidas: ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas','a-view-entregas']
+        });
+        // Restaurar sesión del administrador
+        if (window._lastLoginPhone && window._lastLoginPassword) {
+            await signInWithEmailAndPassword(auth, `${window._lastLoginPhone}@motorescateobr.com`, window._lastLoginPassword);
+        }
+        window._adminCreatingUser = false;
         showToast('Usuario creado. Deberá cambiar contraseña en su primer inicio.');
         window.adminLoadUsers();
     } catch (e) {
+        window._adminCreatingUser = false;
         if (e.code === 'auth/email-already-in-use') showToast("Ese celular ya existe", true);
         else showToast("Error al crear", true);
     }
@@ -3465,6 +3496,15 @@ window.renderSOSGlobalMap = async () => {
         if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.removeLayer(m);
     });
     adminSOSMarkers = {};
+        // Limpiar listeners de tracking y líneas de ruta
+    if (window._adminSOSTrackingListeners) {
+        Object.values(window._adminSOSTrackingListeners).forEach(unsub => unsub());
+        window._adminSOSTrackingListeners = {};
+    }
+    if (window._adminSOSRouteLines) {
+        Object.values(window._adminSOSRouteLines).forEach(line => line.remove());
+        window._adminSOSRouteLines = {};
+    }
 
     const allSnap = await getDocs(collection(db, "rescates"));
     const listEl = document.getElementById('admin-sos-list');
@@ -3490,7 +3530,38 @@ if (filterStatus === 'accepted') {
         }).addTo(adminSOSGlobalMapInst);
 
         marker.bindPopup(`<b>${d.phone || ''}</b><br>${d.falla}<br>Estado: ${d.status}`);
-        adminSOSMarkers[docSnap.id] = marker;
+                adminSOSMarkers[docSnap.id] = marker;
+
+        // Si el SOS está aceptado, dibujar la ruta del mecánico
+        if (d.status === 'accepted' && d.mech_uid) {
+            // Limpiar listener anterior de tracking para este SOS (si existe)
+            if (window._adminSOSTrackingListeners && window._adminSOSTrackingListeners[docSnap.id]) {
+                window._adminSOSTrackingListeners[docSnap.id]();
+                delete window._adminSOSTrackingListeners[docSnap.id];
+            }
+            const trackingRef = dbRef(rtdb, `mecanicos_tracking/${d.mech_uid}`);
+            const listener = onValue(trackingRef, (trackSnap) => {
+                if (trackSnap.exists() && adminSOSGlobalMapInst) {
+                    const coords = [];
+                    trackSnap.forEach(child => {
+                        const p = child.val();
+                        if (p.lat && p.lng) coords.push([p.lat, p.lng]);
+                    });
+                    if (coords.length > 1) {
+                        // Eliminar ruta anterior si existe
+                        if (window._adminSOSRouteLines && window._adminSOSRouteLines[docSnap.id]) {
+                            window._adminSOSRouteLines[docSnap.id].remove();
+                        }
+                        if (!window._adminSOSRouteLines) window._adminSOSRouteLines = {};
+                        window._adminSOSRouteLines[docSnap.id] = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.8 }).addTo(adminSOSGlobalMapInst);
+                    }
+                }
+            });
+            // Guardar la referencia del listener para poder limpiarlo después
+            if (!window._adminSOSTrackingListeners) window._adminSOSTrackingListeners = {};
+            window._adminSOSTrackingListeners[docSnap.id] = listener;
+        }
+
         markersGroup.push(marker);
 
         const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-1.5 py-0.5 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
@@ -4013,7 +4084,9 @@ window.cargarNotificacionesCitas = async () => {
     let contadorPorHora = {};
     snap.forEach(doc => {
         const c = doc.data();
-        if (c.estado && c.estado !== 'pendiente') return;
+        // Si no tiene estado, se asume pendiente (para compatibilidad con citas antiguas)
+if (!c.estado) c.estado = 'pendiente';
+if (c.estado !== 'pendiente') return;
         contadorHoy++;
         const horaKey = c.hora.substring(0, 5);
         contadorPorHora[horaKey] = (contadorPorHora[horaKey] || 0) + 1;
@@ -4087,8 +4160,9 @@ window.adminRefreshConfigUI = () => {
             const s = globalSettings.schedule[i];
             tbody.innerHTML += `<tr>
                 <td class="pb-2">${days[i]}</td>
-                <td class="text-center"><input id="sch-${i}-o" type="time" value="${s.o}" class="bg-black/30 border border-white/10 p-1 rounded text-white text-xs w-20"></td>
-                <td class="text-center"><input id="sch-${i}-c" type="time" value="${s.c}" class="bg-black/30 border border-white/10 p-1 rounded text-white text-xs w-20"></td>
+                <td class="text-center"><input id="sch-${i}-o" type="time" value="${s.o}" class="bg-black/30 border border-white/10 p-1 rounded text-white text-xs w-28"></td>
+                <td class="text-center"><input id="sch-${i}-c" type="time" value="${s.c}" class="bg-black/30 border border-white/10 p-1 rounded text-white text-xs w-28"></td>
+                <td class="text-center"><button onclick="window.cerrarDia(${i})" class="bg-red-600/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[9px] font-bold uppercase">CERRADO</button></td>
             </tr>`;
         });
     }
@@ -4615,11 +4689,65 @@ window.loadEntregas = () => {
         marker._isTaller = true;
     }
 
+    // --- Limpiar listener anterior de repartidores ---
+    if (window._entregasRepartidoresListener) {
+        window._entregasRepartidoresListener();
+        window._entregasRepartidoresListener = null;
+    }
+
+    // --- Escuchar ubicaciones de repartidores activos (en tiempo real) ---
+    window._entregasRepartidoresListener = onValue(dbRef(rtdb, 'mecanicos_activos'), (snap) => {
+        // Eliminar marcadores de repartidores previos
+        entregasMapInst.eachLayer(layer => {
+            if (layer._isRepartidor) entregasMapInst.removeLayer(layer);
+        });
+        // Limpiar rutas anteriores
+        if (window._repartidorRouteLines) {
+            Object.values(window._repartidorRouteLines).forEach(line => line.remove());
+        }
+        window._repartidorRouteLines = {};
+
+        if (snap.exists()) {
+            snap.forEach(child => {
+                const pos = child.val();
+                if (pos.lat && pos.lng) {
+                    const marker = L.marker([pos.lat, pos.lng], {
+                        icon: L.divIcon({
+                            className: 'entrega-marker',
+                            html: `<div style="background:#22c55e;width:16px;height:16px;border-radius:50%;border:2px solid white;"></div>`,
+                            iconSize: [16,16],
+                            iconAnchor: [8,8]
+                        })
+                    }).addTo(entregasMapInst);
+                    marker._isRepartidor = true;
+
+                    // Dibujar la ruta de este repartidor
+                    const trackingRef = dbRef(rtdb, `mecanicos_tracking/${child.key}`);
+                    onValue(trackingRef, (trackSnap) => {
+                        if (trackSnap.exists() && entregasMapInst) {
+                            const coords = [];
+                            trackSnap.forEach(tc => {
+                                const p = tc.val();
+                                if (p.lat && p.lng) coords.push([p.lat, p.lng]);
+                            });
+                            if (coords.length > 1) {
+                                // Eliminar ruta anterior si existe
+                                if (window._repartidorRouteLines[child.key]) {
+                                    window._repartidorRouteLines[child.key].remove();
+                                }
+                                window._repartidorRouteLines[child.key] = L.polyline(coords, { color: '#22c55e', weight: 3, opacity: 0.6 }).addTo(entregasMapInst);
+                            }
+                        }
+                    });
+                }
+            });
+        }
+    });
+
     // --- Determinar la consulta según el rol ---
     const role = window.currentUserDoc?.role;
     let q;
     if (['admin', 'taller', 'socio'].includes(role)) {
-        // Admin: ve todos los pedidos según el filtro activo
         const filtro = window.currentEntregaFilter || 'pendiente_asignar';
         if (filtro === 'pendiente_asignar') {
             q = query(collection(db, "pedidos_online"), where("status", "==", "pendiente"));
@@ -4629,7 +4757,6 @@ window.loadEntregas = () => {
             q = query(collection(db, "pedidos_online"), where("estado_entrega", "==", "entregado"));
         }
     } else {
-        // Repartidor: solo sus pedidos aceptados y pendientes/en camino
         q = query(collection(db, "pedidos_online"),
             where("repartidor_uid", "==", auth.currentUser.uid),
             where("status", "==", "aceptado"),
@@ -4650,7 +4777,6 @@ window.loadEntregas = () => {
 
     // --- Escuchar pedidos ---
     window._entregasPedidosListener = onSnapshot(q, (snap) => {
-        // Limpiar marcadores existentes (excepto taller)
         entregasMapInst.eachLayer(layer => {
             if (layer._isPedido) entregasMapInst.removeLayer(layer);
         });
@@ -4670,7 +4796,6 @@ window.loadEntregas = () => {
             }).addTo(entregasMapInst);
             marker._isPedido = true;
 
-            // Popup con detalles y botón "Ver detalles"
             const estadoEntrega = p.estado_entrega || 'pendiente';
             const textoEstado = estadoEntrega === 'en_camino' ? 'En camino' : (estadoEntrega === 'entregado' ? 'Entregado' : 'Pendiente');
             marker.bindPopup(`
@@ -4696,7 +4821,6 @@ window.loadEntregas = () => {
         }
     });
 };
-
 // Filtro de entregas (para admin)
 window.filterEntregas = (filtro) => {
     window.currentEntregaFilter = filtro;
@@ -5197,6 +5321,21 @@ window.closeChat = () => {
     activeChatUid = null;
     toggleModal('modal-chat', false);
 };
+// ===== PREVENIR CIERRE ACCIDENTAL =====
+window.addEventListener('beforeunload', (e) => {
+    if (auth.currentUser) {
+        const mensaje = '¿Estás seguro de que quieres salir? Si cierras la app, perderás las últimas promociones y notificaciones.';
+        e.preventDefault();
+        e.returnValue = mensaje; // necesario para compatibilidad
+    }
+});
+
+// Si el usuario confirma salir, forzar logout
+window.addEventListener('unload', () => {
+    if (auth.currentUser) {
+        signOut(auth);
+    }
+});
 window.loadMechPendingCharges = window.loadMechPendingCharges || async function() {};
 window.renderPendingMechanicPayments = window.renderPendingMechanicPayments || async function() {};
 window.openCitaDetail = window.openCitaDetail || function(id) {
