@@ -986,7 +986,42 @@ function listenToMySOS() {
         if(data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
             speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
             playSound('notif');
+                    // Crear o recuperar el chat del SOS entre el cliente y el mecánico
+        if (data.status === 'accepted' && data.mech_uid) {
+            const chatQuery = query(
+                collection(db, "chats"),
+                where("participantes", "array-contains", auth.currentUser.uid)
+            );
+            const chatSnap = await getDocs(chatQuery);
+            let chatId = null;
+            chatSnap.forEach(doc => {
+                const d = doc.data();
+                if (d.participantes.includes(data.mech_uid) && d.titulo === 'SOS EN CURSO') {
+                    chatId = doc.id;
+                }
+            });
+            if (!chatId) {
+                const chatRef = await addDoc(collection(db, "chats"), {
+                    titulo: 'SOS EN CURSO',
+                    participantes: [auth.currentUser.uid, data.mech_uid],
+                    nombres: {
+                        [auth.currentUser.uid]: window.currentUserDoc?.name || 'Cliente',
+                        [data.mech_uid]: data.mech_name || 'Mecánico'
+                    },
+                    creado: Date.now()
+                });
+                chatId = chatRef.id;
+            }
+            // Guardar el ID del chat para usarlo en el botón
+            window._sosChatId = chatId;
+            // Mostrar el botón de chat
+            const btnChatSOS = document.getElementById('btn-chat-sos');
+            if (btnChatSOS) btnChatSOS.classList.remove('hidden');
+        }
         } else if ((data.status === 'completed' || data.status === 'cancelled') && window.lastClientSOSStatus !== 'completed' && window.lastClientSOSStatus !== 'cancelled') {
+            const btnChatSOS = document.getElementById('btn-chat-sos');
+if (btnChatSOS) btnChatSOS.classList.add('hidden');
+window._sosChatId = null;
             speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
             playSound('notif');
             if(activeCard) activeCard.classList.add('hidden');
@@ -1070,7 +1105,11 @@ function listenToMySOS() {
         }
     }); // cierra onValue
 } // cierra listenToMySOS
-
+window.abrirChatSOS = () => {
+    if (window._sosChatId) {
+        window.openChat(window._sosChatId);
+    }
+};
 // ===== Funciones globales que estaban mal ubicadas dentro de listenToMySOS =====
 window.openSOSDetailClient = function() {};
 
