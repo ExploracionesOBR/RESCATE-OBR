@@ -827,14 +827,53 @@ window.processRegister = async () => {
             firstLogin: true,
             created: new Date().toISOString()
         });
-        // Enviar WhatsApp de invitación
-        const mensajeInvitacion = encodeURIComponent(`¡Hola ${name}! 🎉 Te has registrado exitosamente en OBR Moto Rescate. Descarga la app aquí: https://exploracionesobr.github.io/RESCATE-OBR`);
-        window.open(`https://api.whatsapp.com/send?phone=+52${rawPhone}&text=${mensajeInvitacion}`, '_blank');
-        // Recargar para que onAuthStateChanged detecte firstLogin y muestre view-force-setup
-        showToast("Registro exitoso. Serás redirigido para completar tu perfil.");
-        setTimeout(() => {
-            window.location.reload();
-        }, 800);
+
+        // Crear o actualizar modal de invitación por WhatsApp
+        const modalId = 'modal-whatsapp-invite';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `
+                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
+                    <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
+                    <h2 class="text-xl font-black text-white mb-2">¡Registro exitoso!</h2>
+                    <p class="text-xs text-gray-300 mb-4">¿Deseas enviar una invitación a <span id="invite-name-span" class="text-green-400 font-bold">${name}</span> por WhatsApp para que descargue la app?</p>
+                    <div class="flex flex-col space-y-2">
+                        <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar invitación</button>
+                        <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Omitir</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalEl);
+        } else {
+            const span = modalEl.querySelector('#invite-name-span');
+            if (span) span.innerText = name;
+        }
+
+        // Configurar eventos (solo una vez)
+        const inviteBtn = document.getElementById('whatsapp-invite-btn');
+        const skipBtn = document.getElementById('whatsapp-skip-btn');
+        if (inviteBtn && !inviteBtn._bound) {
+            inviteBtn._bound = true;
+            inviteBtn.onclick = () => {
+                const mensaje = encodeURIComponent(`🎉 ¡Hola ${name}! Te has registrado exitosamente en OBR Moto Rescate. Descarga la app aquí: https://exploracionesobr.github.io/RESCATE-OBR`);
+                window.open(`https://api.whatsapp.com/send?phone=+52${rawPhone}&text=${mensaje}`, '_blank');
+                window.toggleModal(modalId, false);
+                setTimeout(() => window.location.reload(), 500);
+            };
+        }
+        if (skipBtn && !skipBtn._bound) {
+            skipBtn._bound = true;
+            skipBtn.onclick = () => {
+                window.toggleModal(modalId, false);
+                setTimeout(() => window.location.reload(), 500);
+            };
+        }
+
+        window.toggleModal(modalId, true);
+        showToast("Registro exitoso. Completa tu perfil.");
     } catch (e) {
         if (e.code === 'auth/email-already-in-use') {
             try {
@@ -873,13 +912,8 @@ window.forceSetupSubmit = async () => {
     }
 
     try {
-        // Reautenticar con la contraseña temporal (123456)
-        const credential = EmailAuthProvider.credential(user.email, '123456');
-        await reauthenticateWithCredential(user, credential);
-        
-        // Ahora actualizar la contraseña
+        // Cambiar contraseña en Firebase Auth
         await user.updatePassword(newPassword);
-        
         // Actualizar Firestore
         await window.updateDoc(window.doc(window.db, "users", user.uid), {
             name: name,
@@ -888,11 +922,9 @@ window.forceSetupSubmit = async () => {
             secAnswer: answer.toLowerCase(),
             firstLogin: false
         });
-        
         window.showToast("Configuración guardada. Bienvenido.");
         window.currentUserDoc = { ...window.currentUserDoc, name, firstLogin: false };
         
-        // Actualizar UI
         if (window.currentUserDoc.role === 'cliente') {
             document.getElementById('client-name-display').innerText = name;
             window.showView('app-client');
@@ -904,9 +936,7 @@ window.forceSetupSubmit = async () => {
         }
     } catch (error) {
         console.error(error);
-        if (error.code === 'auth/wrong-password') {
-            window.showToast("Error interno: la contraseña temporal no es válida. Contacta al administrador.", true);
-        } else if (error.code === 'auth/requires-recent-login') {
+        if (error.code === 'auth/requires-recent-login') {
             window.showToast("Por seguridad, necesitas volver a iniciar sesión para cambiar tu contraseña.", true);
             await window.signOut(auth);
             window.showView('view-login');
@@ -917,6 +947,7 @@ window.forceSetupSubmit = async () => {
         }
     }
 };
+
 window.logout = () => {
     window.confirmModal('¿Cerrar sesión? Perderás las notificaciones en tiempo real hasta que vuelvas a iniciar sesión.', async () => {
         // Limpiar listeners de tiempo real para evitar fugas
