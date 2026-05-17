@@ -856,28 +856,31 @@ window.toggleSession = () => {
 };
 
 window.logout = () => {
-    // Limpiar listeners de tiempo real para evitar fugas
-    const listeners = [
-        '_clientHistoryListener', '_clientCitasListener', '_adminCitasListener',
-        '_onlineOrdersListener', '_entregasPedidosListener', '_entregasRepartidoresListener',
-        'mySOSListener', 'serviciosListener', 'pedidosListener', 'citasListener'
-    ];
-    listeners.forEach(name => {
-        if (window[name] && typeof window[name] === 'function') {
-            window[name]();
+    window.confirmModal('¿Cerrar sesión? Perderás las notificaciones en tiempo real hasta que vuelvas a iniciar sesión.', async () => {
+        // Limpiar listeners de tiempo real para evitar fugas
+        const listeners = [
+            '_clientHistoryListener', '_clientCitasListener', '_adminCitasListener',
+            '_onlineOrdersListener', '_entregasPedidosListener', '_entregasRepartidoresListener',
+            'mySOSListener', 'serviciosListener', 'pedidosListener', 'citasListener'
+        ];
+        listeners.forEach(name => {
+            if (window[name] && typeof window[name] === 'function') {
+                window[name]();
+            }
+            delete window[name];
+        });
+        // Limpiar líneas de ruta y objetos globales de tracking
+        if (window._adminSOSTrackingListeners) {
+            Object.values(window._adminSOSTrackingListeners).forEach(unsub => unsub());
+            window._adminSOSTrackingListeners = {};
         }
-        delete window[name];
+        if (window._adminSOSRouteLines) {
+            Object.values(window._adminSOSRouteLines).forEach(line => line.remove());
+            window._adminSOSRouteLines = {};
+        }
+        await signOut(auth);
+        window.location.href = window.location.pathname;
     });
-    // Limpiar líneas de ruta y objetos globales de tracking
-    if (window._adminSOSTrackingListeners) {
-        Object.values(window._adminSOSTrackingListeners).forEach(unsub => unsub());
-        window._adminSOSTrackingListeners = {};
-    }
-    if (window._adminSOSRouteLines) {
-        Object.values(window._adminSOSRouteLines).forEach(line => line.remove());
-        window._adminSOSRouteLines = {};
-    }
-    signOut(auth).then(() => window.location.href = window.location.pathname);
 };
 // === SOS CLIENTE ===
 window.launchSOSForm = () => {
@@ -4796,32 +4799,42 @@ window.loadEntregas = () => {
     }
 
     // --- Escuchar ubicaciones de repartidores activos (en tiempo real) ---
-    window._entregasRepartidoresListener = onValue(dbRef(rtdb, 'mecanicos_activos'), (snap) => {
-        // Eliminar marcadores de repartidores previos
-        entregasMapInst.eachLayer(layer => {
-            if (layer._isRepartidor) entregasMapInst.removeLayer(layer);
-        });
-        // Limpiar rutas anteriores
-        if (window._repartidorRouteLines) {
-            Object.values(window._repartidorRouteLines).forEach(line => line.remove());
-        }
-        window._repartidorRouteLines = {};
+   window._entregasRepartidoresListener = onValue(dbRef(rtdb, 'mecanicos_activos'), (snap) => {
+    // Eliminar marcadores de repartidores previos
+    entregasMapInst.eachLayer(layer => {
+        if (layer._isRepartidor) entregasMapInst.removeLayer(layer);
+    });
+    // Limpiar rutas anteriores
+    if (window._repartidorRouteLines) {
+        Object.values(window._repartidorRouteLines).forEach(line => line.remove());
+    }
+    window._repartidorRouteLines = {};
 
-        if (snap.exists()) {
+    if (snap.exists()) {
+        // Obtener nombres de los usuarios para mostrar en popup
+        const promises = [];
+        snap.forEach(child => {
+            promises.push(getDoc(doc(db, "users", child.key)).catch(() => null));
+        });
+        Promise.all(promises).then(users => {
+            let idx = 0;
             snap.forEach(child => {
                 const pos = child.val();
+                const userData = users[idx];
+                const repartidorName = userData?.exists() ? userData.data().name : 'Repartidor';
                 if (pos.lat && pos.lng) {
                     const marker = L.marker([pos.lat, pos.lng], {
                         icon: L.divIcon({
                             className: 'entrega-marker',
-                            html: `<div style="background:#22c55e;width:16px;height:16px;border-radius:50%;border:2px solid white;"></div>`,
+                            html: `<div style="background:#22c55e;width:16px;height:16px;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.5);"></div>`,
                             iconSize: [16,16],
                             iconAnchor: [8,8]
                         })
                     }).addTo(entregasMapInst);
                     marker._isRepartidor = true;
-
-                    // Dibujar la ruta de este repartidor
+                    marker.bindPopup(`<b>${repartidorName}</b><br>En camino`);
+                    
+                    // Dibujar ruta
                     const trackingRef = dbRef(rtdb, `mecanicos_tracking/${child.key}`);
                     onValue(trackingRef, (trackSnap) => {
                         if (trackSnap.exists() && entregasMapInst) {
@@ -4831,7 +4844,6 @@ window.loadEntregas = () => {
                                 if (p.lat && p.lng) coords.push([p.lat, p.lng]);
                             });
                             if (coords.length > 1) {
-                                // Eliminar ruta anterior si existe
                                 if (window._repartidorRouteLines[child.key]) {
                                     window._repartidorRouteLines[child.key].remove();
                                 }
@@ -4840,10 +4852,11 @@ window.loadEntregas = () => {
                         }
                     });
                 }
+                idx++;
             });
-        }
-    });
-
+        });
+    }
+});
     // --- Determinar la consulta según el rol ---
     const role = window.currentUserDoc?.role;
     let q;
@@ -5421,21 +5434,7 @@ window.closeChat = () => {
     activeChatUid = null;
     toggleModal('modal-chat', false);
 };
-// ===== PREVENIR CIERRE ACCIDENTAL =====
-window.addEventListener('beforeunload', (e) => {
-    if (auth.currentUser) {
-        const mensaje = '¿Estás seguro de que quieres salir? Si cierras la app, perderás las últimas promociones y notificaciones.';
-        e.preventDefault();
-        e.returnValue = mensaje; // necesario para compatibilidad
-    }
-});
 
-// Si el usuario confirma salir, forzar logout
-window.addEventListener('unload', () => {
-    if (auth.currentUser) {
-        signOut(auth);
-    }
-});
 window.loadMechPendingCharges = window.loadMechPendingCharges || async function() {};
 window.renderPendingMechanicPayments = window.renderPendingMechanicPayments || async function() {};
 window.enviarSolicitudCambioCita = window.enviarSolicitudCambioCita || async function() {};
