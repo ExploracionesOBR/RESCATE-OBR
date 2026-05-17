@@ -206,7 +206,6 @@ window.compressImage = async (file) => {
         reader.readAsDataURL(file);
     });
 };
-
 const uploadFile = (file, path, onProgressCallback = null) => {
     return new Promise((resolve, reject) => {
         if(!file) return resolve(null);
