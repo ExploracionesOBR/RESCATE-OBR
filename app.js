@@ -1020,9 +1020,7 @@ window.submitFinalSOS = async () => {
     const serviceId = document.getElementById('sos-service-select-value')?.value;
 const serviceInputText = document.getElementById('sos-service-input')?.value.trim();
 const falla = document.getElementById('sos-falla').value.trim();
-...
 if (!falla && (!serviceId || serviceId === "0")) return showToast("Describe la falla", true);
-...
 let descFinal = `[${srvName}] ${falla}`;
 if(srvDoc && srvDoc.desc) descFinal += ` \n*${srvDoc.desc}*`;
 
