@@ -5130,7 +5130,6 @@ const _drawStatusBadge = (doc, x, y, status) => {
         };
     }
     toggleModal(modalId, true);
-};
 // Stubs para funciones no implementadas completamente
 window.sendContactFromModal = async function() {
     const name = document.getElementById('modal-contact-name')?.value.trim();
