@@ -57,7 +57,7 @@
 <div id="out-of-zone-modal" class="fixed inset-0 z-[2000] hidden flex-col items-center justify-center p-6 text-center bg-[repeating-linear-gradient(45deg,#1a1a1a,#1a1a1a_10px,#2a0808_10px,#2a0808_20px)]">
     <i class="fas fa-map-marker-alt text-6xl text-red-500 mb-4 animate-bounce"></i>
     <h1 id="out-of-zone-title" class="text-3xl font-black text-white uppercase italic tracking-widest mb-2">FUERA DE ZONA</h1>
-    <p id="out-of-zone-msg" class="text-sm text-gray-300 bg-black/80 p-6 rounded-2xl border border-red-500 shadow-2xl">POR EL MOMENTO NO ESTAMOS DISPONIBLES EN TU ZONA.<br><br><span class="text-naranja font-bold">ESTAMOS TRABAJANDO PARA RESOLVERLO.</span></p>
+    <p id="out-of-zone-msg" class="text-sm text-gray-300 bg-asfalto/80 p-6 rounded-2xl border border-red-500 shadow-2xl">POR EL MOMENTO NO ESTAMOS DISPONIBLES EN TU ZONA.<br><br><span class="text-naranja font-bold">ESTAMOS TRABAJANDO PARA RESOLVERLO.</span></p>
     <button onclick="document.getElementById('out-of-zone-modal').classList.add('hidden')" class="mt-8 bg-white text-black px-8 py-3 rounded-full font-black uppercase shadow-lg active:scale-95">Entendido</button>
 </div>
 
@@ -81,7 +81,7 @@
             </button>
         </div>
         <div id="landing-closed" class="hidden flex-col items-center w-full mb-10 lg:mb-16">
-            <div class="relative w-64 h-64 lg:w-80 lg:h-80 rounded-full bg-black/50 border-[4px] border-gray-700 overflow-hidden flex flex-col items-center justify-center shadow-inner">
+            <div class="relative w-64 h-64 lg:w-80 lg:h-80 rounded-full bg-asfalto/50 border-[4px] border-gray-700 overflow-hidden flex flex-col items-center justify-center shadow-inner">
                 <img src="https://images.unsplash.com/photo-1558981806-ec527fa84c39?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60" alt="Cerrado" class="absolute inset-0 w-full h-full object-cover opacity-30 mix-blend-luminosity">
                 <i class="fas fa-moon text-4xl lg:text-5xl text-gray-400 mb-2 z-10"></i>
                 <span class="font-black text-2xl lg:text-3xl uppercase italic z-10 text-gray-300">Taller</span>
@@ -101,7 +101,7 @@
                 <i class="fas fa-chevron-right text-gray-600 lg:text-xl"></i>
             </button>
         </div>
-        <div class="text-center bg-black/40 border border-white/5 p-4 rounded-2xl w-full backdrop-blur-sm lg:w-2/3 mx-auto">
+        <div class="text-center bg-asfalto/40 border border-white/5 p-4 rounded-2xl w-full backdrop-blur-sm lg:w-2/3 mx-auto">
             <p class="text-[9px] lg:text-[11px] text-gray-500 uppercase tracking-widest font-black mb-2">Líneas de Atención OBR</p>
             <div class="flex items-center justify-center space-x-4">
                 <a href="tel:6311551533" class="text-naranja font-black tracking-widest text-xs lg:text-base hover:text-white transition-colors">631 155 1533</a>
@@ -174,7 +174,7 @@
         <div id="auth-step-1" class="glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-white/5">
             <label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Número Celular (10 dígitos)</label>
             <div class="flex items-center bg-white/5 border border-white/10 mt-1 rounded-xl focus-within:border-naranja transition-all overflow-hidden mb-6">
-                <span class="p-3 lg:p-5 text-naranja font-black tracking-widest bg-black/30 border-r border-white/10">+52</span>
+                <span class="p-3 lg:p-5 text-naranja font-black tracking-widest bg-asfalto/30 border-r border-white/10">+52</span>
                 <input id="phone-input" type="tel" maxlength="10" placeholder="0000000000" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="w-full bg-transparent p-3 lg:p-5 outline-none text-xl lg:text-2xl tracking-widest text-white font-bold">
             </div>
             <button onclick="checkUserExists()" class="w-full bg-naranja hover:bg-orange-600 p-4 lg:p-5 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 text-white text-lg lg:text-xl transition-all">Siguiente</button>
@@ -211,7 +211,7 @@
             <p class="text-naranja font-black uppercase tracking-widest text-sm lg:text-base mb-6 border-b border-white/10 pb-3"><i class="fas fa-unlock-alt mr-1"></i> Recuperar Acceso</p>
             <div id="recovery-form-area">
                 <p class="text-sm text-gray-300 mb-4">Responde tu pregunta de seguridad:</p>
-                <div class="bg-black/50 p-5 rounded-xl border border-white/10 mb-6"><p id="recovery-question-display" class="font-black text-naranja text-base italic leading-tight">¿Pregunta?</p></div>
+                <div class="bg-asfalto/50 p-5 rounded-xl border border-white/10 mb-6"><p id="recovery-question-display" class="font-black text-naranja text-base italic leading-tight">¿Pregunta?</p></div>
                 <input id="recovery-answer-input" type="text" placeholder="Tu respuesta secreta..." class="w-full bg-white/5 border border-white/10 p-5 mb-8 rounded-xl focus:outline-none focus:border-naranja text-lg transition-all text-white font-bold">
                 <button onclick="processRecovery()" class="w-full bg-naranja hover:bg-orange-600 p-4 lg:p-5 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 text-white text-lg lg:text-xl mb-4 transition-all">Revelar Contraseña</button>
             </div>
@@ -221,27 +221,26 @@
 </div>
 
 <!-- CONFIGURACIÓN OBLIGATORIA -->
-<div id="view-force-setup" class="app-view min-h-screen hidden flex-col items-center justify-center p-6 bg-gradient-to-b from-blue-900 to-asfalto relative overflow-hidden">
+<div id="view-force-setup" class="app-view min-h-screen hidden flex-col items-center justify-center p-6 bg-gradient-to-b from-blue-900 to-black relative overflow-hidden">
     <div class="w-full max-w-md lg:max-w-lg z-10 glass p-8 lg:p-12 rounded-3xl shadow-2xl border border-blue-500/30">
         <h2 class="text-2xl lg:text-3xl font-black italic uppercase text-white mb-2"><i class="fas fa-lock text-blue-400 mr-2"></i>Asegura tu cuenta</h2>
         <p class="text-xs lg:text-sm text-gray-300 mb-8">Bienvenido. Por tu seguridad, debes personalizar tu contraseña y pregunta secreta antes de continuar.</p>
         <div class="space-y-5">
             <div><label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Tu Nombre</label><input id="force-name" type="text" autocomplete="new-password" class="w-full bg-asfalto border border-white/10 p-4 mt-1 rounded-xl focus:outline-none text-white text-lg"></div>
-            <div><label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Nueva Contraseña (Min 6)</label><input id="force-password" type="password" autocomplete="new-password" placeholder="Escribe tu nueva clave" class="w-full bg-asfalto border border-blue-500/50 p-4 mt-1 rounded-xl focus:outline-none focus:border-blue-400 text-xl tracking-widest text-white">
-            <div class="p-5 bg-black/40 border border-white/10 rounded-xl mt-4">
+            <div><label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Nueva Contraseña (Min 6)</label><input id="force-password" type="password" autocomplete="new-password" placeholder="Escribe tu nueva clave" class="w-full bg-asfalto border border-blue-500/50 p-4 mt-1 rounded-xl focus:outline-none focus:border-blue-400 text-xl tracking-widest text-white"></div>
+            <div class="p-5 bg-asfalto/40 border border-white/10 rounded-xl mt-4">
                 <p class="text-[10px] lg:text-xs text-blue-400 font-black uppercase tracking-widest mb-4"><i class="fas fa-shield-alt mr-1"></i> Recuperación</p>
                 <select id="force-question" class="w-full bg-asfalto border border-white/10 p-4 mb-4 rounded-lg text-sm text-white font-bold focus:border-blue-400">
                     <option value="" disabled selected>Elige una pregunta secreta...</option>
                     <option value="¿Cuál fue el nombre de tu primera mascota?">¿Nombre de primera mascota?</option>
                     <option value="¿En qué ciudad nació tu madre?">¿Ciudad donde nació tu madre?</option>
                 </select>
-                <input id="force-answer" type="text" placeholder="Tu respuesta" class="w-full bg-white/5 border border-white/10 p-4 rounded-lg focus:border-blue-400 text-base text-white font-bold">
+                <input id="force-answer" type="text" placeholder="Tu respuesta" class="w-full bg-asfalto border border-white/10 p-4 rounded-lg focus:border-blue-400 text-base text-white font-bold">
             </div>
         </div>
         <button onclick="forceSetupSubmit()" class="w-full bg-blue-600 hover:bg-blue-500 p-4 lg:p-5 rounded-xl font-black uppercase tracking-widest shadow-lg mt-8 text-white text-lg lg:text-xl active:scale-95 transition-all">Guardar y Entrar</button>
     </div>
 </div>
-
 <!-- FORMULARIO SOS CLIENTE -->
 <div id="view-sos-form" class="app-view min-h-screen hidden flex-col items-center p-6 lg:p-12 bg-asfalto pt-8 lg:pt-16">
     <div class="w-full max-w-md lg:max-w-4xl animate-fade-in pb-10">
@@ -257,7 +256,7 @@
     <div id="sos-service-dropdown" class="absolute z-20 w-full bg-asfalto border border-naranja/50 rounded-xl mt-1 max-h-40 overflow-y-auto hidden shadow-lg"></div>
     <input type="hidden" id="sos-service-select-value" value="0">
 </div>
-                        <div class="bg-black/50 p-4 rounded-xl border border-white/10 text-center flex-grow flex flex-col justify-center">
+                        <div class="bg-asfalto/50 p-4 rounded-xl border border-white/10 text-center flex-grow flex flex-col justify-center">
                             <p class="text-[9px] lg:text-[10px] text-gray-400 font-bold uppercase tracking-widest">Costo Estimado (Servicio + Rescate)</p>
                             <p id="sos-estimate-display" class="text-3xl lg:text-4xl font-black text-white mt-2">Calculando...</p>
                             <p id="sos-estimate-warning" class="text-[9px] lg:text-[10px] text-red-400 mt-3 italic leading-tight hidden">El precio base puede variar.</p>
@@ -406,7 +405,7 @@
                 </div>
             </div>
 
-            <div id="satisfaction-survey" class="hidden bg-black/50 p-6 rounded-3xl border border-naranja/50 shadow-2xl">
+            <div id="satisfaction-survey" class="hidden bg-asfalto/50 p-6 rounded-3xl border border-naranja/50 shadow-2xl">
                 <p class="text-[10px] text-naranja font-black uppercase tracking-widest mb-2 text-center">¡Servicio Finalizado!</p>
                 <p class="text-sm text-white text-center mb-4 font-bold">¿Cómo calificarías a nuestro mecánico?</p>
                 <div class="flex justify-center space-x-3 text-3xl text-gray-600 mb-6" id="star-rating">
@@ -465,7 +464,7 @@
             <button onclick="window.showAdminCorte?.()" class="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10"><i class="fas fa-chart-pie mr-2 text-naranja"></i>Corte</button>
         </div>
     </div>
-    <div id="caja-status-bar" class="bg-black/50 p-3 rounded-2xl border border-white/10 text-center hidden">
+    <div id="caja-status-bar" class="bg-asfalto/50 p-3 rounded-2xl border border-white/10 text-center hidden">
         <p class="text-xs font-black text-green-400 uppercase tracking-widest">Caja Abierta</p>
     </div>
 
@@ -677,7 +676,7 @@
                     <!-- Previsualización del video de hoy -->
 <div id="promo-video-preview" class="mt-4 hidden">
     <p class="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-2"><i class="fas fa-play-circle mr-1"></i> Video promocional de hoy</p>
-    <div class="bg-black rounded-xl overflow-hidden">
+    <div class="bg-asfalto rounded-xl overflow-hidden">
         <video id="promo-video-player" controls autoplay muted loop class="w-full max-h-[250px] object-contain"></video>
     </div>
     <p id="promo-video-name" class="text-[10px] text-gray-400 mt-1"></p>
@@ -690,13 +689,13 @@
                     <div>
                         <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Código Corto</label>
                         <div class="flex">
-                            <input id="loyalty-code" type="text" placeholder="Ej. VIP10" class="w-full bg-black/50 p-3 rounded-l-xl border border-white/10 text-sm text-white focus:border-blue-500 uppercase">
+                            <input id="loyalty-code" type="text" placeholder="Ej. VIP10" class="w-full bg-asfalto/50 p-3 rounded-l-xl border border-white/10 text-sm text-white focus:border-blue-500 uppercase">
                             <button onclick="document.getElementById('loyalty-code').value = 'PROMO' + Math.floor(Math.random()*10000)" class="bg-blue-600 px-3 rounded-r-xl active:scale-95 transition-transform"><i class="fas fa-random text-white"></i></button>
                         </div>
                     </div>
                     <div>
                         <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Condición</label>
-                        <select id="loyalty-condition" class="w-full bg-black/50 p-3 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
+                        <select id="loyalty-condition" class="w-full bg-asfalto/50 p-3 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
                             <option value="none">Sin condición (Cualquiera)</option>
                             <option value="1_servicios">1 servicio completado</option>
                             <option value="3_servicios">3 servicios completados</option>
@@ -706,17 +705,17 @@
                     <div>
                         <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Recompensa</label>
                         <div class="flex space-x-1">
-                            <select id="loyalty-reward-type" class="w-1/2 bg-black/50 p-3 rounded-xl border border-white/10 text-xs text-white focus:border-blue-500">
+                            <select id="loyalty-reward-type" class="w-1/2 bg-asfalto/50 p-3 rounded-xl border border-white/10 text-xs text-white focus:border-blue-500">
                                 <option value="desc_porc">% Desc.</option>
                                 <option value="desc_fijo">$ Fijo</option>
                                 <option value="servicio">Servicio</option>
                             </select>
-                            <input id="loyalty-reward-val" type="text" placeholder="Valor" class="w-1/2 bg-black/50 p-3 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
+                            <input id="loyalty-reward-val" type="text" placeholder="Valor" class="w-1/2 bg-asfalto/50 p-3 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
                         </div>
                     </div>
                     <div>
                         <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Audiencia</label>
-                        <select id="loyalty-audience" class="w-full bg-black/50 p-3 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
+                        <select id="loyalty-audience" class="w-full bg-asfalto/50 p-3 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
                             <option value="both">VIP y General</option>
                             <option value="vip">Solo VIP</option>
                             <option value="general">Solo General</option>
@@ -724,7 +723,7 @@
                     </div>
                     <div>
                         <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Límite de usos</label>
-                        <input id="loyalty-max-usos" type="number" placeholder="0 = ilimitado" value="0" min="0" class="w-full bg-black/50 p-3 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
+                        <input id="loyalty-max-usos" type="number" placeholder="0 = ilimitado" value="0" min="0" class="w-full bg-asfalto/50 p-3 rounded-xl border border-white/10 text-sm text-white focus:border-blue-500">
                     </div>
                 </div>
                 <button onclick="window.adminSaveLoyalty?.()" class="w-full bg-blue-600 hover:bg-blue-500 p-3 rounded-xl font-black uppercase text-xs tracking-widest text-white transition-all shadow-lg active:scale-95 mt-2"><i class="fas fa-plus mr-1"></i> Activar Promo</button>
@@ -800,7 +799,7 @@
                         <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Tarifa Base ($)</label>
                         <input id="config-base-price" type="number" placeholder="Ej. 100" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-white text-lg font-black">
                     </div>
-                    <div id="config-price-km" class="hidden bg-black/40 p-4 rounded-xl border border-white/5 flex-grow">
+                    <div id="config-price-km" class="hidden bg-asfalto/40 p-4 rounded-xl border border-white/5 flex-grow">
                         <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-2"><i class="fas fa-list-ol mr-1"></i> Tabla de Rangos por KM</label>
                         <div id="km-ranges-list" class="space-y-2 mb-3 max-h-32 overflow-y-auto hide-scroll"></div>
                         <div class="flex space-x-2">
@@ -837,7 +836,7 @@
     </div>
     <div id="schedule-list" class="space-y-2"></div>
 </div>
-                    <label class="flex items-center space-x-2 text-[10px] text-white w-full mt-4 cursor-pointer bg-black/40 p-3 rounded-xl border border-white/5 hover:bg-white/5 transition-colors">
+                    <label class="flex items-center space-x-2 text-[10px] text-white w-full mt-4 cursor-pointer bg-asfalto/40 p-3 rounded-xl border border-white/5 hover:bg-white/5 transition-colors">
                         <input type="checkbox" id="config-apply-all" class="accent-naranja w-4 h-4" onchange="if(this.checked) window.aplicarHorarioALunes()">
                         <span class="font-bold">Igualar horario toda la semana</span>
                     </label>
@@ -851,7 +850,7 @@
                     </div>
                     <div id="admin-geofence-map" class="flex-grow min-h-[250px] w-full bg-white rounded-xl z-0 border border-white/10 mb-4 relative">
                     </div>
-                    <div class="bg-black/40 p-4 rounded-xl border border-white/5 mt-auto">
+                    <div class="bg-asfalto/40 p-4 rounded-xl border border-white/5 mt-auto">
                         <label class="text-xs font-bold text-gray-300 flex justify-between mb-2"><span>Radio de Servicio:</span> <span class="text-naranja"><span id="radius-display">15</span> Km</span></label>
                         <input id="config-radius" type="range" min="1" max="50" step="0.5" value="15" class="w-full accent-naranja cursor-pointer" oninput="window.updateGeofenceRadius?.(this.value)">
                     </div>
@@ -954,28 +953,28 @@
 <!-- ======================== MODALES ======================== -->
 
 <!-- Modal Escáner/Buscador Manual POS -->
-<div id="modal-scanner-input" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-scanner-input" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative shadow-2xl border border-blue-500/30">
         <button onclick="toggleModal('modal-scanner-input', false)" class="absolute top-6 right-6 text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
         <h2 class="text-xl font-black mb-4 text-white text-center uppercase"><i class="fas fa-qrcode mr-2 text-blue-400"></i>Buscar Servicio</h2>
-        <input id="scanner-id-input" type="text" placeholder="Ej. OBR-12345" class="w-full bg-black/50 border border-white/10 p-4 rounded-xl text-white text-center text-lg font-black uppercase tracking-widest mb-4 focus:border-blue-500 outline-none">
+        <input id="scanner-id-input" type="text" placeholder="Ej. OBR-12345" class="w-full bg-asfalto/50 border border-white/10 p-4 rounded-xl text-white text-center text-lg font-black uppercase tracking-widest mb-4 focus:border-blue-500 outline-none">
         <button onclick="window.processScannerInput?.()" class="w-full bg-blue-600 hover:bg-blue-500 text-white p-4 rounded-xl font-black uppercase tracking-widest shadow-lg">Buscar / Cobrar</button>
     </div>
 </div>
 
 <!-- Modal Agregar Cargo Manual POS -->
-<div id="modal-manual-charge" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-manual-charge" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative shadow-2xl border border-naranja/30">
         <button onclick="toggleModal('modal-manual-charge', false)" class="absolute top-6 right-6 text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
         <h2 class="text-xl font-black mb-4 text-white text-center uppercase"><i class="fas fa-plus-circle mr-2 text-naranja"></i>Cargo Manual</h2>
-        <input id="manual-charge-desc" type="text" placeholder="Concepto (Ej. Parche)" class="w-full bg-black/50 border border-white/10 p-4 rounded-xl text-white mb-3 focus:border-naranja outline-none">
-        <input id="manual-charge-price" type="number" placeholder="Monto ($)" class="w-full bg-black/50 border border-white/10 p-4 rounded-xl text-white text-xl font-black mb-4 focus:border-naranja outline-none text-center">
+        <input id="manual-charge-desc" type="text" placeholder="Concepto (Ej. Parche)" class="w-full bg-asfalto/50 border border-white/10 p-4 rounded-xl text-white mb-3 focus:border-naranja outline-none">
+        <input id="manual-charge-price" type="number" placeholder="Monto ($)" class="w-full bg-asfalto/50 border border-white/10 p-4 rounded-xl text-white text-xl font-black mb-4 focus:border-naranja outline-none text-center">
         <button onclick="window.processManualCharge?.()" class="w-full bg-naranja hover:bg-orange-600 text-white p-4 rounded-xl font-black uppercase tracking-widest shadow-lg">Agregar Cargo</button>
     </div>
 </div>
 
 <!-- Modal Asignar Mecánico SOS -->
-<div id="modal-asignar-mecanico" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-asignar-mecanico" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl">
         <button onclick="toggleModal('modal-asignar-mecanico', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white uppercase italic text-center">Asignar Auxilio</h2>
@@ -985,7 +984,7 @@
     </div>
 </div>
 <!-- Modal Asignar Repartidor -->
-<div id="modal-asignar-repartidor" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-asignar-repartidor" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl">
         <button onclick="toggleModal('modal-asignar-repartidor', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white flex items-center">
@@ -996,7 +995,7 @@
     </div>
 </div>
 <!-- Modal abrir caja -->
-<div id="modal-caja" class="fixed inset-0 bg-black/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-caja" class="fixed inset-0 bg-asfalto/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30">
         <button onclick="toggleModal('modal-caja', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Abrir Caja</h2>
@@ -1007,7 +1006,7 @@
 </div>
 
 <!-- Modal retiro -->
-<div id="modal-retiro" class="fixed inset-0 bg-black/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-retiro" class="fixed inset-0 bg-asfalto/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-yellow-500/30">
         <button onclick="toggleModal('modal-retiro', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Registrar Retiro</h2>
@@ -1020,7 +1019,7 @@
 </div>
 
 <!-- Modal contacto (rediseñado) -->
-<div id="modal-contact" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-contact" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm lg:max-w-lg rounded-[2rem] p-6 relative border border-white/10">
         <button onclick="toggleModal('modal-contact', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white text-center">Soporte OBR</h2>
@@ -1043,7 +1042,7 @@
 </div>
 
 <!-- Modal nueva cita (con bloqueo de fechas pasadas) -->
-<div id="modal-nueva-cita" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-nueva-cita" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-md lg:max-w-2xl rounded-[2rem] p-6 relative border border-green-500/30">
         <button onclick="toggleModal('modal-nueva-cita', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Agendar Cita</h2>
@@ -1057,7 +1056,7 @@
 </div>
 
 <!-- Modal EDITAR cita -->
-<div id="modal-edit-cita" class="fixed inset-0 bg-black/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-edit-cita" class="fixed inset-0 bg-asfalto/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-md lg:max-w-2xl rounded-[2rem] p-6 relative border border-green-500/30">
         <button onclick="toggleModal('modal-edit-cita', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Detalle de Cita</h2>
@@ -1075,7 +1074,7 @@
 </div>
 
 <!-- Modal lista de chats admin -->
-<div id="modal-chat-list" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-chat-list" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-md lg:max-w-2xl h-auto lg:max-h-[80vh] rounded-[2rem] relative border border-blue-500/30 flex flex-col shadow-2xl">
         <button onclick="toggleModal('modal-chat-list', false)" class="absolute top-4 right-4 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white z-10 hover:bg-white/20 transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black p-6 border-b border-white/10 text-white"><i class="fas fa-comments text-blue-400 mr-2"></i>Chats Activos</h2>
@@ -1084,7 +1083,7 @@
 </div>
 
 <!-- Modal chat -->
-<div id="modal-chat" class="fixed inset-0 bg-black/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-chat" class="fixed inset-0 bg-asfalto/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-md lg:max-w-2xl h-[80vh] lg:h-auto lg:min-h-[600px] lg:max-h-[80vh] rounded-[2rem] relative border border-blue-500/30 flex flex-col overflow-hidden shadow-2xl">
         <div class="bg-blue-600/20 border-b border-blue-500/30 p-4 flex items-center justify-between">
             <div class="flex items-center">
@@ -1093,16 +1092,16 @@
             </div>
             <button onclick="window.closeChat?.()" class="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-gray-300 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
         </div>
-        <div id="chat-messages" class="flex-grow p-4 overflow-y-auto flex flex-col space-y-3 hide-scroll bg-black/20"></div>
+        <div id="chat-messages" class="flex-grow p-4 overflow-y-auto flex flex-col space-y-3 hide-scroll bg-asfalto/20"></div>
         <div class="p-3 bg-white/5 border-t border-white/10 flex space-x-2">
-            <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-grow bg-black/50 p-3 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 border border-transparent transition-all">
+            <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-grow bg-asfalto/50 p-3 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 border border-transparent transition-all">
             <button onclick="window.sendMessage?.()" class="bg-blue-600 hover:bg-blue-500 transition-colors text-white w-12 rounded-xl flex items-center justify-center active:scale-95"><i class="fas fa-paper-plane"></i></button>
         </div>
     </div>
 </div>
 
 <!-- Modal detalle servicio taller -->
-<div id="modal-detalle-servicio" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-0 lg:p-4 hidden backdrop-blur-sm">
+<div id="modal-detalle-servicio" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-0 lg:p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full h-full lg:w-auto lg:max-w-3xl lg:h-auto lg:max-h-[90vh] rounded-none lg:rounded-[2rem] relative border-0 lg:border border-blue-500/30 flex flex-col overflow-hidden shadow-2xl">
         <div class="bg-blue-600/20 border-b border-blue-500/30 p-4 flex justify-between items-center z-10">
             <div><p class="text-[10px] font-black text-blue-400 uppercase">Detalle y Bitácora del Servicio</p><p id="servicio-detalle-phone" class="text-sm text-white font-bold truncate max-w-[250px]"></p></div>
@@ -1110,7 +1109,7 @@
         </div>
         <div class="flex-grow p-4 overflow-y-auto hide-scroll flex flex-col lg:flex-row gap-4">
             <div class="w-full lg:w-1/2 flex flex-col space-y-4">
-                <div class="bg-black/30 p-4 rounded-xl border border-white/5">
+                <div class="bg-asfalto/30 p-4 rounded-xl border border-white/5">
                     <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-2 border-b border-white/10 pb-1">Reporte / Falla</p>
                     <div id="servicio-detalle-info" class="text-sm text-white"></div>
                 </div>
@@ -1123,7 +1122,7 @@
                 </div>
                 <button onclick="toggleModal('modal-cambiar-cita', true)" class="bg-yellow-600/20 text-yellow-400 border border-yellow-500/50 px-4 py-2 rounded-xl text-xs font-black uppercase hidden">Solicitar cambio de cita</button>
             </div>
-            <div class="w-full lg:w-1/2 flex flex-col bg-black/50 rounded-xl border border-white/5 overflow-hidden">
+            <div class="w-full lg:w-1/2 flex flex-col bg-asfalto/50 rounded-xl border border-white/5 overflow-hidden">
                 <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest bg-blue-900/20 p-3 border-b border-white/10"><i class="fas fa-comment-dots mr-1"></i> Bitácora de Técnicos</p>
                 <div id="servicio-bitacora-list" class="flex-grow p-3 space-y-2 overflow-y-auto hide-scroll min-h-[150px]"></div>
                 <div class="p-3 bg-white/5 border-t border-white/10 flex space-x-2">
@@ -1142,7 +1141,7 @@
 </div>
 
 <!-- Modal carrito -->
-<div id="modal-cart" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-cart" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-md lg:max-w-xl rounded-[2rem] p-6 relative border border-naranja/30 shadow-2xl">
         <button onclick="toggleModal('modal-cart', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-2xl font-black mb-4 text-center">Tu Carrito</h2>
@@ -1164,7 +1163,7 @@
 </div>
 
 <!-- Modal video schedule (rediseñado) -->
-<div id="modal-video-schedule" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-video-schedule" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-4xl max-h-[90vh] rounded-[2rem] p-6 relative border border-purple-500/30 overflow-y-auto">
         <button onclick="toggleModal('modal-video-schedule', false)" class="absolute top-4 right-4 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors z-10"><i class="fas fa-times"></i></button>
         <h2 class="text-2xl font-black mb-6 text-white text-center">Programar Video Banner por Día</h2>
@@ -1178,7 +1177,7 @@
 </div>
 
 <!-- Modal firma digital -->
-<div id="modal-signature" class="fixed inset-0 bg-black/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-signature" class="fixed inset-0 bg-asfalto/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-white p-6 rounded-3xl w-full max-w-sm shadow-2xl">
         <h3 class="text-black font-black mb-4 text-center uppercase tracking-widest">Firma de Entrega</h3>
         <canvas id="signature-canvas" width="300" height="150" class="border-2 border-gray-300 rounded-xl bg-gray-50 mx-auto w-full cursor-crosshair"></canvas>
@@ -1190,7 +1189,7 @@
 </div>
 
 <!-- Modal detalle usuario (ampliado) -->
-<div id="modal-user-detail" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-user-detail" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-md lg:max-w-5xl h-[90vh] lg:h-auto lg:max-h-[90vh] rounded-[2rem] p-6 relative border border-blue-500/30 flex flex-col shadow-2xl">
         <div class="flex justify-between items-start mb-6 shrink-0 border-b border-white/10 pb-4">
             <div class="flex-1 pr-2">
@@ -1206,7 +1205,7 @@
             </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 flex-grow overflow-hidden">
-            <div class="flex flex-col h-full bg-black/30 p-4 rounded-2xl border border-white/5 relative">
+            <div class="flex flex-col h-full bg-asfalto/30 p-4 rounded-2xl border border-white/5 relative">
                 <div class="flex justify-between items-center mb-3 border-b border-white/10 pb-2">
                     <p class="text-[10px] font-black text-naranja uppercase tracking-widest"><i class="fas fa-history mr-1"></i> Historial Servicios</p>
                     <button onclick="window.exportUserHistoryPDF?.()" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[9px] font-black uppercase transition-colors shadow-lg active:scale-95"><i class="fas fa-file-pdf mr-1"></i> PDF + IA</button>
@@ -1214,11 +1213,11 @@
                 <div id="ud-history" class="overflow-y-auto space-y-2 hide-scroll flex-grow pr-2"></div>
             </div>
             <div class="flex flex-col space-y-3">
-                <div class="bg-black/30 p-3 rounded-2xl border border-white/5">
+                <div class="bg-asfalto/30 p-3 rounded-2xl border border-white/5">
                     <p class="text-[10px] font-black text-green-400 uppercase tracking-widest mb-2"><i class="fas fa-shopping-bag mr-1"></i> Compras Realizadas</p>
                     <div id="ud-compras" class="max-h-24 overflow-y-auto hide-scroll text-xs space-y-1"></div>
                 </div>
-                <div class="bg-black/30 p-3 rounded-2xl border border-white/5">
+                <div class="bg-asfalto/30 p-3 rounded-2xl border border-white/5">
                     <p class="text-[10px] font-black text-yellow-400 uppercase tracking-widest mb-2"><i class="fas fa-crown mr-1"></i> Historial VIP</p>
                     <div id="ud-vip-history" class="max-h-20 overflow-y-auto hide-scroll text-xs"></div>
                 </div>
@@ -1233,7 +1232,7 @@
 </div>
     
 <!-- Modal pago con tarjeta (folio) -->
-<div id="modal-card-folio" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-card-folio" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-xs rounded-[2rem] p-6 relative border border-purple-500/30 shadow-2xl">
         <button onclick="toggleModal('modal-card-folio', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Pago con Tarjeta</h2>
@@ -1243,7 +1242,7 @@
 </div>
 
 <!-- Modal detalle producto (almacén) -->
-<div id="modal-product-detail" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-product-detail" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-naranja/30 shadow-2xl">
         <button onclick="toggleModal('modal-product-detail', false)" class="absolute top-4 right-4 w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-white"><i class="fas fa-times"></i></button>
         <div id="product-detail-content" class="text-white"></div>
@@ -1251,7 +1250,7 @@
 </div>
 
 <!-- Modal pedidos (cliente) -->
-<div id="modal-pedidos" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-pedidos" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-lg lg:max-w-3xl h-[80vh] rounded-[2rem] p-6 relative border border-green-500/30 flex flex-col">
         <button onclick="toggleModal('modal-pedidos', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Mis Pedidos</h2>
@@ -1260,7 +1259,7 @@
 </div>
 
 <!-- Modal solicitar cambio de cita -->
-<div id="modal-cambiar-cita" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-cambiar-cita" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-yellow-500/30 shadow-2xl">
         <button onclick="toggleModal('modal-cambiar-cita', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Solicitar Cambio de Cita</h2>
@@ -1271,7 +1270,7 @@
 </div>
 
 <!-- Modal POS Mecánico -->
-<div id="modal-mechanic-pos" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-mechanic-pos" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-md h-[80vh] rounded-[2rem] p-5 relative border border-indigo-500/30 flex flex-col shadow-2xl">
         <button onclick="toggleModal('modal-mechanic-pos', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-3 text-white">Cobro Rápido</h2>
@@ -1284,7 +1283,7 @@
     </div>
 </div>
 <!-- Modal cobro de entrega -->
-<div id="modal-cobro-entrega" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-cobro-entrega" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-xs rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl">
         <button onclick="toggleModal('modal-cobro-entrega', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white text-center">Cobro de Entrega</h2>
@@ -1298,7 +1297,7 @@
     </div>
 </div>
 <!-- Modal de garantías -->
-<div id="modal-garantias" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-garantias" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-lg lg:max-w-3xl h-[80vh] rounded-[2rem] p-6 relative border border-green-500/30 flex flex-col shadow-2xl">
         <button onclick="toggleModal('modal-garantias', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white"><i class="fas fa-shield-alt mr-2 text-green-400"></i>Garantías</h2>
@@ -1307,13 +1306,13 @@
 </div>
 
 <!-- Modal detalle de mecánico (staff) -->
-<div id="modal-staff-detail" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-staff-detail" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-6xl max-h-[90vh] rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl overflow-y-auto" id="modal-staff-detail-content">
     </div>
 </div>
 
 <!-- Modal opciones de entrega (pedido con domicilio) -->
-<div id="modal-order-options" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-order-options" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-md lg:max-w-xl rounded-[2rem] p-6 relative border border-naranja/30 shadow-2xl text-center">
         <button onclick="toggleModal('modal-order-options', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Opciones de Entrega</h2>
@@ -1330,24 +1329,24 @@
 </div>
 
 <!-- Modal detalle de servicio para cliente -->
-<div id="modal-client-service-detail" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-client-service-detail" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl" id="modal-client-service-detail-content">
     </div>
 </div>
 
 <!-- Modal para editar cita desde el cliente -->
-<div id="modal-client-edit-cita" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-client-edit-cita" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-yellow-500/30" id="modal-client-edit-cita-content">
     </div>
 </div>
 
 <!-- Modal de garantías de venta específica -->
-<div id="modal-garantias-venta" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-garantias-venta" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30" id="modal-garantias-venta-content">
     </div>
 </div>
 <!-- Modal envío a domicilio -->
-<div id="modal-delivery-order" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-delivery-order" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-md lg:max-w-2xl rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl">
         <button onclick="toggleModal('modal-delivery-order', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Envío a Domicilio</h2>
@@ -1369,7 +1368,7 @@
     </div>
 </div>
     <!-- Modal Ingresar Moto -->
-<div id="modal-nuevo-servicio" class="fixed inset-0 bg-black/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-nuevo-servicio" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-md lg:max-w-2xl rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl">
         <button onclick="toggleModal('modal-nuevo-servicio', false)" class="absolute top-4 right-4 w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Ingresar Moto al Taller</h2>
@@ -1381,7 +1380,7 @@
     </div>
 </div>
     <!-- Modal Aplicar Garantía -->
-<div id="modal-aplicar-garantia" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+<div id="modal-aplicar-garantia" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl">
         <button onclick="toggleModal('modal-aplicar-garantia', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white text-center">Aplicar Garantía</h2>
