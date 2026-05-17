@@ -444,18 +444,41 @@ function updateLandingStatus() {
         else closedText.innerText = `Abrimos a las ${sched.o}`;
     }
 
-    window.updateEmergencyButtonState(isOpen, sched);
-    const vipBannerShop = document.getElementById('vip-banner-shop');
-    const vipBannerShopClient = document.getElementById('vip-banner-shop-client');
-    [vipBannerShop, vipBannerShopClient].forEach(banner => {
-        if (banner) {
-            if (!auth.currentUser || (window.currentUserDoc && window.currentUserDoc.role !== 'membresia')) {
-                banner.classList.remove('hidden');
+window.updateEmergencyButtonState = (isOpen, sched) => {
+    const emBtn = document.getElementById('emergency-client-btn');
+    const emText = document.getElementById('emergency-closed-text');
+    if (!emBtn) return;
+
+    if (isOpen) {
+        // Habilitar botón
+        emBtn.classList.remove('opacity-50', 'pointer-events-none', 'bg-gray-600');
+        emBtn.classList.add('bg-gradient-to-r', 'from-red-600', 'to-naranja');
+        // Ocultar texto de cerrado
+        if (emText) emText.classList.add('hidden');
+        // Asegurar que el texto "Solicitar rescate ahora" sea visible
+        const labels = emBtn.querySelectorAll('.emergency-label');
+        labels.forEach(lbl => lbl.classList.remove('hidden'));
+        emBtn.onclick = () => window.startFlow('sos');
+    } else {
+        // Deshabilitar botón
+        emBtn.classList.add('opacity-50', 'pointer-events-none', 'bg-gray-600');
+        emBtn.classList.remove('bg-gradient-to-r', 'from-red-600', 'to-naranja');
+        // Mostrar texto de cerrado con el próximo día
+        if (emText) {
+            emText.classList.remove('hidden');
+            const nextOpen = window.findNextOpenDay();
+            if (nextOpen) {
+                emText.innerText = `Abrimos el ${nextOpen.day} a las ${nextOpen.time}`;
             } else {
-                banner.classList.add('hidden');
+                emText.innerText = `Abrimos a las ${sched?.o || '08:00'}`;
             }
         }
-    });
+        // Opcional: ocultar el texto "Solicitar rescate ahora" cuando está cerrado
+        const labels = emBtn.querySelectorAll('.emergency-label');
+        labels.forEach(lbl => lbl.classList.add('hidden'));
+        emBtn.onclick = () => window.showToast("Taller cerrado. Vuelve en horario laboral.", true);
+    }
+};
     //Para activar el modo, un administrador puede ejecutar en la consola o desde un botón oculto:
 //await setDoc(doc(db, 'settings', 'general'), { modoProximamente: true, fechaLanzamiento: '2025-12-01' }, { merge: true });
     // Mostrar fecha de lanzamiento en vista próximamente
@@ -3409,6 +3432,7 @@ window.promoteToVIP = async (uid) => {
     playSound('notif');
     speakTTS(notifMsg);
     window.adminLoadUsers();
+    updateLandingStatus(); // <-- ACTUALIZAR ESTADO DE BOTONES Y BANNERS
     // Refrescar el detalle si el modal sigue abierto
     if (document.getElementById('modal-user-detail') && !document.getElementById('modal-user-detail').classList.contains('hidden')) {
         window.openUserDetail(uid);
@@ -3423,7 +3447,6 @@ window.demoteFromVIP = async (uid) => {
         const user = userSnap.data();
         const now = Date.now();
         const historialVIP = user.historialVIP || [];
-        // Si tiene membresía activa, cerramos el período actual
         if (user.membresiaExp && user.membresiaExp > now) {
             for (let i = historialVIP.length - 1; i >= 0; i--) {
                 if (historialVIP[i].fin > now || !historialVIP[i].fin) {
@@ -3435,6 +3458,7 @@ window.demoteFromVIP = async (uid) => {
         await updateDoc(userRef, { role: 'cliente', membresiaExp: null, historialVIP });
         showToast("Usuario vuelve a Cliente Estándar");
         window.adminLoadUsers();
+        updateLandingStatus(); // <-- ACTUALIZAR ESTADO DE BOTONES Y BANNERS
         if (document.getElementById('modal-user-detail') && !document.getElementById('modal-user-detail').classList.contains('hidden')) {
             window.openUserDetail(uid);
         }
@@ -5234,17 +5258,22 @@ tailwind.config = {
 
 // Ya no se genera el manifiesto dinámico. Se usará el archivo manifest.json enlazado en el HTML.
 
-// Refresco periódico
+// Refresco periódico cada 30 segundos
 setInterval(() => {
-    if (auth.currentUser) {
-        updateLandingStatus();
-        if (['admin','mecanico','taller','socio'].includes(window.currentUserDoc?.role)) {
-            window.adminLoadInventory();
-            window.adminLoadSales();
-            window.posFilterProducts();
-        }
+    updateLandingStatus(); // siempre se actualiza, incluso sin usuario
+    if (auth.currentUser && ['admin','mecanico','taller','socio'].includes(window.currentUserDoc?.role)) {
+        window.adminLoadInventory();
+        window.adminLoadSales();
+        window.posFilterProducts();
     }
 }, 30000);
+
+// Actualizar cuando la pestaña vuelve a ser visible
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        updateLandingStatus();
+    }
+});
 
 // Evento para el botón de contacto en el cliente
 window.addEventListener('click', function(e) {
