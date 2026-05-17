@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, where, limit, updateDoc, deleteDoc, orderBy, onSnapshot, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getDatabase, ref as dbRef, set as rtdbSet, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
@@ -857,54 +857,57 @@ window.toggleSession = () => {
 };
 window.forceSetupSubmit = async () => {
     const name = document.getElementById('force-name')?.value.trim();
-    const password = document.getElementById('force-password')?.value.trim();
+    const newPassword = document.getElementById('force-password')?.value.trim();
     const question = document.getElementById('force-question')?.value;
     const answer = document.getElementById('force-answer')?.value.trim();
 
-    if (!name || !password || password.length < 6 || !question || !answer) {
+    if (!name || !newPassword || newPassword.length < 6 || !question || !answer) {
         window.showToast("Completa todos los campos (nombre, contraseña mín 6, pregunta y respuesta)", true);
         return;
     }
 
-    // Obtener usuario actual desde Firebase Auth
     const user = auth.currentUser;
     if (!user) {
         window.showToast("No hay sesión activa. Por favor inicia sesión nuevamente.", true);
-        // Redirigir al login después de unos segundos
         setTimeout(() => window.showView('view-login'), 2000);
         return;
     }
 
-    // Verificar que el método updatePassword exista (Firebase v9)
-    if (typeof user.updatePassword !== 'function') {
-        window.showToast("Error interno: no se puede actualizar la contraseña. Contacta al administrador.", true);
-        console.error("updatePassword no disponible en el objeto user", user);
-        return;
-    }
-
     try {
-        // Actualizar contraseña
-        await user.updatePassword(password);
+        // Reautenticar con la contraseña temporal (123456)
+        const credential = EmailAuthProvider.credential(user.email, '123456');
+        await reauthenticateWithCredential(user, credential);
+        
+        // Ahora actualizar la contraseña
+        await user.updatePassword(newPassword);
+        
         // Actualizar Firestore
         await window.updateDoc(window.doc(window.db, "users", user.uid), {
             name: name,
-            pwd: password,
+            pwd: newPassword,
             secQuestion: question,
             secAnswer: answer.toLowerCase(),
             firstLogin: false
         });
+        
         window.showToast("Configuración guardada. Bienvenido.");
         window.currentUserDoc = { ...window.currentUserDoc, name, firstLogin: false };
+        
+        // Actualizar UI
         if (window.currentUserDoc.role === 'cliente') {
+            document.getElementById('client-name-display').innerText = name;
             window.showView('app-client');
             window.switchClientView('c-view-inicio');
         } else {
+            document.getElementById('admin-phone-display').innerText = name;
             window.showView('app-admin');
             window.switchAdminView('a-view-pos');
         }
     } catch (error) {
         console.error(error);
-        if (error.code === 'auth/requires-recent-login') {
+        if (error.code === 'auth/wrong-password') {
+            window.showToast("Error interno: la contraseña temporal no es válida. Contacta al administrador.", true);
+        } else if (error.code === 'auth/requires-recent-login') {
             window.showToast("Por seguridad, necesitas volver a iniciar sesión para cambiar tu contraseña.", true);
             await window.signOut(auth);
             window.showView('view-login');
