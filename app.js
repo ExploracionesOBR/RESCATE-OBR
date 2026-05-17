@@ -894,60 +894,15 @@ window.toggleSession = () => {
     }
 };
 window.forceSetupSubmit = async () => {
-    const name = document.getElementById('force-name')?.value.trim();
-    const newPassword = document.getElementById('force-password')?.value.trim();
-    const question = document.getElementById('force-question')?.value;
-    const answer = document.getElementById('force-answer')?.value.trim();
-
-    if (!name || !newPassword || newPassword.length < 6 || !question || !answer) {
-        window.showToast("Completa todos los campos (nombre, contraseña mín 6, pregunta y respuesta)", true);
-        return;
-    }
-
-    const user = auth.currentUser;
-    if (!user) {
-        window.showToast("No hay sesión activa. Por favor inicia sesión nuevamente.", true);
-        setTimeout(() => window.showView('view-login'), 2000);
-        return;
-    }
-
-    try {
-        // Cambiar contraseña en Firebase Auth
-        await user.updatePassword(newPassword);
-        // Actualizar Firestore
-        await window.updateDoc(window.doc(window.db, "users", user.uid), {
-            name: name,
-            pwd: newPassword,
-            secQuestion: question,
-            secAnswer: answer.toLowerCase(),
-            firstLogin: false
-        });
-        window.showToast("Configuración guardada. Bienvenido.");
-        window.currentUserDoc = { ...window.currentUserDoc, name, firstLogin: false };
-        
-        if (window.currentUserDoc.role === 'cliente') {
-            document.getElementById('client-name-display').innerText = name;
-            window.showView('app-client');
-            window.switchClientView('c-view-inicio');
-        } else {
-            document.getElementById('admin-phone-display').innerText = name;
-            window.showView('app-admin');
-            window.switchAdminView('a-view-pos');
-        }
-    } catch (error) {
-        console.error(error);
-        if (error.code === 'auth/requires-recent-login') {
-            window.showToast("Por seguridad, necesitas volver a iniciar sesión para cambiar tu contraseña.", true);
-            await window.signOut(auth);
-            window.showView('view-login');
-        } else if (error.code === 'auth/weak-password') {
-            window.showToast("La contraseña es muy débil. Usa al menos 6 caracteres.", true);
-        } else {
-            window.showToast("Error al guardar: " + (error.message || "Intenta de nuevo"), true);
-        }
-    }
+    const pwd = document.getElementById('force-password').value.trim();
+    const q = document.getElementById('force-question').value;
+    const ans = document.getElementById('force-answer').value.trim();
+    const name = document.getElementById('force-name').value.trim();
+    if (pwd.length < 6 || !q || !ans || !name) return window.showToast("Llena todos los campos (nombre, contraseña mín 6, pregunta y respuesta)", true);
+    await window.setDoc(window.doc(window.db, "users", auth.currentUser.uid), { name, secQuestion: q, secAnswer: ans.toLowerCase(), pwd, firstLogin: false }, {merge: true});
+    window.showToast("Seguridad actualizada");
+    setTimeout(() => window.location.reload(), 1000);
 };
-
 window.logout = () => {
     window.confirmModal('¿Cerrar sesión? Perderás las notificaciones en tiempo real hasta que vuelvas a iniciar sesión.', async () => {
         // Limpiar listeners de tiempo real para evitar fugas
