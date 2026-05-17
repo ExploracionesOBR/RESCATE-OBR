@@ -3022,14 +3022,25 @@ window.togglePriceMode = () => {
     if (fijoDiv) fijoDiv.style.display = mode === 'fijo' ? 'block' : 'none';
     if (kmDiv) kmDiv.style.display = mode === 'km' ? 'block' : 'none';
 };
-window.cerrarDia = (i) => {
+window.toggleDayState = (i) => {
     const openEl = document.getElementById(`sch-${i}-o`);
     const closeEl = document.getElementById(`sch-${i}-c`);
-    if (openEl) openEl.value = '00:00';
-    if (closeEl) closeEl.value = '00:00';
-    // Disparar evento change para que se guarde automáticamente
+    if (!openEl || !closeEl) return;
+    const isCurrentlyClosed = (openEl.value === "00:00" && closeEl.value === "00:00");
+if (isCurrentlyClosed) {
+    // Está cerrado, lo abrimos
+    openEl.value = "08:00";
+    closeEl.value = "20:00";
+} else {
+    // Está abierto, lo cerramos
+    openEl.value = "00:00";
+    closeEl.value = "00:00";
+}
+    // Disparar evento change para que se guarden automáticamente (el evento ya está vinculado)
     openEl.dispatchEvent(new Event('change'));
     closeEl.dispatchEvent(new Event('change'));
+    // Refrescar la UI del horario para que el botón cambie de texto/color
+    window.adminRefreshConfigUI();
 };
 // ======================================================
 // === CATÁLOGO DE SERVICIOS (con IA y edición) ===
@@ -4255,20 +4266,25 @@ window.adminRefreshConfigUI = () => {
     if (radiusEl) radiusEl.value = globalSettings.radiusKm;
     document.getElementById('radius-display').innerText = globalSettings.radiusKm;
 
-    const days = ['L','M','X','J','V','S','D'];
-    const tbody = document.getElementById('schedule-tbody');
-    if (tbody) {
-        tbody.innerHTML = '';
-        Object.keys(globalSettings.schedule).forEach((i) => {
-            const s = globalSettings.schedule[i];
-            tbody.innerHTML += `<tr>
-                <td class="pb-2">${days[i]}</td>
-                <td class="text-center"><input id="sch-${i}-o" type="time" value="${s.o}" class="bg-black/30 border border-white/10 p-1 rounded text-white text-xs w-28"></td>
-                <td class="text-center"><input id="sch-${i}-c" type="time" value="${s.c}" class="bg-black/30 border border-white/10 p-1 rounded text-white text-xs w-28"></td>
-                <td class="text-center"><button onclick="window.cerrarDia(${i})" class="bg-red-600/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded text-[9px] font-bold uppercase">CERRADO</button></td>
-            </tr>`;
-        });
+const scheduleContainer = document.getElementById('schedule-list');
+if (scheduleContainer) {
+    scheduleContainer.innerHTML = '';
+    const daysFull = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    for (let i = 0; i < 7; i++) {
+        const s = globalSettings.schedule[i] || { o: "08:00", c: "20:00" };
+        const isClosed = (s.o === "00:00" && s.c === "00:00");
+const buttonText = isClosed ? 'CERRADO' : 'ABIERTO';
+const buttonClass = isClosed ? 'bg-red-600' : 'bg-green-600';
+        scheduleContainer.innerHTML += `
+            <div class="grid grid-cols-4 gap-2 items-center bg-white/5 p-2 rounded-xl">
+                <span class="font-bold text-white text-xs">${daysFull[i]}</span>
+                <input id="sch-${i}-o" type="time" value="${s.o}" class="bg-asfalto border border-white/10 p-2 rounded-lg text-white text-xs w-full focus:border-naranja">
+                <input id="sch-${i}-c" type="time" value="${s.c}" class="bg-asfalto border border-white/10 p-2 rounded-lg text-white text-xs w-full focus:border-naranja">
+                <button onclick="window.toggleDayState(${i})" class="${buttonClass} text-white px-2 py-1 rounded text-[9px] font-bold uppercase">${buttonText}</button>
+            </div>
+        `;
     }
+}
 
     const kmRangesList = document.getElementById('km-ranges-list');
     if (kmRangesList) {
