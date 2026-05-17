@@ -829,12 +829,12 @@
 
                 <div class="bg-white/5 border border-white/10 p-8 rounded-3xl shadow-xl flex flex-col h-full lg:col-span-1">
                     <p class="text-[10px] font-black text-naranja uppercase tracking-widest border-b border-white/5 pb-2 mb-3"><i class="fas fa-calendar-alt mr-1"></i> Horarios Semanales</p>
-                    <div class="overflow-x-auto flex-grow">
-                        <table class="w-full text-[10px] text-left border-collapse">
-                            <thead><tr class="text-gray-400 uppercase tracking-widest border-b border-white/10"><th class="pb-2 pl-1">Día</th><th class="pb-2 text-center">Abre</th><th class="pb-2 text-center">Cierra</th></tr></thead>
-                            <tbody id="schedule-tbody" class="text-white font-bold divide-y divide-white/5"></tbody>
-                        </table>
-                    </div>
+                    <div class="w-full">
+    <div id="schedule-grid" class="grid grid-cols-4 gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-white/10 pb-2 mb-2">
+        <div>Día</div><div class="text-center">Abre</div><div class="text-center">Cierra</div><div class="text-center">Acción</div>
+    </div>
+    <div id="schedule-list" class="space-y-2"></div>
+</div>
                     <label class="flex items-center space-x-2 text-[10px] text-white w-full mt-4 cursor-pointer bg-black/40 p-3 rounded-xl border border-white/5 hover:bg-white/5 transition-colors">
                         <input type="checkbox" id="config-apply-all" class="accent-naranja w-4 h-4" onchange="if(this.checked) window.aplicarHorarioALunes()">
                         <span class="font-bold">Igualar horario toda la semana</span>
