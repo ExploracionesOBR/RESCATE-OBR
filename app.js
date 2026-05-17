@@ -2418,60 +2418,6 @@ window.imprimirTicketVenta = (ventaId, saleData) => {
     if (logoImg.complete && logoImg.naturalWidth > 0) generar();
     else { logoImg.onload = generar; logoImg.onerror = generar; }
 };
-        pdfDoc.setFontSize(18);
-        pdfDoc.setTextColor(255, 255, 255);
-        pdfDoc.text("COMPROBANTE DE VENTA", logoImg.complete ? 35 : 14, 15);
-        pdfDoc.setTextColor(0,0,0);
-        pdfDoc.setFontSize(8);
-        pdfDoc.text(`Ticket: ${saleData.shortId}`, 14, 40);
-        pdfDoc.text(`Fecha: ${new Date(saleData.fecha).toLocaleString()}`, 14, 46);
-        pdfDoc.text(`Método: ${saleData.metodoPago}`, 14, 52);
-        if (saleData.clienteCel) pdfDoc.text(`Cliente: ${saleData.clienteCel}`, 14, 58);
-
-        const body = saleData.ticket.map(item => [
-            item.name,
-            `$${item.price.toFixed(2)}`,
-            item.garantia || 'Sin garantía'
-        ]);
-        pdfDoc.autoTable({
-            startY: 65,
-            head: [['Producto', 'Precio', 'Garantía']],
-            body: body,
-            styles: { fontSize: 8, cellPadding: 2 },
-            headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
-            columnStyles: {
-                0: { cellWidth: 'auto' },
-                1: { cellWidth: 25, halign: 'right' },
-                2: { cellWidth: 40 }
-            },
-            margin: { left: 14 }
-        });
-
-        const finalY = pdfDoc.lastAutoTable.finalY + 10;
-        pdfDoc.setFontSize(14);
-        pdfDoc.setFont("helvetica", "bold");
-        pdfDoc.text(`Total: $${saleData.total.toFixed(2)}`, 14, finalY);
-        pdfDoc.setFontSize(7);
-        pdfDoc.setFont("helvetica", "normal");
-        pdfDoc.text("Gracias por su compra. Conserve este ticket para garantías.", 14, finalY + 10);
-
-        try {
-            const blob = pdfDoc.output('blob');
-            const url = URL.createObjectURL(blob);
-            const printWindow = window.open(url, '_blank');
-            if (printWindow) printWindow.onload = () => printWindow.print();
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `Venta_${saleData.shortId}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(url); }, 100);
-        } catch(e) { console.warn('Auto-impresión bloqueada'); pdfDoc.save(`Venta_${saleData.shortId}.pdf`); }
-    };
-    if (logoImg.complete) generar();
-    else { logoImg.onload = generar; logoImg.onerror = generar; }
-};
-
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
     const cleanPhone = phone.replace(/[^0-9]/g, '');
@@ -5130,7 +5076,6 @@ const _drawStatusBadge = (doc, x, y, status) => {
         };
     }
     toggleModal(modalId, true);
-};
 // Stubs para funciones no implementadas completamente
 window.sendContactFromModal = async function() {
     const name = document.getElementById('modal-contact-name')?.value.trim();
