@@ -866,11 +866,26 @@ window.forceSetupSubmit = async () => {
         return;
     }
 
+    // Obtener usuario actual desde Firebase Auth
     const user = auth.currentUser;
-    if (!user) return window.showToast("Error de sesión", true);
+    if (!user) {
+        window.showToast("No hay sesión activa. Por favor inicia sesión nuevamente.", true);
+        // Redirigir al login después de unos segundos
+        setTimeout(() => window.showView('view-login'), 2000);
+        return;
+    }
+
+    // Verificar que el método updatePassword exista (Firebase v9)
+    if (typeof user.updatePassword !== 'function') {
+        window.showToast("Error interno: no se puede actualizar la contraseña. Contacta al administrador.", true);
+        console.error("updatePassword no disponible en el objeto user", user);
+        return;
+    }
 
     try {
+        // Actualizar contraseña
         await user.updatePassword(password);
+        // Actualizar Firestore
         await window.updateDoc(window.doc(window.db, "users", user.uid), {
             name: name,
             pwd: password,
@@ -889,7 +904,15 @@ window.forceSetupSubmit = async () => {
         }
     } catch (error) {
         console.error(error);
-        window.showToast("Error al guardar: " + (error.message || "Intenta de nuevo"), true);
+        if (error.code === 'auth/requires-recent-login') {
+            window.showToast("Por seguridad, necesitas volver a iniciar sesión para cambiar tu contraseña.", true);
+            await window.signOut(auth);
+            window.showView('view-login');
+        } else if (error.code === 'auth/weak-password') {
+            window.showToast("La contraseña es muy débil. Usa al menos 6 caracteres.", true);
+        } else {
+            window.showToast("Error al guardar: " + (error.message || "Intenta de nuevo"), true);
+        }
     }
 };
 window.logout = () => {
