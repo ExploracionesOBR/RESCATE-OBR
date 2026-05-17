@@ -987,7 +987,7 @@ window.submitFinalSOS = async () => {
 function listenToMySOS() {
     if(!auth.currentUser) return;
     if(mySOSListener) mySOSListener();
-    mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), (snap) => {
+            mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), async (snap) => {
         const activeCard = document.getElementById('active-sos-card');
         const noServicesMsg = document.getElementById('no-active-services-msg');
         const survey = document.getElementById('satisfaction-survey');
