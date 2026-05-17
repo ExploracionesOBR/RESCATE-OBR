@@ -5533,6 +5533,19 @@ document.addEventListener('DOMContentLoaded', () => {
         btnLogin.addEventListener('click', window.processLogin);
     }
 });
+// ===== GUARDADO AUTOMÁTICO DE AJUSTES =====
+window.bindAutoSave = () => {
+    const ids = ['config-price-mode','config-base-price','config-km-extra','config-radius',
+                 'sch-0-o','sch-0-c','sch-1-o','sch-1-c','sch-2-o','sch-2-c',
+                 'sch-3-o','sch-3-c','sch-4-o','sch-4-c','sch-5-o','sch-5-c','sch-6-o','sch-6-c'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el._autoSaveBound) {
+            el.addEventListener('change', window.adminSaveConfig);
+            el._autoSaveBound = true;
+        }
+    });
+};
 window.aplicarHorarioALunes = () => {
     const lunesO = document.getElementById('sch-0-o')?.value;
     const lunesC = document.getElementById('sch-0-c')?.value;
