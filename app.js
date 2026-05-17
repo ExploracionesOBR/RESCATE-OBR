@@ -847,6 +847,38 @@ window.processRegister = async () => {
         } else showToast("Error en registro", true);
     }
 };
+window.toggleSession = () => {
+    if (auth.currentUser) {
+        window.logout();
+    } else {
+        window.showView('view-login');
+    }
+};
+
+window.logout = () => {
+    // Limpiar listeners de tiempo real para evitar fugas
+    const listeners = [
+        '_clientHistoryListener', '_clientCitasListener', '_adminCitasListener',
+        '_onlineOrdersListener', '_entregasPedidosListener', '_entregasRepartidoresListener',
+        'mySOSListener', 'serviciosListener', 'pedidosListener', 'citasListener'
+    ];
+    listeners.forEach(name => {
+        if (window[name] && typeof window[name] === 'function') {
+            window[name]();
+        }
+        delete window[name];
+    });
+    // Limpiar líneas de ruta y objetos globales de tracking
+    if (window._adminSOSTrackingListeners) {
+        Object.values(window._adminSOSTrackingListeners).forEach(unsub => unsub());
+        window._adminSOSTrackingListeners = {};
+    }
+    if (window._adminSOSRouteLines) {
+        Object.values(window._adminSOSRouteLines).forEach(line => line.remove());
+        window._adminSOSRouteLines = {};
+    }
+    signOut(auth).then(() => window.location.href = window.location.pathname);
+};
 // === SOS CLIENTE ===
 window.launchSOSForm = () => {
     showView('view-sos-form'); document.getElementById('manual-address-container').classList.add('hidden'); document.getElementById('llanta-type-container').classList.add('hidden');
@@ -1308,22 +1340,24 @@ window.abrirCobroDesdeDetalle = () => {
     window.openMechanicPOS(currentDetalleServicioId);
     toggleModal('modal-detalle-servicio', false);
 };
-// === HISTORIAL DEL CLIENTE ===
-window.loadClientHistory = async () => {
+window.loadClientHistory = () => {
     if(!auth.currentUser || !window.currentUserDoc) return;
-    const snap = await getDocs(query(collection(db, "rescates"), where("phone", "==", window.currentUserDoc.phone)));
-    const list = document.getElementById('client-history-list'); let html = '';
-    snap.forEach(d => {
-        const v = d.data();
-        html += `<div class="bg-white/5 p-3 rounded-xl border border-white/10 flex justify-between items-center mb-2 cursor-pointer" onclick="window.openClientServiceDetail('${d.id}')">
-            <span class="text-xs text-white truncate w-2/3">${v.shortId || 'Sin ID'} - ${v.falla}</span>
-            <span class="text-[9px] px-2 py-1 rounded font-bold uppercase ${window.getStatusInfo(v.status).color}">${window.getStatusInfo(v.status).text}</span>
-        </div>`;
+    if (window._clientHistoryListener) window._clientHistoryListener();
+    const q = query(collection(db, "rescates"), where("phone", "==", window.currentUserDoc.phone), orderBy("timestamp", "desc"));
+    window._clientHistoryListener = onSnapshot(q, (snap) => {
+        const list = document.getElementById('client-history-list');
+        if (!list) return;
+        let html = '';
+        snap.forEach(d => {
+            const v = d.data();
+            html += `<div class="bg-white/5 p-3 rounded-xl border border-white/10 flex justify-between items-center mb-2 cursor-pointer" onclick="window.openClientServiceDetail('${d.id}')">
+                <span class="text-xs text-white truncate w-2/3">${v.shortId || 'Sin ID'} - ${v.falla}</span>
+                <span class="text-[9px] px-2 py-1 rounded font-bold uppercase ${window.getStatusInfo(v.status).color}">${window.getStatusInfo(v.status).text}</span>
+            </div>`;
+        });
+        list.innerHTML = html || '<p class="text-xs text-center text-gray-600 italic">No tienes servicios registrados.</p>';
     });
-    if(html) list.innerHTML = html;
-    else list.innerHTML = '<p class="text-xs text-center text-gray-600 italic">No tienes servicios registrados.</p>';
 };
-
 window.openClientServiceDetail = async (id) => {
     const docSnap = await getDoc(doc(db, "rescates", id));
     if(!docSnap.exists()) return showToast("Servicio no encontrado", true);
@@ -1428,8 +1462,9 @@ window.downloadClientTicket = async (serviceId) => {
 // === CITAS DEL CLIENTE ===
 window.loadClientCitas = () => {
     if(!window.currentUserDoc) return;
-    if(citasListener) citasListener();
-    citasListener = onSnapshot(query(collection(db, "citas"), where("phone", "==", window.currentUserDoc.phone)), (snap) => {
+    if (window._clientCitasListener) window._clientCitasListener();
+    const q = query(collection(db, "citas"), where("phone", "==", window.currentUserDoc.phone));
+    window._clientCitasListener = onSnapshot(q, (snap) => {
         const list = document.getElementById('client-appointments-list'); if(!list) return; list.innerHTML = '';
         snap.forEach(d => {
             const c = d.data();
@@ -3909,18 +3944,21 @@ window.invitarClienteWhatsApp = (phone) => {
     toggleModal('modal-invite-cliente', false);
 };
 
-window.adminLoadCitas = async () => {
-    const snap = await getDocs(query(collection(db, "citas"), orderBy("fecha", "asc")));
-    const list = document.getElementById('admin-citas-list');
-    if (!list) return;
-    list.innerHTML = '';
-    snap.forEach(d => {
-        const c = d.data();
-        list.innerHTML += `<div class="bg-white/5 p-3 rounded-xl text-xs text-white" onclick="window.openCitaDetail('${d.id}')">
-            <p class="font-bold">${c.fecha} ${c.hora}</p>
-            <p>${c.phone} - ${c.moto}</p>
-            <p class="text-gray-400">${c.trabajo}</p>
-        </div>`;
+window.adminLoadCitas = () => {
+    if (window._adminCitasListener) window._adminCitasListener();
+    const q = query(collection(db, "citas"), orderBy("fecha", "asc"));
+    window._adminCitasListener = onSnapshot(q, (snap) => {
+        const list = document.getElementById('admin-citas-list');
+        if (!list) return;
+        list.innerHTML = '';
+        snap.forEach(d => {
+            const c = d.data();
+            list.innerHTML += `<div class="bg-white/5 p-3 rounded-xl text-xs text-white" onclick="window.openCitaDetail('${d.id}')">
+                <p class="font-bold">${c.fecha} ${c.hora}</p>
+                <p>${c.phone} - ${c.moto}</p>
+                <p class="text-gray-400">${c.trabajo}</p>
+            </div>`;
+        });
     });
 };
 
@@ -5400,6 +5438,9 @@ window.addEventListener('unload', () => {
 });
 window.loadMechPendingCharges = window.loadMechPendingCharges || async function() {};
 window.renderPendingMechanicPayments = window.renderPendingMechanicPayments || async function() {};
+window.enviarSolicitudCambioCita = window.enviarSolicitudCambioCita || async function() {};
+window.printTicket = window.printTicket || function() {};
+window.filterStore = window.filterStore || function() {};
 window.openCitaDetail = window.openCitaDetail || function(id) {
     getDoc(doc(db, "citas", id)).then(snap => {
         if (!snap.exists()) return;
