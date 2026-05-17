@@ -1072,16 +1072,32 @@ window.checkSOSKeywords = () => {
 
 window.submitFinalSOS = async () => {
     const serviceId = document.getElementById('sos-service-select-value')?.value;
-const serviceInputText = document.getElementById('sos-service-input')?.value.trim();
-const falla = document.getElementById('sos-falla').value.trim();
-if (!falla && (!serviceId || serviceId === "0")) return showToast("Describe la falla", true);
-let descFinal = `[${srvName}] ${falla}`;
-if(srvDoc && srvDoc.desc) descFinal += ` \n*${srvDoc.desc}*`;
+    const serviceInputText = document.getElementById('sos-service-input')?.value.trim();
+    const falla = document.getElementById('sos-falla').value.trim();
+    const manualAddress = document.getElementById('sos-manual-address').value.trim();
+    const fileInput = document.getElementById('sos-media');
+    const btn = document.getElementById('btn-submit-sos');
+    
+    if (!falla && (!serviceId || serviceId === "0")) return showToast("Describe la falla", true);
+    if (!tempSOSGps.lat && !manualAddress) return showToast("Falta ubicación", true);
 
-    const llantaOpt = document.querySelector('input[name="llanta"]:checked'); if(llantaOpt) descFinal += ` (Llanta: ${llantaOpt.value})`;
+    speakTTS('Estamos notificando al taller para su solicitud. Espere un momento.');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
+    
+    let mediaUrl = "";
+    const truePhone = window.currentUserDoc?.phone || ("+52" + (auth.currentUser.email?.replace('@motorescateobr.com','') || ''));
+
+    // Determinar nombre del servicio
+    let srvName = (!serviceId || serviceId === "0") ? "Auxilio" : (serviceInputText || "Servicio");
+    let descFinal = `[${srvName}] ${falla}`;
+    const srvDoc = shopServices.find(x => x.id === serviceId);
+    if(srvDoc && srvDoc.desc) descFinal += ` \n*${srvDoc.desc}*`;
+
+    const llantaOpt = document.querySelector('input[name="llanta"]:checked');
+    if(llantaOpt) descFinal += ` (Llanta: ${llantaOpt.value})`;
 
     const obrId = generateShortId();
-
     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
 
     try {
@@ -1095,7 +1111,25 @@ if(srvDoc && srvDoc.desc) descFinal += ` \n*${srvDoc.desc}*`;
 
         mediaUrl = await Promise.race([uploadPromise, timeoutPromise.catch(() => "")]);
 
-        const rData = { uid: auth.currentUser.uid, shortId: obrId, clientName: window.currentUserDoc?.name || '', phone: truePhone, extraPhone: document.getElementById('sos-extra-phone').value.trim(), marca: document.getElementById('sos-marca').value.trim(), modelo: document.getElementById('sos-modelo').value.trim(), cc: document.getElementById('sos-cc').value.trim(), falla: descFinal, mediaUrl, lat: tempSOSGps.lat, lng: tempSOSGps.lng, manualAddress, costoRescateEstimado: window.currentSOSCost, status: 'pending', tallerStatus: 'recibida', timestamp: Date.now() };
+        const rData = {
+            uid: auth.currentUser.uid,
+            shortId: obrId,
+            clientName: window.currentUserDoc?.name || '',
+            phone: truePhone,
+            extraPhone: document.getElementById('sos-extra-phone').value.trim(),
+            marca: document.getElementById('sos-marca').value.trim(),
+            modelo: document.getElementById('sos-modelo').value.trim(),
+            cc: document.getElementById('sos-cc').value.trim(),
+            falla: descFinal,
+            mediaUrl,
+            lat: tempSOSGps.lat,
+            lng: tempSOSGps.lng,
+            manualAddress,
+            costoRescateEstimado: window.currentSOSCost,
+            status: 'pending',
+            tallerStatus: 'recibida',
+            timestamp: Date.now()
+        };
 
         const addPromise = addDoc(collection(db, "rescates"), rData);
         const rtdbPromise = rtdbSet(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), rData);
@@ -1105,15 +1139,25 @@ if(srvDoc && srvDoc.desc) descFinal += ` \n*${srvDoc.desc}*`;
             timeoutPromise
         ]);
 
-        document.getElementById('sos-falla').value = ''; document.getElementById('sos-media').value = ''; document.getElementById('llanta-type-container').classList.add('hidden');
-        showToast("¡Unidad notificada!"); showView('app-client'); window.switchClientView('c-view-moto'); listenToMySOS();
+        document.getElementById('sos-falla').value = '';
+        document.getElementById('sos-media').value = '';
+        document.getElementById('llanta-type-container').classList.add('hidden');
+        showToast("¡Unidad notificada!");
+        showView('app-client');
+        window.switchClientView('c-view-moto');
+        listenToMySOS();
     } catch (e) {
         console.warn('SOS enviado con posibles demoras:', e);
         showToast("Solicitud enviada. Te notificaremos cuando el taller confirme.");
-        document.getElementById('sos-falla').value = ''; document.getElementById('sos-media').value = ''; document.getElementById('llanta-type-container').classList.add('hidden');
-        showView('app-client'); window.switchClientView('c-view-moto'); listenToMySOS();
+        document.getElementById('sos-falla').value = '';
+        document.getElementById('sos-media').value = '';
+        document.getElementById('llanta-type-container').classList.add('hidden');
+        showView('app-client');
+        window.switchClientView('c-view-moto');
+        listenToMySOS();
     } finally {
-        btn.disabled = false; btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
+        btn.disabled = false;
+        btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
     }
 };
 function listenToMySOS() {
