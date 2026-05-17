@@ -1235,17 +1235,38 @@ window.addServicioComentario = async () => {
 
 window.cambiarEstadoServicio = async (nuevoEstado) => {
     if(!currentDetalleServicioId) return;
-    const docRef = doc(db, "rescates", currentDetalleServicioId); const docSnap = await getDoc(docRef); if(!docSnap.exists()) return;
+    const docRef = doc(db, "rescates", currentDetalleServicioId);
+    const docSnap = await getDoc(docRef);
+    if(!docSnap.exists()) return;
     const actual = docSnap.data().tallerStatus;
     if(actual === 'lista' || actual === 'pagado') return showToast("No se puede cambiar, ya finalizó", true);
 
+    // Si intenta pasar a "lista", verificar que ya se haya cobrado
+    if (nuevoEstado === 'lista') {
+        const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", currentDetalleServicioId), limit(1)));
+        if (ventasSnap.empty) {
+            showToast("Debes cobrar antes de marcar como Lista. Abre el cobro desde la vista SOS.", true);
+            return;
+        }
+    }
+
     await updateDoc(docRef, { tallerStatus: nuevoEstado });
 
-    if(docSnap.data().uid) push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), { msg: nuevoEstado === 'pruebas' ? 'CONTINUAMOS TRABAJANDO EN TU MOTO' : (nuevoEstado === 'lista' ? 'TU MOTO YA CASI ESTA LISTA, ESPERA AL MECÁNICO' : 'MOTO EN MECÁNICA') });
+    if(docSnap.data().uid) push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), {
+        msg: nuevoEstado === 'pruebas' ? 'CONTINUAMOS TRABAJANDO EN TU MOTO' :
+             (nuevoEstado === 'lista' ? 'TU MOTO YA ESTÁ LISTA, ESPERA AL MECÁNICO' :
+              'MOTO EN MECÁNICA')
+    });
 
-    playSound('notif'); showToast(`Estado cambiado a ${nuevoEstado}`); toggleModal('modal-detalle-servicio', false);
+    playSound('notif');
+    showToast(`Estado cambiado a ${nuevoEstado}`);
+    toggleModal('modal-detalle-servicio', false);
 };
-
+window.abrirCobroDesdeDetalle = () => {
+    if (!currentDetalleServicioId) return;
+    window.openMechanicPOS(currentDetalleServicioId);
+    toggleModal('modal-detalle-servicio', false);
+};
 // === HISTORIAL DEL CLIENTE ===
 window.loadClientHistory = async () => {
     if(!auth.currentUser || !window.currentUserDoc) return;
