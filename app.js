@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, where, limit, updateDoc, deleteDoc, orderBy, onSnapshot, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getDatabase, ref as dbRef, set as rtdbSet, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
@@ -894,14 +894,57 @@ window.toggleSession = () => {
     }
 };
 window.forceSetupSubmit = async () => {
-    const pwd = document.getElementById('force-password').value.trim();
-    const q = document.getElementById('force-question').value;
-    const ans = document.getElementById('force-answer').value.trim();
-    const name = document.getElementById('force-name').value.trim();
-    if (pwd.length < 6 || !q || !ans || !name) return window.showToast("Llena todos los campos (nombre, contraseña mín 6, pregunta y respuesta)", true);
-    await window.setDoc(window.doc(window.db, "users", auth.currentUser.uid), { name, secQuestion: q, secAnswer: ans.toLowerCase(), pwd, firstLogin: false }, {merge: true});
-    window.showToast("Seguridad actualizada");
-    setTimeout(() => window.location.reload(), 1000);
+    const name = document.getElementById('force-name')?.value.trim();
+    const newPassword = document.getElementById('force-password')?.value.trim();
+    const question = document.getElementById('force-question')?.value;
+    const answer = document.getElementById('force-answer')?.value.trim();
+
+    if (!name || !newPassword || newPassword.length < 6 || !question || !answer) {
+        window.showToast("Completa todos los campos (nombre, contraseña mín 6, pregunta y respuesta)", true);
+        return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+        window.showToast("No hay sesión activa. Por favor inicia sesión nuevamente.", true);
+        setTimeout(() => window.showView('view-login'), 2000);
+        return;
+    }
+
+    try {
+        // Reautenticar con la contraseña temporal (123456) que se usó al crear el usuario
+        const credential = EmailAuthProvider.credential(user.email, '123456');
+        await reauthenticateWithCredential(user, credential);
+
+        // Cambiar la contraseña en Firebase Authentication
+        await updatePassword(user, newPassword);
+
+        // Actualizar Firestore con los nuevos datos y marcar firstLogin: false
+        await setDoc(doc(db, "users", user.uid), {
+            name: name,
+            pwd: newPassword,
+            secQuestion: question,
+            secAnswer: answer.toLowerCase(),
+            firstLogin: false
+        }, { merge: true });
+
+        window.showToast("Configuración guardada. Redirigiendo...");
+        // Recargar la página para que el flujo de autenticación continúe
+        setTimeout(() => window.location.reload(), 1000);
+    } catch (error) {
+        console.error(error);
+        if (error.code === 'auth/wrong-password') {
+            window.showToast("Error: la contraseña temporal no es válida. Contacta al administrador.", true);
+        } else if (error.code === 'auth/requires-recent-login') {
+            window.showToast("Por seguridad, necesitas volver a iniciar sesión.", true);
+            await signOut(auth);
+            window.showView('view-login');
+        } else if (error.code === 'auth/weak-password') {
+            window.showToast("La nueva contraseña es muy débil. Usa al menos 6 caracteres.", true);
+        } else {
+            window.showToast("Error al guardar: " + (error.message || "Intenta de nuevo"), true);
+        }
+    }
 };
 window.logout = () => {
     window.confirmModal('¿Cerrar sesión? Perderás las notificaciones en tiempo real hasta que vuelvas a iniciar sesión.', async () => {
