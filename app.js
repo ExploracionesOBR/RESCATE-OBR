@@ -2354,6 +2354,8 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
             btn.disabled = false;
             btn.innerHTML = `<span>Cobrar</span> <span id="pos-btn-total">$0.00</span>`;
         }
+    }
+}
 window.imprimirTicketVenta = (ventaId, saleData) => {
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
@@ -5128,6 +5130,7 @@ const _drawStatusBadge = (doc, x, y, status) => {
         };
     }
     toggleModal(modalId, true);
+};
 // Stubs para funciones no implementadas completamente
 window.sendContactFromModal = async function() {
     const name = document.getElementById('modal-contact-name')?.value.trim();
