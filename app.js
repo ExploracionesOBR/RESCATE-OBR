@@ -561,6 +561,7 @@ async function loadServicesCatalog() {
     } catch (e) {}
 }
 
+
 // === FLUJO DE VISTAS Y AUTENTICACIÓN ===
 onAuthStateChanged(auth, async user => {
     document.getElementById('loading-screen').classList.add('hidden');
@@ -854,7 +855,43 @@ window.toggleSession = () => {
         window.showView('view-login');
     }
 };
+window.forceSetupSubmit = async () => {
+    const name = document.getElementById('force-name')?.value.trim();
+    const password = document.getElementById('force-password')?.value.trim();
+    const question = document.getElementById('force-question')?.value;
+    const answer = document.getElementById('force-answer')?.value.trim();
 
+    if (!name || !password || password.length < 6 || !question || !answer) {
+        window.showToast("Completa todos los campos (nombre, contraseña mín 6, pregunta y respuesta)", true);
+        return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) return window.showToast("Error de sesión", true);
+
+    try {
+        await user.updatePassword(password);
+        await window.updateDoc(window.doc(window.db, "users", user.uid), {
+            name: name,
+            pwd: password,
+            secQuestion: question,
+            secAnswer: answer.toLowerCase(),
+            firstLogin: false
+        });
+        window.showToast("Configuración guardada. Bienvenido.");
+        window.currentUserDoc = { ...window.currentUserDoc, name, firstLogin: false };
+        if (window.currentUserDoc.role === 'cliente') {
+            window.showView('app-client');
+            window.switchClientView('c-view-inicio');
+        } else {
+            window.showView('app-admin');
+            window.switchAdminView('a-view-pos');
+        }
+    } catch (error) {
+        console.error(error);
+        window.showToast("Error al guardar: " + (error.message || "Intenta de nuevo"), true);
+    }
+};
 window.logout = () => {
     window.confirmModal('¿Cerrar sesión? Perderás las notificaciones en tiempo real hasta que vuelvas a iniciar sesión.', async () => {
         // Limpiar listeners de tiempo real para evitar fugas
@@ -882,6 +919,45 @@ window.logout = () => {
         window.location.href = window.location.pathname;
     });
 };
+window.filterServiceOptions = () => {
+    const input = document.getElementById('sos-service-input');
+    const dropdown = document.getElementById('sos-service-dropdown');
+    if (!input || !dropdown) return;
+    const query = input.value.trim().toLowerCase();
+    if (query.length === 0) {
+        dropdown.classList.add('hidden');
+        return;
+    }
+    const matches = shopServices.filter(s => s.name.toLowerCase().includes(query));
+    if (matches.length === 0) {
+        dropdown.classList.add('hidden');
+        return;
+    }
+    const limited = matches.slice(0, 5);
+    dropdown.innerHTML = '';
+    limited.forEach(s => {
+        const item = document.createElement('div');
+        item.className = 'p-3 hover:bg-naranja/30 cursor-pointer text-white text-sm border-b border-white/10 last:border-0';
+        item.textContent = `${s.name} - $${s.price}`;
+        item.onclick = () => {
+            document.getElementById('sos-service-input').value = s.name;
+            document.getElementById('sos-service-select-value').value = s.id;
+            dropdown.classList.add('hidden');
+            window.updateSOSEstimate();
+        };
+        dropdown.appendChild(item);
+    });
+    dropdown.classList.remove('hidden');
+};
+
+// Ocultar dropdown al hacer clic fuera
+document.addEventListener('click', (e) => {
+    const input = document.getElementById('sos-service-input');
+    const dropdown = document.getElementById('sos-service-dropdown');
+    if (input && dropdown && !input.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.classList.add('hidden');
+    }
+});
 // === SOS CLIENTE ===
 window.launchSOSForm = () => {
     showView('view-sos-form'); document.getElementById('manual-address-container').classList.add('hidden'); document.getElementById('llanta-type-container').classList.add('hidden');
@@ -914,7 +990,8 @@ window.launchSOSForm = () => {
 };
 
 window.updateSOSEstimate = function(dist = null) {
-    const selectEl = document.getElementById('sos-service-select'); const dispEl = document.getElementById('sos-estimate-display');
+    const serviceId = document.getElementById('sos-service-select-value')?.value;
+    const dispEl = document.getElementById('sos-estimate-display');
     let rescueCost = 0;
     if (globalSettings.priceMode === 'km') {
         let d = dist !== null ? dist : getDistanceKm(tempSOSGps.lat||0, tempSOSGps.lng||0, globalSettings.centerLat, globalSettings.centerLng);
@@ -923,9 +1000,15 @@ window.updateSOSEstimate = function(dist = null) {
         if(!matched && ranges.length > 0) rescueCost = ranges[ranges.length-1].price + Math.max(0, (d - ranges[ranges.length-1].km)) * (globalSettings.rescueKmExtra||0);
     } else rescueCost = globalSettings.rescueBase || 100;
 
-    if(auth.currentUser && window.currentUserDoc?.role === 'membresia') rescueCost = 0; window.currentSOSCost = rescueCost;
-    if(selectEl.value === "0") dispEl.innerHTML = `<span class="text-naranja">Rescate: $${rescueCost.toFixed(2)}</span>`;
-    else { const s = shopServices.find(x => x.id === selectEl.value); if(s) dispEl.innerHTML = `$${(rescueCost + parseFloat(s.price)).toFixed(2)}`; }
+    if(auth.currentUser && window.currentUserDoc?.role === 'membresia') rescueCost = 0;
+    window.currentSOSCost = rescueCost;
+    if(serviceId === "0" || !serviceId) {
+        dispEl.innerHTML = `<span class="text-naranja">Rescate: $${rescueCost.toFixed(2)}</span>`;
+    } else {
+        const s = shopServices.find(x => x.id === serviceId);
+        if(s) dispEl.innerHTML = `$${(rescueCost + parseFloat(s.price)).toFixed(2)}`;
+        else dispEl.innerHTML = `<span class="text-naranja">Rescate: $${rescueCost.toFixed(2)}</span>`;
+    }
 };
 
 window.checkSOSKeywords = () => {
@@ -934,20 +1017,14 @@ window.checkSOSKeywords = () => {
 };
 
 window.submitFinalSOS = async () => {
-    const servSelect = document.getElementById('sos-service-select'); const falla = document.getElementById('sos-falla').value.trim();
-    const manualAddress = document.getElementById('sos-manual-address').value.trim(); const fileInput = document.getElementById('sos-media');
-    const btn = document.getElementById('btn-submit-sos');
-    if (!falla && servSelect.value === "0") return showToast("Describe la falla", true);
-    if (!tempSOSGps.lat && !manualAddress) return showToast("Falta ubicación", true);
-
-    speakTTS('Estamos notificando al taller para su solicitud. Espere un momento.');
-    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
-    let mediaUrl = ""; const truePhone = window.currentUserDoc?.phone || ("+52" + (auth.currentUser.email?.replace('@motorescateobr.com','') || ''));
-
-    let srvName = servSelect.value === "0" ? "Auxilio" : servSelect.options[servSelect.selectedIndex].text;
-    let descFinal = `[${srvName}] ${falla}`;
-    const srvDoc = shopServices.find(x => x.id === servSelect.value);
-    if(srvDoc && srvDoc.desc) descFinal += ` \n*${srvDoc.desc}*`;
+    const serviceId = document.getElementById('sos-service-select-value')?.value;
+const serviceInputText = document.getElementById('sos-service-input')?.value.trim();
+const falla = document.getElementById('sos-falla').value.trim();
+...
+if (!falla && (!serviceId || serviceId === "0")) return showToast("Describe la falla", true);
+...
+let descFinal = `[${srvName}] ${falla}`;
+if(srvDoc && srvDoc.desc) descFinal += ` \n*${srvDoc.desc}*`;
 
     const llantaOpt = document.querySelector('input[name="llanta"]:checked'); if(llantaOpt) descFinal += ` (Llanta: ${llantaOpt.value})`;
 
