@@ -573,14 +573,15 @@ async function loadPublicStore() {
 }
 
 async function loadServicesCatalog() {
-    try {
-        shopServices = []; const snap = await getDocs(collection(db, "servicios"));
-        const select = document.getElementById('sos-service-select');
-        if (!select) return;
-        let html = '<option value="0">SIN FALLO ESPECÍFICO (Se cotiza en lugar)</option>';
-        snap.forEach(doc => { const d = doc.data(); d.id = doc.id; shopServices.push(d); html += `<option value="${d.id}">${d.name} - $${d.price}</option>`; });
-        select.innerHTML = html;
-    } catch (e) {}
+    if (window._servicesUnsubscribe) window._servicesUnsubscribe();
+    window._servicesUnsubscribe = onSnapshot(collection(db, "servicios"), (snap) => {
+        shopServices = [];
+        snap.forEach(doc => {
+            const d = doc.data();
+            d.id = doc.id;
+            shopServices.push(d);
+        });
+    });
 }
 
 
@@ -1000,10 +1001,13 @@ window.logout = () => {
 window.filterServiceOptions = () => {
     const input = document.getElementById('sos-service-input');
     const dropdown = document.getElementById('sos-service-dropdown');
-    if (!input || !dropdown) return;
+    if (!input || !dropdown) {
+        console.warn('No se encontró input o dropdown');
+        return;
+    }
     const query = input.value.trim().toLowerCase();
+    console.log('Buscando:', query, 'shopServices length:', shopServices.length);
     
-    // Siempre mostrar la opción "SIN FALLO ESPECÍFICO" al inicio si el campo está vacío o contiene texto
     let matches = [];
     if (query.length === 0) {
         matches = [{ id: "0", name: "SIN FALLO ESPECÍFICO (Se cotizará en el lugar)", price: 0 }];
@@ -1013,16 +1017,14 @@ window.filterServiceOptions = () => {
             dropdown.classList.add('hidden');
             return;
         }
-        // Limitar a 5 resultados
         matches = matches.slice(0, 5);
-        // Añadir opción de "Sin fallo específico" al final si hay resultados
         matches.push({ id: "0", name: "SIN FALLO ESPECÍFICO (Se cotizará en el lugar)", price: 0 });
     }
     
     dropdown.innerHTML = '';
     matches.forEach(s => {
         const item = document.createElement('div');
-        item.className = `p-3 hover:bg-naranja/30 cursor-pointer text-white text-sm border-b border-white/10 last:border-0 flex justify-between items-center`;
+        item.className = 'p-3 hover:bg-naranja/30 cursor-pointer text-white text-sm border-b border-white/10 last:border-0 flex justify-between items-center';
         item.innerHTML = `
             <span>${s.name}</span>
             ${s.price > 0 ? `<span class="text-naranja font-bold">$${s.price}</span>` : '<span class="text-gray-400 text-xs">Sin costo extra</span>'}
@@ -1031,15 +1033,12 @@ window.filterServiceOptions = () => {
             document.getElementById('sos-service-input').value = s.name;
             document.getElementById('sos-service-select-value').value = s.id;
             dropdown.classList.add('hidden');
-            // Mostrar mensaje de selección
             const displayDiv = document.getElementById('selected-service-display');
             const nameSpan = document.getElementById('selected-service-name');
             if (displayDiv && nameSpan) {
                 nameSpan.innerText = s.name;
                 displayDiv.classList.remove('hidden');
-                setTimeout(() => {
-                    displayDiv.classList.add('hidden');
-                }, 3000);
+                setTimeout(() => displayDiv.classList.add('hidden'), 3000);
             }
             window.updateSOSEstimate();
         };
@@ -1069,6 +1068,9 @@ window.clearServiceSelection = () => {
 // === SOS CLIENTE ===
 window.launchSOSForm = () => {
     showView('view-sos-form'); document.getElementById('manual-address-container').classList.add('hidden'); document.getElementById('llanta-type-container').classList.add('hidden');
+    const showServiceSelector = !auth.currentUser || ['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc?.role);
+const serviceContainer = document.getElementById('sos-service-selector-container');
+if (serviceContainer) serviceContainer.style.display = showServiceSelector ? 'block' : 'none';
     document.getElementById('sos-map-preview').classList.remove('hidden'); document.getElementById('sos-estimate-display').innerText = "Calculando..."; document.getElementById('gps-status-text').innerText = "Buscando...";
 
     if (navigator.geolocation) {
