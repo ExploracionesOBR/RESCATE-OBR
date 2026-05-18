@@ -800,3 +800,9 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 #app-admin main, #app-client main, header {
     transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease;
 }
+#sos-service-dropdown div {
+    transition: background 0.2s;
+}
+#sos-service-dropdown div:hover {
+    background-color: rgba(255, 107, 0, 0.3);
+}
