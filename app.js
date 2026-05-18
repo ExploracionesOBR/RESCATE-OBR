@@ -1068,10 +1068,7 @@ window.clearServiceSelection = () => {
 // === SOS CLIENTE ===
 window.launchSOSForm = () => {
     showView('view-sos-form'); document.getElementById('manual-address-container').classList.add('hidden'); document.getElementById('llanta-type-container').classList.add('hidden');
-    const showServiceSelector = !auth.currentUser || ['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc?.role);
-const serviceContainer = document.getElementById('sos-service-selector-container');
-if (serviceContainer) serviceContainer.style.display = showServiceSelector ? 'block' : 'none';
-    document.getElementById('sos-map-preview').classList.remove('hidden'); document.getElementById('sos-estimate-display').innerText = "Calculando..."; document.getElementById('gps-status-text').innerText = "Buscando...";
+     document.getElementById('sos-map-preview').classList.remove('hidden'); document.getElementById('sos-estimate-display').innerText = "Calculando..."; document.getElementById('gps-status-text').innerText = "Buscando...";
 
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
