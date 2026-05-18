@@ -754,8 +754,8 @@ window.switchAdminView = (id) => {
         window.cargarNotificacionesCitas(); 
         window.cargarCobrosMecanicosPanel(); 
         window.loadVentasRealizadas(); 
-        window.cargarChatsPendientesAdmin();
         setTimeout(() => window.loadOnlineOrders?.(), 200);
+    window.cargarChatsPendientesAdmin();
     }
     if(id === 'a-view-entregas') { 
         setTimeout(() => window.loadEntregas?.(), 300);
@@ -4064,36 +4064,61 @@ window.addMechanicPOSItem = (id) => {
 
 window.finalizeMechanicCharge = async () => {
     if (!window.posTicket.length) return showToast("Agrega productos", true);
-    const total = window.posTicket.reduce((s,i)=>s+i.price,0);
-    const sosDocRef = doc(db, "rescates", window.currentSOSId);
-    try {
-        const saleData = {
-            shortId: generateShortId(),
-            desc: window.posTicket.map(i => i.name).join(", "),
-            total,
-            costo: window.posTicket.reduce((s,i)=>s+(i.cost||0),0),
-            metodoPago: 'Efectivo',
-            ticket: window.posTicket,
-            fecha: new Date().toISOString(),
-            sosId: window.currentSOSId
-        };
-        await addDoc(collection(db, "ventas"), saleData);
-        for(let item of window.posTicket) {
-            if(item.type === 'almacen') {
-                const pData = adminInventoryList.find(x => x.id === item.id);
-                if(pData && pData.stock > 0) await updateDoc(doc(db, "inventario", item.id), { stock: pData.stock - 1 });
-            }
-        }
-        await updateDoc(sosDocRef, { tallerStatus: 'pagado', status: 'completed' });
-        window.posTicket = [];
-        window.renderTicket();
-        const totalEl = document.getElementById('mechanic-total');
-        if (totalEl) totalEl.innerText = '0.00';
-        toggleModal('modal-mechanic-pos', false);
-        showToast("Cobro exitoso");
-        renderSOSGlobalMap();
-        window.adminLoadInventory();
-    } catch(e) { showToast("Error al cobrar", true); }
+    const total = window.posTicket.reduce((s, i) => s + i.price, 0);
+    const sosId = window.currentSOSId;
+    const sosDocRef = doc(db, "rescates", sosId);
+    const sosSnap = await getDoc(sosDocRef);
+    if (!sosSnap.exists()) return showToast("Servicio no encontrado", true);
+    const sosData = sosSnap.data();
+    const clienteName = sosData.clientName || sosData.phone || "Cliente";
+
+    // Crear un ID temporal para el cobro pendiente
+    const pendingId = generateShortId();
+
+    // Guardar en cobros_pendientes (para que el administrador lo apruebe)
+    await addDoc(collection(db, "cobros_pendientes"), {
+        pendingId: pendingId,
+        sosId: sosId,
+        cliente: clienteName,
+        mech_uid: auth.currentUser.uid,
+        mech_name: window.currentUserDoc?.name || 'Mecánico',
+        concepto: `Servicio ${sosData.shortId || sosId}`,
+        monto: total,
+        ticket: window.posTicket,  // copia de los productos
+        estado: 'pendiente',
+        timestamp: Date.now(),
+        metodoPago: 'Pendiente'  // se definirá al pagar
+    });
+
+    // Opcional: guardar también un registro en ventas con estado 'pendiente' (para tracking)
+    await addDoc(collection(db, "ventas"), {
+        shortId: pendingId,
+        desc: window.posTicket.map(i => i.name).join(", "),
+        total: total,
+        costo: window.posTicket.reduce((s, i) => s + (i.cost || 0), 0),
+        metodoPago: 'Pendiente',
+        ticket: window.posTicket,
+        sosId: sosId,
+        fecha: new Date().toISOString(),
+        estado: 'pendiente'  // pendiente de pago por admin
+    });
+
+    showToast(`Cobro registrado por $${total.toFixed(2)}. Espera confirmación del administrador.`);
+
+    // Limpiar ticket y cerrar modal
+    window.posTicket = [];
+    window.renderTicket();
+    const totalEl = document.getElementById('mechanic-total');
+    if (totalEl) totalEl.innerText = '0.00';
+    toggleModal('modal-mechanic-pos', false);
+    
+    // Opcional: notificar al administrador (ya existe listener en admin)
+    rtdbSet(dbRef(rtdb, 'notificaciones_caja/cobro_' + Date.now()), {
+        msg: `Nuevo cobro pendiente de ${clienteName} por $${total.toFixed(2)}`,
+        type: 'cobro_mecanico',
+        pendingId: pendingId,
+        mech_name: window.currentUserDoc?.name
+    });
 };
 
 async function loadMecanicosActivosParaAsignar(sosId) {
@@ -4496,6 +4521,7 @@ window.cargarCobrosMecanicosPanel = async () => {
             <div>
                 <p class="text-xs text-white font-bold">${c.mech_name || 'Mecánico'}</p>
                 <p class="text-[10px] text-gray-400">${c.concepto} - $${c.monto.toFixed(2)}</p>
+                <p class="text-[8px] text-gray-500">Cliente: ${c.cliente || 'N/A'}</p>
             </div>
             <button onclick="window.marcarCobroPagado?.('${doc.id}')" class="text-[0.6rem] bg-green-600 text-white px-2 py-0.5 rounded font-bold uppercase">Pagado</button>
         </div>`;
@@ -4503,6 +4529,97 @@ window.cargarCobrosMecanicosPanel = async () => {
     if (snap.empty) lista.innerHTML = '<p class="text-xs text-gray-500">Sin cobros pendientes</p>';
 };
 
+window.marcarCobroPagado = async (cobroId) => {
+    const cobroRef = doc(db, "cobros_pendientes", cobroId);
+    const cobroSnap = await getDoc(cobroRef);
+    if (!cobroSnap.exists()) return showToast("Cobro no encontrado", true);
+    const cobro = cobroSnap.data();
+    if (cobro.estado !== 'pendiente') return showToast("Este cobro ya fue procesado", true);
+
+    // Preguntar método de pago
+    const metodo = await new Promise((resolve) => {
+        const modalId = 'modal-payment-method';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `
+                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 text-center">
+                    <h2 class="text-xl font-black text-white mb-4">Método de Pago</h2>
+                    <div class="space-y-2">
+                        <button id="pay-efectivo" class="w-full bg-green-600 text-white py-3 rounded-xl font-black uppercase">Efectivo</button>
+                        <button id="pay-tarjeta" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black uppercase">Tarjeta / Transferencia</button>
+                        <button onclick="toggleModal('${modalId}', false)" class="w-full bg-gray-600 text-white py-3 rounded-xl font-black uppercase">Cancelar</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalEl);
+            document.getElementById('pay-efectivo').onclick = () => {
+                toggleModal(modalId, false);
+                resolve('Efectivo');
+            };
+            document.getElementById('pay-tarjeta').onclick = () => {
+                toggleModal(modalId, false);
+                resolve('Tarjeta/Transferencia');
+            };
+        }
+        toggleModal(modalId, true);
+    });
+    if (!metodo) return;
+
+    try {
+        // Actualizar el cobro pendiente
+        await updateDoc(cobroRef, {
+            estado: 'pagado',
+            metodoPago: metodo,
+            fechaPago: Date.now(),
+            pagadoPor: auth.currentUser.uid,
+            pagadoPorNombre: window.currentUserDoc?.name
+        });
+
+        // Descontar inventario
+        if (cobro.ticket && cobro.ticket.length) {
+            for (let item of cobro.ticket) {
+                if (item.type === 'almacen') {
+                    const pData = adminInventoryList.find(x => x.id === item.id);
+                    if (pData && pData.stock > 0) {
+                        await updateDoc(doc(db, "inventario", item.id), { stock: pData.stock - 1 });
+                    }
+                }
+            }
+        }
+
+        // Actualizar el servicio SOS a completado
+        if (cobro.sosId) {
+            await updateDoc(doc(db, "rescates", cobro.sosId), { tallerStatus: 'pagado', status: 'completed' });
+        }
+
+        // Actualizar la venta correspondiente
+        const ventasQuery = query(collection(db, "ventas"), where("shortId", "==", cobro.pendingId), limit(1));
+        const ventasSnap = await getDocs(ventasQuery);
+        if (!ventasSnap.empty) {
+            await updateDoc(doc(db, "ventas", ventasSnap.docs[0].id), {
+                metodoPago: metodo,
+                estado: 'pagado',
+                fechaPago: Date.now()
+            });
+        }
+
+        showToast(`Cobro de $${cobro.monto.toFixed(2)} marcado como pagado.`);
+        window.cargarCobrosMecanicosPanel(); // refrescar lista
+        
+        // Notificar al mecánico
+        if (cobro.mech_uid) {
+            rtdbSet(dbRef(rtdb, 'notificaciones/' + cobro.mech_uid), {
+                msg: `💰 Tu cobro por $${cobro.monto.toFixed(2)} ha sido pagado por caja.`
+            });
+        }
+    } catch (e) {
+        console.error(e);
+        showToast("Error al procesar el pago", true);
+    }
+};
 // ======================================================
 // === ADMIN REFRESH CONFIG UI ===
 // ======================================================
