@@ -1062,7 +1062,10 @@
     <div class="bg-asfalto w-full max-w-md lg:max-w-2xl rounded-[2rem] p-6 relative border border-green-500/30">
         <button onclick="toggleModal('modal-nueva-cita', false)" class="absolute top-6 right-6 w-8 h-8 bg-white/5 rounded-full flex items-center justify-center text-gray-400 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
         <h2 class="text-xl font-black mb-4 text-white">Agendar Cita</h2>
-        <input id="cita-phone" type="tel" maxlength="10" placeholder="Celular Cliente" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
+        <div id="cita-phone-container">
+    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Celular Cliente</label>
+    <input id="cita-phone" type="tel" maxlength="10" placeholder="Celular Cliente" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
+</div>
         <input id="cita-moto" type="text" placeholder="Moto (Marca, Modelo)" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
         <textarea id="cita-trabajo" rows="2" placeholder="Tipo de trabajo" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white"></textarea>
         <input type="date" id="cita-fecha" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white color-scheme-dark" min="">
