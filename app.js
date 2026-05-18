@@ -1082,7 +1082,13 @@ window.launchSOSForm = () => {
 
     // FORZAR VISIBILIDAD DEL SELECTOR DE SERVICIOS
     const serviceContainer = document.getElementById('sos-service-selector-container');
-    if (serviceContainer) serviceContainer.style.display = 'block';
+    if (serviceContainer) {
+        serviceContainer.style.display = 'block';
+        serviceContainer.classList.remove('hidden');
+    }
+
+    // (Opcional) Recargar servicios por si acaso
+    if (typeof loadServicesCatalog === 'function') loadServicesCatalog();
 
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
