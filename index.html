@@ -251,21 +251,25 @@
                 <div class="space-y-6">
                     <div class="bg-naranja/10 border border-naranja/30 p-5 rounded-2xl h-full flex flex-col">
                         <label class="text-[10px] lg:text-xs text-naranja font-black uppercase tracking-widest mb-2 block"><i class="fas fa-cog mr-1"></i> Tipo de Servicio</label>
-<div class="relative mb-4">
-    <div class="flex space-x-2">
-        <div class="relative flex-1">
-            <input type="text" id="sos-service-input" placeholder="Escribe para buscar servicio..." autocomplete="off" oninput="window.filterServiceOptions()" class="w-full bg-asfalto p-4 rounded-xl border border-naranja/50 text-white font-bold text-sm lg:text-base focus:border-naranja">
-            <div id="sos-service-dropdown" class="absolute z-20 w-full bg-asfalto border border-naranja/50 rounded-xl mt-1 max-h-40 overflow-y-auto hidden shadow-lg"></div>
-        </div>
-        <button type="button" id="clear-service-btn" onclick="window.clearServiceSelection()" class="bg-red-600/30 hover:bg-red-600 text-white px-4 rounded-xl transition-colors" title="Limpiar selección">
-            <i class="fas fa-times"></i>
-        </button>
-    </div>
-    <input type="hidden" id="sos-service-select-value" value="0">
-    <p id="selected-service-display" class="text-xs text-green-400 mt-1 hidden">
-        <i class="fas fa-check-circle mr-1"></i> Servicio seleccionado: <span id="selected-service-name">Ninguno</span>
-    </p>
-</div>
+                        <!-- CONTENEDOR DEL SELECTOR DE SERVICIOS (se ocultará para clientes normales) -->
+                        <div id="sos-service-selector-container" class="mb-4">
+                            <div class="relative">
+                                <div class="flex space-x-2">
+                                    <div class="relative flex-1">
+                                        <input type="text" id="sos-service-input" placeholder="Escribe para buscar servicio..." autocomplete="off" oninput="window.filterServiceOptions()" class="w-full bg-asfalto p-4 rounded-xl border border-naranja/50 text-white font-bold text-sm lg:text-base focus:border-naranja">
+                                        <div id="sos-service-dropdown" class="absolute z-20 w-full bg-asfalto border border-naranja/50 rounded-xl mt-1 max-h-40 overflow-y-auto hidden shadow-lg"></div>
+                                    </div>
+                                    <button type="button" id="clear-service-btn" onclick="window.clearServiceSelection()" class="bg-red-600/30 hover:bg-red-600 text-white px-4 rounded-xl transition-colors" title="Limpiar selección">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <input type="hidden" id="sos-service-select-value" value="0">
+                                <p id="selected-service-display" class="text-xs text-green-400 mt-1 hidden">
+                                    <i class="fas fa-check-circle mr-1"></i> Servicio seleccionado: <span id="selected-service-name">Ninguno</span>
+                                </p>
+                            </div>
+                        </div>
+                        <!-- Fin contenedor -->
                         <div class="bg-asfalto/50 p-4 rounded-xl border border-white/10 text-center flex-grow flex flex-col justify-center">
                             <p class="text-[9px] lg:text-[10px] text-gray-400 font-bold uppercase tracking-widest">Costo Estimado (Servicio + Rescate)</p>
                             <p id="sos-estimate-display" class="text-3xl lg:text-4xl font-black text-white mt-2">Calculando...</p>
