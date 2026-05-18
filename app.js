@@ -581,6 +581,12 @@ async function loadServicesCatalog() {
             d.id = doc.id;
             shopServices.push(d);
         });
+        console.log('Servicios cargados:', shopServices.length);
+        // Refrescar dropdown si el input ya tiene texto
+        const input = document.getElementById('sos-service-input');
+        if (input && input.value.trim() !== '') window.filterServiceOptions();
+    }, (error) => {
+        console.error('Error cargando servicios:', error);
     });
 }
 
@@ -1067,32 +1073,56 @@ window.clearServiceSelection = () => {
 };
 // === SOS CLIENTE ===
 window.launchSOSForm = () => {
-    showView('view-sos-form'); document.getElementById('manual-address-container').classList.add('hidden'); document.getElementById('llanta-type-container').classList.add('hidden');
-     document.getElementById('sos-map-preview').classList.remove('hidden'); document.getElementById('sos-estimate-display').innerText = "Calculando..."; document.getElementById('gps-status-text').innerText = "Buscando...";
+    showView('view-sos-form');
+    document.getElementById('manual-address-container').classList.add('hidden');
+    document.getElementById('llanta-type-container').classList.add('hidden');
+    document.getElementById('sos-map-preview').classList.remove('hidden');
+    document.getElementById('sos-estimate-display').innerText = "Calculando...";
+    document.getElementById('gps-status-text').innerText = "Buscando...";
+
+    // FORZAR VISIBILIDAD DEL SELECTOR DE SERVICIOS
+    const serviceContainer = document.getElementById('sos-service-selector-container');
+    if (serviceContainer) serviceContainer.style.display = 'block';
 
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
-            tempSOSGps.lat = pos.coords.latitude; tempSOSGps.lng = pos.coords.longitude;
+            tempSOSGps.lat = pos.coords.latitude;
+            tempSOSGps.lng = pos.coords.longitude;
             const dist = getDistanceKm(tempSOSGps.lat, tempSOSGps.lng, globalSettings.centerLat, globalSettings.centerLng);
-            if(dist > globalSettings.radiusKm) { document.getElementById('out-of-zone-modal').classList.remove('hidden'); document.getElementById('out-of-zone-modal').classList.add('flex'); showView('view-landing'); return; }
-            document.getElementById('gps-status-text').innerText = "GPS Establecido"; document.getElementById('gps-status-text').className = "text-[9px] font-bold text-green-400";
-            if(!sosMapInstance) {
+            if (dist > globalSettings.radiusKm) {
+                document.getElementById('out-of-zone-modal').classList.remove('hidden');
+                document.getElementById('out-of-zone-modal').classList.add('flex');
+                showView('view-landing');
+                return;
+            }
+            document.getElementById('gps-status-text').innerText = "GPS Establecido";
+            document.getElementById('gps-status-text').className = "text-[9px] font-bold text-green-400";
+            if (!sosMapInstance) {
                 sosMapInstance = L.map('sos-map-preview', { dragging: false, zoomControl: false, scrollWheelZoom: false }).setView([tempSOSGps.lat, tempSOSGps.lng], 16);
                 const isLight = document.body.classList.contains('light-mode');
                 const layerUrl = isLight
                     ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
                     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
                 L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(sosMapInstance);
-                L.marker([tempSOSGps.lat, tempSOSGps.lng], { icon: L.divIcon({ className: 'gps-pulse-marker', html:'<div class="pulse-inner"><i class="fas fa-street-view text-white text-xs"></i></div>', iconSize: [28, 28], iconAnchor: [14, 28] }) }).addTo(sosMapInstance);
-            } else { sosMapInstance.setView([tempSOSGps.lat, tempSOSGps.lng], 16); sosMapInstance.invalidateSize(); }
+                L.marker([tempSOSGps.lat, tempSOSGps.lng], {
+                    icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-street-view text-white text-xs"></i></div>', iconSize: [28, 28], iconAnchor: [14, 28] })
+                }).addTo(sosMapInstance);
+            } else {
+                sosMapInstance.setView([tempSOSGps.lat, tempSOSGps.lng], 16);
+                sosMapInstance.invalidateSize();
+            }
             window.updateSOSEstimate(dist);
         }, () => {
-            document.getElementById('gps-status-text').innerText = "Sin GPS: Escribe dirección"; document.getElementById('gps-status-text').className = "text-[9px] font-bold text-red-500";
-            document.getElementById('manual-address-container').classList.remove('hidden'); document.getElementById('sos-map-preview').classList.add('hidden');
+            document.getElementById('gps-status-text').innerText = "Sin GPS: Escribe dirección";
+            document.getElementById('gps-status-text').className = "text-[9px] font-bold text-red-500";
+            document.getElementById('manual-address-container').classList.remove('hidden');
+            document.getElementById('sos-map-preview').classList.add('hidden');
             window.updateSOSEstimate(0);
         }, { enableHighAccuracy: true, timeout: 10000 });
     } else {
-        document.getElementById('manual-address-container').classList.remove('hidden'); document.getElementById('sos-map-preview').classList.add('hidden'); window.updateSOSEstimate(0);
+        document.getElementById('manual-address-container').classList.remove('hidden');
+        document.getElementById('sos-map-preview').classList.add('hidden');
+        window.updateSOSEstimate(0);
     }
 };
 
