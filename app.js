@@ -488,18 +488,6 @@ window.updateEmergencyButtonState = (isOpen, sched) => {
     }
 
     window.loadPromoVideo();
-
-    // Actualizar icono del botón de sesión unificado
-    const sessionBtnIcon = document.getElementById('session-btn-icon');
-    if (sessionBtnIcon) {
-        if (auth.currentUser) {
-            sessionBtnIcon.className = 'fas fa-sign-out-alt text-xl';
-        } else {
-            sessionBtnIcon.className = 'fas fa-sign-in-alt text-xl';
-        }
-    }
-}
-
 window.updateEmergencyButtonState = (isOpen, sched) => {
     const emBtn = document.getElementById('emergency-client-btn');
     const emText = document.getElementById('emergency-closed-text');
