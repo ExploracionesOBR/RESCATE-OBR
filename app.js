@@ -1056,6 +1056,16 @@ document.addEventListener('click', (e) => {
         dropdown.classList.add('hidden');
     }
 });
+window.clearServiceSelection = () => {
+    const input = document.getElementById('sos-service-input');
+    const hidden = document.getElementById('sos-service-select-value');
+    const display = document.getElementById('selected-service-display');
+    if (input) input.value = '';
+    if (hidden) hidden.value = '0';
+    if (display) display.classList.add('hidden');
+    window.updateSOSEstimate();   // actualiza el costo a tarifa base
+    window.showToast("Selección limpiada. Se usará tarifa base.");
+};
 // === SOS CLIENTE ===
 window.launchSOSForm = () => {
     showView('view-sos-form'); document.getElementById('manual-address-container').classList.add('hidden'); document.getElementById('llanta-type-container').classList.add('hidden');
