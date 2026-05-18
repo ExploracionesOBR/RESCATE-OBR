@@ -39,13 +39,6 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-asfalto text-white font-sans antialiased overflow-x-hidden">
-    <!-- Botón de sesión global (visible en todas las vistas) -->
-<div id="session-btn" class="fixed top-4 right-4 z-[50]">
-    <button class="w-12 h-12 bg-naranja text-white rounded-full flex items-center justify-center shadow-2xl border border-naranja/50 transition-colors"
-        onclick="window.toggleSession()">
-        <i id="session-btn-icon" class="fas fa-sign-in-alt text-xl"></i>
-    </button>
-</div>
 <!-- TOAST -->
 <div id="status-toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[3000] hidden transition-all duration-300 w-[90%] max-w-sm">
     <div class="bg-naranja text-white px-6 py-3 rounded-full shadow-2xl flex items-center space-x-3 font-bold text-sm">
@@ -333,14 +326,17 @@
 <!-- DASHBOARD CLIENTE -->
 <div id="app-client" class="app-view hidden pb-24 flex-col">
     <header class="p-5 lg:p-6 flex justify-between items-center bg-asfalto/90 backdrop-blur-md sticky top-0 z-40 border-b border-white/5 w-full shadow-lg">
-        <div class="flex items-center">
-            <div>
-                <p class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest">Mi Perfil</p>
-                <h2 id="client-name-display" class="font-black text-white lg:text-xl">Cargando...</h2>
-            </div>
-            <i id="client-crown-icon" class="fas fa-crown text-yellow-400 text-2xl lg:text-3xl ml-3 hidden drop-shadow-[0_0_8px_rgba(250,204,21,0.8)] animate-pulse" title="Membresía Activa"></i>
+    <div class="flex items-center">
+        <div>
+            <p class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest">Mi Perfil</p>
+            <h2 id="client-name-display" class="font-black text-white lg:text-xl">Cargando...</h2>
         </div>
-    </header>
+        <i id="client-crown-icon" class="fas fa-crown text-yellow-400 text-2xl lg:text-3xl ml-3 hidden drop-shadow-[0_0_8px_rgba(250,204,21,0.8)] animate-pulse" title="Membresía Activa"></i>
+    </div>
+    <button onclick="window.toggleSession()" class="w-10 h-10 bg-red-600/20 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors" title="Cerrar sesión">
+        <i class="fas fa-sign-out-alt text-lg"></i>
+    </button>
+</header>
     <main class="p-4 lg:p-8 max-w-lg lg:max-w-5xl mx-auto space-y-6 lg:space-y-10 animate-fade-in w-full flex-grow">
         <section id="c-view-inicio" class="c-view space-y-6">
             <div id="client-active-workshop" class="hidden bg-gradient-to-br from-blue-900/40 to-asfalto border border-blue-500/30 p-6 rounded-3xl shadow-xl relative overflow-hidden cursor-pointer active:scale-95 transition-transform" onclick="window.switchClientView?.('c-view-moto')">
@@ -456,15 +452,17 @@
 <!-- PANEL ADMINISTRADOR -->
 <div id="app-admin" class="app-view hidden pb-24 border-t-4 border-naranja flex-col bg-asfalto min-h-screen">
     <header class="p-5 flex justify-between items-center bg-asfalto sticky top-0 z-40 border-b border-naranja/20 shadow-md">
-        <div>
-            <p class="text-[10px] text-naranja font-black uppercase tracking-widest flex items-center"><i class="fas fa-shield-alt mr-1"></i> Centro de Control OBR</p>
-            <h2 id="admin-phone-display" class="font-bold text-white text-sm">Cargando...</h2>
-        </div>
-        <div class="flex items-center space-x-2">
-            <button id="admin-chat-float-btn" class="hidden fixed bottom-24 left-4 z-[40] w-12 h-12 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl border border-naranja/50 transition-transform hover:scale-110" onclick="toggleModal('modal-chat-list', true)"><i class="fas fa-comments text-xl"></i></button>
-        </div>
-    </header>
-
+    <div>
+        <p class="text-[10px] text-naranja font-black uppercase tracking-widest flex items-center"><i class="fas fa-shield-alt mr-1"></i> Centro de Control OBR</p>
+        <h2 id="admin-phone-display" class="font-bold text-white text-sm">Cargando...</h2>
+    </div>
+    <div class="flex items-center space-x-2">
+        <button onclick="window.toggleSession()" class="w-10 h-10 bg-red-600/20 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors" title="Cerrar sesión">
+            <i class="fas fa-sign-out-alt text-lg"></i>
+        </button>
+        <button id="admin-chat-float-btn" class="fixed bottom-24 left-4 z-[40] w-12 h-12 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl border border-naranja/50 transition-transform hover:scale-110" onclick="toggleModal('modal-chat-list', true)"><i class="fas fa-comments text-xl"></i></button>
+    </div>
+</header>
     <main class="p-4 lg:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in w-full flex-grow pb-28 lg:pb-24">
 
 <!-- CAJA / POS -->
