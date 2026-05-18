@@ -1713,7 +1713,7 @@ window.downloadClientTicket = async (serviceId) => {
     const pdfDoc = new jsPDF();
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
     const logoImg = new Image();
-    logoImg.src = 'logo.png';
+    logoImg.src = 'logo_claro.png';
     await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
 
     pdfDoc.setFillColor(255, 107, 0);
@@ -1900,7 +1900,7 @@ window.downloadCompletedServicePDF = async (id) => {
     const pdfDoc = new jsPDF();
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
     const logoImg = new Image();
-    logoImg.src = 'logo.png';
+    logoImg.src = 'logo_claro.png';
     await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
 
     // === ENCABEZADO ESTILO NUEVO ===
@@ -2793,7 +2793,7 @@ window.imprimirTicketVenta = (ventaId, saleData) => {
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
     const logoImg = new Image();
-    logoImg.src = 'logo.png';
+    logoImg.src = 'logo_claro.png';
     const generar = () => {
         const pageWidth = pdfDoc.internal.pageSize.getWidth();
         pdfDoc.setFillColor(255, 107, 0);
@@ -3804,7 +3804,7 @@ window.downloadStaffReport = async (uid) => {
     const pdfDoc = new jsPDF();
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
     const logoImg = new Image();
-    logoImg.src = 'logo.png';
+    logoImg.src = 'logo_claro.png';
     
     await new Promise((resolve) => {
         logoImg.onload = logoImg.onerror = resolve;
@@ -4449,7 +4449,7 @@ window.exportStatsPDF = async () => {
     const pdfDoc = new jsPDF();
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
     const logoImg = new Image();
-    logoImg.src = 'logo.png';
+    logoImg.src = 'logo_claro.png';
     await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
 
     pdfDoc.setFillColor(255, 107, 0);
@@ -5125,7 +5125,7 @@ window.exportCortePDF = () => {
     const pdfDoc = new jsPDF();
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
     const logoImg = new Image();
-    logoImg.src = 'logo.png';
+    logoImg.src = 'logo_claro.png';
 
     const generar = () => {
         pdfDoc.setFillColor(255, 107, 0);
@@ -5563,7 +5563,7 @@ window.exportUserHistoryPDF = async () => {
     const pdfDoc = new jsPDF();
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
     const logoImg = new Image();
-    logoImg.src = 'logo.png';
+    logoImg.src = 'logo_claro.png';
     await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
 
     pdfDoc.setFillColor(255, 107, 0);
