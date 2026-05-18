@@ -1708,24 +1708,28 @@ window.downloadClientTicket = async (serviceId) => {
     const docSnap = await getDoc(doc(db, "rescates", serviceId));
     if (!docSnap.exists()) return;
     const data = docSnap.data();
-    
+
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
     const logoImg = new Image();
     logoImg.src = 'logo.png';
-    
-    await new Promise((resolve) => {
-        logoImg.onload = logoImg.onerror = resolve;
-        if (logoImg.complete) resolve();
-    });
-    
-    const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE ADMISIÓN EN TALLER', logoImg);
-    let y = 36;
-    
-    _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 20, 'Ficha Técnica de Recepción', [
-        { label: 'Folio Rescate:', value: String(data.shortId || 'Pendiente'), rightLabel: 'Ingreso:', rightValue: new Date(data.timestamp).toLocaleString('es-MX'), valueOffset: 20 },
-        { label: 'Propietario:', value: String(window.currentUserDoc?.name || data.clientName || 'No provisto'), rightLabel: 'Vehículo:', rightValue: `${data.marca || ''} ${data.modelo || ''}`, valueOffset: 20 }
+    await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
+
+    pdfDoc.setFillColor(255, 107, 0);
+    pdfDoc.rect(0, 0, pageWidth, 28, 'F');
+    if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
+    pdfDoc.setFontSize(14);
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.setTextColor(255, 255, 255);
+    pdfDoc.text("COMPROBANTE DE ADMISIÓN EN TALLER", logoImg.complete ? 36 : 12, 17.5);
+    pdfDoc.setDrawColor(255, 107, 0);
+    pdfDoc.line(12, 29, pageWidth - 12, 29);
+
+    let y = 40;
+    _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 20, 'Registro de Admisión', [
+        { label: 'Folio Servicio:', value: String(data.shortId || 'Pendiente'), rightLabel: 'Ingreso:', rightValue: new Date(data.timestamp).toLocaleString('es-MX'), valueOffset: 20 },
+        { label: 'Cliente Asignado:', value: String(window.currentUserDoc?.name || data.clientName || 'No provisto'), rightLabel: 'Unidad:', rightValue: `${data.marca || ''} ${data.modelo || ''}`, valueOffset: 20 }
     ]);
     _drawStatusBadge(pdfDoc, pageWidth - 42, y + 3.5, data.status || 'En Proceso');
     y += 28;
@@ -1733,7 +1737,7 @@ window.downloadClientTicket = async (serviceId) => {
     pdfDoc.setFont("helvetica", "bold");
     pdfDoc.setFontSize(10);
     pdfDoc.setTextColor(15, 23, 42);
-    pdfDoc.text("SÍNTOMAS Y AVERÍAS DECLARADAS:", 12, y);
+    pdfDoc.text("DECLARACIÓN DE DAÑOS / SÍNTOMAS:", 12, y);
     y += 5;
     pdfDoc.setFont("helvetica", "normal");
     pdfDoc.setFontSize(9);
@@ -1746,10 +1750,10 @@ window.downloadClientTicket = async (serviceId) => {
         pdfDoc.setFont("helvetica", "bold");
         pdfDoc.setFontSize(9.5);
         pdfDoc.setTextColor(30, 41, 59);
-        pdfDoc.text(`📍 Ubicación / Zona de Resguardo: ${data.tallerStatus}`, 12, y);
+        pdfDoc.text(`📍 Ubicación actual: ${data.tallerStatus}`, 12, y);
         y += 8;
     }
-    
+
     if (data.costoRescateEstimado) {
         y += 2;
         pdfDoc.setFillColor(255, 247, 237);
@@ -1759,8 +1763,14 @@ window.downloadClientTicket = async (serviceId) => {
         pdfDoc.setFontSize(9.5);
         pdfDoc.setTextColor(194, 65, 12);
         pdfDoc.text(`Presupuesto Límite Inicial Autorizado: $${Number(data.costoRescateEstimado).toFixed(2)} MXN`, 16, y + 6.5);
+        y += 14;
     }
 
+    pdfDoc.setFontSize(7);
+    pdfDoc.setTextColor(100);
+    pdfDoc.text("Nota: Los costos de refacciones críticas no contempladas se notificarán vía telefónica para la autorización del usuario antes de proceder.", 12, y);
+
+    const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE ADMISIÓN EN TALLER', logoImg);
     addFooter(pdfDoc);
     pdfDoc.save(`Ticket_Admision_${data.shortId || serviceId}.pdf`);
 };
@@ -1878,12 +1888,10 @@ window.downloadCompletedServicePDF = async (id) => {
     const docSnap = await getDoc(doc(db, "rescates", id));
     if (!docSnap.exists()) return showToast("Servicio no encontrado", true);
     const data = docSnap.data();
-
     const bSnap = await getDocs(collection(db, "rescates", id, "bitacora"));
     let bitacora = [];
     bSnap.forEach(d => bitacora.push(d.data()));
     bitacora.sort((a, b) => a.ts - b.ts);
-
     const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", id), limit(1)));
     let venta = null;
     ventasSnap.forEach(v => { venta = v.data(); });
@@ -1891,24 +1899,48 @@ window.downloadCompletedServicePDF = async (id) => {
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
-
     const logoImg = new Image();
     logoImg.src = 'logo.png';
-    await new Promise((resolve) => {
-        logoImg.onload = logoImg.onerror = resolve;
-        if (logoImg.complete) resolve();
-    });
+    await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
 
-    const addFooter = window._setupProfessionalPDF(pdfDoc, 'REPORTE DE SERVICIO OBR', logoImg);
-    let y = 36;
+    // === ENCABEZADO ESTILO NUEVO ===
+    pdfDoc.setFillColor(255, 107, 0);
+    pdfDoc.rect(0, 0, pageWidth, 28, 'F');
+    if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
+    pdfDoc.setFontSize(14);
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.setTextColor(255, 255, 255);
+    pdfDoc.text("REPORTE DE SERVICIO OBR", logoImg.complete ? 36 : 12, 17.5);
+    pdfDoc.setDrawColor(255, 107, 0);
+    pdfDoc.line(12, 29, pageWidth - 12, 29);
 
-    _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 20, 'Resumen de Orden de Auxilio', [
-        { label: 'Servicio:', value: String(data.shortId || id), rightLabel: 'Fecha:', valueOffset: 16, rightValue: new Date(data.timestamp).toLocaleString('es-MX', {dateStyle: 'short', timeStyle: 'short'}), rightOffset: 14 },
-        { label: 'Cliente:', value: String(data.clientName || data.phone || 'Mostrador General'), rightLabel: 'Moto:', valueOffset: 16, rightValue: `${data.marca || ''} ${data.modelo || ''}`, rightOffset: 14 }
-    ]);
-    _drawStatusBadge(pdfDoc, pageWidth - 42, y + 3.5, data.status || 'pendiente');
+    let y = 40;
+    // === CARD DE RESUMEN ===
+    pdfDoc.setFillColor(248, 250, 252);
+    pdfDoc.setDrawColor(226, 232, 240);
+    pdfDoc.roundedRect(12, y, pageWidth - 24, 20, 2, 2, 'FD');
+    pdfDoc.setFontSize(9);
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.setTextColor(15, 23, 42);
+    pdfDoc.text("Resumen de Orden de Auxilio", 16, y + 6);
+    pdfDoc.setFont("helvetica", "normal");
+    pdfDoc.setFontSize(8.5);
+    pdfDoc.text(`Servicio: ${data.shortId || id}`, 16, y + 12);
+    pdfDoc.text(`Fecha: ${new Date(data.timestamp).toLocaleString('es-MX')}`, 16, y + 17);
+    pdfDoc.text(`Cliente: ${data.clientName || data.phone || 'Mostrador'}`, pageWidth / 2 + 10, y + 12);
+    pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, pageWidth / 2 + 10, y + 17);
+    // Badge de estado
+    let badgeColor = [245, 158, 11]; // warning
+    if (data.status === 'completed') badgeColor = [34, 197, 94]; // green
+    else if (data.status === 'cancelled') badgeColor = [239, 68, 68]; // red
+    pdfDoc.setFillColor(...badgeColor);
+    pdfDoc.roundedRect(pageWidth - 42, y + 3, 28, 6, 1, 1, 'F');
+    pdfDoc.setFontSize(7);
+    pdfDoc.setTextColor(255, 255, 255);
+    pdfDoc.text((data.status || 'Pendiente').toUpperCase(), pageWidth - 28, y + 7, { align: 'center' });
     y += 28;
 
+    // === FALLA REPORTADA ===
     pdfDoc.setFont("helvetica", "bold");
     pdfDoc.setFontSize(10);
     pdfDoc.setTextColor(15, 23, 42);
@@ -1921,7 +1953,8 @@ window.downloadCompletedServicePDF = async (id) => {
     pdfDoc.text(fallaLines, 12, y);
     y += (fallaLines.length * 4.5) + 6;
 
-    if (bitacora.length > 0) {
+    // === BITÁCORA (si existe) ===
+    if (bitacora.length) {
         pdfDoc.setFont("helvetica", "bold");
         pdfDoc.setFontSize(10);
         pdfDoc.setTextColor(15, 23, 42);
@@ -1930,10 +1963,9 @@ window.downloadCompletedServicePDF = async (id) => {
         pdfDoc.setFont("helvetica", "normal");
         pdfDoc.setFontSize(8.5);
         pdfDoc.setTextColor(71, 85, 105);
-        
-        bitacora.forEach(entry => {
+        bitacora.slice(0, 5).forEach(entry => {
             if (y > 260) { pdfDoc.addPage(); y = 36; }
-            const timeStr = new Date(entry.ts).toLocaleTimeString('es-MX', {hour: '2-digit', minute:'2-digit'});
+            const timeStr = new Date(entry.ts).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
             const entryText = `• [${timeStr}] ${entry.mechName || 'Técnico'}: ${entry.text}`;
             const lines = pdfDoc.splitTextToSize(entryText, pageWidth - 24);
             pdfDoc.text(lines, 12, y);
@@ -1942,50 +1974,14 @@ window.downloadCompletedServicePDF = async (id) => {
         y += 6;
     }
 
-    if (data.mech_track && data.mech_track.length > 1) {
-        try {
-            await window.loadHtml2Canvas();
-            const mapId = 'temp-track-map-' + Date.now();
-            const mapDiv = document.createElement('div');
-            mapDiv.id = mapId;
-            mapDiv.style.width = '600px';
-            mapDiv.style.height = '350px';
-            mapDiv.style.position = 'absolute';
-            mapDiv.style.top = '-2000px';
-            mapDiv.style.visibility = 'hidden';
-            document.body.appendChild(mapDiv);
-
-            const trackMap = L.map(mapId, { zoomControl: false, attributionControl: false, dragging: false })
-                .setView([data.mech_track[0].lat, data.mech_track[0].lng], 13);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(trackMap);
-            const coords = data.mech_track.map(p => [p.lat, p.lng]);
-            L.polyline(coords, { color: '#FF6B00', weight: 4, opacity: 0.8 }).addTo(trackMap);
-            trackMap.fitBounds(L.latLngBounds(coords).pad(0.2));
-            
-            await new Promise(resolve => setTimeout(resolve, 1500));
-            const canvas = await html2canvas(mapDiv, { useCORS: true, backgroundColor: '#ffffff' });
-            const imgData = canvas.toDataURL('image/png');
-            
-            if (y > 200) { pdfDoc.addPage(); y = 36; }
-            pdfDoc.setFont("helvetica", "bold");
-            pdfDoc.setFontSize(10);
-            pdfDoc.setTextColor(15, 23, 42);
-            pdfDoc.text("TRAZABILIDAD GEOLOCALIZADA DE ASISTENCIA:", 12, y);
-            y += 5;
-            pdfDoc.addImage(imgData, 'PNG', 12, y, pageWidth - 24, 60);
-            y += 66;
-            document.body.removeChild(mapDiv);
-        } catch (e) { console.warn('Esquema de mapa omitido:', e); }
-    }
-
-    if (venta) {
+    // === LIQUIDACIÓN ECONÓMICA ===
+    if (venta && venta.ticket && venta.ticket.length) {
         if (y > 220) { pdfDoc.addPage(); y = 36; }
         pdfDoc.setFont("helvetica", "bold");
         pdfDoc.setFontSize(10);
         pdfDoc.setTextColor(15, 23, 42);
         pdfDoc.text("LIQUIDACIÓN ECONÓMICA DE CONCEPTOS:", 12, y);
-        y += 3;
-        
+        y += 4;
         const bodyRows = venta.ticket.map(item => [item.name, item.garantia || 'N/A', `$${item.price.toFixed(2)}`]);
         pdfDoc.autoTable({
             startY: y,
@@ -2009,7 +2005,16 @@ window.downloadCompletedServicePDF = async (id) => {
         pdfDoc.text(`Costo Estimado de Asistencia: $${data.costoRescateEstimado}`, 12, y);
     }
 
-    addFooter(pdfDoc);
+    // === FOOTER ===
+    const totalPages = pdfDoc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        pdfDoc.setPage(i);
+        pdfDoc.setFontSize(7);
+        pdfDoc.setTextColor(148, 163, 184);
+        pdfDoc.setFont("helvetica", "normal");
+        pdfDoc.text(`OBR Moto Rescate | Documento generado el ${new Date().toLocaleDateString('es-MX')}`, 12, 287);
+        pdfDoc.text(`Página ${i} de ${totalPages}`, pageWidth - 25, 287);
+    }
     pdfDoc.save(`Reporte_Servicio_${data.shortId || id}.pdf`);
 };
 window.editService = (serviceId) => {
@@ -2790,45 +2795,50 @@ window.imprimirTicketVenta = (ventaId, saleData) => {
     const logoImg = new Image();
     logoImg.src = 'logo.png';
     const generar = () => {
-        const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE VENTA', logoImg);
         const pageWidth = pdfDoc.internal.pageSize.getWidth();
-        let y = 40;
-
-        pdfDoc.setFontSize(10);
-        pdfDoc.setTextColor(30, 41, 59);
-        pdfDoc.setFont("helvetica", "normal");
-
-        pdfDoc.setFillColor(248, 248, 248);
-        pdfDoc.roundedRect(15, y, pageWidth - 30, 25, 3, 3, 'FD');
+        pdfDoc.setFillColor(255, 107, 0);
+        pdfDoc.rect(0, 0, pageWidth, 28, 'F');
+        if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
+        pdfDoc.setFontSize(14);
         pdfDoc.setFont("helvetica", "bold");
-        pdfDoc.text(`Ticket: ${saleData.shortId}`, 20, y + 8);
-        pdfDoc.setFont("helvetica", "normal");
-        pdfDoc.text(`Fecha: ${new Date(saleData.fecha).toLocaleString()}`, 20, y + 15);
-        pdfDoc.text(`Método: ${saleData.metodoPago}`, 20, y + 22);
-        if (saleData.clienteCel) pdfDoc.text(`Cliente: ${saleData.clienteCel}`, 120, y + 15);
-        y += 35;
+        pdfDoc.setTextColor(255, 255, 255);
+        pdfDoc.text("COMPROBANTE DE VENTA", logoImg.complete ? 36 : 12, 17.5);
+        pdfDoc.setDrawColor(255, 107, 0);
+        pdfDoc.line(12, 29, pageWidth - 12, 29);
 
-        const body = saleData.ticket.map(item => [item.name, `$${item.price.toFixed(2)}`, item.garantia || 'Sin garantía']);
+        let y = 40;
+        _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 25, 'Datos del Comprobante', [
+            { label: 'Ticket:', value: saleData.shortId, rightLabel: 'Método de Pago:', rightValue: saleData.metodoPago },
+            { label: 'Fecha:', value: new Date(saleData.fecha).toLocaleString(), rightLabel: 'Cliente:', rightValue: saleData.clienteCel || 'Mostrador' }
+        ]);
+        y += 32;
+
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.setFontSize(10);
+        pdfDoc.setTextColor(15, 23, 42);
+        pdfDoc.text("ARTÍCULOS ADQUIRIDOS:", 12, y);
+        y += 4;
+        const body = saleData.ticket.map(item => [item.name, item.garantia || 'Sin garantía', `$${item.price.toFixed(2)}`]);
         pdfDoc.autoTable({
             startY: y,
-            head: [['Producto', 'Precio', 'Garantía']],
+            head: [['Descripción del Producto', 'Garantía Oficial', 'Precio Unitario']],
             body: body,
             theme: 'grid',
-            styles: { fontSize: 8, cellPadding: 2, textColor: [30,41,59] },
+            styles: { fontSize: 8, cellPadding: 2.5, textColor: [30,41,59] },
             headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
-            columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 25, halign: 'right' }, 2: { cellWidth: 40 } },
-            margin: { left: 20 }
+            columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 35 }, 2: { cellWidth: 30, halign: 'right' } },
+            margin: { left: 12, right: 12 }
         });
         y = pdfDoc.lastAutoTable.finalY + 10;
         pdfDoc.setFont("helvetica", "bold");
         pdfDoc.setFontSize(12);
-        pdfDoc.text(`Total: $${saleData.total.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+        pdfDoc.text(`Total Neto: $${saleData.total.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
         y += 10;
         pdfDoc.setFontSize(7);
-        pdfDoc.setTextColor(150);
-        pdfDoc.setFont("helvetica", "normal");
-        pdfDoc.text("Gracias por su compra. Conserve este ticket para cualquier aclaración.", 20, y);
+        pdfDoc.setTextColor(148, 163, 184);
+        pdfDoc.text("Gracias por su preferencia comercial. Conserve el presente ticket físico o digital para hacer válida cualquier reclamación de garantía en sucursal.", 12, y);
 
+        const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE VENTA', logoImg);
         addFooter(pdfDoc);
         try {
             const blob = pdfDoc.output('blob');
@@ -4440,21 +4450,24 @@ window.exportStatsPDF = async () => {
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
     const logoImg = new Image();
     logoImg.src = 'logo.png';
-    
-    await new Promise((resolve) => {
-        logoImg.onload = logoImg.onerror = resolve;
-        if (logoImg.complete) resolve();
-    });
-    
-    const addFooter = window._setupProfessionalPDF(pdfDoc, 'ESTADÍSTICAS COMERCIALES Y RENDIMIENTO', logoImg);
-    let y = 36;
+    await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
 
+    pdfDoc.setFillColor(255, 107, 0);
+    pdfDoc.rect(0, 0, pageWidth, 28, 'F');
+    if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
+    pdfDoc.setFontSize(14);
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.setTextColor(255, 255, 255);
+    pdfDoc.text("ESTADÍSTICAS COMERCIALES Y RENDIMIENTO", logoImg.complete ? 36 : 12, 17.5);
+    pdfDoc.setDrawColor(255, 107, 0);
+    pdfDoc.line(12, 29, pageWidth - 12, 29);
+
+    let y = 40;
     const resumenes = [
-        { label: 'Volumen Bruto Ventas', value: `$${totalV.toFixed(2)}`, color:[255,107,0] },
+        { label: 'Volumen Bruto Ventas', value: `$${totalV.toFixed(2)}`, color: [255, 107, 0] },
         { label: 'Inversión Almacén (Costo)', value: `$${totalC.toFixed(2)}` },
-        { label: 'Ganancia Neta Bruta', value: `$${(totalV - totalC).toFixed(2)}`, color:[34,197,94] }
+        { label: 'Ganancia Neta Bruta', value: `$${(totalV - totalC).toFixed(2)}`, color: [34, 197, 94] }
     ];
-    
     const cardWidth = (pageWidth - 24) / 3;
     let startX = 12;
     resumenes.forEach(r => {
@@ -4463,9 +4476,10 @@ window.exportStatsPDF = async () => {
         pdfDoc.roundedRect(startX, y, cardWidth - 1.5, 14, 1.5, 1.5, 'FD');
         pdfDoc.setFontSize(6.5);
         pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.setTextColor(100);
         pdfDoc.text(r.label.toUpperCase(), startX + 3, y + 4.5);
         pdfDoc.setFontSize(10.5);
-        pdfDoc.setTextColor(...(r.color || [15,23,42]));
+        pdfDoc.setTextColor(...(r.color || [15, 23, 42]));
         pdfDoc.text(r.value, startX + 3, y + 10.5);
         startX += cardWidth;
     });
@@ -4480,11 +4494,11 @@ window.exportStatsPDF = async () => {
             pdfDoc.setFont("helvetica", "bold");
             pdfDoc.setFontSize(10);
             pdfDoc.setTextColor(15, 23, 42);
-            pdfDoc.text("COMPORTAMIENTO MENSUAL DE OPERACIONES (CHART DISPLAY):", 12, y);
+            pdfDoc.text("COMPORTAMIENTO MENSUAL DE OPERACIONES:", 12, y);
             y += 4;
             pdfDoc.addImage(imgData, 'PNG', 12, y, pageWidth - 24, 55);
             y += 62;
-        } catch(e) { console.warn('Gráfico analítico omitido en render por desajuste de canvas:', e); }
+        } catch (e) { console.warn('Gráfico omitido:', e); }
     }
 
     if (y > 200) { pdfDoc.addPage(); y = 36; }
@@ -4493,18 +4507,18 @@ window.exportStatsPDF = async () => {
     pdfDoc.setTextColor(15, 23, 42);
     pdfDoc.text("AUDITORÍA DE HISTORIAL CONTABLE CONSOLIDADO:", 12, y);
     y += 4;
-    
     pdfDoc.autoTable({
         startY: y,
         head: [['Fecha Contable', 'Descripción Operativa de Movimiento', 'Total Bruto']],
         body: bodyData,
         theme: 'striped',
         styles: { fontSize: 8, cellPadding: 2.5 },
-        headStyles: { fillColor: [30,41,59], textColor: [255,255,255] },
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
         columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 30, halign: 'right' } },
         margin: { left: 12, right: 12 }
     });
 
+    const addFooter = window._setupProfessionalPDF(pdfDoc, 'ESTADÍSTICAS COMERCIALES Y RENDIMIENTO', logoImg);
     addFooter(pdfDoc);
     pdfDoc.save(`Estadisticas_Rendimiento_OBR.pdf`);
 };
@@ -5112,23 +5126,30 @@ window.exportCortePDF = () => {
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
     const logoImg = new Image();
     logoImg.src = 'logo.png';
-    
+
     const generar = () => {
-        const addFooter = window._setupProfessionalPDF(pdfDoc, 'CORTE DE CAJA ADMINISTRATIVO', logoImg);
-        let y = 36;
-        
+        pdfDoc.setFillColor(255, 107, 0);
+        pdfDoc.rect(0, 0, pageWidth, 28, 'F');
+        if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
+        pdfDoc.setFontSize(14);
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.setTextColor(255, 255, 255);
+        pdfDoc.text("CORTE DE CAJA DIARIO", logoImg.complete ? 36 : 12, 17.5);
+        pdfDoc.setDrawColor(255, 107, 0);
+        pdfDoc.line(12, 29, pageWidth - 12, 29);
+
+        let y = 40;
         const ventasHoy = (adminSalesCache?.ventas || []).filter(v => new Date(v.fecha).toDateString() === new Date().toDateString());
-        const totalVentas = ventasHoy.reduce((s,v) => s + (v.total || 0), 0);
-        const totalRetiros = (window.retiros || []).reduce((s,r) => s + (r.monto || 0), 0);
+        const totalVentas = ventasHoy.reduce((s, v) => s + (v.total || 0), 0);
+        const totalRetiros = (window.retiros || []).reduce((s, r) => s + (r.monto || 0), 0);
         const efectivoEnCaja = (window.fondoInicial || 0) + totalVentas - totalRetiros;
 
         const metrics = [
-            { label: 'Fondo Inicial', val: `$${(window.fondoInicial || 0).toFixed(2)}` },
-            { label: 'Ventas Brutas', val: `$${totalVentas.toFixed(2)}`, color: [255,107,0] },
-            { label: 'Retiros / Gastos', val: `$${totalRetiros.toFixed(2)}`, color: [239,68,68] },
-            { label: 'Arqueo Neto', val: `$${efectivoEnCaja.toFixed(2)}`, color: [34,197,94] }
+            { label: 'Fondo Caja', val: `$${(window.fondoInicial || 0).toFixed(2)}` },
+            { label: 'Ingresos Netos', val: `$${totalVentas.toFixed(2)}`, color: [34, 197, 94] },
+            { label: 'Retiros / Gastos', val: `$${totalRetiros.toFixed(2)}`, color: [239, 68, 68] },
+            { label: 'Arqueo Final', val: `$${efectivoEnCaja.toFixed(2)}`, color: [255, 107, 0] }
         ];
-        
         const cardWidth = (pageWidth - 24) / 4;
         let startX = 12;
         metrics.forEach(m => {
@@ -5141,41 +5162,39 @@ window.exportCortePDF = () => {
             pdfDoc.text(m.label.toUpperCase(), startX + 3, y + 4.5);
             pdfDoc.setFontSize(10);
             pdfDoc.setFont("helvetica", "bold");
-            pdfDoc.setTextColor(...(m.color || [15,23,42]));
+            pdfDoc.setTextColor(...(m.color || [15, 23, 42]));
             pdfDoc.text(m.val, startX + 3, y + 10.5);
             startX += cardWidth;
         });
-        
         y += 22;
+
+        pdfDoc.setFont("helvetica", "bold");
         pdfDoc.setFontSize(10);
         pdfDoc.setTextColor(15, 23, 42);
-        pdfDoc.setFont("helvetica", "bold");
         pdfDoc.text("AUDITORÍA DE TRANSACCIONES REGISTRADAS EN TURNO:", 12, y);
         y += 4;
-
         const bodyRows = ventasHoy.map(v => [
-            new Date(v.fecha).toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'}), 
-            v.shortId || v.id || 'N/A', 
+            new Date(v.fecha).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+            v.shortId || v.id || 'N/A',
             `$${v.total.toFixed(2)}`
         ]);
-        
         pdfDoc.autoTable({
             startY: y,
             head: [['Horario de Carga', 'Código de Ticket Asociado', 'Monto de Operación']],
             body: bodyRows,
             theme: 'striped',
             styles: { fontSize: 8.5, cellPadding: 2.5 },
-            headStyles: { fillColor: [30, 41, 59], textColor: [255,255,255] },
+            headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
             columnStyles: { 0: { cellWidth: 40 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 40, halign: 'right' } },
             margin: { left: 12, right: 12 }
         });
 
+        const addFooter = window._setupProfessionalPDF(pdfDoc, 'CORTE DE CAJA ADMINISTRATIVO', logoImg);
         addFooter(pdfDoc);
-        pdfDoc.save(`Corte_Caja_${new Date().toISOString().slice(0,10)}.pdf`);
+        pdfDoc.save(`Corte_Caja_${new Date().toISOString().slice(0, 10)}.pdf`);
     };
-
     if (logoImg.complete && logoImg.naturalWidth > 0) generar();
-    else { logoImg.onload = logoImg.onerror = generar; }
+    else { logoImg.onload = generar; logoImg.onerror = generar; }
 };
 
 // ======================================================
@@ -5535,7 +5554,7 @@ window.exportUserHistoryPDF = async () => {
     const userDoc = await getDoc(doc(db, "users", uid));
     if (!userDoc.exists()) return showToast("Usuario no encontrado", true);
     const user = userDoc.data();
-    
+
     const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("phone", "==", user.phone), orderBy("timestamp", "desc")));
     let historial = [];
     rescatesSnap.forEach(d => historial.push(d.data()));
@@ -5545,27 +5564,30 @@ window.exportUserHistoryPDF = async () => {
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
     const logoImg = new Image();
     logoImg.src = 'logo.png';
-    
-    await new Promise((resolve) => {
-        logoImg.onload = logoImg.onerror = resolve;
-        if (logoImg.complete) resolve();
-    });
-    
-    const addFooter = window._setupProfessionalPDF(pdfDoc, 'HISTORIAL CLÍNICO DE CLIENTE', logoImg);
-    let y = 36;
+    await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
 
-    _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 15, 'Ficha General de Identificación', [
-        { label: 'Titular Cuenta:', value: String(user.name || user.phone), rightLabel: 'Clasificación:', rightValue: historial.length >= 3 ? 'SOCIO FRECUENTE PREMIUM' : 'CLIENTE OCASIONAL', valueOffset: 22 }
+    pdfDoc.setFillColor(255, 107, 0);
+    pdfDoc.rect(0, 0, pageWidth, 28, 'F');
+    if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
+    pdfDoc.setFontSize(14);
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.setTextColor(255, 255, 255);
+    pdfDoc.text("HISTORIAL DE SERVICIOS", logoImg.complete ? 36 : 12, 17.5);
+    pdfDoc.setDrawColor(255, 107, 0);
+    pdfDoc.line(12, 29, pageWidth - 12, 29);
+
+    let y = 40;
+    _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 15, 'Ficha del Cliente', [
+        { label: 'Titular:', value: String(user.name || user.phone), rightLabel: 'Clasificación:', rightValue: historial.length >= 3 ? 'SOCIO FRECUENTE PREMIUM' : 'CLIENTE OCASIONAL', valueOffset: 22 }
     ]);
     y += 22;
 
     const totalFacturado = historial.reduce((sum, r) => sum + (r.costoRescateEstimado || 0), 0);
     const metrics = [
         { label: 'Servicios Solicitados', val: historial.length.toString() },
-        { label: 'Último Auxilio Rúa', val: historial[0] ? new Date(historial[0].timestamp).toLocaleDateString('es-MX') : 'Ninguno' },
-        { label: 'Inversión Acumulada', val: `$${totalFacturado.toFixed(2)}`, color: [255,107,0] }
+        { label: 'Último Auxilio', val: historial[0] ? new Date(historial[0].timestamp).toLocaleDateString('es-MX') : 'Ninguno' },
+        { label: 'Inversión Acumulada', val: `$${totalFacturado.toFixed(2)}`, color: [255, 107, 0] }
     ];
-
     const cardWidth = (pageWidth - 24) / 3;
     let startX = 12;
     metrics.forEach(m => {
@@ -5577,32 +5599,30 @@ window.exportUserHistoryPDF = async () => {
         pdfDoc.setTextColor(100);
         pdfDoc.text(m.label.toUpperCase(), startX + 3, y + 4.5);
         pdfDoc.setFontSize(10);
-        pdfDoc.setTextColor(...(m.color || [15,23,42]));
+        pdfDoc.setTextColor(...(m.color || [15, 23, 42]));
         pdfDoc.text(m.val, startX + 3, y + 10.5);
         startX += cardWidth;
     });
-    
     y += 22;
+
     pdfDoc.setFont("helvetica", "bold");
     pdfDoc.setFontSize(10);
     pdfDoc.setTextColor(15, 23, 42);
-    pdfDoc.text("CRONOLOGÍA COMPLETA DE INCIDENCIAS MECÁNICAS:", 12, y);
+    pdfDoc.text("CRONOLOGÍA DE INCIDENCIAS MECÁNICAS:", 12, y);
     y += 4;
-
     const bodyRows = historial.map(r => [
         new Date(r.timestamp).toLocaleDateString('es-MX'),
         r.falla ? r.falla.replace(/\[.*?\]/g, '').trim().substring(0, 65) + '...' : 'Sin detalles del diagnóstico.',
         String(r.status || 'Pendiente').toUpperCase(),
         `$${(r.costoRescateEstimado || 0).toFixed(2)}`
     ]);
-
     pdfDoc.autoTable({
         startY: y,
         head: [['Fecha Evento', 'Falla / Diagnóstico Documentado', 'Estatus Final', 'Costo']],
         body: bodyRows,
         theme: 'striped',
         styles: { fontSize: 8, cellPadding: 2.5 },
-        headStyles: { fillColor: [255,107,0], textColor: [255,255,255] },
+        headStyles: { fillColor: [255, 107, 0], textColor: [255, 255, 255] },
         columnStyles: { 0: { cellWidth: 25 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 30 }, 3: { cellWidth: 25, halign: 'right' } },
         margin: { left: 12, right: 12 }
     });
@@ -5613,6 +5633,7 @@ window.exportUserHistoryPDF = async () => {
         pdfDoc.text("No se registran bitácoras ni asistencias previas ligadas a esta cuenta de usuario.", 12, y + 10);
     }
 
+    const addFooter = window._setupProfessionalPDF(pdfDoc, 'HISTORIAL CLÍNICO DE CLIENTE', logoImg);
     addFooter(pdfDoc);
     pdfDoc.save(`Historial_Clinico_${user.name || 'Cliente'}.pdf`);
 };
