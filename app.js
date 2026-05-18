@@ -1002,25 +1002,45 @@ window.filterServiceOptions = () => {
     const dropdown = document.getElementById('sos-service-dropdown');
     if (!input || !dropdown) return;
     const query = input.value.trim().toLowerCase();
+    
+    // Siempre mostrar la opción "SIN FALLO ESPECÍFICO" al inicio si el campo está vacío o contiene texto
+    let matches = [];
     if (query.length === 0) {
-        dropdown.classList.add('hidden');
-        return;
+        matches = [{ id: "0", name: "SIN FALLO ESPECÍFICO (Se cotizará en el lugar)", price: 0 }];
+    } else {
+        matches = shopServices.filter(s => s.name.toLowerCase().includes(query));
+        if (matches.length === 0) {
+            dropdown.classList.add('hidden');
+            return;
+        }
+        // Limitar a 5 resultados
+        matches = matches.slice(0, 5);
+        // Añadir opción de "Sin fallo específico" al final si hay resultados
+        matches.push({ id: "0", name: "SIN FALLO ESPECÍFICO (Se cotizará en el lugar)", price: 0 });
     }
-    const matches = shopServices.filter(s => s.name.toLowerCase().includes(query));
-    if (matches.length === 0) {
-        dropdown.classList.add('hidden');
-        return;
-    }
-    const limited = matches.slice(0, 5);
+    
     dropdown.innerHTML = '';
-    limited.forEach(s => {
+    matches.forEach(s => {
         const item = document.createElement('div');
-        item.className = 'p-3 hover:bg-naranja/30 cursor-pointer text-white text-sm border-b border-white/10 last:border-0';
-        item.textContent = `${s.name} - $${s.price}`;
+        item.className = `p-3 hover:bg-naranja/30 cursor-pointer text-white text-sm border-b border-white/10 last:border-0 flex justify-between items-center`;
+        item.innerHTML = `
+            <span>${s.name}</span>
+            ${s.price > 0 ? `<span class="text-naranja font-bold">$${s.price}</span>` : '<span class="text-gray-400 text-xs">Sin costo extra</span>'}
+        `;
         item.onclick = () => {
             document.getElementById('sos-service-input').value = s.name;
             document.getElementById('sos-service-select-value').value = s.id;
             dropdown.classList.add('hidden');
+            // Mostrar mensaje de selección
+            const displayDiv = document.getElementById('selected-service-display');
+            const nameSpan = document.getElementById('selected-service-name');
+            if (displayDiv && nameSpan) {
+                nameSpan.innerText = s.name;
+                displayDiv.classList.remove('hidden');
+                setTimeout(() => {
+                    displayDiv.classList.add('hidden');
+                }, 3000);
+            }
             window.updateSOSEstimate();
         };
         dropdown.appendChild(item);
@@ -1097,6 +1117,13 @@ window.checkSOSKeywords = () => {
 window.submitFinalSOS = async () => {
     const serviceId = document.getElementById('sos-service-select-value')?.value;
     const serviceInputText = document.getElementById('sos-service-input')?.value.trim();
+    
+    // Validar que si el usuario escribió algo en el campo de servicio, haya seleccionado una opción válida
+    if (serviceInputText !== "" && (serviceId === "0" || serviceId === "")) {
+        window.showToast("Por favor, selecciona un servicio de la lista (o deja el campo vacío para tarifa base).", true);
+        return;
+    }
+    
     const falla = document.getElementById('sos-falla').value.trim();
     const manualAddress = document.getElementById('sos-manual-address').value.trim();
     const fileInput = document.getElementById('sos-media');
