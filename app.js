@@ -1989,7 +1989,7 @@ window.editService = (serviceId) => {
                 await updateDoc(doc(db, "servicios", serviceId), { name: newName, price: newPrice });
                 showToast("Servicio actualizado");
                 loadServicesCatalog();
-                refreshCatalogUI();
+                refreshCatalogUI(); // <-- Asegurar que esté presente
             });
         });
     });
