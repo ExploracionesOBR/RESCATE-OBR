@@ -4211,22 +4211,27 @@ window.tomarCasoDirecto = async () => {
 // === CITAS (con validación de usuario e invitación por WhatsApp) ===
 // ======================================================
 window.adminCrearCita = async () => {
-    const phone = document.getElementById('cita-phone')?.value.trim();
+    const phoneInput = document.getElementById('cita-phone');
+    const phone = phoneInput ? phoneInput.value.trim() : '';
     const moto = document.getElementById('cita-moto')?.value.trim();
     const trabajo = document.getElementById('cita-trabajo')?.value.trim();
     const fecha = document.getElementById('cita-fecha')?.value;
     const hora = document.getElementById('cita-hora')?.value;
-    if (!phone || !moto || !trabajo || !fecha || !hora) return showToast("Completa todos los campos", true);
+    
+    if (!phone || !moto || !trabajo || !fecha || !hora) {
+        return showToast("Completa todos los campos", true);
+    }
 
     const fechaObj = new Date(fecha);
     const hoy = new Date();
-    hoy.setHours(0,0,0,0);
-    if (fechaObj < hoy) return showToast("No puedes agendar una cita en una fecha pasada", true);
+    hoy.setHours(0, 0, 0, 0);
+    if (fechaObj < hoy) {
+        return showToast("No puedes agendar una cita en una fecha pasada", true);
+    }
 
-    // Verificar si el usuario existe
-    const userSnap = await getDocs(query(collection(db, "users"), where("phone", "==", "+52"+phone), limit(1)));
+    // Verificar si el usuario existe (opcional, pero se mantiene la lógica original)
+    const userSnap = await getDocs(query(collection(db, "users"), where("phone", "==", "+52" + phone), limit(1)));
     if (userSnap.empty) {
-        // Mostrar opción de invitar
         const inviteHTML = `
             <div class="text-white text-center">
                 <p class="mb-4">El número <span class="text-naranja font-bold">+52 ${phone}</span> no está registrado en OBR.</p>
@@ -4249,14 +4254,14 @@ window.adminCrearCita = async () => {
     }
 
     await addDoc(collection(db, "citas"), {
-    phone: "+52" + phone,
-    moto,
-    trabajo,
-    fecha,
-    hora,
-    estado: 'pendiente',   // <-- AÑADE ESTA LÍNEA
-    timestamp: Date.now()
-});
+        phone: "+52" + phone,
+        moto,
+        trabajo,
+        fecha,
+        hora,
+        estado: 'pendiente',
+        timestamp: Date.now()
+    });
     showToast("Cita guardada correctamente");
     toggleModal('modal-nueva-cita', false);
     window.adminLoadCitas();
