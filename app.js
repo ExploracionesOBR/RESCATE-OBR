@@ -488,11 +488,6 @@ window.updateEmergencyButtonState = (isOpen, sched) => {
     }
 
     window.loadPromoVideo();
-window.updateEmergencyButtonState = (isOpen, sched) => {
-    const emBtn = document.getElementById('emergency-client-btn');
-    const emText = document.getElementById('emergency-closed-text');
-    if (!emBtn) return;
-
     if (isOpen) {
         emBtn.classList.remove('opacity-50', 'pointer-events-none', 'bg-gray-600');
         emBtn.classList.add('bg-gradient-to-r', 'from-red-600', 'to-naranja');
