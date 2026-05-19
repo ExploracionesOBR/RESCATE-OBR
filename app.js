@@ -72,6 +72,7 @@ const generateShortId = () => 'OBR-' + Math.floor(10000 + Math.random() * 90000)
 
 // === UTILIDADES ===
 window.showToast = (msg, isError = false) => {
+    console.log("🔴 TOAST ERROR:", msg, isError); // <-- añade esto temporalmente
     const t = document.getElementById('status-toast'); if(!t) return;
     document.getElementById('status-msg').innerText = msg;
     const icon = document.getElementById('toast-icon');
