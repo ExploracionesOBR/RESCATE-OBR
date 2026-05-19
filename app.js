@@ -372,6 +372,40 @@ function startMechanicTracking() {
         }
     }
 }
+// ======================================================
+// ACTUALIZACIÓN DEL BOTÓN DE EMERGENCIA (SEGÚN HORARIO)
+// ======================================================
+window.updateEmergencyButtonState = (isOpen, sched) => {
+    const emBtn = document.getElementById('emergency-client-btn');
+    const emText = document.getElementById('emergency-closed-text');
+    if (!emBtn) return;
+
+    if (isOpen) {
+        // Habilitar botón
+        emBtn.classList.remove('opacity-50', 'pointer-events-none', 'bg-gray-600');
+        emBtn.classList.add('bg-gradient-to-r', 'from-red-600', 'to-naranja');
+        if (emText) emText.classList.add('hidden');
+        const labels = emBtn.querySelectorAll('.emergency-label');
+        labels.forEach(lbl => lbl.classList.remove('hidden'));
+        emBtn.onclick = () => window.startFlow('sos');
+    } else {
+        // Deshabilitar botón
+        emBtn.classList.add('opacity-50', 'pointer-events-none', 'bg-gray-600');
+        emBtn.classList.remove('bg-gradient-to-r', 'from-red-600', 'to-naranja');
+        if (emText) {
+            emText.classList.remove('hidden');
+            const nextOpen = window.findNextOpenDay?.();
+            if (nextOpen) {
+                emText.innerText = `Abrimos el ${nextOpen.day} a las ${nextOpen.time}`;
+            } else {
+                emText.innerText = `Abrimos a las ${sched?.o || '08:00'}`;
+            }
+        }
+        const labels = emBtn.querySelectorAll('.emergency-label');
+        labels.forEach(lbl => lbl.classList.add('hidden'));
+        emBtn.onclick = () => window.showToast("Taller cerrado. Vuelve en horario laboral.", true);
+    }
+};
 
 // === INICIO Y CONFIGURACIÓN GLOBAL ===
 async function loadGlobalSettings() {
