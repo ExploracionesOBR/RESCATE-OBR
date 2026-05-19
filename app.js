@@ -505,13 +505,16 @@ function updateLandingStatus() {
     });
 
      //Para activar el modo, un administrador puede ejecutar en la consola o desde un botón oculto:
-//await setDoc(doc(db, 'settings', 'general'), { modoProximamente: true, fechaLanzamiento: '2025-12-01' }, { merge: true });
+//await setDoc(doc(db, 'settings', 'general'), { modoProximamente: true, fechaLanzamiento: '2026-05-23' }, { merge: true });
     // Mostrar fecha de lanzamiento si existe
     if (globalSettings.fechaLanzamiento) {
         const fechaEl = document.getElementById('fecha-lanzamiento');
         if (fechaEl) fechaEl.innerText = new Date(globalSettings.fechaLanzamiento).toLocaleDateString();
     }
-
+const loginLandingBtn = document.getElementById('login-landing-btn');
+    if (loginLandingBtn) {
+        loginLandingBtn.style.display = auth.currentUser ? 'none' : 'flex';
+    }
     window.loadPromoVideo();
 }
 function findNextOpenDay() {
