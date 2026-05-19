@@ -480,30 +480,6 @@ function updateLandingStatus() {
 
     window.loadPromoVideo();
 }
-    if (isOpen) {
-        emBtn.classList.remove('opacity-50', 'pointer-events-none', 'bg-gray-600');
-        emBtn.classList.add('bg-gradient-to-r', 'from-red-600', 'to-naranja');
-        emBtn.querySelector('.emergency-label')?.classList.remove('hidden');
-        if (emText) emText.classList.add('hidden');
-        emBtn.onclick = () => startFlow('sos');
-    } else {
-        emBtn.classList.add('opacity-50', 'pointer-events-none', 'bg-gray-600');
-        emBtn.classList.remove('bg-gradient-to-r', 'from-red-600', 'to-naranja');
-        const label = emBtn.querySelector('.emergency-label');
-        if (label) label.classList.add('hidden');
-        if (emText) {
-            emText.classList.remove('hidden');
-            const nextOpen = findNextOpenDay();
-            if (nextOpen) {
-                emText.innerText = `Abrimos el ${nextOpen.day} a las ${nextOpen.time}`;
-            } else {
-                emText.innerText = `Abrimos a las ${sched?.o || '08:00'}`;
-            }
-        }
-        emBtn.onclick = () => showToast("Taller cerrado. Vuelve en horario laboral.", true);
-    }
-};
-
 function findNextOpenDay() {
     const now = new Date();
     for (let i = 0; i < 7; i++) {
