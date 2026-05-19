@@ -5937,7 +5937,7 @@ window.mostrarOpcionesContacto = () => {
         document.body.appendChild(modalEl);
         // Asignar eventos una sola vez
         document.getElementById('contact-call-1').onclick = () => window.open('tel:6311551533', '_self');
-        document.getElementById('contact-call-2').onclick = () => window.open('tel:6441106011', '_self');
+        document.getElementById('contact-call-2').onclick = () => window.open('tel:6444207644', '_self');
         document.getElementById('contact-chat').onclick = () => {
             window.toggleModal(modalId, false);
             window.openChatWithTaller(); // Función dinámica que crea chat pendiente
