@@ -424,19 +424,29 @@ async function loadGlobalSettings() {
     });
 }
 function updateLandingStatus() {
-    const now = new Date(); const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
+    const now = new Date();
+    const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
     const sched = globalSettings.schedule[dayIndex] || { o: "08:00", c: "20:00" };
-    const [hOpen, mOpen] = sched.o.split(':').map(Number); const [hClose, mClose] = sched.c.split(':').map(Number);
-    const nowMins = now.getHours() * 60 + now.getMinutes(); const openMins = hOpen * 60 + mOpen; const closeMins = hClose * 60 + mClose;
+    const [hOpen, mOpen] = sched.o.split(':').map(Number);
+    const [hClose, mClose] = sched.c.split(':').map(Number);
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const openMins = hOpen * 60 + mOpen;
+    const closeMins = hClose * 60 + mClose;
     const isOpen = nowMins >= openMins && nowMins < closeMins;
 
-    const lo = document.getElementById('landing-open'); const lc = document.getElementById('landing-closed');
-    if(lo) lo.style.display = isOpen ? 'flex' : 'none'; if(lc) lc.style.display = isOpen ? 'none' : 'flex';
+    const lo = document.getElementById('landing-open');
+    const lc = document.getElementById('landing-closed');
+    if (lo) lo.style.display = isOpen ? 'flex' : 'none';
+    if (lc) lc.style.display = isOpen ? 'none' : 'flex';
+
     const badge = document.getElementById('landing-status-badge');
     if (badge) {
         badge.innerText = isOpen ? 'Plataforma Activa' : 'Taller Fuera de Horario';
-        badge.className = isOpen ? 'text-naranja font-black tracking-widest text-[10px] lg:text-xs mb-8 lg:mb-12 uppercase border border-naranja/30 px-6 py-2 rounded-full bg-naranja/10' : 'text-red-500 font-black tracking-widest text-[10px] lg:text-xs mb-8 lg:mb-12 uppercase border border-red-500/30 px-6 py-2 rounded-full bg-red-500/10';
+        badge.className = isOpen
+            ? 'text-naranja font-black tracking-widest text-[10px] lg:text-xs mb-8 lg:mb-12 uppercase border border-naranja/30 px-6 py-2 rounded-full bg-naranja/10'
+            : 'text-red-500 font-black tracking-widest text-[10px] lg:text-xs mb-8 lg:mb-12 uppercase border border-red-500/30 px-6 py-2 rounded-full bg-red-500/10';
     }
+
     const closedText = document.getElementById('closed-hours-text');
     if (closedText && !isOpen) {
         const nextOpen = findNextOpenDay();
@@ -444,50 +454,32 @@ function updateLandingStatus() {
         else closedText.innerText = `Abrimos a las ${sched.o}`;
     }
 
-window.updateEmergencyButtonState = (isOpen, sched) => {
-    const emBtn = document.getElementById('emergency-client-btn');
-    const emText = document.getElementById('emergency-closed-text');
-    if (!emBtn) return;
+    // Llamar a la función global que actualiza el botón de emergencia
+    window.updateEmergencyButtonState(isOpen, sched);
 
-    if (isOpen) {
-        // Habilitar botón
-        emBtn.classList.remove('opacity-50', 'pointer-events-none', 'bg-gray-600');
-        emBtn.classList.add('bg-gradient-to-r', 'from-red-600', 'to-naranja');
-        // Ocultar texto de cerrado
-        if (emText) emText.classList.add('hidden');
-        // Asegurar que el texto "Solicitar rescate ahora" sea visible
-        const labels = emBtn.querySelectorAll('.emergency-label');
-        labels.forEach(lbl => lbl.classList.remove('hidden'));
-        emBtn.onclick = () => window.startFlow('sos');
-    } else {
-        // Deshabilitar botón
-        emBtn.classList.add('opacity-50', 'pointer-events-none', 'bg-gray-600');
-        emBtn.classList.remove('bg-gradient-to-r', 'from-red-600', 'to-naranja');
-        // Mostrar texto de cerrado con el próximo día
-        if (emText) {
-            emText.classList.remove('hidden');
-            const nextOpen = window.findNextOpenDay();
-            if (nextOpen) {
-                emText.innerText = `Abrimos el ${nextOpen.day} a las ${nextOpen.time}`;
+    // Banners VIP
+    const vipBannerShop = document.getElementById('vip-banner-shop');
+    const vipBannerShopClient = document.getElementById('vip-banner-shop-client');
+    [vipBannerShop, vipBannerShopClient].forEach(banner => {
+        if (banner) {
+            if (!auth.currentUser || (window.currentUserDoc && window.currentUserDoc.role !== 'membresia')) {
+                banner.classList.remove('hidden');
             } else {
-                emText.innerText = `Abrimos a las ${sched?.o || '08:00'}`;
+                banner.classList.add('hidden');
             }
         }
-        // Opcional: ocultar el texto "Solicitar rescate ahora" cuando está cerrado
-        const labels = emBtn.querySelectorAll('.emergency-label');
-        labels.forEach(lbl => lbl.classList.add('hidden'));
-        emBtn.onclick = () => window.showToast("Taller cerrado. Vuelve en horario laboral.", true);
-    }
-};
-    //Para activar el modo, un administrador puede ejecutar en la consola o desde un botón oculto:
+    });
+
+     //Para activar el modo, un administrador puede ejecutar en la consola o desde un botón oculto:
 //await setDoc(doc(db, 'settings', 'general'), { modoProximamente: true, fechaLanzamiento: '2025-12-01' }, { merge: true });
-    // Mostrar fecha de lanzamiento en vista próximamente
+    // Mostrar fecha de lanzamiento si existe
     if (globalSettings.fechaLanzamiento) {
         const fechaEl = document.getElementById('fecha-lanzamiento');
         if (fechaEl) fechaEl.innerText = new Date(globalSettings.fechaLanzamiento).toLocaleDateString();
     }
 
     window.loadPromoVideo();
+}
     if (isOpen) {
         emBtn.classList.remove('opacity-50', 'pointer-events-none', 'bg-gray-600');
         emBtn.classList.add('bg-gradient-to-r', 'from-red-600', 'to-naranja');
