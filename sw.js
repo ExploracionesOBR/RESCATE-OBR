@@ -26,6 +26,8 @@ self.addEventListener('install', event => {
       ));
     })
   );
+  // Forzar la activación inmediata del nuevo Service Worker (evita el estado "waiting")
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
@@ -99,4 +101,16 @@ self.addEventListener('fetch', event => {
       });
     })
   );
+});
+
+// Notificar a los clientes cuando haya una nueva versión (opcional)
+self.addEventListener('message', event => {
+  if (event.data === 'skipWaiting') {
+    self.skipWaiting();
+  }
+});
+
+// Cuando el SW toma control, avisa a la página para que refresque (ya se maneja desde index.html)
+self.addEventListener('controllerchange', () => {
+  // Esto lo maneja el script en index.html
 });
