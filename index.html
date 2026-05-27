@@ -1426,68 +1426,81 @@
 <!-- FIN DE MODALES -->
 <script type="module" src="app.js"></script>
 <script>
+  // Registro único y mejorado del Service Worker
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/RESCATE-OBR/sw.js').then(reg => {
-        console.log('SW registrado:', reg.scope);
-      }).catch(err => {
-        console.warn('Error al registrar SW:', err);
-      });
-    });
-  }
-</script>
- <script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/RESCATE-OBR/sw.js').then(reg => {
-      console.log('SW registrado:', reg.scope);
+        console.log('✅ SW registrado correctamente:', reg.scope);
 
-      // Si hay una nueva versión esperando, usar el modal de la app
-      const notificarActualizacion = (worker) => {
-        if (typeof window.confirmModal === 'function') {
-          window.confirmModal(
-            '📢 Nueva versión disponible. ¿Quieres actualizar ahora para ver las mejoras?',
-            () => {
-              worker.postMessage('skipWaiting');
-              setTimeout(() => window.location.reload(), 500);
-            },
-            () => { /* El usuario cancela, la actualización se aplicará en la próxima recarga */ }
-          );
-        } else {
-          // Fallback si el modal aún no está disponible
-          if (confirm('Nueva versión disponible. ¿Actualizar?')) {
-            worker.postMessage('skipWaiting');
-            window.location.reload();
-          }
-        }
-      };
-
-      // Si ya hay un worker esperando al registrar
-      if (reg.waiting) {
-        notificarActualizacion(reg.waiting);
-      }
-
-      // Cuando se detecta una nueva versión
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        if (newWorker) {
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              notificarActualizacion(newWorker);
+        // Función para notificar al usuario usando el modal de confirmación si está disponible
+        const notifyUpdate = (worker) => {
+          // Esperamos un poco para asegurar que window.confirmModal y window.showToast existan
+          const tryNotify = () => {
+            if (typeof window.confirmModal === 'function') {
+              window.confirmModal(
+                '📢 Nueva versión disponible. ¿Quieres actualizar ahora para ver las mejoras?',
+                () => {
+                  // Usuario acepta: forzar actualización inmediata
+                  worker.postMessage('skipWaiting');
+                  setTimeout(() => window.location.reload(), 500);
+                },
+                () => {
+                  // Usuario rechaza: mostrar toast informativo
+                  if (typeof window.showToast === 'function') {
+                    window.showToast('Actualización disponible. Se aplicará cuando recargues la página.', false);
+                  } else {
+                    alert('Hay una nueva versión disponible. Recarga la página para aplicarla.');
+                  }
+                }
+              );
+            } else {
+              // Fallback si los modales no están listos
+              if (confirm('📢 Nueva versión disponible. ¿Actualizar ahora?')) {
+                worker.postMessage('skipWaiting');
+                window.location.reload();
+              } else {
+                alert('Actualización disponible. Se aplicará cuando recargues la página.');
+              }
             }
-          });
+          };
+
+          // Si el DOM ya está listo, intentamos inmediatamente; si no, esperamos
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', tryNotify);
+          } else {
+            tryNotify();
+          }
+        };
+
+        // Si ya hay un worker esperando al cargar la página
+        if (reg.waiting) {
+          notifyUpdate(reg.waiting);
+        }
+
+        // Detectar cuando se encuentra una nueva versión mientras la app está abierta
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                notifyUpdate(newWorker);
+              }
+            });
+          }
+        });
+      }).catch(err => {
+        console.warn('❌ Error al registrar SW:', err);
+        // No mostramos alert al usuario porque no es crítico para el funcionamiento básico
+      });
+
+      // Recargar automáticamente cuando el SW toma el control (después de skipWaiting)
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
         }
       });
-    }).catch(err => console.warn('Error al registrar SW:', err));
-
-    // Recargar automáticamente cuando el SW tome el control
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!refreshing) {
-        refreshing = true;
-        window.location.reload();
-      }
     });
   }
 </script>
-</body>
-</html>
