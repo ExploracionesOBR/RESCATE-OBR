@@ -766,16 +766,31 @@ onAuthStateChanged(auth, async user => {
         globalSettings.centerLng = TALLER_LNG;
         showView('app-admin');
         document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
-        setTimeout(() => {
-            window.adminRefreshConfigUI();
-            window.adminLoadInventory();
-            window.adminLoadSales();
-            window.filterSOS('pending');
-            window.adminListenServices();
-            window.adminLoadCitas();
-            window.loadChatList();
-            window.applyViewPermissions?.();
-        }, 100);
+setTimeout(async () => {
+    try {
+        console.log('1. Iniciando carga de admin...');
+        await window.adminRefreshConfigUI();
+        console.log('2. adminRefreshConfigUI OK');
+        await window.adminLoadInventory();
+        console.log('3. adminLoadInventory OK');
+        await window.adminLoadSales();
+        console.log('4. adminLoadSales OK');
+        await window.filterSOS('pending');
+        console.log('5. filterSOS OK');
+        await window.adminListenServices();
+        console.log('6. adminListenServices OK');
+        await window.adminLoadCitas();
+        console.log('7. adminLoadCitas OK');
+        await window.loadChatList();
+        console.log('8. loadChatList OK');
+        await window.applyViewPermissions?.();
+        console.log('9. applyViewPermissions OK');
+        console.log('✅ Todas las funciones de admin cargaron correctamente');
+    } catch (error) {
+        console.error('❌ Error en la función de admin:', error);
+        window.showToast('Error al cargar panel de admin: ' + error.message, true);
+    }
+}, 100);
         if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
     } else {
         showView('app-client');
