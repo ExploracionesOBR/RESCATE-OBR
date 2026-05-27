@@ -1426,26 +1426,62 @@
 <!-- FIN DE MODALES -->
 <script type="module" src="app.js"></script>
 <script>
-  // Registro único y mejorado del Service Worker
+  // Registro único y mejorado del Service Worker (con prevención de bucle de notificaciones)
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/RESCATE-OBR/sw.js').then(reg => {
         console.log('✅ SW registrado correctamente:', reg.scope);
 
-        // Función para notificar al usuario usando el modal de confirmación si está disponible
+        // Función para obtener un identificador único del SW (usamos la URL del archivo sw.js)
+        // Si no cambia la URL, podemos usar una variable generada en tiempo de compilación.
+        // Como no tenemos build, usamos la última fecha de modificación del sw.js solicitándola.
+        // Alternativa: usar el CACHE_NAME que se define en sw.js, pero no es accesible desde aquí.
+        // Para simplificar y ser efectivos, usaremos un timestamp de la última notificación guardada.
+        // Lo haremos así: guardamos en sessionStorage la versión del SW (reg.active?.scriptURL) cuando se notifica.
+        
+        const getSWVersion = () => {
+          // Intentamos obtener la URL del SW activo o del waiting
+          const swUrl = reg.waiting?.scriptURL || reg.active?.scriptURL || '';
+          // Usamos la URL como identificador (cambia si modificas sw.js y la subes con nuevo nombre o query param)
+          return swUrl;
+        };
+
+        const hasNotifiedForCurrentWaiting = () => {
+          const waitingUrl = reg.waiting?.scriptURL;
+          if (!waitingUrl) return true; // no hay waiting, no notificar
+          const lastNotified = sessionStorage.getItem('sw_update_notified');
+          return lastNotified === waitingUrl;
+        };
+
+        const markNotified = () => {
+          const waitingUrl = reg.waiting?.scriptURL;
+          if (waitingUrl) {
+            sessionStorage.setItem('sw_update_notified', waitingUrl);
+          }
+        };
+
         const notifyUpdate = (worker) => {
-          // Esperamos un poco para asegurar que window.confirmModal y window.showToast existan
+          // Verificar si ya notificamos para este worker
+          const workerUrl = worker.scriptURL;
+          const lastNotified = sessionStorage.getItem('sw_update_notified');
+          if (lastNotified === workerUrl) {
+            console.log('Ya se notificó para esta versión, omitiendo.');
+            return;
+          }
+
           const tryNotify = () => {
             if (typeof window.confirmModal === 'function') {
               window.confirmModal(
                 '📢 Nueva versión disponible. ¿Quieres actualizar ahora para ver las mejoras?',
                 () => {
-                  // Usuario acepta: forzar actualización inmediata
+                  // Marcar como notificada antes de recargar para evitar bucle
+                  sessionStorage.setItem('sw_update_notified', workerUrl);
                   worker.postMessage('skipWaiting');
                   setTimeout(() => window.location.reload(), 500);
                 },
                 () => {
-                  // Usuario rechaza: mostrar toast informativo
+                  // Usuario rechaza: también marcar como notificada para no volver a preguntar en esta sesión
+                  sessionStorage.setItem('sw_update_notified', workerUrl);
                   if (typeof window.showToast === 'function') {
                     window.showToast('Actualización disponible. Se aplicará cuando recargues la página.', false);
                   } else {
@@ -1454,17 +1490,18 @@
                 }
               );
             } else {
-              // Fallback si los modales no están listos
+              // Fallback con confirm
               if (confirm('📢 Nueva versión disponible. ¿Actualizar ahora?')) {
+                sessionStorage.setItem('sw_update_notified', workerUrl);
                 worker.postMessage('skipWaiting');
                 window.location.reload();
               } else {
+                sessionStorage.setItem('sw_update_notified', workerUrl);
                 alert('Actualización disponible. Se aplicará cuando recargues la página.');
               }
             }
           };
 
-          // Si el DOM ya está listo, intentamos inmediatamente; si no, esperamos
           if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', tryNotify);
           } else {
@@ -1472,25 +1509,31 @@
           }
         };
 
-        // Si ya hay un worker esperando al cargar la página
-        if (reg.waiting) {
+        // Si hay un worker esperando y no se ha notificado antes, mostrar
+        if (reg.waiting && !hasNotifiedForCurrentWaiting()) {
           notifyUpdate(reg.waiting);
+        } else if (reg.waiting && hasNotifiedForCurrentWaiting()) {
+          console.log('Worker esperando pero ya notificado, no se muestra mensaje.');
         }
 
-        // Detectar cuando se encuentra una nueva versión mientras la app está abierta
+        // Detectar nuevas versiones mientras la app está abierta
         reg.addEventListener('updatefound', () => {
           const newWorker = reg.installing;
           if (newWorker) {
             newWorker.addEventListener('statechange', () => {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                notifyUpdate(newWorker);
+                // Solo notificar si no es el mismo que ya notificamos
+                const workerUrl = newWorker.scriptURL;
+                const lastNotified = sessionStorage.getItem('sw_update_notified');
+                if (lastNotified !== workerUrl) {
+                  notifyUpdate(newWorker);
+                }
               }
             });
           }
         });
       }).catch(err => {
         console.warn('❌ Error al registrar SW:', err);
-        // No mostramos alert al usuario porque no es crítico para el funcionamiento básico
       });
 
       // Recargar automáticamente cuando el SW toma el control (después de skipWaiting)
@@ -1498,6 +1541,8 @@
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (!refreshing) {
           refreshing = true;
+          // Limpiar la marca de notificación porque ya estamos en la nueva versión
+          sessionStorage.removeItem('sw_update_notified');
           window.location.reload();
         }
       });
