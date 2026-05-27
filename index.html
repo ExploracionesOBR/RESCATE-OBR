@@ -105,7 +105,7 @@
                 <a href="tel:6444207644" class="text-naranja font-black tracking-widest text-xs lg:text-base hover:text-white transition-colors">644 420 7644</a>
             </div>
         </div>
-        <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=27.446859,-109.943861', '_blank')" class="mt-4 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-full font-black uppercase text-xs tracking-widest border border-white/20"><i class="fas fa-map-signs mr-2"></i> Cómo llegar al taller</button>
+        <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=27.446859|,-109.943861', '_blank')" class="mt-4 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-full font-black uppercase text-xs tracking-widest border border-white/20"><i class="fas fa-map-signs mr-2"></i> Cómo llegar al taller</button>
     </div>
 </div>
     <!-- VISTA PRÓXIMAMENTE -->
@@ -453,8 +453,11 @@
         <button onclick="window.switchClientView?.('c-view-tienda')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2"><i class="fas fa-shopping-bag text-2xl mb-1"></i><span class="text-[10px] font-black uppercase tracking-widest mt-1">Tienda</span></button>
         <button onclick="window.switchClientView?.('c-view-moto')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2"><i class="fas fa-motorcycle text-2xl mb-1"></i><span class="text-[10px] font-black uppercase tracking-widest mt-1">En Vivo</span></button>
     </nav>
-     <!-- Video promocional al fondo (sin controles) -->
-    <div id="video-banner-container" class="w-full max-w-full lg:max-w-[1200px] mt-auto hidden"></div>
+ <!-- Video promocional (solo para usuarios logueados) -->
+<div id="video-banner-container-client" class="w-full mt-4 hidden">
+    <div style="pointer-events:none; user-select:none;" oncontextmenu="return false;">
+        <video id="client-promo-video" autoplay muted loop playsinline controlslist="nodownload nofullscreen" class="w-full h-[180px] lg:h-[200px] object-contain rounded-xl"></video>
+    </div>
 </div>
 <!-- PANEL ADMINISTRADOR -->
 <div id="app-admin" class="app-view hidden pb-24 border-t-4 border-naranja flex-col bg-asfalto min-h-screen">
