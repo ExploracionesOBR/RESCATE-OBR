@@ -636,24 +636,42 @@ const loginLandingBtn = document.getElementById('login-landing-btn');
     if (loginLandingBtn) {
         loginLandingBtn.style.display = auth.currentUser ? 'none' : 'flex';
     }
-    window.loadPromoVideo();
-}
-function findNextOpenDay() {
+window.loadPromoVideo = () => {
+    const containerPublic = document.getElementById('video-banner-container');
+    const containerClient = document.getElementById('video-banner-container-client');
+    
     const now = new Date();
-    for (let i = 0; i < 7; i++) {
-        const check = new Date(now);
-        check.setDate(now.getDate() + i);
-        const dayIdx = check.getDay() === 0 ? 6 : check.getDay() - 1;
-        const s = globalSettings.schedule[dayIdx] || { o: "08:00", c: "20:00" };
-        const [h, m] = s.o.split(':').map(Number);
-        const openMins = h * 60 + m;
-        const currentMins = (i === 0) ? now.getHours() * 60 + now.getMinutes() : 0;
-        if (openMins > currentMins) {
-            return { day: ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][check.getDay()], time: s.o };
+    const dayIndex = now.getDay();
+    const todayVideo = globalSettings.videoSchedule?.[dayIndex];
+    
+    const updateContainer = (container, videoId) => {
+        if (!container) return;
+        if (todayVideo && todayVideo.trim() !== '') {
+            container.classList.remove('hidden');
+            container.style.display = 'block';
+            let video = container.querySelector('video');
+            if (!video) {
+                container.innerHTML = `<div style="pointer-events:none; user-select:none;" oncontextmenu="return false;">
+                    <video id="${videoId}" autoplay muted loop playsinline controlslist="nodownload nofullscreen" class="w-full max-h-[300px] object-contain rounded-xl"></video>
+                </div>`;
+                video = container.querySelector('video');
+            }
+            if (video) {
+                video.src = todayVideo;
+                video.load();
+            }
+        } else {
+            container.classList.add('hidden');
+            container.style.display = 'none';
+            if (container.querySelector('video')) {
+                container.innerHTML = '';
+            }
         }
-    }
-    return null;
-}
+    };
+    
+    updateContainer(containerPublic, 'public-promo-video');
+    updateContainer(containerClient, 'client-promo-video');
+};
 
 // === CARGA DE TIENDA Y SERVICIOS ===
 async function loadPublicStore() {
