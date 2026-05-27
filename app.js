@@ -452,7 +452,7 @@ function updateLogo() {
 function startMechanicTracking() {
     if(['admin', 'mecanico', 'taller'].includes(window.currentUserDoc?.role)) {
         if(navigator.geolocation) {
-            navigator.geolocation.watchPosition(pos => {
+            const watchId = navigator.geolocation.watchPosition(pos => {
                 const uid = auth.currentUser.uid;
                 const currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, name: window.currentUserDoc.name, ts: Date.now() };
                 update(dbRef(rtdb, 'mecanicos_activos/' + uid), currentPos);
@@ -485,9 +485,12 @@ function startMechanicTracking() {
                         ts: Date.now()
                     });
                 }
-            }, e=>console.error(e), {enableHighAccuracy: true, maximumAge: 10000});
-       if (typeof window.registerGeolocationWatch === 'function') {
-        window.registerGeolocationWatch(watchId);
+            }, e => console.error(e), { enableHighAccuracy: true, maximumAge: 10000 });
+            
+            if (typeof window.registerGeolocationWatch === 'function') {
+                window.registerGeolocationWatch(watchId);
+            }
+        }
     }
 }
 // ======================================================
