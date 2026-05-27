@@ -695,8 +695,12 @@ async function loadServicesCatalog() {
         console.error('Error cargando servicios:', error);
     });
 }
-
-
+// Asegurar que la lista de servicios en configuración se actualice en tiempo real
+if (window._configServicesUnsubscribe) window._configServicesUnsubscribe();
+window._configServicesUnsubscribe = onSnapshot(collection(db, "servicios"), () => {
+    refreshCatalogUI();
+});
+        
 // === FLUJO DE VISTAS Y AUTENTICACIÓN ===
 onAuthStateChanged(auth, async user => {
     document.getElementById('loading-screen').classList.add('hidden');
@@ -3591,23 +3595,38 @@ window.adminLoadUsers = async () => {
     if (normalList) normalList.innerHTML = '';
     if (vipList) vipList.innerHTML = '';
     if (staffList) staffList.innerHTML = '';
+    
+    let countNormal = 0, countVip = 0, countStaff = 0;
+    
     snap.forEach(d => {
         const u = d.data();
-const card = `<div class="bg-white/5 p-4 rounded-xl text-white text-sm flex justify-between items-center cursor-pointer" onclick="window.openUserDetail('${d.id}')">
-    <span class="flex-1 truncate text-base">${u.name || (u.phone ? u.phone.replace('+52','') : 'Sin nombre')}</span>
-    <div class="flex items-center space-x-2 ml-3">
-        ${u.role === 'cliente' ? `<button onclick="event.stopPropagation(); window.promoteToVIP('${d.id}')" class="bg-yellow-600 text-white px-3 py-1 rounded-lg text-xs font-bold uppercase flex items-center"><i class="fas fa-crown mr-1"></i>VIP</button>` : ''}
-        ${u.role === 'membresia' ? `<button onclick="event.stopPropagation(); window.demoteFromVIP('${d.id}')" class="bg-gray-600 text-white px-3 py-1 rounded-lg text-xs font-bold uppercase flex items-center"><i class="fas fa-user mr-1"></i>Quitar</button>` : ''}
-    </div>
-</div>`;
+        if (u.role === 'cliente') countNormal++;
+        else if (u.role === 'membresia') countVip++;
+        else if (['admin','mecanico','taller','socio'].includes(u.role)) countStaff++;
+        
+        const card = `<div class="bg-white/5 p-4 rounded-xl text-white text-sm flex justify-between items-center cursor-pointer" onclick="window.openUserDetail('${d.id}')">
+            <span class="flex-1 truncate text-base">${u.name || (u.phone ? u.phone.replace('+52','') : 'Sin nombre')}</span>
+            <div class="flex items-center space-x-2 ml-3">
+                ${u.role === 'cliente' ? `<button onclick="event.stopPropagation(); window.promoteToVIP('${d.id}')" class="bg-yellow-600 text-white px-3 py-1 rounded-lg text-xs font-bold uppercase flex items-center"><i class="fas fa-crown mr-1"></i>VIP</button>` : ''}
+                ${u.role === 'membresia' ? `<button onclick="event.stopPropagation(); window.demoteFromVIP('${d.id}')" class="bg-gray-600 text-white px-3 py-1 rounded-lg text-xs font-bold uppercase flex items-center"><i class="fas fa-user mr-1"></i>Quitar</button>` : ''}
+            </div>
+        </div>`;
         if (u.role === 'cliente' && normalList) normalList.innerHTML += card;
         else if (u.role === 'membresia' && vipList) vipList.innerHTML += card;
         else if (['admin','mecanico','taller','socio'].includes(u.role) && staffList) staffList.innerHTML += `<div class="bg-white/5 p-4 rounded-xl text-white text-sm flex justify-between items-center cursor-pointer" onclick="window.openStaffDetail('${d.id}')">
-    <span class="text-base font-bold">${u.name || u.phone}</span><span class="text-yellow-400 text-sm"><i class="fas fa-star"></i> --</span>
-</div>`;
+            <span class="text-base font-bold">${u.name || u.phone}</span><span class="text-yellow-400 text-sm"><i class="fas fa-star"></i> --</span>
+        </div>`;
     });
+    
+    // Actualizar contadores en el HTML
+    const normalHeader = document.querySelector('#admin-users-normal-list').closest('.bg-white\\/5')?.querySelector('p');
+    const vipHeader = document.querySelector('#admin-users-vip-list').closest('.bg-gradient-to-br')?.querySelector('p');
+    const staffHeader = document.querySelector('#admin-users-staff-list').closest('.bg-gradient-to-br')?.querySelector('p');
+    if (normalHeader) normalHeader.innerHTML = `<i class="fas fa-users mr-1"></i> Clientes Estándar (${countNormal})`;
+    if (vipHeader) vipHeader.innerHTML = `<i class="fas fa-crown mr-1"></i> Socios VIP (${countVip})`;
+    if (staffHeader) staffHeader.innerHTML = `<i class="fas fa-wrench mr-1"></i> Equipo OBR (${countStaff})`;
 };
-
+        
 window.openUserDetail = async (uid) => {
     const userDoc = await getDoc(doc(db, "users", uid));
     if (!userDoc.exists()) return showToast("Usuario no encontrado", true);
@@ -4997,7 +5016,8 @@ window.updateGeofenceRadius = (val) => {
 };
 
 window.loadPromoVideo = () => {
-    const container = document.getElementById('video-banner-container');
+   const containerPublic = document.getElementById('video-banner-container');
+    const containerClient = document.getElementById('video-banner-container-client');    
     if (!container) return;
     const now = new Date();
     const dayIndex = now.getDay();
