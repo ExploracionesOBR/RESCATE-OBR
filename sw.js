@@ -41,13 +41,46 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET') return;
 
-  // Firebase: solo red
+  // Firebase: solo red (mejorado para devolver error 503 en lugar de {} vacío)
   if (url.hostname.includes('firestore') || url.hostname.includes('googleapis') || url.hostname.includes('rtdb')) {
-    event.respondWith(fetch(event.request).catch(() => new Response('{}', { status: 200 })));
+    event.respondWith(
+      fetch(event.request).catch(() => new Response(
+        JSON.stringify({ error: 'offline' }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } }
+      ))
+    );
     return;
   }
 
-  // Cache First para todo lo demás
+  // RECURSOS EXTERNOS (CDNs): stale-while-revalidate
+  // Detecta dominios de CDNs: cdnjs, unpkg, fonts.googleapis.com, etc.
+  if (url.hostname.includes('cdnjs') || url.hostname.includes('unpkg') || 
+      url.hostname.includes('fonts.googleapis.com') || url.hostname.includes('fonts.gstatic.com')) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then(cache => {
+        return cache.match(event.request).then(cachedResponse => {
+          const fetchPromise = fetch(event.request).then(networkResponse => {
+            if (networkResponse && networkResponse.status === 200) {
+              cache.put(event.request, networkResponse.clone());
+            }
+            return networkResponse;
+          }).catch(() => {
+            // Si falla la red y no hay caché, devolver un error controlado
+            if (!cachedResponse) {
+              return new Response('Recurso no disponible offline', { status: 503 });
+            }
+            return cachedResponse;
+          });
+          // Devuelve la caché inmediatamente si existe, sino espera la red
+          return cachedResponse || fetchPromise;
+        });
+      })
+    );
+    return;
+  }
+
+  // RECURSOS LOCALES (app propia): Cache First con fallback a index.html
+  // Esto incluye: index.html, app.js, styles.css, icono.png, sw.js, y rutas base
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
@@ -57,22 +90,13 @@ self.addEventListener('fetch', event => {
         caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
         return response;
       }).catch(() => {
+        // Si es navegación y falla todo, mostrar index.html
         if (event.request.mode === 'navigate') {
           return caches.match(`${BASE_PATH}/index.html`);
         }
+        // Para otros recursos, devolver un error 404 silencioso
+        return new Response('Recurso no encontrado', { status: 404 });
       });
     })
   );
-});
-
-// Notificar a los clientes cuando haya una nueva versión
-self.addEventListener('message', event => {
-  if (event.data === 'skipWaiting') {
-    self.skipWaiting();
-  }
-});
-
-// Cuando el SW toma control, avisa a la página para que refresque
-self.addEventListener('controllerchange', () => {
-  // Esto lo maneja el script en index.html
 });
