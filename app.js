@@ -5019,20 +5019,43 @@ window.updateGeofenceRadius = (val) => {
 };
 
 window.loadPromoVideo = () => {
-   const containerPublic = document.getElementById('video-banner-container');
-    const containerClient = document.getElementById('video-banner-container-client');    
-    if (!container) return;
+    const containerPublic = document.getElementById('video-banner-container');
+    const containerClient = document.getElementById('video-banner-container-client');
+    
     const now = new Date();
     const dayIndex = now.getDay();
     const todayVideo = globalSettings.videoSchedule?.[dayIndex];
-    if (todayVideo && todayVideo.trim() !== '') {
-        container.innerHTML = `<div style="pointer-events:none; user-select:none;" oncontextmenu="return false;"><video src="${todayVideo}" autoplay muted loop playsinline controlsList="nodownload nofullscreen" class="w-full max-h-[300px] object-contain rounded-xl"></video></div>`;
-        container.classList.remove('hidden');
-        container.style.display = 'block';
-    } else {
-        container.classList.add('hidden');
-        container.style.display = 'none';
-    }
+    
+    const updateContainer = (container, videoId) => {
+        if (!container) return;
+        if (todayVideo && todayVideo.trim() !== '') {
+            container.classList.remove('hidden');
+            container.style.display = 'block';
+            // Buscar el video dentro del contenedor (si ya existe, actualizar src)
+            let video = container.querySelector('video');
+            if (!video) {
+                // Si no hay video, crear la estructura
+                container.innerHTML = `<div style="pointer-events:none; user-select:none;" oncontextmenu="return false;">
+                    <video id="${videoId}" autoplay muted loop playsinline controlslist="nodownload nofullscreen" class="w-full max-h-[300px] object-contain rounded-xl"></video>
+                </div>`;
+                video = container.querySelector('video');
+            }
+            if (video) {
+                video.src = todayVideo;
+                video.load();
+            }
+        } else {
+            container.classList.add('hidden');
+            container.style.display = 'none';
+            // Limpiar contenido para liberar recursos
+            if (container.querySelector('video')) {
+                container.innerHTML = '';
+            }
+        }
+    };
+    
+    updateContainer(containerPublic, 'public-promo-video');
+    updateContainer(containerClient, 'client-promo-video');
 };
 
 window.loadPromoPreview = () => {
