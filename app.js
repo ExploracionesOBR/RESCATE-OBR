@@ -3951,14 +3951,102 @@ window.downloadStaffReport = async (uid) => {
     pdfDoc.save(`Reporte_Eficiencia_Staff_${user.name || 'Técnico'}.pdf`);
 };
 // ======================================================
-// === SOS MEJORADO (mapa oscuro/claro automático, filtros correctos, botón PDF en completados) ===
+// === SOS MEJORADO (con listado lateral, filtros por fecha, reportes PDF/CSV) ===
 // ======================================================
-window.filterSOS = (status) => {
-    window.currentSOSFilter = status || 'pending';
-    renderSOSGlobalMap();
-};
+// Variables globales para el mapa (se mantienen)
+let adminSOSGlobalMapInst = null;
+let adminSOSMarkers = {};
+let _adminSOSTrackingListeners = {};
+let _adminSOSRouteLines = {};
+window.currentSOSFilter = 'pending';
+let sosFechaInicio = null;
+let sosFechaFin = null;
 
-window.renderSOSGlobalMap = async () => {
+// ---------- Funciones auxiliares internas (no globales) ----------
+async function cargarListadoSOS() {
+    const listaDiv = document.getElementById('admin-sos-list');
+    if (!listaDiv) return;
+    listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">Cargando...</p>';
+
+    let q = query(collection(db, "rescates"));
+    if (sosFechaInicio && sosFechaFin) {
+        const startDate = new Date(sosFechaInicio);
+        startDate.setHours(0,0,0,0);
+        const endDate = new Date(sosFechaFin);
+        endDate.setHours(23,59,59,999);
+        q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
+    }
+    const snap = await getDocs(q);
+    const rescates = [];
+    snap.forEach(doc => {
+        const data = doc.data();
+        data.id = doc.id;
+        rescates.push(data);
+    });
+
+    let filtered = rescates;
+    if (window.currentSOSFilter === 'pending') filtered = rescates.filter(r => r.status === 'pending');
+    else if (window.currentSOSFilter === 'accepted') filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
+    else if (window.currentSOSFilter === 'completed') filtered = rescates.filter(r => r.status === 'completed');
+
+    listaDiv.innerHTML = '';
+    if (filtered.length === 0) {
+        listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">No hay solicitudes con los filtros seleccionados.</p>';
+        return;
+    }
+
+    filtered.forEach(r => {
+        const estadoTexto = r.status === 'completed' ? '✅ Completado' : 
+                           (r.status === 'accepted' ? '🚚 En camino' : 
+                           (r.status === 'repairing' ? '🔧 Reparando' : '🆕 Pendiente'));
+        const colorClase = r.status === 'completed' ? 'text-green-400' :
+                          (r.status === 'accepted' ? 'text-blue-400' : 'text-yellow-400');
+        const telefonoCliente = r.phone || '';
+        const telefonoClean = telefonoCliente.replace('+52', '');
+        const botonesContacto = telefonoClean ? `
+            <div class="flex space-x-2 mt-2">
+                <button onclick="event.stopPropagation(); window.open('tel:+52${telefonoClean}', '_self')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">📞 Llamar</button>
+                <button onclick="event.stopPropagation(); window.open('https://wa.me/+52${telefonoClean}', '_blank')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">💬 WhatsApp</button>
+            </div>
+        ` : '';
+
+        // Botones de acción (navegar, aceptar, etc.) se mantienen igual que antes
+        const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-1.5 py-0.5 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
+        let actions = navBtn;
+        if (r.status === 'pending') {
+            actions += `<button onclick="event.stopPropagation(); window.acceptSOS('${r.id}')" class="bg-green-500 hover:bg-green-400 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase animate-pulse">Aceptar</button>
+                       <button onclick="event.stopPropagation(); window.cancelSOS('${r.id}')" class="bg-red-500 hover:bg-red-400 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase">Cancelar</button>`;
+        } else if (r.status === 'accepted' && r.mech_uid === auth.currentUser.uid) {
+            actions += `<button onclick="event.stopPropagation(); window.changeSOSStatus('${r.id}','repairing')" class="bg-yellow-500 text-white px-2 py-0.5 rounded text-[0.6rem]">Reparando</button>
+                       <button onclick="event.stopPropagation(); window.changeSOSStatus('${r.id}','to_shop')" class="bg-blue-500 text-white px-2 py-0.5 rounded text-[0.6rem]">A taller</button>
+                       <button onclick="event.stopPropagation(); window.changeSOSStatus('${r.id}','ready')" class="bg-purple-500 text-white px-2 py-0.5 rounded text-[0.6rem]">Lista</button>
+                       <button onclick="event.stopPropagation(); window.openMechanicPOS('${r.id}')" class="bg-indigo-500 text-white px-2 py-0.5 rounded text-[0.6rem]">Cobrar</button>`;
+        } else if (r.status === 'repairing' && r.mech_uid === auth.currentUser.uid) {
+            actions += `<button onclick="event.stopPropagation(); window.changeSOSStatus('${r.id}','to_shop')" class="bg-blue-500 text-white px-2 py-0.5 rounded text-[0.6rem]">A taller</button>
+                       <button onclick="event.stopPropagation(); window.changeSOSStatus('${r.id}','ready')" class="bg-purple-500 text-white px-2 py-0.5 rounded text-[0.6rem]">Lista</button>`;
+        } else if (r.status === 'completed') {
+            actions += `<button onclick="event.stopPropagation(); window.downloadCompletedServicePDF('${r.id}')" class="bg-purple-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase">📄 PDF</button>`;
+        }
+
+        listaDiv.innerHTML += `
+            <div class="sos-card-compact" onclick="openDetalleServicio('${r.id}')">
+                <div class="flex justify-between items-center">
+                    <span class="text-[0.8rem] font-bold">${escapeHtml(r.phone) || ''}</span>
+                    <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${window.getStatusInfo(r.status).color}">${window.getStatusInfo(r.status).text}</span>
+                </div>
+                <p class="text-[0.7rem] text-gray-400 truncate">${escapeHtml(r.falla || '')}</p>
+                <div class="flex justify-between items-center mt-1">
+                    <span class="text-naranja text-xs font-bold">$${r.costoRescateEstimado?.toFixed(2) || 0}</span>
+                    <span class="text-[9px] text-gray-500">${new Date(r.timestamp).toLocaleDateString()}</span>
+                </div>
+                <div class="flex gap-1 mt-1 flex-wrap">${actions}</div>
+                ${botonesContacto}
+            </div>
+        `;
+    });
+}
+
+async function renderSOSMapa() {
     const mapEl = document.getElementById('admin-sos-global-map');
     if (!mapEl) return;
 
@@ -3976,18 +4064,19 @@ window.renderSOSGlobalMap = async () => {
             interactive: false
         }).addTo(adminSOSGlobalMapInst);
     } else {
-        // Actualizar capa del mapa si es necesario
         adminSOSGlobalMapInst.eachLayer(layer => {
             if (layer instanceof L.TileLayer) adminSOSGlobalMapInst.removeLayer(layer);
         });
         L.tileLayer(layerUrl, { attribution }).addTo(adminSOSGlobalMapInst);
     }
 
+    // Limpiar marcadores antiguos
     Object.values(adminSOSMarkers).forEach(m => {
         if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.removeLayer(m);
     });
     adminSOSMarkers = {};
-        // Limpiar listeners de tracking y líneas de ruta
+
+    // Limpiar listeners de tracking y líneas de ruta
     if (window._adminSOSTrackingListeners) {
         Object.values(window._adminSOSTrackingListeners).forEach(unsub => unsub());
         window._adminSOSTrackingListeners = {};
@@ -3997,40 +4086,67 @@ window.renderSOSGlobalMap = async () => {
         window._adminSOSRouteLines = {};
     }
 
-    const allSnap = await getDocs(collection(db, "rescates"));
-    const listEl = document.getElementById('admin-sos-list');
-    listEl.innerHTML = '';
-    let markersGroup = [];
+    let q = query(collection(db, "rescates"));
+    if (sosFechaInicio && sosFechaFin) {
+        const startDate = new Date(sosFechaInicio);
+        startDate.setHours(0,0,0,0);
+        const endDate = new Date(sosFechaFin);
+        endDate.setHours(23,59,59,999);
+        q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
+    }
+    const snap = await getDocs(q);
+    const rescates = [];
+    snap.forEach(doc => {
+        const data = doc.data();
+        data.id = doc.id;
+        rescates.push(data);
+    });
 
-    const filterStatus = window.currentSOSFilter || 'pending';
+    let filtered = rescates;
+    if (window.currentSOSFilter === 'pending') filtered = rescates.filter(r => r.status === 'pending');
+    else if (window.currentSOSFilter === 'accepted') filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
+    else if (window.currentSOSFilter === 'completed') filtered = rescates.filter(r => r.status === 'completed');
 
-    allSnap.forEach(docSnap => {
-        const d = docSnap.data();
-        // Si el filtro es 'accepted', mostrar también 'accepted' y 'repairing'
-if (filterStatus === 'accepted') {
-    if (d.status !== 'accepted' && d.status !== 'repairing') return;
-} else {
-    if (d.status !== filterStatus) return;
-}
-
-        const lat = d.lat || TALLER_LAT;
-        const lng = d.lng || TALLER_LNG;
-
-        const marker = L.marker([lat, lng], {
-            icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-ambulance text-white"></i></div>', iconSize: [28, 28], iconAnchor: [14, 28] })
+    filtered.forEach(r => {
+        if (!r.lat || !r.lng) return;
+        const isCompleted = r.status === 'completed';
+        const iconHtml = isCompleted ? '🏍️✅' : '🏍️';
+        const marker = L.marker([r.lat, r.lng], {
+            icon: L.divIcon({
+                className: 'sos-marker',
+                html: `<div style="background:${isCompleted ? '#22c55e' : '#FF6B00'}; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; border:2px solid white; box-shadow:0 2px 5px rgba(0,0,0,0.3);">${iconHtml}</div>`,
+                iconSize: [28,28],
+                iconAnchor: [14,14]
+            })
         }).addTo(adminSOSGlobalMapInst);
 
-        marker.bindPopup(`<b>${d.phone || ''}</b><br>${d.falla}<br>Estado: ${d.status}`);
-                adminSOSMarkers[docSnap.id] = marker;
+        const telefonoCliente = r.phone || '';
+        const telefonoClean = telefonoCliente.replace('+52', '');
+        const botones = telefonoClean ? `
+            <div style="display:flex; gap:6px; margin-top:6px;">
+                <button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:12px; padding:4px 8px;">📞 Llamar</button>
+                <button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:12px; padding:4px 8px;">💬 WhatsApp</button>
+            </div>
+        ` : '';
+        marker.bindPopup(`
+            <div style="font-size:12px; min-width:150px;">
+                <b>${escapeHtml(r.phone) || ''}</b><br>
+                ${escapeHtml(r.falla || '')}<br>
+                <b>$${r.costoRescateEstimado?.toFixed(2)}</b><br>
+                Estado: ${r.status}<br>
+                ${botones}
+                <button onclick="openDetalleServicio('${r.id}')" style="background:#FF6B00; color:white; border:none; border-radius:8px; padding:4px 8px; margin-top:4px;">Ver detalles</button>
+            </div>
+        `);
+        adminSOSMarkers[r.id] = marker;
 
-        // Si el SOS está aceptado, dibujar la ruta del mecánico
-        if (d.status === 'accepted' && d.mech_uid) {
-            // Limpiar listener anterior de tracking para este SOS (si existe)
-            if (window._adminSOSTrackingListeners && window._adminSOSTrackingListeners[docSnap.id]) {
-                window._adminSOSTrackingListeners[docSnap.id]();
-                delete window._adminSOSTrackingListeners[docSnap.id];
+        // Si está aceptado, dibujar ruta del mecánico (misma lógica original)
+        if (r.status === 'accepted' && r.mech_uid) {
+            if (window._adminSOSTrackingListeners && window._adminSOSTrackingListeners[r.id]) {
+                window._adminSOSTrackingListeners[r.id]();
+                delete window._adminSOSTrackingListeners[r.id];
             }
-            const trackingRef = dbRef(rtdb, `mecanicos_tracking/${d.mech_uid}`);
+            const trackingRef = dbRef(rtdb, `mecanicos_tracking/${r.mech_uid}`);
             const listener = onValue(trackingRef, (trackSnap) => {
                 if (trackSnap.exists() && adminSOSGlobalMapInst) {
                     const coords = [];
@@ -4039,60 +4155,153 @@ if (filterStatus === 'accepted') {
                         if (p.lat && p.lng) coords.push([p.lat, p.lng]);
                     });
                     if (coords.length > 1) {
-                        // Eliminar ruta anterior si existe
-                        if (window._adminSOSRouteLines && window._adminSOSRouteLines[docSnap.id]) {
-                            window._adminSOSRouteLines[docSnap.id].remove();
+                        if (window._adminSOSRouteLines && window._adminSOSRouteLines[r.id]) {
+                            window._adminSOSRouteLines[r.id].remove();
                         }
                         if (!window._adminSOSRouteLines) window._adminSOSRouteLines = {};
-                        window._adminSOSRouteLines[docSnap.id] = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.8 }).addTo(adminSOSGlobalMapInst);
+                        window._adminSOSRouteLines[r.id] = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.8 }).addTo(adminSOSGlobalMapInst);
                     }
                 }
             });
-            // Guardar la referencia del listener para poder limpiarlo después
             if (!window._adminSOSTrackingListeners) window._adminSOSTrackingListeners = {};
-            window._adminSOSTrackingListeners[docSnap.id] = listener;
+            window._adminSOSTrackingListeners[r.id] = listener;
         }
-
-        markersGroup.push(marker);
-
-        const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-1.5 py-0.5 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
-
-        let actions = navBtn;
-
-        if (d.status === 'pending') {
-            actions += `<button onclick="event.stopPropagation(); window.acceptSOS('${docSnap.id}')" class="bg-green-500 hover:bg-green-400 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase animate-pulse">Aceptar</button>
-                       <button onclick="event.stopPropagation(); window.cancelSOS('${docSnap.id}')" class="bg-red-500 hover:bg-red-400 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase">Cancelar</button>`;
-        } else if (d.status === 'accepted' && d.mech_uid === auth.currentUser.uid) {
-            actions += `<button onclick="event.stopPropagation(); window.changeSOSStatus('${docSnap.id}','repairing')" class="bg-yellow-500 text-white px-2 py-0.5 rounded text-[0.6rem]">Reparando</button>
-                       <button onclick="event.stopPropagation(); window.changeSOSStatus('${docSnap.id}','to_shop')" class="bg-blue-500 text-white px-2 py-0.5 rounded text-[0.6rem]">A taller</button>
-                       <button onclick="event.stopPropagation(); window.changeSOSStatus('${docSnap.id}','ready')" class="bg-purple-500 text-white px-2 py-0.5 rounded text-[0.6rem]">Lista</button>
-                       <button onclick="event.stopPropagation(); window.openMechanicPOS('${docSnap.id}')" class="bg-indigo-500 text-white px-2 py-0.5 rounded text-[0.6rem]">Cobrar</button>`;
-        } else if (d.status === 'repairing' && d.mech_uid === auth.currentUser.uid) {
-            actions += `<button onclick="event.stopPropagation(); window.changeSOSStatus('${docSnap.id}','to_shop')" class="bg-blue-500 text-white px-2 py-0.5 rounded text-[0.6rem]">A taller</button>
-                       <button onclick="event.stopPropagation(); window.changeSOSStatus('${docSnap.id}','ready')" class="bg-purple-500 text-white px-2 py-0.5 rounded text-[0.6rem]">Lista</button>`;
-        } else if (d.status === 'completed') {
-            actions += `<button onclick="event.stopPropagation(); window.downloadCompletedServicePDF('${docSnap.id}')" class="bg-purple-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase">📄 PDF</button>`;
-        }
-
-        listEl.innerHTML += `
-        <div class="sos-card-compact" onclick="openDetalleServicio('${docSnap.id}')">
-            <div class="flex justify-between items-center">
-                <span class="text-[0.8rem] font-bold">${d.phone || ''}</span>
-                <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${window.getStatusInfo(d.status).color}">${window.getStatusInfo(d.status).text}</span>
-            </div>
-            <p class="text-[0.7rem] text-gray-400 truncate">${d.falla || ''}</p>
-            <div class="flex gap-1 mt-1 flex-wrap">${actions}</div>
-        </div>`;
     });
 
-    if (markersGroup.length > 0) {
-        const group = new L.featureGroup(markersGroup);
+    const markersArray = Object.values(adminSOSMarkers);
+    if (markersArray.length > 0) {
+        const group = new L.featureGroup(markersArray);
         adminSOSGlobalMapInst.fitBounds(group.getBounds().pad(0.1));
     } else {
         adminSOSGlobalMapInst.setView([TALLER_LAT, TALLER_LNG], 13);
     }
     window.fixMaps?.();
+}
+
+// ---------- Función de filtro (se mantiene igual, pero ahora refresca el nuevo listado y mapa) ----------
+window.filterSOS = (status) => {
+    window.currentSOSFilter = status || 'pending';
+    cargarListadoSOS();
+    renderSOSMapa();
 };
+
+// ---------- Función principal de renderizado (se reemplaza para que use la nueva lógica) ----------
+window.renderSOSGlobalMap = async () => {
+    console.log('🔄 renderSOSGlobalMap ejecutado (nueva versión)');
+    if (!auth.currentUser) return;
+    await cargarListadoSOS();
+    await renderSOSMapa();
+};
+
+// ---------- Nueva función para filtrar por fecha (se llama desde el botón en el HTML) ----------
+window.cargarSOSConFiltroFecha = async () => {
+    const inicio = document.getElementById('sos-fecha-inicio')?.value;
+    const fin = document.getElementById('sos-fecha-fin')?.value;
+    sosFechaInicio = inicio;
+    sosFechaFin = fin;
+    await cargarListadoSOS();
+    await renderSOSMapa();
+};
+
+// ---------- Nueva función para generar reporte PDF/CSV ----------
+window.generarReporteSOS = async () => {
+    const tipo = await new Promise((resolve) => {
+        const modalId = 'modal-reporte-sos-opciones';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `
+                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-naranja/30 text-center">
+                    <h2 class="text-xl font-black text-white mb-4">Generar Reporte de SOS</h2>
+                    <div class="space-y-3">
+                        <button id="reporte-sos-pdf" class="w-full bg-red-600 text-white py-3 rounded-xl font-black uppercase">PDF</button>
+                        <button id="reporte-sos-csv" class="w-full bg-green-600 text-white py-3 rounded-xl font-black uppercase">CSV</button>
+                        <button id="reporte-sos-ambos" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black uppercase">Ambos</button>
+                        <button onclick="toggleModal('${modalId}', false)" class="w-full bg-gray-600 text-white py-3 rounded-xl font-black uppercase">Cancelar</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalEl);
+            document.getElementById('reporte-sos-pdf').onclick = () => { toggleModal(modalId, false); resolve('pdf'); };
+            document.getElementById('reporte-sos-csv').onclick = () => { toggleModal(modalId, false); resolve('csv'); };
+            document.getElementById('reporte-sos-ambos').onclick = () => { toggleModal(modalId, false); resolve('ambos'); };
+        }
+        toggleModal(modalId, true);
+    });
+    if (!tipo) return;
+
+    let q = query(collection(db, "rescates"));
+    if (sosFechaInicio && sosFechaFin) {
+        const startDate = new Date(sosFechaInicio);
+        startDate.setHours(0,0,0,0);
+        const endDate = new Date(sosFechaFin);
+        endDate.setHours(23,59,59,999);
+        q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
+    }
+    const snap = await getDocs(q);
+    const rescates = [];
+    snap.forEach(doc => {
+        const data = doc.data();
+        data.id = doc.id;
+        rescates.push(data);
+    });
+    if (rescates.length === 0) {
+        showToast("No hay datos en el rango de fechas seleccionado", true);
+        return;
+    }
+
+    if (tipo === 'pdf' || tipo === 'ambos') {
+        const { jsPDF } = window.jspdf;
+        const pdfDoc = new jsPDF();
+        const logoImg = new Image();
+        logoImg.src = 'logo_claro.png';
+        await new Promise(resolve => { logoImg.onload = resolve; if (logoImg.complete) resolve(); });
+        const addFooter = window._setupProfessionalPDF(pdfDoc, 'REPORTE DE SOLICITUDES SOS', logoImg);
+        pdfDoc.setFontSize(16);
+        pdfDoc.text(`Reporte de SOS (${sosFechaInicio || 'inicio'} - ${sosFechaFin || 'fin'})`, 14, 30);
+        const bodyRows = rescates.map(r => [
+            new Date(r.timestamp).toLocaleDateString(),
+            r.clientName || r.phone || 'Anónimo',
+            r.falla?.substring(0, 40) || '',
+            r.status,
+            `$${r.costoRescateEstimado?.toFixed(2) || 0}`
+        ]);
+        pdfDoc.autoTable({
+            startY: 40,
+            head: [['Fecha', 'Cliente', 'Falla', 'Estado', 'Costo']],
+            body: bodyRows,
+            theme: 'striped',
+            styles: { fontSize: 8 },
+            headStyles: { fillColor: [255,107,0] }
+        });
+        addFooter(pdfDoc);
+        pdfDoc.save(`Reporte_SOS_${new Date().toISOString().slice(0,19)}.pdf`);
+    }
+    if (tipo === 'csv' || tipo === 'ambos') {
+        const rows = [['Fecha', 'Cliente', 'Falla', 'Estado', 'Costo']];
+        rescates.forEach(r => {
+            rows.push([
+                new Date(r.timestamp).toLocaleDateString(),
+                r.clientName || r.phone || '',
+                r.falla || '',
+                r.status,
+                r.costoRescateEstimado?.toFixed(2) || 0
+            ]);
+        });
+        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+        const link = document.createElement('a');
+        link.setAttribute('href', encodeURI(csvContent));
+        link.setAttribute('download', `SOS_${new Date().toISOString().slice(0,19)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+};
+
+// ---------- Las siguientes funciones se mantienen EXACTAMENTE igual que en tu código original ----------
+// (Solo se ha asegurado que llamen a renderSOSGlobalMap, que ahora es la nueva versión)
 
 window.acceptSOS = (id) => {
     window.currentSOSId = id;
@@ -4113,7 +4322,7 @@ window.cancelSOS = async (id) => {
             speakTTS("El taller no puede atender tu solicitud en este momento, contacta por llamada.");
         }
         await updateDoc(docRef, { status: 'cancelled' });
-        renderSOSGlobalMap();
+        window.renderSOSGlobalMap();
     });
 };
 
@@ -4132,7 +4341,6 @@ window.changeSOSStatus = async (id, newStatus) => {
     }
     await updateDoc(docRef, updates);
 
-    // Si es un estado final, consolidar trayectoria del mecánico
     if (finalizar && window.activeMechanicSOSId === id) {
         const trackingRef = dbRef(rtdb, `sos_tracking/${id}/${auth.currentUser.uid}/points`);
         try {
@@ -4158,7 +4366,7 @@ window.changeSOSStatus = async (id, newStatus) => {
         if (notifMsg) push(dbRef(rtdb, 'sos_alerts/' + snap.data().uid + '/notifs'), { msg: notifMsg });
     }
     showToast('Estado actualizado');
-    renderSOSGlobalMap();
+    window.renderSOSGlobalMap();
 };
 
 window.openMechanicPOS = (sosId) => {
@@ -4200,10 +4408,8 @@ window.finalizeMechanicCharge = async () => {
     const sosData = sosSnap.data();
     const clienteName = sosData.clientName || sosData.phone || "Cliente";
 
-    // Crear un ID temporal para el cobro pendiente
     const pendingId = generateShortId();
 
-    // Guardar en cobros_pendientes (para que el administrador lo apruebe)
     await addDoc(collection(db, "cobros_pendientes"), {
         pendingId: pendingId,
         sosId: sosId,
@@ -4212,13 +4418,12 @@ window.finalizeMechanicCharge = async () => {
         mech_name: window.currentUserDoc?.name || 'Mecánico',
         concepto: `Servicio ${sosData.shortId || sosId}`,
         monto: total,
-        ticket: window.posTicket,  // copia de los productos
+        ticket: window.posTicket,
         estado: 'pendiente',
         timestamp: Date.now(),
-        metodoPago: 'Pendiente'  // se definirá al pagar
+        metodoPago: 'Pendiente'
     });
 
-    // Opcional: guardar también un registro en ventas con estado 'pendiente' (para tracking)
     await addDoc(collection(db, "ventas"), {
         shortId: pendingId,
         desc: window.posTicket.map(i => i.name).join(", "),
@@ -4228,19 +4433,15 @@ window.finalizeMechanicCharge = async () => {
         ticket: window.posTicket,
         sosId: sosId,
         fecha: new Date().toISOString(),
-        estado: 'pendiente'  // pendiente de pago por admin
+        estado: 'pendiente'
     });
 
     showToast(`Cobro registrado por $${total.toFixed(2)}. Espera confirmación del administrador.`);
-
-    // Limpiar ticket y cerrar modal
     window.posTicket = [];
     window.renderTicket();
     const totalEl = document.getElementById('mechanic-total');
     if (totalEl) totalEl.innerText = '0.00';
     toggleModal('modal-mechanic-pos', false);
-    
-    // Opcional: notificar al administrador (ya existe listener en admin)
     rtdbSet(dbRef(rtdb, 'notificaciones_caja/cobro_' + Date.now()), {
         msg: `Nuevo cobro pendiente de ${clienteName} por $${total.toFixed(2)}`,
         type: 'cobro_mecanico',
@@ -4272,15 +4473,14 @@ window.asignarMecanicoASOS = async (mechUid, sosId) => {
     window.activeMechanicSOSId = sosId;
     const sosSnap = await getDoc(doc(db, "rescates", sosId));
     if (sosSnap.exists() && sosSnap.data().uid) {
-        // Notificar al mecánico asignado
-rtdbSet(dbRef(rtdb, 'notificaciones/' + mechUid), { msg: `🔧 Te han asignado un nuevo auxilio: ${sosId}` });
+        rtdbSet(dbRef(rtdb, 'notificaciones/' + mechUid), { msg: `🔧 Te han asignado un nuevo auxilio: ${sosId}` });
         rtdbSet(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid), { ...sosSnap.data(), status: 'accepted' });
         push(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid + '/notifs'), { msg: 'Mecánico asignado, en camino.' });
         speakTTS("Mecánico asignado, en camino.");
     }
     showToast(`Asignado a ${mech.name}`);
     toggleModal('modal-asignar-mecanico', false);
-    renderSOSGlobalMap();
+    window.renderSOSGlobalMap();
 };
 
 window.tomarCasoDirecto = async () => {
@@ -4298,9 +4498,16 @@ window.tomarCasoDirecto = async () => {
     }
     showToast("Caso tomado por ti");
     toggleModal('modal-asignar-mecanico', false);
-    renderSOSGlobalMap();
+    window.renderSOSGlobalMap();
 };
 
+// Redimensionar mapa al cambiar de pestaña
+window.addEventListener('visibilitychange', () => {
+    if (!document.hidden && adminSOSGlobalMapInst) {
+        setTimeout(() => adminSOSGlobalMapInst.invalidateSize(), 200);
+        renderSOSMapa();
+    }
+});
 // ======================================================
 // === CITAS (con validación de usuario e invitación por WhatsApp) ===
 // ======================================================
