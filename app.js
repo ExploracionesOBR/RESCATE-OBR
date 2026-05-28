@@ -225,66 +225,21 @@ const uploadFile = (file, path, onProgressCallback = null) => {
     });
 };
 
-async function uploadWithTimeout(file, path, maxRetries = 3) {
+async function uploadWithTimeout(file, path) {
     if (!file) return null;
-    
-    // Comprimir la imagen primero (esto ya es asíncrono)
-    let compressed;
+    const compressed = await window.compressImage(file);
+    const uploadPromise = uploadFile(compressed, path);
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000));
     try {
-        compressed = await window.compressImage(file);
-    } catch (err) {
-        console.error('Error al comprimir imagen:', err);
-        if (typeof window.showToast === 'function') {
-            window.showToast('No se pudo procesar la imagen. Intenta con otra.', true);
-        }
-        return null;
+        return await Promise.race([uploadPromise, timeoutPromise]);
+    } catch (e) {
+        console.warn('Subida lenta, usando base64');
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(compressed);
+        });
     }
-    
-    // Función que intenta la subida con timeout
-    const attemptUpload = async (attempt) => {
-        const uploadPromise = uploadFile(compressed, path);
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('timeout')), 10000) // 10 segundos
-        );
-        
-        try {
-            return await Promise.race([uploadPromise, timeoutPromise]);
-        } catch (error) {
-            if (error.message === 'timeout') {
-                console.warn(`Intento ${attempt} falló por timeout`);
-                throw new Error('timeout');
-            } else {
-                console.warn(`Intento ${attempt} falló con error:`, error);
-                throw error;
-            }
-        }
-    };
-    
-    // Reintentos con backoff exponencial
-    let lastError;
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-            const url = await attemptUpload(attempt);
-            if (url) {
-                return url; // Éxito
-            }
-        } catch (err) {
-            lastError = err;
-            if (attempt < maxRetries) {
-                // Espera exponencial: 1s, 2s, 4s
-                const delay = Math.pow(2, attempt - 1) * 1000;
-                console.log(`Reintentando subida en ${delay}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
-    }
-    
-    // Si llegamos aquí, todos los reintentos fallaron
-    console.error('No se pudo subir la imagen después de', maxRetries, 'intentos');
-    if (typeof window.showToast === 'function') {
-        window.showToast('Error al subir la imagen. Revisa tu conexión y vuelve a intentarlo.', true);
-    }
-    return null;
 }
 
 function getDistanceKm(lat1, lon1, lat2, lon2) {
