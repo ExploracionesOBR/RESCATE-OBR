@@ -5295,10 +5295,11 @@ let entregasMarkers = {};      // marcadores de pedidos
 let repartidoresMarkers = {};  // marcadores de personal
 let entregasPedidosUnsubscribe = null;
 let entregasRepartidoresUnsubscribe = null;
-let currentEntregaFilter = 'todos';  // todos, pendiente_asignar, pendiente, en_camino, entregado
+let currentEntregaFilter = 'todos';
 let currentFechaInicio = null;
 let currentFechaFin = null;
 let lastFilterCall = { estatus: null, time: 0 };
+let personalTrackingStarted = false;  // control para iniciar seguimiento solo una vez
 window.entregaSeleccionadaId = null;
 
 // Función para cargar entregas con filtro de fecha
@@ -5320,7 +5321,6 @@ window.filtrarEntregasPorEstatus = (estatus) => {
     lastFilterCall = { estatus, time: now };
     currentEntregaFilter = estatus;
 
-    // Resaltar botón activo
     document.querySelectorAll('.filter-btn-estatus').forEach(btn => {
         btn.classList.remove('bg-white/20', 'border-white/30', 'bg-yellow-600/20', 'bg-blue-600/20', 'bg-purple-600/20', 'bg-green-600/20');
         btn.classList.add('bg-white/5', 'border-white/10');
@@ -5333,7 +5333,6 @@ window.filtrarEntregasPorEstatus = (estatus) => {
     window.renderEntregasMapa();
 };
 
-// Cargar listado lateral (con botones de contacto al cliente)
 window.cargarListadoEntregas = async () => {
     const listaDiv = document.getElementById('entregas-lista-lateral');
     if (!listaDiv) return;
@@ -5382,10 +5381,10 @@ window.cargarListadoEntregas = async () => {
         listaDiv.innerHTML += `
             <div class="bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 transition-all border-l-4 border-l-naranja" onclick="window.seleccionarEntregaDesdeMarker('${p.id}')">
                 <div class="flex justify-between items-center">
-                    <span class="font-bold text-sm">${p.cliente || 'Cliente'}</span>
+                    <span class="font-bold text-sm">${escapeHtml(p.cliente) || 'Cliente'}</span>
                     <span class="text-[10px] ${colorClase} font-black">${estadoTexto}</span>
                 </div>
-                <p class="text-xs text-gray-400 truncate">${p.items.map(i=>i.name).join(', ')}</p>
+                <p class="text-xs text-gray-400 truncate">${escapeHtml(p.items.map(i=>i.name).join(', '))}</p>
                 <p class="text-xs font-bold text-naranja">$${p.total?.toFixed(2)}</p>
                 <p class="text-[9px] text-gray-500">${new Date(p.timestamp).toLocaleDateString()}</p>
                 ${botonesContacto}
@@ -5395,7 +5394,6 @@ window.cargarListadoEntregas = async () => {
     return filtered;
 };
 
-// Renderizar mapa con marcadores de pedidos (📦 y 📦✅) y personal en tiempo real
 window.renderEntregasMapa = async () => {
     const mapEl = document.getElementById('entregas-map-container');
     if (!mapEl) return;
@@ -5406,7 +5404,6 @@ window.renderEntregasMapa = async () => {
     if (!entregasMapInst) {
         entregasMapInst = L.map(mapEl, { zoomControl: true, scrollWheelZoom: false }).setView([TALLER_LAT, TALLER_LNG], 11);
         L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
-        // Marcador del taller
         L.marker([TALLER_LAT, TALLER_LNG], {
             icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }),
             interactive: false
@@ -5418,13 +5415,11 @@ window.renderEntregasMapa = async () => {
         L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
     }
 
-    // Limpiar marcadores de pedidos anteriores
     Object.values(entregasMarkers).forEach(m => {
         if (entregasMapInst) entregasMapInst.removeLayer(m);
     });
     entregasMarkers = {};
 
-    // Obtener pedidos con los mismos filtros que el listado
     let q = query(collection(db, "pedidos_online"));
     if (currentFechaInicio && currentFechaFin) {
         const startDate = new Date(currentFechaInicio);
@@ -5470,8 +5465,8 @@ window.renderEntregasMapa = async () => {
         ` : '';
         marker.bindPopup(`
             <div style="font-size:12px; min-width:150px;">
-                <b>${p.cliente || 'Cliente'}</b><br>
-                ${p.items.map(i=>i.name).join(', ')}<br>
+                <b>${escapeHtml(p.cliente) || 'Cliente'}</b><br>
+                ${escapeHtml(p.items.map(i=>i.name).join(', '))}<br>
                 <b>$${p.total?.toFixed(2)}</b><br>
                 Estado: ${p.estado_entrega || 'pendiente'}<br>
                 ${botonesContactoPopup}
@@ -5481,7 +5476,6 @@ window.renderEntregasMapa = async () => {
         entregasMarkers[p.id] = marker;
     });
 
-    // Ajustar vista del mapa
     const markersArray = Object.values(entregasMarkers);
     if (markersArray.length > 0) {
         const group = new L.featureGroup(markersArray);
@@ -5491,20 +5485,16 @@ window.renderEntregasMapa = async () => {
     }
 };
 
-// Seguimiento en tiempo real de personal (repartidores/mecánicos/admins) con botones de contacto
-// Seguimiento en tiempo real de personal (repartidores/mecánicos/admins) con botones de contacto
+// ========== FUNCIÓN CORREGIDA DE SEGUIMIENTO DE PERSONAL ==========
 function iniciarSeguimientoPersonalEntregas() {
-    // Limpiar suscripción anterior si existe
     if (entregasRepartidoresUnsubscribe) {
         entregasRepartidoresUnsubscribe();
         entregasRepartidoresUnsubscribe = null;
     }
 
     entregasRepartidoresUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
-        // Si no hay mapa aún, salir (se inicializará después)
         if (!entregasMapInst) return;
 
-        // 1. Obtener todos los userIds actuales
         const currentUserIds = new Set();
         const promises = [];
         snap.forEach(child => {
@@ -5513,7 +5503,7 @@ function iniciarSeguimientoPersonalEntregas() {
         });
         const usersDocs = await Promise.all(promises);
 
-        // 2. Eliminar marcadores de personal que ya no están en la lista
+        // Eliminar marcadores huérfanos
         Object.keys(repartidoresMarkers).forEach(uid => {
             if (!currentUserIds.has(uid)) {
                 entregasMapInst.removeLayer(repartidoresMarkers[uid]);
@@ -5521,7 +5511,6 @@ function iniciarSeguimientoPersonalEntregas() {
             }
         });
 
-        // 3. Actualizar o crear marcadores para los activos
         let idx = 0;
         snap.forEach(child => {
             const pos = child.val();
@@ -5532,8 +5521,9 @@ function iniciarSeguimientoPersonalEntregas() {
             const telefonoClean = telefono.replace('+52', '');
 
             if (pos && pos.lat && pos.lng) {
+                // Popup con diseño similar a la app (fondo oscuro, bordes redondeados)
                 const popupContent = `
-                    <div style="font-size:12px; font-family:sans-serif; min-width:160px;">
+                    <div style="font-size:12px; font-family:sans-serif; min-width:160px; background:#1A1A1A; color:white; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
                         <b>${escapeHtml(nombre)}</b><br>
                         ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
                         <div style="display:flex; gap:8px; margin-top:8px;">
@@ -5545,11 +5535,9 @@ function iniciarSeguimientoPersonalEntregas() {
 
                 let marker = repartidoresMarkers[uid];
                 if (marker) {
-                    // Actualizar posición y popup
                     marker.setLatLng([pos.lat, pos.lng]);
                     marker.setPopupContent(popupContent);
                 } else {
-                    // Crear nuevo marcador
                     marker = L.marker([pos.lat, pos.lng], {
                         icon: L.divIcon({
                             className: 'repartidor-marker',
@@ -5562,7 +5550,6 @@ function iniciarSeguimientoPersonalEntregas() {
                     repartidoresMarkers[uid] = marker;
                 }
             } else {
-                // Si no hay coordenadas, eliminar marcador si existe
                 if (repartidoresMarkers[uid]) {
                     entregasMapInst.removeLayer(repartidoresMarkers[uid]);
                     delete repartidoresMarkers[uid];
@@ -5661,7 +5648,6 @@ window.confirmarCobroEntrega = async () => {
     }
 };
 
-// Generar reporte PDF/CSV
 window.generarReporteEntregas = async () => {
     const tipo = await new Promise((resolve) => {
         const modalId = 'modal-reporte-opciones';
@@ -5764,8 +5750,7 @@ function generarCSVEntregas(pedidos) {
     document.body.removeChild(link);
 }
 
-// aqui inicia loadEntregas mejorada //
-let personalTrackingStarted = false;
+// Cargar entregas al inicio (solo una vez el seguimiento)
 window.loadEntregas = () => {
     if (!auth.currentUser) return;
     window.cargarListadoEntregas();
@@ -5780,7 +5765,6 @@ window.loadEntregas = () => {
         window.renderEntregasMapa();
     });
 };
-// aqui finaliza loadEntregas mejorada //
 
 // Redimensionar mapa al cambiar de pestaña
 window.addEventListener('visibilitychange', () => {
@@ -5789,6 +5773,7 @@ window.addEventListener('visibilitychange', () => {
         window.renderEntregasMapa();
     }
 });
+// ======================================================
 // ======================================================
 // === CIERRE Y STUBS (SIN MANIFIESTO DINÁMICO) ===
 // ======================================================
