@@ -23,7 +23,7 @@ const storage = getStorage(app);
 window.setDoc = setDoc;
 window.doc = doc;
 
-// === CARGA DIFERIDA DE html2canvas ===
+// === CARGA DIFERIDA DE html2canvas ==
 window.loadHtml2Canvas = () => {
     return new Promise((resolve, reject) => {
         if (window.html2canvas) return resolve(window.html2canvas);
