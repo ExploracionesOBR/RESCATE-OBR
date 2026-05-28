@@ -3953,16 +3953,12 @@ window.downloadStaffReport = async (uid) => {
 // ======================================================
 // === SOS MEJORADO (con listado lateral, filtros por fecha, reportes PDF/CSV) ===
 // ======================================================
-// Variables globales para el mapa (se mantienen)
-let adminSOSGlobalMapInst = null;
-let adminSOSMarkers = {};
-let _adminSOSTrackingListeners = {};
-let _adminSOSRouteLines = {};
-window.currentSOSFilter = 'pending';
+// Usamos las variables globales ya existentes (adminSOSGlobalMapInst, adminSOSMarkers, etc.)
+window.currentSOSFilter = window.currentSOSFilter || 'pending';
 let sosFechaInicio = null;
 let sosFechaFin = null;
 
-// ---------- Funciones auxiliares internas (no globales) ----------
+// ---------- Funciones auxiliares internas ----------
 async function cargarListadoSOS() {
     const listaDiv = document.getElementById('admin-sos-list');
     if (!listaDiv) return;
@@ -4010,7 +4006,6 @@ async function cargarListadoSOS() {
             </div>
         ` : '';
 
-        // Botones de acción (navegar, aceptar, etc.) se mantienen igual que antes
         const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-1.5 py-0.5 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
         let actions = navBtn;
         if (r.status === 'pending') {
@@ -4140,7 +4135,7 @@ async function renderSOSMapa() {
         `);
         adminSOSMarkers[r.id] = marker;
 
-        // Si está aceptado, dibujar ruta del mecánico (misma lógica original)
+        // Si está aceptado, dibujar ruta del mecánico
         if (r.status === 'accepted' && r.mech_uid) {
             if (window._adminSOSTrackingListeners && window._adminSOSTrackingListeners[r.id]) {
                 window._adminSOSTrackingListeners[r.id]();
@@ -4178,14 +4173,14 @@ async function renderSOSMapa() {
     window.fixMaps?.();
 }
 
-// ---------- Función de filtro (se mantiene igual, pero ahora refresca el nuevo listado y mapa) ----------
+// ---------- Función de filtro ----------
 window.filterSOS = (status) => {
     window.currentSOSFilter = status || 'pending';
     cargarListadoSOS();
     renderSOSMapa();
 };
 
-// ---------- Función principal de renderizado (se reemplaza para que use la nueva lógica) ----------
+// ---------- Función principal de renderizado ----------
 window.renderSOSGlobalMap = async () => {
     console.log('🔄 renderSOSGlobalMap ejecutado (nueva versión)');
     if (!auth.currentUser) return;
@@ -4193,7 +4188,7 @@ window.renderSOSGlobalMap = async () => {
     await renderSOSMapa();
 };
 
-// ---------- Nueva función para filtrar por fecha (se llama desde el botón en el HTML) ----------
+// ---------- Filtro por fecha ----------
 window.cargarSOSConFiltroFecha = async () => {
     const inicio = document.getElementById('sos-fecha-inicio')?.value;
     const fin = document.getElementById('sos-fecha-fin')?.value;
@@ -4203,7 +4198,7 @@ window.cargarSOSConFiltroFecha = async () => {
     await renderSOSMapa();
 };
 
-// ---------- Nueva función para generar reporte PDF/CSV ----------
+// ---------- Reporte PDF/CSV ----------
 window.generarReporteSOS = async () => {
     const tipo = await new Promise((resolve) => {
         const modalId = 'modal-reporte-sos-opciones';
@@ -4300,9 +4295,7 @@ window.generarReporteSOS = async () => {
     }
 };
 
-// ---------- Las siguientes funciones se mantienen EXACTAMENTE igual que en tu código original ----------
-// (Solo se ha asegurado que llamen a renderSOSGlobalMap, que ahora es la nueva versión)
-
+// ---------- Funciones originales (aceptar, cancelar, cambiar estado, etc.) ----------
 window.acceptSOS = (id) => {
     window.currentSOSId = id;
     loadMecanicosActivosParaAsignar(id);
@@ -4508,6 +4501,7 @@ window.addEventListener('visibilitychange', () => {
         renderSOSMapa();
     }
 });
+// ======================================================
 // ======================================================
 // === CITAS (con validación de usuario e invitación por WhatsApp) ===
 // ======================================================
