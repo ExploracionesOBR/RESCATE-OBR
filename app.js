@@ -5299,18 +5299,6 @@ let entregasRepartidoresUnsubscribe = null;
 let currentEntregaFilter = 'todos';
 let currentFechaInicio = null;
 let currentFechaFin = null;
-
-// ---------- Funciones de ayuda ----------
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>]/g, function(m) {
-        if (m === '&') return '&amp;';
-        if (m === '<') return '&lt;';
-        if (m === '>') return '&gt;';
-        return m;
-    });
-}
-
 // ---------- Cargar listado lateral ----------
 window.cargarListadoEntregas = async () => {
     const listaDiv = document.getElementById('entregas-lista-lateral');
