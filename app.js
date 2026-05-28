@@ -5278,7 +5278,9 @@ window.searchServiceStatus = async () => {
         `;
     }
 };
-// aqui inicia modulo entregas mejorado //
+// ======================================================
+// === ENTREGAS A DOMICILIO (MAPA) con control total ===
+// ======================================================
 let entregasMapInst = null;
 let entregasMarkers = {};      // marcadores de pedidos
 let repartidoresMarkers = {};  // marcadores de personal
@@ -5287,23 +5289,31 @@ let entregasRepartidoresUnsubscribe = null;
 let currentEntregaFilter = 'todos';  // todos, pendiente_asignar, pendiente, en_camino, entregado
 let currentFechaInicio = null;
 let currentFechaFin = null;
+let lastFilterCall = { estatus: null, time: 0 };
 window.entregaSeleccionadaId = null;
 
-// Función para cargar entregas con filtro de fecha y estatus
+// Función para cargar entregas con filtro de fecha
 window.cargarEntregasConFiltroFecha = async () => {
     const inicio = document.getElementById('entregas-fecha-inicio')?.value;
     const fin = document.getElementById('entregas-fecha-fin')?.value;
     currentFechaInicio = inicio;
     currentFechaFin = fin;
     await window.cargarListadoEntregas();
-    window.renderEntregasMapa();
+    await window.renderEntregasMapa();
 };
 
+// Filtro por estatus con doble clic para resetear a 'todos'
 window.filtrarEntregasPorEstatus = (estatus) => {
+    const now = Date.now();
+    if (lastFilterCall.estatus === estatus && (now - lastFilterCall.time) < 300) {
+        estatus = 'todos';
+    }
+    lastFilterCall = { estatus, time: now };
     currentEntregaFilter = estatus;
+
     // Resaltar botón activo
     document.querySelectorAll('.filter-btn-estatus').forEach(btn => {
-        btn.classList.remove('bg-white/20', 'border-white/20');
+        btn.classList.remove('bg-white/20', 'border-white/30', 'bg-yellow-600/20', 'bg-blue-600/20', 'bg-purple-600/20', 'bg-green-600/20');
         btn.classList.add('bg-white/5', 'border-white/10');
         if (btn.getAttribute('data-estatus') === estatus) {
             btn.classList.remove('bg-white/5', 'border-white/10');
@@ -5314,14 +5324,13 @@ window.filtrarEntregasPorEstatus = (estatus) => {
     window.renderEntregasMapa();
 };
 
-// Cargar listado lateral y también mantener datos para el mapa
+// Cargar listado lateral (con botones de contacto al cliente)
 window.cargarListadoEntregas = async () => {
     const listaDiv = document.getElementById('entregas-lista-lateral');
     if (!listaDiv) return;
     listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">Cargando...</p>';
 
     let q = query(collection(db, "pedidos_online"));
-    // Aplicar filtro de fechas si existen
     if (currentFechaInicio && currentFechaFin) {
         const startDate = new Date(currentFechaInicio);
         startDate.setHours(0,0,0,0);
@@ -5337,17 +5346,11 @@ window.cargarListadoEntregas = async () => {
         pedidos.push(data);
     });
 
-    // Filtrar por estatus (según la lógica de negocio)
     let filtered = pedidos;
-    if (currentEntregaFilter === 'pendiente_asignar') {
-        filtered = pedidos.filter(p => p.status === 'pendiente');
-    } else if (currentEntregaFilter === 'pendiente') {
-        filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
-    } else if (currentEntregaFilter === 'en_camino') {
-        filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
-    } else if (currentEntregaFilter === 'entregado') {
-        filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
-    } // 'todos' no filtra adicional
+    if (currentEntregaFilter === 'pendiente_asignar') filtered = pedidos.filter(p => p.status === 'pendiente');
+    else if (currentEntregaFilter === 'pendiente') filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
+    else if (currentEntregaFilter === 'en_camino') filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
+    else if (currentEntregaFilter === 'entregado') filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
 
     listaDiv.innerHTML = '';
     if (filtered.length === 0) {
@@ -5359,6 +5362,14 @@ window.cargarListadoEntregas = async () => {
                            (p.status === 'aceptado' ? '⏳ Pendiente' : '🆕 Por asignar'));
         const colorClase = p.estado_entrega === 'entregado' ? 'text-green-400' :
                           (p.estado_entrega === 'en_camino' ? 'text-purple-400' : 'text-yellow-400');
+        const telefonoCliente = p.phone || '';
+        const telefonoClean = telefonoCliente.replace('+52', '');
+        const botonesContacto = telefonoClean ? `
+            <div class="flex space-x-2 mt-2">
+                <button onclick="event.stopPropagation(); window.open('tel:+52${telefonoClean}', '_self')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">📞 Llamar</button>
+                <button onclick="event.stopPropagation(); window.open('https://wa.me/+52${telefonoClean}', '_blank')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">💬 WhatsApp</button>
+            </div>
+        ` : '';
         listaDiv.innerHTML += `
             <div class="bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 transition-all border-l-4 border-l-naranja" onclick="window.seleccionarEntregaDesdeMarker('${p.id}')">
                 <div class="flex justify-between items-center">
@@ -5368,13 +5379,14 @@ window.cargarListadoEntregas = async () => {
                 <p class="text-xs text-gray-400 truncate">${p.items.map(i=>i.name).join(', ')}</p>
                 <p class="text-xs font-bold text-naranja">$${p.total?.toFixed(2)}</p>
                 <p class="text-[9px] text-gray-500">${new Date(p.timestamp).toLocaleDateString()}</p>
+                ${botonesContacto}
             </div>
         `;
     });
     return filtered;
 };
 
-// Renderizar mapa con marcadores de pedidos y personal en tiempo real
+// Renderizar mapa con marcadores de pedidos (📦 y 📦✅) y personal en tiempo real
 window.renderEntregasMapa = async () => {
     const mapEl = document.getElementById('entregas-map-container');
     if (!mapEl) return;
@@ -5391,7 +5403,6 @@ window.renderEntregasMapa = async () => {
             interactive: false
         }).addTo(entregasMapInst);
     } else {
-        // Actualizar capa del mapa si cambió el tema
         entregasMapInst.eachLayer(layer => {
             if (layer instanceof L.TileLayer) entregasMapInst.removeLayer(layer);
         });
@@ -5434,24 +5445,34 @@ window.renderEntregasMapa = async () => {
         const marker = L.marker([p.lat, p.lng], {
             icon: L.divIcon({
                 className: 'entrega-marker',
-                html: `<div style="background:${isEntregado ? '#22c55e' : '#FF6B00'}; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; border:2px solid white; box-shadow:0 2px 5px rgba(0,0,0,0.3);">${iconHtml}</div>`,
-                iconSize: [24,24],
-                iconAnchor: [12,12]
+                html: `<div style="background:${isEntregado ? '#22c55e' : '#FF6B00'}; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; border:2px solid white; box-shadow:0 2px 5px rgba(0,0,0,0.3);">${iconHtml}</div>`,
+                iconSize: [28,28],
+                iconAnchor: [14,14]
             })
         }).addTo(entregasMapInst);
+
+        const telefonoCliente = p.phone || '';
+        const telefonoClean = telefonoCliente.replace('+52', '');
+        const botonesContactoPopup = telefonoClean ? `
+            <div style="display:flex; gap:6px; margin-top:6px;">
+                <button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:12px; padding:4px 8px; font-size:9px;">📞 Llamar</button>
+                <button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:12px; padding:4px 8px; font-size:9px;">💬 WhatsApp</button>
+            </div>
+        ` : '';
         marker.bindPopup(`
-            <div style="font-size:12px;">
+            <div style="font-size:12px; min-width:150px;">
                 <b>${p.cliente || 'Cliente'}</b><br>
                 ${p.items.map(i=>i.name).join(', ')}<br>
                 <b>$${p.total?.toFixed(2)}</b><br>
                 Estado: ${p.estado_entrega || 'pendiente'}<br>
+                ${botonesContactoPopup}
                 <button onclick="window.seleccionarEntregaDesdeMarker('${p.id}')" style="background:#FF6B00; color:white; border:none; border-radius:8px; padding:4px 8px; margin-top:4px;">Ver detalles</button>
             </div>
         `);
         entregasMarkers[p.id] = marker;
     });
 
-    // Ajustar vista del mapa si hay marcadores
+    // Ajustar vista del mapa
     const markersArray = Object.values(entregasMarkers);
     if (markersArray.length > 0) {
         const group = new L.featureGroup(markersArray);
@@ -5461,32 +5482,57 @@ window.renderEntregasMapa = async () => {
     }
 };
 
-// Escuchar ubicación de repartidores/mecánicos en tiempo real
+// Seguimiento en tiempo real de personal (repartidores/mecánicos/admins) con botones de contacto
 function iniciarSeguimientoPersonalEntregas() {
     if (entregasRepartidoresUnsubscribe) entregasRepartidoresUnsubscribe();
-    entregasRepartidoresUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), (snap) => {
-        // Eliminar marcadores antiguos
+    entregasRepartidoresUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
         Object.values(repartidoresMarkers).forEach(m => {
             if (entregasMapInst) entregasMapInst.removeLayer(m);
         });
         repartidoresMarkers = {};
         if (!snap.exists()) return;
 
-        snap.forEach(async child => {
+        const promises = [];
+        snap.forEach(child => {
+            promises.push(getDoc(doc(db, "users", child.key)));
+        });
+        const usersSnap = await Promise.all(promises);
+
+        let idx = 0;
+        snap.forEach(child => {
             const pos = child.val();
-            if (!pos.lat || !pos.lng) return;
-            const userSnap = await getDoc(doc(db, "users", child.key));
-            const nombre = userSnap.exists() ? userSnap.data().name : 'Personal';
+            if (!pos.lat || !pos.lng) {
+                idx++;
+                return;
+            }
+            const userDoc = usersSnap[idx];
+            const userData = userDoc.exists() ? userDoc.data() : null;
+            const nombre = userData?.name || 'Personal';
+            const telefono = userData?.phone || '';
+            const telefonoClean = telefono.replace('+52', '');
+
+            const popupContent = `
+                <div style="font-size:12px; font-family:sans-serif; min-width:150px;">
+                    <b>${nombre}</b><br>
+                    ${telefono ? `📞 ${telefono}<br>` : ''}
+                    <div style="display:flex; gap:8px; margin-top:6px;">
+                        ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:4px 8px; font-size:10px; font-weight:bold;">📞 Llamar</button>` : ''}
+                        ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:4px 8px; font-size:10px; font-weight:bold;">💬 WhatsApp</button>` : ''}
+                    </div>
+                </div>
+            `;
+
             const marker = L.marker([pos.lat, pos.lng], {
                 icon: L.divIcon({
                     className: 'repartidor-marker',
-                    html: `<div style="background:#3b82f6; width:20px; height:20px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:10px; color:white;">🏍️</div>`,
-                    iconSize: [20,20],
-                    iconAnchor: [10,10]
+                    html: `<div style="background:#3b82f6; width:24px; height:24px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:12px; color:white;">🏍️</div>`,
+                    iconSize: [24,24],
+                    iconAnchor: [12,12]
                 })
             }).addTo(entregasMapInst);
-            marker.bindPopup(`<b>${nombre}</b><br>En movimiento`);
+            marker.bindPopup(popupContent);
             repartidoresMarkers[child.key] = marker;
+            idx++;
         });
     });
 }
@@ -5510,7 +5556,6 @@ window.seleccionarEntregaDesdeMarker = async (pedidoId) => {
     } else if (data.estado_entrega === 'entregado') {
         if (panel) panel.classList.add('hidden');
     }
-    // Centrar mapa en el pedido
     if (entregasMapInst && data.lat && data.lng) {
         entregasMapInst.setView([data.lat, data.lng], 15);
     }
@@ -5552,7 +5597,6 @@ window.confirmarCobroEntrega = async () => {
             pedidoId: window.entregaSeleccionadaId,
             timestamp: Date.now()
         });
-        // Descontar inventario
         if (data.items) {
             for (let item of data.items) {
                 const prodSnap = await getDocs(query(collection(db, "inventario"), where("name", "==", item.name), limit(1)));
@@ -5581,7 +5625,7 @@ window.confirmarCobroEntrega = async () => {
     }
 };
 
-// Generar reporte PDF/CSV de entregas según filtro de fechas
+// Generar reporte PDF/CSV
 window.generarReporteEntregas = async () => {
     const tipo = await new Promise((resolve) => {
         const modalId = 'modal-reporte-opciones';
@@ -5610,7 +5654,6 @@ window.generarReporteEntregas = async () => {
     });
     if (!tipo) return;
 
-    // Obtener datos según fechas
     let q = query(collection(db, "pedidos_online"));
     if (currentFechaInicio && currentFechaFin) {
         const startDate = new Date(currentFechaInicio);
@@ -5631,12 +5674,8 @@ window.generarReporteEntregas = async () => {
         return;
     }
 
-    if (tipo === 'pdf' || tipo === 'ambos') {
-        await generarPDFEntregas(pedidos);
-    }
-    if (tipo === 'csv' || tipo === 'ambos') {
-        generarCSVEntregas(pedidos);
-    }
+    if (tipo === 'pdf' || tipo === 'ambos') await generarPDFEntregas(pedidos);
+    if (tipo === 'csv' || tipo === 'ambos') generarCSVEntregas(pedidos);
 };
 
 async function generarPDFEntregas(pedidos) {
@@ -5646,10 +5685,8 @@ async function generarPDFEntregas(pedidos) {
     logoImg.src = 'logo_claro.png';
     await new Promise(resolve => { logoImg.onload = resolve; if (logoImg.complete) resolve(); });
     const addFooter = window._setupProfessionalPDF(pdfDoc, 'REPORTE DE ENTREGAS', logoImg);
-
     pdfDoc.setFontSize(16);
     pdfDoc.text(`Reporte de Entregas (${currentFechaInicio || 'inicio'} - ${currentFechaFin || 'fin'})`, 14, 30);
-
     const bodyRows = pedidos.map(p => [
         new Date(p.timestamp).toLocaleDateString(),
         p.cliente || 'Sin nombre',
@@ -5697,7 +5734,6 @@ window.loadEntregas = () => {
     window.cargarListadoEntregas();
     window.renderEntregasMapa();
     iniciarSeguimientoPersonalEntregas();
-    // Suscribirse a cambios en pedidos para actualizar mapa y lista automáticamente
     if (entregasPedidosUnsubscribe) entregasPedidosUnsubscribe();
     entregasPedidosUnsubscribe = onSnapshot(collection(db, "pedidos_online"), () => {
         window.cargarListadoEntregas();
@@ -5705,14 +5741,13 @@ window.loadEntregas = () => {
     });
 };
 
-// Asegurar que al cambiar de pestaña se recargue el mapa
+// Redimensionar mapa al cambiar de pestaña
 window.addEventListener('visibilitychange', () => {
     if (!document.hidden && entregasMapInst) {
         setTimeout(() => entregasMapInst.invalidateSize(), 200);
         window.renderEntregasMapa();
     }
 });
-// aqui finaliza modulo entregas mejorado //
 // ======================================================
 // === CIERRE Y STUBS (SIN MANIFIESTO DINÁMICO) ===
 // ======================================================
