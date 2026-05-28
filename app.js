@@ -66,77 +66,6 @@ let statsChartInstance = null, statsPieInstance = null;
 let adminSalesCache = {}; let lastNotifiedSOS = null; let mechWatchId = null; window.activeMechanicSOSId = null;
 window.activePosFilter = 'todos';
 window.garantiasActivas = [];
-// ======================================================
-// GESTOR CENTRAL DE LISTENERS (para evitar fugas de memoria)
-// ======================================================
-window._listeners = {
-  firestore: [],    // Funciones de unsubscribe de onSnapshot
-  rtdb: [],         // Funciones de unsubscribe de onValue
-  geolocation: null // ID del watchPosition
-};
-
-// Registrar un listener de Firestore (onSnapshot)
-window.registerFirestoreListener = (unsubscribeFn) => {
-  if (typeof unsubscribeFn === 'function') {
-    window._listeners.firestore.push(unsubscribeFn);
-  }
-  return unsubscribeFn;
-};
-
-// Registrar un listener de Realtime Database (onValue)
-window.registerRTDBListener = (unsubscribeFn) => {
-  if (typeof unsubscribeFn === 'function') {
-    window._listeners.rtdb.push(unsubscribeFn);
-  }
-  return unsubscribeFn;
-};
-
-// Registrar el ID de geolocalización (watchPosition)
-window.registerGeolocationWatch = (watchId) => {
-  if (window._listeners.geolocation) {
-    navigator.geolocation.clearWatch(window._listeners.geolocation);
-  }
-  window._listeners.geolocation = watchId;
-  return watchId;
-};
-
-// Limpiar TODOS los listeners activos
-window.clearAllListeners = () => {
-  // Limpiar Firestore listeners
-  window._listeners.firestore.forEach(unsub => {
-    try { unsub(); } catch(e) { console.warn('Error al limpiar listener Firestore:', e); }
-  });
-  window._listeners.firestore = [];
-  
-  // Limpiar RTDB listeners
-  window._listeners.rtdb.forEach(unsub => {
-    try { unsub(); } catch(e) { console.warn('Error al limpiar listener RTDB:', e); }
-  });
-  window._listeners.rtdb = [];
-  
-  // Limpiar geolocalización
-  if (window._listeners.geolocation) {
-    try {
-      navigator.geolocation.clearWatch(window._listeners.geolocation);
-    } catch(e) { console.warn('Error al limpiar geolocalización:', e); }
-    window._listeners.geolocation = null;
-  }
-  
-  // También limpiar listeners específicos que puedan estar sueltos
-  if (window._adminSOSTrackingListeners) {
-    Object.values(window._adminSOSTrackingListeners).forEach(unsub => {
-      try { unsub(); } catch(e) {}
-    });
-    window._adminSOSTrackingListeners = {};
-  }
-  
-  if (window._mechPosUnsubscribe) {
-    try { window._mechPosUnsubscribe(); } catch(e) {}
-    window._mechPosUnsubscribe = null;
-  }
-  
-  console.log('✅ Todos los listeners han sido limpiados');
-};
 let mySOSListener = null;
 let serviciosListener = null, sosListener = null, pedidosListener = null, citasListener = null;
 const generateShortId = () => 'OBR-' + Math.floor(10000 + Math.random() * 90000);
@@ -486,8 +415,7 @@ function startMechanicTracking() {
                     });
                 }
             }, e=>console.error(e), {enableHighAccuracy: true, maximumAge: 10000});
-       if (typeof window.registerGeolocationWatch === 'function') {
-        window.registerGeolocationWatch(watchId);
+        }
     }
 }
 // ======================================================
@@ -1085,46 +1013,28 @@ window.forceSetupSubmit = async () => {
 };
 window.logout = () => {
     window.confirmModal('¿Cerrar sesión? Perderás las notificaciones en tiempo real hasta que vuelvas a iniciar sesión.', async () => {
-        // 1. Limpiar listeners específicos que estaban en variables globales sueltas
-        const specificListeners = [
+        // Limpiar listeners de tiempo real para evitar fugas
+        const listeners = [
             '_clientHistoryListener', '_clientCitasListener', '_adminCitasListener',
             '_onlineOrdersListener', '_entregasPedidosListener', '_entregasRepartidoresListener',
-            'mySOSListener', 'serviciosListener', 'pedidosListener', 'citasListener',
-            '_settingsUnsubscribe', '_servicesUnsubscribe'
+            'mySOSListener', 'serviciosListener', 'pedidosListener', 'citasListener'
         ];
-        specificListeners.forEach(name => {
+        listeners.forEach(name => {
             if (window[name] && typeof window[name] === 'function') {
-                try { window[name](); } catch(e) {}
+                window[name]();
             }
             delete window[name];
         });
-        
-        // 2. Usar el gestor central para limpiar TODOS los listeners registrados
-        if (typeof window.clearAllListeners === 'function') {
-            window.clearAllListeners();
+        // Limpiar líneas de ruta y objetos globales de tracking
+        if (window._adminSOSTrackingListeners) {
+            Object.values(window._adminSOSTrackingListeners).forEach(unsub => unsub());
+            window._adminSOSTrackingListeners = {};
         }
-        
-        // 3. Limpiar líneas de ruta del mapa
         if (window._adminSOSRouteLines) {
-            Object.values(window._adminSOSRouteLines).forEach(line => {
-                try { line.remove(); } catch(e) {}
-            });
+            Object.values(window._adminSOSRouteLines).forEach(line => line.remove());
             window._adminSOSRouteLines = {};
         }
-        
-        // 4. Limpiar instancias de mapas (para que se reinicien al volver a entrar)
-        const mapInstances = ['adminSOSGlobalMapInst', 'adminGeoMap', 'mechMapInst', 'sosMapInstance', 'entregasMapInst'];
-        mapInstances.forEach(mapVar => {
-            if (window[mapVar]) {
-                try { window[mapVar].remove(); } catch(e) {}
-                window[mapVar] = null;
-            }
-        });
-        
-        // 5. Cerrar sesión en Firebase
         await signOut(auth);
-        
-        // 6. Recargar la página para resetear el estado completamente
         window.location.href = window.location.pathname;
     });
 };
@@ -1598,7 +1508,7 @@ window.submitSurvey = async () => {
 // === ADMIN TALLER Y CITAS (organizado por bloques, solo "lista" es solo lectura) ===
 window.adminListenServices = () => {
     if (serviciosListener) serviciosListener();
-    const unsub = onSnapshot(query(collection(db, "rescates"), limit(50)), (snap) => {
+    serviciosListener = onSnapshot(query(collection(db, "rescates"), limit(50)), (snap) => {
         const list = document.getElementById('admin-services-list'); if(!list) return;
         let listaMotos = [];
         snap.forEach(d => {
@@ -1611,37 +1521,33 @@ window.adminListenServices = () => {
         const listas = listaMotos.filter(v => v.tallerStatus === 'lista');
 
         const renderBlock = (title, items, colorClass, borderColor) => {
-            let html = `<div class="mb-6"><h4 class="text-sm font-black uppercase text-white mb-2 border-b ${borderColor} pb-1">${title} (${items.length})</h4><div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-4">`;
-            if (items.length === 0) html += '<p class="text-gray-500 text-xs italic">Sin motos</p>';
-            items.forEach(v => {
-                const statusColor = v.tallerStatus === 'mecanica' ? 'bg-yellow-600/30 text-yellow-400' :
-                                   v.tallerStatus === 'pruebas' ? 'bg-blue-600/30 text-blue-400' :
-                                   v.tallerStatus === 'lista' ? 'bg-green-600/30 text-green-400' :
-                                   'bg-gray-600/30 text-gray-400';
-                const pdfBtn = v.tallerStatus === 'lista' ? `<button onclick="event.stopPropagation(); window.downloadCompletedServicePDF('${v.id}')" class="bg-purple-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase mt-1">📄 PDF</button>` : '';
-                html += `<div class="bg-white/5 border border-white/10 p-6 rounded-2xl cursor-pointer hover:bg-white/10 transition shadow-lg w-full" onclick="openDetalleServicio('${v.id}')">
-                    <div class="flex justify-between items-start">
-                        <span class="font-black text-white text-base break-words">${v.clientName || (v.phone ? v.phone.replace('+52', '') : 'Sin nombre')}</span>
-                        <span class="text-[12px] font-black uppercase px-3 py-1 rounded ${statusColor} shrink-0">${v.tallerStatus}</span>
-                    </div>
-                    <p class="text-sm text-gray-400 mt-2">${v.falla}</p>
-                    ${pdfBtn}
-                </div>`;
-            });
-            html += '</div></div>';
-            return html;
-        };
+    let html = `<div class="mb-6"><h4 class="text-sm font-black uppercase text-white mb-2 border-b ${borderColor} pb-1">${title} (${items.length})</h4><div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-4">`;
+    if (items.length === 0) html += '<p class="text-gray-500 text-xs italic">Sin motos</p>';
+    items.forEach(v => {
+        const statusColor = v.tallerStatus === 'mecanica' ? 'bg-yellow-600/30 text-yellow-400' :
+                           v.tallerStatus === 'pruebas' ? 'bg-blue-600/30 text-blue-400' :
+                           v.tallerStatus === 'lista' ? 'bg-green-600/30 text-green-400' :
+                           'bg-gray-600/30 text-gray-400';
+        const pdfBtn = v.tallerStatus === 'lista' ? `<button onclick="event.stopPropagation(); window.downloadCompletedServicePDF('${v.id}')" class="bg-purple-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase mt-1">📄 PDF</button>` : '';
+        html += `<div class="bg-white/5 border border-white/10 p-6 rounded-2xl cursor-pointer hover:bg-white/10 transition shadow-lg w-full" onclick="openDetalleServicio('${v.id}')">
+            <div class="flex justify-between items-start">
+                <span class="font-black text-white text-base break-words">${v.clientName || (v.phone ? v.phone.replace('+52', '') : 'Sin nombre')}</span>
+                <span class="text-[12px] font-black uppercase px-3 py-1 rounded ${statusColor} shrink-0">${v.tallerStatus}</span>
+            </div>
+            <p class="text-sm text-gray-400 mt-2">${v.falla}</p>
+            ${pdfBtn}
+        </div>`;
+    });
+    html += '</div></div>';
+    return html;
+};
         list.innerHTML = renderBlock('📥 Recibidas', recibidas, 'text-gray-400', 'border-gray-500/30') +
                          renderBlock('🔧 En Mecánica', mecanica, 'text-yellow-400', 'border-yellow-500/30') +
                          renderBlock('🧪 En Pruebas', pruebas, 'text-blue-400', 'border-blue-500/30') +
                          renderBlock('✅ Listas para Entrega', listas, 'text-green-400', 'border-green-500/30');
     });
-    serviciosListener = unsub;
-    if (typeof window.registerFirestoreListener === 'function') {
-        window.registerFirestoreListener(unsub);
-    }
 };
-        
+
 window.adminIngresarServicioManual = async () => {
     const phone = document.getElementById('manual-srv-phone').value.trim() || null;
     const moto = document.getElementById('manual-srv-moto').value.trim();
