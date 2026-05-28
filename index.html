@@ -105,7 +105,7 @@
                 <a href="tel:6444207644" class="text-naranja font-black tracking-widest text-xs lg:text-base hover:text-white transition-colors">644 420 7644</a>
             </div>
         </div>
-        <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=27.446859|,-109.943861', '_blank')" class="mt-4 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-full font-black uppercase text-xs tracking-widest border border-white/20"><i class="fas fa-map-signs mr-2"></i> Cómo llegar al taller</button>
+        <button onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=27.446859,-109.943861', '_blank')" class="mt-4 bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-full font-black uppercase text-xs tracking-widest border border-white/20"><i class="fas fa-map-signs mr-2"></i> Cómo llegar al taller</button>
     </div>
 </div>
     <!-- VISTA PRÓXIMAMENTE -->
@@ -133,6 +133,7 @@
 </div>
 
         <div class="flex justify-end mb-4">
+            <button onclick="toggleModal('modal-cart', true)" class="relative bg-white/10 p-3 rounded-full text-white"><i class="fas fa-shopping-cart text-xl"></i><span id="cart-count" class="absolute -top-1 -right-1 bg-naranja text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-black">0</span></button>
             <button onclick="window.loadMyOrders(); toggleModal('modal-pedidos', true)" class="ml-2 bg-white/10 p-3 rounded-full text-white relative"><i class="fas fa-box text-xl"></i></button>
         </div>
         <div id="public-store-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-8 w-full"></div>
@@ -453,11 +454,6 @@
         <button onclick="window.switchClientView?.('c-view-tienda')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2"><i class="fas fa-shopping-bag text-2xl mb-1"></i><span class="text-[10px] font-black uppercase tracking-widest mt-1">Tienda</span></button>
         <button onclick="window.switchClientView?.('c-view-moto')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2"><i class="fas fa-motorcycle text-2xl mb-1"></i><span class="text-[10px] font-black uppercase tracking-widest mt-1">En Vivo</span></button>
     </nav>
- <!-- Video promocional (solo para usuarios logueados) -->
-<div id="video-banner-container-client" class="w-full mt-4 hidden">
-    <div style="pointer-events:none; user-select:none;" oncontextmenu="return false;">
-        <video id="client-promo-video" autoplay muted loop playsinline controlslist="nodownload nofullscreen" class="w-full h-[180px] lg:h-[200px] object-contain rounded-xl"></video>
-    </div>
 </div>
 <!-- PANEL ADMINISTRADOR -->
 <div id="app-admin" class="app-view hidden pb-24 border-t-4 border-naranja flex-col bg-asfalto min-h-screen">
@@ -602,6 +598,7 @@
         <p class="text-gray-500 text-xs">Cargando...</p>
     </div>
 </div>
+    <button onclick="toggleModal('modal-scanner-input', true)" class="fixed bottom-24 right-20 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-2xl z-40 hover:bg-blue-500 transition-transform hover:scale-105 lg:hidden" title="Escanear Código OBR"><i class="fas fa-qrcode text-2xl"></i></button>
 </section>
         <!-- KANBAN SERVICIOS -->
 <section id="a-view-servicios" class="a-view hidden space-y-4">
@@ -1429,126 +1426,68 @@
 <!-- FIN DE MODALES -->
 <script type="module" src="app.js"></script>
 <script>
-  // Registro único y mejorado del Service Worker (con prevención de bucle de notificaciones)
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/RESCATE-OBR/sw.js').then(reg => {
-        console.log('✅ SW registrado correctamente:', reg.scope);
-
-        // Función para obtener un identificador único del SW (usamos la URL del archivo sw.js)
-        // Si no cambia la URL, podemos usar una variable generada en tiempo de compilación.
-        // Como no tenemos build, usamos la última fecha de modificación del sw.js solicitándola.
-        // Alternativa: usar el CACHE_NAME que se define en sw.js, pero no es accesible desde aquí.
-        // Para simplificar y ser efectivos, usaremos un timestamp de la última notificación guardada.
-        // Lo haremos así: guardamos en sessionStorage la versión del SW (reg.active?.scriptURL) cuando se notifica.
-        
-        const getSWVersion = () => {
-          // Intentamos obtener la URL del SW activo o del waiting
-          const swUrl = reg.waiting?.scriptURL || reg.active?.scriptURL || '';
-          // Usamos la URL como identificador (cambia si modificas sw.js y la subes con nuevo nombre o query param)
-          return swUrl;
-        };
-
-        const hasNotifiedForCurrentWaiting = () => {
-          const waitingUrl = reg.waiting?.scriptURL;
-          if (!waitingUrl) return true; // no hay waiting, no notificar
-          const lastNotified = sessionStorage.getItem('sw_update_notified');
-          return lastNotified === waitingUrl;
-        };
-
-        const markNotified = () => {
-          const waitingUrl = reg.waiting?.scriptURL;
-          if (waitingUrl) {
-            sessionStorage.setItem('sw_update_notified', waitingUrl);
-          }
-        };
-
-        const notifyUpdate = (worker) => {
-          // Verificar si ya notificamos para este worker
-          const workerUrl = worker.scriptURL;
-          const lastNotified = sessionStorage.getItem('sw_update_notified');
-          if (lastNotified === workerUrl) {
-            console.log('Ya se notificó para esta versión, omitiendo.');
-            return;
-          }
-
-          const tryNotify = () => {
-            if (typeof window.confirmModal === 'function') {
-              window.confirmModal(
-                '📢 Nueva versión disponible. ¿Quieres actualizar ahora para ver las mejoras?',
-                () => {
-                  // Marcar como notificada antes de recargar para evitar bucle
-                  sessionStorage.setItem('sw_update_notified', workerUrl);
-                  worker.postMessage('skipWaiting');
-                  setTimeout(() => window.location.reload(), 500);
-                },
-                () => {
-                  // Usuario rechaza: también marcar como notificada para no volver a preguntar en esta sesión
-                  sessionStorage.setItem('sw_update_notified', workerUrl);
-                  if (typeof window.showToast === 'function') {
-                    window.showToast('Actualización disponible. Se aplicará cuando recargues la página.', false);
-                  } else {
-                    alert('Hay una nueva versión disponible. Recarga la página para aplicarla.');
-                  }
-                }
-              );
-            } else {
-              // Fallback con confirm
-              if (confirm('📢 Nueva versión disponible. ¿Actualizar ahora?')) {
-                sessionStorage.setItem('sw_update_notified', workerUrl);
-                worker.postMessage('skipWaiting');
-                window.location.reload();
-              } else {
-                sessionStorage.setItem('sw_update_notified', workerUrl);
-                alert('Actualización disponible. Se aplicará cuando recargues la página.');
-              }
-            }
-          };
-
-          if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', tryNotify);
-          } else {
-            tryNotify();
-          }
-        };
-
-        // Si hay un worker esperando y no se ha notificado antes, mostrar
-        if (reg.waiting && !hasNotifiedForCurrentWaiting()) {
-          notifyUpdate(reg.waiting);
-        } else if (reg.waiting && hasNotifiedForCurrentWaiting()) {
-          console.log('Worker esperando pero ya notificado, no se muestra mensaje.');
-        }
-
-        // Detectar nuevas versiones mientras la app está abierta
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // Solo notificar si no es el mismo que ya notificamos
-                const workerUrl = newWorker.scriptURL;
-                const lastNotified = sessionStorage.getItem('sw_update_notified');
-                if (lastNotified !== workerUrl) {
-                  notifyUpdate(newWorker);
-                }
-              }
-            });
-          }
-        });
+        console.log('SW registrado:', reg.scope);
       }).catch(err => {
-        console.warn('❌ Error al registrar SW:', err);
-      });
-
-      // Recargar automáticamente cuando el SW toma el control (después de skipWaiting)
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-          refreshing = true;
-          // Limpiar la marca de notificación porque ya estamos en la nueva versión
-          sessionStorage.removeItem('sw_update_notified');
-          window.location.reload();
-        }
+        console.warn('Error al registrar SW:', err);
       });
     });
   }
 </script>
+ <script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/RESCATE-OBR/sw.js').then(reg => {
+      console.log('SW registrado:', reg.scope);
+
+      // Si hay una nueva versión esperando, usar el modal de la app
+      const notificarActualizacion = (worker) => {
+        if (typeof window.confirmModal === 'function') {
+          window.confirmModal(
+            '📢 Nueva versión disponible. ¿Quieres actualizar ahora para ver las mejoras?',
+            () => {
+              worker.postMessage('skipWaiting');
+              setTimeout(() => window.location.reload(), 500);
+            },
+            () => { /* El usuario cancela, la actualización se aplicará en la próxima recarga */ }
+          );
+        } else {
+          // Fallback si el modal aún no está disponible
+          if (confirm('Nueva versión disponible. ¿Actualizar?')) {
+            worker.postMessage('skipWaiting');
+            window.location.reload();
+          }
+        }
+      };
+
+      // Si ya hay un worker esperando al registrar
+      if (reg.waiting) {
+        notificarActualizacion(reg.waiting);
+      }
+
+      // Cuando se detecta una nueva versión
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              notificarActualizacion(newWorker);
+            }
+          });
+        }
+      });
+    }).catch(err => console.warn('Error al registrar SW:', err));
+
+    // Recargar automáticamente cuando el SW tome el control
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
+  }
+</script>
+</body>
+</html>
