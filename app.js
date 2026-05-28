@@ -5278,202 +5278,239 @@ window.searchServiceStatus = async () => {
         `;
     }
 };
-// ===== ENTREGAS A DOMICILIO (MAPA) =====
+// aqui inicia modulo entregas mejorado //
 let entregasMapInst = null;
-let entregasMarkers = {};
+let entregasMarkers = {};      // marcadores de pedidos
+let repartidoresMarkers = {};  // marcadores de personal
+let entregasPedidosUnsubscribe = null;
+let entregasRepartidoresUnsubscribe = null;
+let currentEntregaFilter = 'todos';  // todos, pendiente_asignar, pendiente, en_camino, entregado
+let currentFechaInicio = null;
+let currentFechaFin = null;
 window.entregaSeleccionadaId = null;
 
-window.loadEntregas = () => {
-    if (!auth.currentUser) return;
+// Función para cargar entregas con filtro de fecha y estatus
+window.cargarEntregasConFiltroFecha = async () => {
+    const inicio = document.getElementById('entregas-fecha-inicio')?.value;
+    const fin = document.getElementById('entregas-fecha-fin')?.value;
+    currentFechaInicio = inicio;
+    currentFechaFin = fin;
+    await window.cargarListadoEntregas();
+    window.renderEntregasMapa();
+};
+
+window.filtrarEntregasPorEstatus = (estatus) => {
+    currentEntregaFilter = estatus;
+    // Resaltar botón activo
+    document.querySelectorAll('.filter-btn-estatus').forEach(btn => {
+        btn.classList.remove('bg-white/20', 'border-white/20');
+        btn.classList.add('bg-white/5', 'border-white/10');
+        if (btn.getAttribute('data-estatus') === estatus) {
+            btn.classList.remove('bg-white/5', 'border-white/10');
+            btn.classList.add('bg-white/20', 'border-white/30');
+        }
+    });
+    window.cargarListadoEntregas();
+    window.renderEntregasMapa();
+};
+
+// Cargar listado lateral y también mantener datos para el mapa
+window.cargarListadoEntregas = async () => {
+    const listaDiv = document.getElementById('entregas-lista-lateral');
+    if (!listaDiv) return;
+    listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">Cargando...</p>';
+
+    let q = query(collection(db, "pedidos_online"));
+    // Aplicar filtro de fechas si existen
+    if (currentFechaInicio && currentFechaFin) {
+        const startDate = new Date(currentFechaInicio);
+        startDate.setHours(0,0,0,0);
+        const endDate = new Date(currentFechaFin);
+        endDate.setHours(23,59,59,999);
+        q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
+    }
+    const snap = await getDocs(q);
+    const pedidos = [];
+    snap.forEach(doc => {
+        const data = doc.data();
+        data.id = doc.id;
+        pedidos.push(data);
+    });
+
+    // Filtrar por estatus (según la lógica de negocio)
+    let filtered = pedidos;
+    if (currentEntregaFilter === 'pendiente_asignar') {
+        filtered = pedidos.filter(p => p.status === 'pendiente');
+    } else if (currentEntregaFilter === 'pendiente') {
+        filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
+    } else if (currentEntregaFilter === 'en_camino') {
+        filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
+    } else if (currentEntregaFilter === 'entregado') {
+        filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
+    } // 'todos' no filtra adicional
+
+    listaDiv.innerHTML = '';
+    if (filtered.length === 0) {
+        listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">No hay entregas con los filtros seleccionados.</p>';
+    }
+    filtered.forEach(p => {
+        const estadoTexto = p.estado_entrega === 'entregado' ? '✅ Entregado' : 
+                           (p.estado_entrega === 'en_camino' ? '🚚 En camino' : 
+                           (p.status === 'aceptado' ? '⏳ Pendiente' : '🆕 Por asignar'));
+        const colorClase = p.estado_entrega === 'entregado' ? 'text-green-400' :
+                          (p.estado_entrega === 'en_camino' ? 'text-purple-400' : 'text-yellow-400');
+        listaDiv.innerHTML += `
+            <div class="bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 transition-all border-l-4 border-l-naranja" onclick="window.seleccionarEntregaDesdeMarker('${p.id}')">
+                <div class="flex justify-between items-center">
+                    <span class="font-bold text-sm">${p.cliente || 'Cliente'}</span>
+                    <span class="text-[10px] ${colorClase} font-black">${estadoTexto}</span>
+                </div>
+                <p class="text-xs text-gray-400 truncate">${p.items.map(i=>i.name).join(', ')}</p>
+                <p class="text-xs font-bold text-naranja">$${p.total?.toFixed(2)}</p>
+                <p class="text-[9px] text-gray-500">${new Date(p.timestamp).toLocaleDateString()}</p>
+            </div>
+        `;
+    });
+    return filtered;
+};
+
+// Renderizar mapa con marcadores de pedidos y personal en tiempo real
+window.renderEntregasMapa = async () => {
     const mapEl = document.getElementById('entregas-map-container');
     if (!mapEl) return;
 
-    // --- Inicializar mapa (solo una vez) ---
-    if (!entregasMapInst) {
-        const isLight = document.body.classList.contains('light-mode');
-        const layerUrl = isLight ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-        entregasMapInst = L.map('entregas-map-container', { zoomControl: true, scrollWheelZoom: false }).setView([TALLER_LAT, TALLER_LNG], 11);
-        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
-    }
+    const isLight = document.body.classList.contains('light-mode');
+    const layerUrl = isLight ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
-    // --- Marcador del taller (fijo) ---
-    let tallerMarker = null;
-    entregasMapInst.eachLayer(layer => {
-        if (layer._isTaller) tallerMarker = layer;
-    });
-    if (!tallerMarker) {
-        const marker = L.marker([TALLER_LAT, TALLER_LNG], {
+    if (!entregasMapInst) {
+        entregasMapInst = L.map(mapEl, { zoomControl: true, scrollWheelZoom: false }).setView([TALLER_LAT, TALLER_LNG], 11);
+        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
+        // Marcador del taller
+        L.marker([TALLER_LAT, TALLER_LNG], {
             icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }),
             interactive: false
         }).addTo(entregasMapInst);
-        marker._isTaller = true;
-    }
-
-    // --- Limpiar listener anterior de repartidores ---
-    if (window._entregasRepartidoresListener) {
-        window._entregasRepartidoresListener();
-        window._entregasRepartidoresListener = null;
-    }
-
-    // --- Escuchar ubicaciones de repartidores activos (en tiempo real) ---
-   window._entregasRepartidoresListener = onValue(dbRef(rtdb, 'mecanicos_activos'), (snap) => {
-    // Eliminar marcadores de repartidores previos
-    entregasMapInst.eachLayer(layer => {
-        if (layer._isRepartidor) entregasMapInst.removeLayer(layer);
-    });
-    // Limpiar rutas anteriores
-    if (window._repartidorRouteLines) {
-        Object.values(window._repartidorRouteLines).forEach(line => line.remove());
-    }
-    window._repartidorRouteLines = {};
-
-    if (snap.exists()) {
-        // Obtener nombres de los usuarios para mostrar en popup
-        const promises = [];
-        snap.forEach(child => {
-            promises.push(getDoc(doc(db, "users", child.key)).catch(() => null));
-        });
-        Promise.all(promises).then(users => {
-            let idx = 0;
-            snap.forEach(child => {
-                const pos = child.val();
-                const userData = users[idx];
-                const repartidorName = userData?.exists() ? userData.data().name : 'Repartidor';
-                if (pos.lat && pos.lng) {
-                    const marker = L.marker([pos.lat, pos.lng], {
-                        icon: L.divIcon({
-                            className: 'entrega-marker',
-                            html: `<div style="background:#22c55e;width:16px;height:16px;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.5);"></div>`,
-                            iconSize: [16,16],
-                            iconAnchor: [8,8]
-                        })
-                    }).addTo(entregasMapInst);
-                    marker._isRepartidor = true;
-                    marker.bindPopup(`<b>${repartidorName}</b><br>En camino`);
-                    
-                    // Dibujar ruta
-                    const trackingRef = dbRef(rtdb, `mecanicos_tracking/${child.key}`);
-                    onValue(trackingRef, (trackSnap) => {
-                        if (trackSnap.exists() && entregasMapInst) {
-                            const coords = [];
-                            trackSnap.forEach(tc => {
-                                const p = tc.val();
-                                if (p.lat && p.lng) coords.push([p.lat, p.lng]);
-                            });
-                            if (coords.length > 1) {
-                                if (window._repartidorRouteLines[child.key]) {
-                                    window._repartidorRouteLines[child.key].remove();
-                                }
-                                window._repartidorRouteLines[child.key] = L.polyline(coords, { color: '#22c55e', weight: 3, opacity: 0.6 }).addTo(entregasMapInst);
-                            }
-                        }
-                    });
-                }
-                idx++;
-            });
-        });
-    }
-});
-    // --- Determinar la consulta según el rol ---
-    const role = window.currentUserDoc?.role;
-    let q;
-    if (['admin', 'taller', 'socio'].includes(role)) {
-        const filtro = window.currentEntregaFilter || 'pendiente_asignar';
-        if (filtro === 'pendiente_asignar') {
-            q = query(collection(db, "pedidos_online"), where("status", "==", "pendiente"));
-        } else if (filtro === 'pendiente') {
-            q = query(collection(db, "pedidos_online"), where("status", "==", "aceptado"), where("estado_entrega", "in", ["pendiente", "en_camino"]));
-        } else if (filtro === 'entregado') {
-            q = query(collection(db, "pedidos_online"), where("estado_entrega", "==", "entregado"));
-        }
     } else {
-        q = query(collection(db, "pedidos_online"),
-            where("repartidor_uid", "==", auth.currentUser.uid),
-            where("status", "==", "aceptado"),
-            where("estado_entrega", "in", ["pendiente", "en_camino"]));
-    }
-
-    // --- Limpiar listener anterior de pedidos ---
-    if (window._entregasPedidosListener) {
-        window._entregasPedidosListener();
-        window._entregasPedidosListener = null;
-    }
-
-    // --- Mostrar/ocultar barra de filtros según rol ---
-    const filterBar = document.getElementById('entregas-filter-bar');
-    if (filterBar) {
-        filterBar.style.display = ['admin', 'taller', 'socio'].includes(role) ? 'flex' : 'none';
-    }
-
-    // --- Escuchar pedidos ---
-    window._entregasPedidosListener = onSnapshot(q, (snap) => {
+        // Actualizar capa del mapa si cambió el tema
         entregasMapInst.eachLayer(layer => {
-            if (layer._isPedido) entregasMapInst.removeLayer(layer);
+            if (layer instanceof L.TileLayer) entregasMapInst.removeLayer(layer);
         });
-        const markersGroup = [];
+        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
+    }
 
-        snap.forEach(dSnap => {
-            const p = dSnap.data();
-            const id = dSnap.id;
-            if (!p.lat || !p.lng) return;
-            const marker = L.marker([p.lat, p.lng], {
+    // Limpiar marcadores de pedidos anteriores
+    Object.values(entregasMarkers).forEach(m => {
+        if (entregasMapInst) entregasMapInst.removeLayer(m);
+    });
+    entregasMarkers = {};
+
+    // Obtener pedidos con los mismos filtros que el listado
+    let q = query(collection(db, "pedidos_online"));
+    if (currentFechaInicio && currentFechaFin) {
+        const startDate = new Date(currentFechaInicio);
+        startDate.setHours(0,0,0,0);
+        const endDate = new Date(currentFechaFin);
+        endDate.setHours(23,59,59,999);
+        q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
+    }
+    const snap = await getDocs(q);
+    const pedidos = [];
+    snap.forEach(doc => {
+        const data = doc.data();
+        data.id = doc.id;
+        pedidos.push(data);
+    });
+
+    let filtered = pedidos;
+    if (currentEntregaFilter === 'pendiente_asignar') filtered = pedidos.filter(p => p.status === 'pendiente');
+    else if (currentEntregaFilter === 'pendiente') filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
+    else if (currentEntregaFilter === 'en_camino') filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
+    else if (currentEntregaFilter === 'entregado') filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
+
+    filtered.forEach(p => {
+        if (!p.lat || !p.lng) return;
+        const isEntregado = p.estado_entrega === 'entregado';
+        const iconHtml = isEntregado ? '📦✅' : '📦';
+        const marker = L.marker([p.lat, p.lng], {
+            icon: L.divIcon({
+                className: 'entrega-marker',
+                html: `<div style="background:${isEntregado ? '#22c55e' : '#FF6B00'}; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; border:2px solid white; box-shadow:0 2px 5px rgba(0,0,0,0.3);">${iconHtml}</div>`,
+                iconSize: [24,24],
+                iconAnchor: [12,12]
+            })
+        }).addTo(entregasMapInst);
+        marker.bindPopup(`
+            <div style="font-size:12px;">
+                <b>${p.cliente || 'Cliente'}</b><br>
+                ${p.items.map(i=>i.name).join(', ')}<br>
+                <b>$${p.total?.toFixed(2)}</b><br>
+                Estado: ${p.estado_entrega || 'pendiente'}<br>
+                <button onclick="window.seleccionarEntregaDesdeMarker('${p.id}')" style="background:#FF6B00; color:white; border:none; border-radius:8px; padding:4px 8px; margin-top:4px;">Ver detalles</button>
+            </div>
+        `);
+        entregasMarkers[p.id] = marker;
+    });
+
+    // Ajustar vista del mapa si hay marcadores
+    const markersArray = Object.values(entregasMarkers);
+    if (markersArray.length > 0) {
+        const group = new L.featureGroup(markersArray);
+        entregasMapInst.fitBounds(group.getBounds().pad(0.1));
+    } else {
+        entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
+    }
+};
+
+// Escuchar ubicación de repartidores/mecánicos en tiempo real
+function iniciarSeguimientoPersonalEntregas() {
+    if (entregasRepartidoresUnsubscribe) entregasRepartidoresUnsubscribe();
+    entregasRepartidoresUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), (snap) => {
+        // Eliminar marcadores antiguos
+        Object.values(repartidoresMarkers).forEach(m => {
+            if (entregasMapInst) entregasMapInst.removeLayer(m);
+        });
+        repartidoresMarkers = {};
+        if (!snap.exists()) return;
+
+        snap.forEach(async child => {
+            const pos = child.val();
+            if (!pos.lat || !pos.lng) return;
+            const userSnap = await getDoc(doc(db, "users", child.key));
+            const nombre = userSnap.exists() ? userSnap.data().name : 'Personal';
+            const marker = L.marker([pos.lat, pos.lng], {
                 icon: L.divIcon({
-                    className: 'entrega-marker',
-                    html: `<div style="background:#FF6B00;width:20px;height:20px;border-radius:50%;border:2px solid white;"></div>`,
+                    className: 'repartidor-marker',
+                    html: `<div style="background:#3b82f6; width:20px; height:20px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:10px; color:white;">🏍️</div>`,
                     iconSize: [20,20],
                     iconAnchor: [10,10]
                 })
             }).addTo(entregasMapInst);
-            marker._isPedido = true;
-
-            const estadoEntrega = p.estado_entrega || 'pendiente';
-            const textoEstado = estadoEntrega === 'en_camino' ? 'En camino' : (estadoEntrega === 'entregado' ? 'Entregado' : 'Pendiente');
-            marker.bindPopup(`
-                <div style="font-family:sans-serif;font-size:12px;">
-                    <b>${p.cliente || 'Cliente'}</b><br>
-                    ${p.items.map(i=>i.name).join(', ')}<br>
-                    <b>$${p.total.toFixed(2)}</b> | ${p.metodoPago || 'N/A'}<br>
-                    <span style="color:#FF6B00;">Estado: ${textoEstado}</span><br>
-                    <button onclick="window.seleccionarEntregaDesdeMarker('${id}')" style="background:#FF6B00;color:white;border:none;padding:4px 8px;border-radius:4px;font-size:11px;margin-top:4px;">Ver detalles</button>
-                </div>
-            `);
-            marker.on('click', () => {
-                window.seleccionarEntregaDesdeMarker(id);
-            });
-            markersGroup.push(marker);
+            marker.bindPopup(`<b>${nombre}</b><br>En movimiento`);
+            repartidoresMarkers[child.key] = marker;
         });
-
-        if (markersGroup.length > 0) {
-            const group = new L.featureGroup(markersGroup);
-            entregasMapInst.fitBounds(group.getBounds().pad(0.1));
-        } else {
-            entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
-        }
     });
-};
-// Filtro de entregas (para admin)
-window.filterEntregas = (filtro) => {
-    window.currentEntregaFilter = filtro;
-    window.loadEntregas();
-};
+}
+
+// Seleccionar una entrega desde el mapa o lista
 window.seleccionarEntregaDesdeMarker = async (pedidoId) => {
     window.entregaSeleccionadaId = pedidoId;
     const snap = await getDoc(doc(db, "pedidos_online", pedidoId));
     if (!snap.exists()) return;
     const data = snap.data();
-    // Mostrar/ocultar botones según estado
     const panel = document.getElementById('entrega-actions-panel');
     const btnIniciar = document.getElementById('btn-iniciar-entrega-main');
     const btnCobrar = document.getElementById('btn-cobrar-entrega-main');
     if (panel) panel.classList.remove('hidden');
-    if (data.estado_entrega === 'pendiente') {
+    if (data.estado_entrega === 'pendiente' || !data.estado_entrega) {
         if (btnIniciar) btnIniciar.style.display = 'block';
         if (btnCobrar) btnCobrar.style.display = 'none';
     } else if (data.estado_entrega === 'en_camino') {
         if (btnIniciar) btnIniciar.style.display = 'none';
         if (btnCobrar) btnCobrar.style.display = 'block';
+    } else if (data.estado_entrega === 'entregado') {
+        if (panel) panel.classList.add('hidden');
     }
-    // Centrar mapa en el marcador seleccionado
+    // Centrar mapa en el pedido
     if (entregasMapInst && data.lat && data.lng) {
         entregasMapInst.setView([data.lat, data.lng], 15);
     }
@@ -5483,8 +5520,8 @@ window.iniciarEntrega = async () => {
     if (!window.entregaSeleccionadaId) return;
     await updateDoc(doc(db, "pedidos_online", window.entregaSeleccionadaId), { estado_entrega: 'en_camino' });
     showToast("Entrega iniciada. Dirígete al cliente.");
-    // Refrescar marcadores (se actualiza automáticamente con onSnapshot)
-    window.seleccionarEntregaDesdeMarker(window.entregaSeleccionadaId);
+    window.cargarListadoEntregas();
+    window.renderEntregasMapa();
 };
 
 window.abrirCobroEntrega = async () => {
@@ -5492,10 +5529,7 @@ window.abrirCobroEntrega = async () => {
     const snap = await getDoc(doc(db, "pedidos_online", window.entregaSeleccionadaId));
     if (!snap.exists()) return;
     const data = snap.data();
-    let total = data.total || 0;
-    if (data.descuento) total -= data.descuento;
-    if (total < 0) total = 0;
-    document.getElementById('cobro-entrega-total').innerText = `$${total.toFixed(2)}`;
+    document.getElementById('cobro-entrega-total').innerText = `$${data.total?.toFixed(2)}`;
     toggleModal('modal-cobro-entrega', true);
 };
 
@@ -5506,7 +5540,6 @@ window.confirmarCobroEntrega = async () => {
     if (!snap.exists()) return;
     const data = snap.data();
     const total = data.total || 0;
-
     try {
         await updateDoc(doc(db, "pedidos_online", window.entregaSeleccionadaId), { estado_entrega: 'entregado', metodoPago: metodo });
         await addDoc(collection(db, "cobros_pendientes"), {
@@ -5541,11 +5574,145 @@ window.confirmarCobroEntrega = async () => {
         toggleModal('modal-cobro-entrega', false);
         document.getElementById('entrega-actions-panel').classList.add('hidden');
         window.entregaSeleccionadaId = null;
-        // Recalcular mapa (marcador se actualizará automáticamente)
+        window.cargarListadoEntregas();
+        window.renderEntregasMapa();
     } catch (e) {
         showToast("Error al procesar cobro", true);
     }
 };
+
+// Generar reporte PDF/CSV de entregas según filtro de fechas
+window.generarReporteEntregas = async () => {
+    const tipo = await new Promise((resolve) => {
+        const modalId = 'modal-reporte-opciones';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `
+                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-naranja/30 text-center">
+                    <h2 class="text-xl font-black text-white mb-4">Generar Reporte</h2>
+                    <div class="space-y-3">
+                        <button id="reporte-pdf" class="w-full bg-red-600 text-white py-3 rounded-xl font-black uppercase">PDF</button>
+                        <button id="reporte-csv" class="w-full bg-green-600 text-white py-3 rounded-xl font-black uppercase">CSV</button>
+                        <button id="reporte-ambos" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black uppercase">Ambos</button>
+                        <button onclick="toggleModal('${modalId}', false)" class="w-full bg-gray-600 text-white py-3 rounded-xl font-black uppercase">Cancelar</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalEl);
+            document.getElementById('reporte-pdf').onclick = () => { toggleModal(modalId, false); resolve('pdf'); };
+            document.getElementById('reporte-csv').onclick = () => { toggleModal(modalId, false); resolve('csv'); };
+            document.getElementById('reporte-ambos').onclick = () => { toggleModal(modalId, false); resolve('ambos'); };
+        }
+        toggleModal(modalId, true);
+    });
+    if (!tipo) return;
+
+    // Obtener datos según fechas
+    let q = query(collection(db, "pedidos_online"));
+    if (currentFechaInicio && currentFechaFin) {
+        const startDate = new Date(currentFechaInicio);
+        startDate.setHours(0,0,0,0);
+        const endDate = new Date(currentFechaFin);
+        endDate.setHours(23,59,59,999);
+        q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
+    }
+    const snap = await getDocs(q);
+    const pedidos = [];
+    snap.forEach(doc => {
+        const data = doc.data();
+        data.id = doc.id;
+        pedidos.push(data);
+    });
+    if (pedidos.length === 0) {
+        showToast("No hay datos en el rango de fechas seleccionado", true);
+        return;
+    }
+
+    if (tipo === 'pdf' || tipo === 'ambos') {
+        await generarPDFEntregas(pedidos);
+    }
+    if (tipo === 'csv' || tipo === 'ambos') {
+        generarCSVEntregas(pedidos);
+    }
+};
+
+async function generarPDFEntregas(pedidos) {
+    const { jsPDF } = window.jspdf;
+    const pdfDoc = new jsPDF();
+    const logoImg = new Image();
+    logoImg.src = 'logo_claro.png';
+    await new Promise(resolve => { logoImg.onload = resolve; if (logoImg.complete) resolve(); });
+    const addFooter = window._setupProfessionalPDF(pdfDoc, 'REPORTE DE ENTREGAS', logoImg);
+
+    pdfDoc.setFontSize(16);
+    pdfDoc.text(`Reporte de Entregas (${currentFechaInicio || 'inicio'} - ${currentFechaFin || 'fin'})`, 14, 30);
+
+    const bodyRows = pedidos.map(p => [
+        new Date(p.timestamp).toLocaleDateString(),
+        p.cliente || 'Sin nombre',
+        p.items.map(i=>i.name).join(', ').substring(0,40),
+        p.tipoEntrega === 'domicilio' ? 'Domicilio' : 'Recoger',
+        p.estado_entrega || 'Pendiente',
+        `$${p.total?.toFixed(2)}`
+    ]);
+    pdfDoc.autoTable({
+        startY: 40,
+        head: [['Fecha', 'Cliente', 'Productos', 'Tipo', 'Estado', 'Total']],
+        body: bodyRows,
+        theme: 'striped',
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [255,107,0] }
+    });
+    addFooter(pdfDoc);
+    pdfDoc.save(`Reporte_Entregas_${new Date().toISOString().slice(0,19)}.pdf`);
+}
+
+function generarCSVEntregas(pedidos) {
+    const rows = [['Fecha', 'Cliente', 'Productos', 'Tipo', 'Estado', 'Total']];
+    pedidos.forEach(p => {
+        rows.push([
+            new Date(p.timestamp).toLocaleDateString(),
+            p.cliente || '',
+            p.items.map(i=>i.name).join('|'),
+            p.tipoEntrega === 'domicilio' ? 'Domicilio' : 'Recoger',
+            p.estado_entrega || 'Pendiente',
+            p.total?.toFixed(2)
+        ]);
+    });
+    const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+    const link = document.createElement('a');
+    link.setAttribute('href', encodeURI(csvContent));
+    link.setAttribute('download', `Entregas_${new Date().toISOString().slice(0,19)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+
+// Cargar entregas al inicio y suscribirse a cambios en tiempo real
+window.loadEntregas = () => {
+    if (!auth.currentUser) return;
+    window.cargarListadoEntregas();
+    window.renderEntregasMapa();
+    iniciarSeguimientoPersonalEntregas();
+    // Suscribirse a cambios en pedidos para actualizar mapa y lista automáticamente
+    if (entregasPedidosUnsubscribe) entregasPedidosUnsubscribe();
+    entregasPedidosUnsubscribe = onSnapshot(collection(db, "pedidos_online"), () => {
+        window.cargarListadoEntregas();
+        window.renderEntregasMapa();
+    });
+};
+
+// Asegurar que al cambiar de pestaña se recargue el mapa
+window.addEventListener('visibilitychange', () => {
+    if (!document.hidden && entregasMapInst) {
+        setTimeout(() => entregasMapInst.invalidateSize(), 200);
+        window.renderEntregasMapa();
+    }
+});
+// aqui finaliza modulo entregas mejorado //
 // ======================================================
 // === CIERRE Y STUBS (SIN MANIFIESTO DINÁMICO) ===
 // ======================================================
