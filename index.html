@@ -611,24 +611,36 @@
     </div>
     <div id="admin-services-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
 </section>
-        <!-- MAPA DE EMERGENCIAS -->
-<section id="a-view-alertas" class="a-view hidden flex-col h-auto min-h-screen space-y-4">
-    <h3 class="text-2xl font-black italic uppercase">Mapa de <span class="text-red-500">Emergencias</span></h3>
-    <div class="lg:grid lg:grid-cols-3 lg:gap-4 flex-grow h-full">
-        <div class="lg:col-span-1 space-y-4 order-2 lg:order-1 h-full flex flex-col">
-            <div class="flex space-x-2 overflow-x-auto hide-scroll pb-2 border-b border-white/10 shrink-0">
-                <button onclick="window.filterSOS?.('pending')" class="bg-yellow-600/20 text-yellow-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-yellow-500/30">Pendientes</button>
-                <button onclick="window.filterSOS?.('accepted')" class="bg-blue-600/20 text-blue-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-blue-500/30">Aceptados</button>
-                <button onclick="window.filterSOS?.('completed')" class="bg-green-600/20 text-green-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-green-500/30">Completados</button>
-            </div>
-            <div id="admin-sos-list" class="grid grid-cols-1 gap-2 flex-grow overflow-y-auto hide-scroll pr-1 pb-10 max-h-[50vh] lg:max-h-full"></div>
-        </div>
-        <div class="lg:col-span-2 order-1 lg:order-2 h-64 lg:h-full min-h-[400px]">
-            <div id="admin-sos-global-map" class="w-full h-full bg-white rounded-3xl z-0 border border-red-500/20 shadow-xl"></div>
+<!-- aqui inicia seccion SOS mejorada -->
+<section id="a-view-alertas" class="a-view hidden flex-col h-full space-y-0">
+    <div class="flex flex-wrap justify-between items-center p-4 border-b border-white/10">
+        <h3 class="text-2xl font-black italic uppercase text-white">SOS <span class="text-red-500">Emergencias</span></h3>
+        <div class="flex items-center space-x-2">
+            <input type="date" id="sos-fecha-inicio" class="bg-asfalto border border-white/10 p-2 rounded-xl text-white text-xs color-scheme-dark">
+            <input type="date" id="sos-fecha-fin" class="bg-asfalto border border-white/10 p-2 rounded-xl text-white text-xs color-scheme-dark">
+            <button onclick="window.cargarSOSConFiltroFecha?.()" class="bg-naranja px-3 py-2 rounded-xl text-xs font-black uppercase"><i class="fas fa-filter"></i> Filtrar</button>
+            <button onclick="window.generarReporteSOS?.()" class="bg-blue-600 px-3 py-2 rounded-xl text-xs font-black uppercase"><i class="fas fa-file-alt"></i> Reporte</button>
         </div>
     </div>
+
+    <!-- Barra de filtros por estatus (con doble clic para quitar filtro) -->
+    <div id="sos-filter-bar" class="flex space-x-2 overflow-x-auto hide-scroll pb-2 border-b border-white/10 shrink-0 px-4">
+        <button data-sos-estatus="todos" class="filter-btn-sos-estatus bg-white/10 text-white px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-white/20" onclick="window.filtrarSOSPorEstatus?.('todos')">Todos</button>
+        <button data-sos-estatus="pending" class="filter-btn-sos-estatus bg-yellow-600/20 text-yellow-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-yellow-500/30" onclick="window.filtrarSOSPorEstatus?.('pending')">Pendientes</button>
+        <button data-sos-estatus="accepted" class="filter-btn-sos-estatus bg-blue-600/20 text-blue-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-blue-500/30" onclick="window.filtrarSOSPorEstatus?.('accepted')">Aceptados</button>
+        <button data-sos-estatus="completed" class="filter-btn-sos-estatus bg-green-600/20 text-green-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-green-500/30" onclick="window.filtrarSOSPorEstatus?.('completed')">Completados</button>
+    </div>
+
+    <div class="flex flex-col lg:flex-row flex-grow min-h-[500px]">
+        <!-- Listado lateral de SOS -->
+        <div id="admin-sos-list-lateral" class="lg:w-1/3 bg-black/20 p-3 overflow-y-auto hide-scroll border-r border-white/10 space-y-2 max-h-[500px] lg:max-h-[calc(100vh-250px)]">
+            <p class="text-xs text-gray-400 text-center">Cargando solicitudes...</p>
+        </div>
+        <!-- Mapa -->
+        <div id="admin-sos-global-map" class="flex-grow w-full bg-white rounded-3xl z-0 border border-red-500/20 shadow-xl relative" style="min-height:60vh;"></div>
+    </div>
 </section>
-        
+<!-- aqui finaliza seccion SOS mejorada -->        
         <!-- ALMACÉN E INVENTARIO -->
 <section id="a-view-inventario" class="a-view hidden space-y-6">
     <h3 class="text-2xl font-black italic uppercase text-white">Gestión de <span class="text-green-400">Almacén</span></h3>
