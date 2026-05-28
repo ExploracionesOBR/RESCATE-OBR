@@ -69,7 +69,16 @@ window.garantiasActivas = [];
 let mySOSListener = null;
 let serviciosListener = null, sosListener = null, pedidosListener = null, citasListener = null;
 const generateShortId = () => 'OBR-' + Math.floor(10000 + Math.random() * 90000);
-
+// aqui inicia escapeHtml //
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
 // === UTILIDADES ===
 window.showToast = (msg, isError = false) => {
     console.log("🔴 TOAST ERROR:", msg, isError); // <-- añade esto temporalmente
@@ -5483,55 +5492,82 @@ window.renderEntregasMapa = async () => {
 };
 
 // Seguimiento en tiempo real de personal (repartidores/mecánicos/admins) con botones de contacto
+// Seguimiento en tiempo real de personal (repartidores/mecánicos/admins) con botones de contacto
 function iniciarSeguimientoPersonalEntregas() {
-    if (entregasRepartidoresUnsubscribe) entregasRepartidoresUnsubscribe();
-    entregasRepartidoresUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
-        Object.values(repartidoresMarkers).forEach(m => {
-            if (entregasMapInst) entregasMapInst.removeLayer(m);
-        });
-        repartidoresMarkers = {};
-        if (!snap.exists()) return;
+    // Limpiar suscripción anterior si existe
+    if (entregasRepartidoresUnsubscribe) {
+        entregasRepartidoresUnsubscribe();
+        entregasRepartidoresUnsubscribe = null;
+    }
 
+    entregasRepartidoresUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
+        // Si no hay mapa aún, salir (se inicializará después)
+        if (!entregasMapInst) return;
+
+        // 1. Obtener todos los userIds actuales
+        const currentUserIds = new Set();
         const promises = [];
         snap.forEach(child => {
+            currentUserIds.add(child.key);
             promises.push(getDoc(doc(db, "users", child.key)));
         });
-        const usersSnap = await Promise.all(promises);
+        const usersDocs = await Promise.all(promises);
 
+        // 2. Eliminar marcadores de personal que ya no están en la lista
+        Object.keys(repartidoresMarkers).forEach(uid => {
+            if (!currentUserIds.has(uid)) {
+                entregasMapInst.removeLayer(repartidoresMarkers[uid]);
+                delete repartidoresMarkers[uid];
+            }
+        });
+
+        // 3. Actualizar o crear marcadores para los activos
         let idx = 0;
         snap.forEach(child => {
             const pos = child.val();
-            if (!pos.lat || !pos.lng) {
-                idx++;
-                return;
-            }
-            const userDoc = usersSnap[idx];
-            const userData = userDoc.exists() ? userDoc.data() : null;
+            const uid = child.key;
+            const userData = usersDocs[idx]?.exists() ? usersDocs[idx].data() : null;
             const nombre = userData?.name || 'Personal';
             const telefono = userData?.phone || '';
             const telefonoClean = telefono.replace('+52', '');
 
-            const popupContent = `
-                <div style="font-size:12px; font-family:sans-serif; min-width:150px;">
-                    <b>${nombre}</b><br>
-                    ${telefono ? `📞 ${telefono}<br>` : ''}
-                    <div style="display:flex; gap:8px; margin-top:6px;">
-                        ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:4px 8px; font-size:10px; font-weight:bold;">📞 Llamar</button>` : ''}
-                        ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:4px 8px; font-size:10px; font-weight:bold;">💬 WhatsApp</button>` : ''}
+            if (pos && pos.lat && pos.lng) {
+                const popupContent = `
+                    <div style="font-size:12px; font-family:sans-serif; min-width:160px;">
+                        <b>${escapeHtml(nombre)}</b><br>
+                        ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+                        <div style="display:flex; gap:8px; margin-top:8px;">
+                            ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+                            ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
 
-            const marker = L.marker([pos.lat, pos.lng], {
-                icon: L.divIcon({
-                    className: 'repartidor-marker',
-                    html: `<div style="background:#3b82f6; width:24px; height:24px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:12px; color:white;">🏍️</div>`,
-                    iconSize: [24,24],
-                    iconAnchor: [12,12]
-                })
-            }).addTo(entregasMapInst);
-            marker.bindPopup(popupContent);
-            repartidoresMarkers[child.key] = marker;
+                let marker = repartidoresMarkers[uid];
+                if (marker) {
+                    // Actualizar posición y popup
+                    marker.setLatLng([pos.lat, pos.lng]);
+                    marker.setPopupContent(popupContent);
+                } else {
+                    // Crear nuevo marcador
+                    marker = L.marker([pos.lat, pos.lng], {
+                        icon: L.divIcon({
+                            className: 'repartidor-marker',
+                            html: `<div style="background:#3b82f6; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:14px; color:white;">🏍️</div>`,
+                            iconSize: [28,28],
+                            iconAnchor: [14,14]
+                        })
+                    }).addTo(entregasMapInst);
+                    marker.bindPopup(popupContent);
+                    repartidoresMarkers[uid] = marker;
+                }
+            } else {
+                // Si no hay coordenadas, eliminar marcador si existe
+                if (repartidoresMarkers[uid]) {
+                    entregasMapInst.removeLayer(repartidoresMarkers[uid]);
+                    delete repartidoresMarkers[uid];
+                }
+            }
             idx++;
         });
     });
@@ -5728,18 +5764,23 @@ function generarCSVEntregas(pedidos) {
     document.body.removeChild(link);
 }
 
-// Cargar entregas al inicio y suscribirse a cambios en tiempo real
+// aqui inicia loadEntregas mejorada //
+let personalTrackingStarted = false;
 window.loadEntregas = () => {
     if (!auth.currentUser) return;
     window.cargarListadoEntregas();
     window.renderEntregasMapa();
-    iniciarSeguimientoPersonalEntregas();
+    if (!personalTrackingStarted) {
+        iniciarSeguimientoPersonalEntregas();
+        personalTrackingStarted = true;
+    }
     if (entregasPedidosUnsubscribe) entregasPedidosUnsubscribe();
     entregasPedidosUnsubscribe = onSnapshot(collection(db, "pedidos_online"), () => {
         window.cargarListadoEntregas();
         window.renderEntregasMapa();
     });
 };
+// aqui finaliza loadEntregas mejorada //
 
 // Redimensionar mapa al cambiar de pestaña
 window.addEventListener('visibilitychange', () => {
