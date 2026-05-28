@@ -5288,77 +5288,39 @@ window.searchServiceStatus = async () => {
     }
 };
 // ======================================================
-// === ENTREGAS A DOMICILIO (MAPA) - VERSIÓN DEFINITIVA ===
+// === ENTREGAS - VERSIÓN SIMPLIFICADA Y ROBUSTA ===
 // ======================================================
-// Variables globales (aseguradas en window)
-window.entregasMapInst = null;
-window.entregasMarkers = {};      // marcadores de pedidos
-window.repartidoresMarkers = {};  // marcadores de personal
-window.entregasPedidosUnsubscribe = null;
-window.entregasRepartidoresUnsubscribe = null;
-window.currentEntregaFilter = 'todos';
-window.currentFechaInicio = null;
-window.currentFechaFin = null;
-window.lastFilterCall = { estatus: null, time: 0 };
-window.personalTrackingStarted = false;
-window.entregaSeleccionadaId = null;
+let entregasMapInst = null;
+let entregasMarkers = {};
+let repartidoresMarkers = {};
+let entregasPedidosUnsubscribe = null;
+let entregasRepartidoresUnsubscribe = null;
+let currentEntregaFilter = 'todos';
+let currentFechaInicio = null;
+let currentFechaFin = null;
 
-// Referencias locales para comodidad (opcional)
-let entregasMapInst = window.entregasMapInst;
-let entregasMarkers = window.entregasMarkers;
-let repartidoresMarkers = window.repartidoresMarkers;
-let entregasPedidosUnsubscribe = window.entregasPedidosUnsubscribe;
-let entregasRepartidoresUnsubscribe = window.entregasRepartidoresUnsubscribe;
-let currentEntregaFilter = window.currentEntregaFilter;
-let currentFechaInicio = window.currentFechaInicio;
-let currentFechaFin = window.currentFechaFin;
-let lastFilterCall = window.lastFilterCall;
-let personalTrackingStarted = window.personalTrackingStarted;
-
-// Función para cargar entregas con filtro de fecha
-window.cargarEntregasConFiltroFecha = async () => {
-    const inicio = document.getElementById('entregas-fecha-inicio')?.value;
-    const fin = document.getElementById('entregas-fecha-fin')?.value;
-    window.currentFechaInicio = inicio;
-    window.currentFechaFin = fin;
-    currentFechaInicio = inicio;
-    currentFechaFin = fin;
-    await window.cargarListadoEntregas();
-    await window.renderEntregasMapa();
-};
-
-// Filtro por estatus con doble clic para resetear a 'todos'
-window.filtrarEntregasPorEstatus = (estatus) => {
-    const now = Date.now();
-    if (window.lastFilterCall.estatus === estatus && (now - window.lastFilterCall.time) < 300) {
-        estatus = 'todos';
-    }
-    window.lastFilterCall = { estatus, time: now };
-    window.currentEntregaFilter = estatus;
-    currentEntregaFilter = estatus;
-
-    document.querySelectorAll('.filter-btn-estatus').forEach(btn => {
-        btn.classList.remove('bg-white/20', 'border-white/30', 'bg-yellow-600/20', 'bg-blue-600/20', 'bg-purple-600/20', 'bg-green-600/20');
-        btn.classList.add('bg-white/5', 'border-white/10');
-        if (btn.getAttribute('data-estatus') === estatus) {
-            btn.classList.remove('bg-white/5', 'border-white/10');
-            btn.classList.add('bg-white/20', 'border-white/30');
-        }
+// ---------- Funciones de ayuda ----------
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
     });
-    window.cargarListadoEntregas();
-    window.renderEntregasMapa();
-};
+}
 
+// ---------- Cargar listado lateral ----------
 window.cargarListadoEntregas = async () => {
     const listaDiv = document.getElementById('entregas-lista-lateral');
     if (!listaDiv) return;
     listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">Cargando...</p>';
 
     let q = query(collection(db, "pedidos_online"));
-    if (window.currentFechaInicio && window.currentFechaFin) {
-        const startDate = new Date(window.currentFechaInicio);
+    if (currentFechaInicio && currentFechaFin) {
+        const startDate = new Date(currentFechaInicio);
         startDate.setHours(0,0,0,0);
-        const endDate = new Date(window.currentFechaFin);
+        const endDate = new Date(currentFechaFin);
         endDate.setHours(23,59,59,999);
         q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
     }
@@ -5371,14 +5333,15 @@ window.cargarListadoEntregas = async () => {
     });
 
     let filtered = pedidos;
-    if (window.currentEntregaFilter === 'pendiente_asignar') filtered = pedidos.filter(p => p.status === 'pendiente');
-    else if (window.currentEntregaFilter === 'pendiente') filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
-    else if (window.currentEntregaFilter === 'en_camino') filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
-    else if (window.currentEntregaFilter === 'entregado') filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
+    if (currentEntregaFilter === 'pendiente_asignar') filtered = pedidos.filter(p => p.status === 'pendiente');
+    else if (currentEntregaFilter === 'pendiente') filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
+    else if (currentEntregaFilter === 'en_camino') filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
+    else if (currentEntregaFilter === 'entregado') filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
 
     listaDiv.innerHTML = '';
     if (filtered.length === 0) {
         listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">No hay entregas con los filtros seleccionados.</p>';
+        return;
     }
     filtered.forEach(p => {
         const estadoTexto = p.estado_entrega === 'entregado' ? '✅ Entregado' : 
@@ -5407,9 +5370,9 @@ window.cargarListadoEntregas = async () => {
             </div>
         `;
     });
-    return filtered;
 };
 
+// ---------- Renderizar mapa con pedidos ----------
 window.renderEntregasMapa = async () => {
     const mapEl = document.getElementById('entregas-map-container');
     if (!mapEl) return;
@@ -5417,32 +5380,31 @@ window.renderEntregasMapa = async () => {
     const isLight = document.body.classList.contains('light-mode');
     const layerUrl = isLight ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
-    if (!window.entregasMapInst) {
-        window.entregasMapInst = L.map(mapEl, { zoomControl: true, scrollWheelZoom: false }).setView([TALLER_LAT, TALLER_LNG], 11);
-        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(window.entregasMapInst);
+    if (!entregasMapInst) {
+        entregasMapInst = L.map(mapEl, { zoomControl: true, scrollWheelZoom: false }).setView([TALLER_LAT, TALLER_LNG], 11);
+        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
         L.marker([TALLER_LAT, TALLER_LNG], {
             icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }),
             interactive: false
-        }).addTo(window.entregasMapInst);
+        }).addTo(entregasMapInst);
     } else {
-        // Actualizar capa del mapa
-        window.entregasMapInst.eachLayer(layer => {
-            if (layer instanceof L.TileLayer) window.entregasMapInst.removeLayer(layer);
+        entregasMapInst.eachLayer(layer => {
+            if (layer instanceof L.TileLayer) entregasMapInst.removeLayer(layer);
         });
-        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(window.entregasMapInst);
+        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
     }
 
-    // Limpiar marcadores de pedidos anteriores
-    Object.values(window.entregasMarkers).forEach(m => {
-        if (window.entregasMapInst) window.entregasMapInst.removeLayer(m);
+    // Limpiar marcadores de pedidos
+    Object.values(entregasMarkers).forEach(m => {
+        if (entregasMapInst) entregasMapInst.removeLayer(m);
     });
-    window.entregasMarkers = {};
+    entregasMarkers = {};
 
     let q = query(collection(db, "pedidos_online"));
-    if (window.currentFechaInicio && window.currentFechaFin) {
-        const startDate = new Date(window.currentFechaInicio);
+    if (currentFechaInicio && currentFechaFin) {
+        const startDate = new Date(currentFechaInicio);
         startDate.setHours(0,0,0,0);
-        const endDate = new Date(window.currentFechaFin);
+        const endDate = new Date(currentFechaFin);
         endDate.setHours(23,59,59,999);
         q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
     }
@@ -5455,10 +5417,10 @@ window.renderEntregasMapa = async () => {
     });
 
     let filtered = pedidos;
-    if (window.currentEntregaFilter === 'pendiente_asignar') filtered = pedidos.filter(p => p.status === 'pendiente');
-    else if (window.currentEntregaFilter === 'pendiente') filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
-    else if (window.currentEntregaFilter === 'en_camino') filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
-    else if (window.currentEntregaFilter === 'entregado') filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
+    if (currentEntregaFilter === 'pendiente_asignar') filtered = pedidos.filter(p => p.status === 'pendiente');
+    else if (currentEntregaFilter === 'pendiente') filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
+    else if (currentEntregaFilter === 'en_camino') filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
+    else if (currentEntregaFilter === 'entregado') filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
 
     filtered.forEach(p => {
         if (!p.lat || !p.lng) return;
@@ -5471,64 +5433,60 @@ window.renderEntregasMapa = async () => {
                 iconSize: [28,28],
                 iconAnchor: [14,14]
             })
-        }).addTo(window.entregasMapInst);
-
+        }).addTo(entregasMapInst);
         const telefonoCliente = p.phone || '';
         const telefonoClean = telefonoCliente.replace('+52', '');
-        const botonesContactoPopup = telefonoClean ? `
+        const botones = telefonoClean ? `
             <div style="display:flex; gap:6px; margin-top:6px;">
-                <button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:12px; padding:4px 8px; font-size:9px;">📞 Llamar</button>
-                <button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:12px; padding:4px 8px; font-size:9px;">💬 WhatsApp</button>
+                <button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:12px; padding:4px 8px;">📞 Llamar</button>
+                <button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:12px; padding:4px 8px;">💬 WhatsApp</button>
             </div>
         ` : '';
         marker.bindPopup(`
             <div style="font-size:12px; min-width:150px;">
-                <b>${escapeHtml(p.cliente) || 'Cliente'}</b><br>
-                ${escapeHtml(p.items.map(i=>i.name).join(', '))}<br>
+                <b>${escapeHtml(p.cliente)}</b><br>
+                ${p.items.map(i=>i.name).join(', ')}<br>
                 <b>$${p.total?.toFixed(2)}</b><br>
                 Estado: ${p.estado_entrega || 'pendiente'}<br>
-                ${botonesContactoPopup}
+                ${botones}
                 <button onclick="window.seleccionarEntregaDesdeMarker('${p.id}')" style="background:#FF6B00; color:white; border:none; border-radius:8px; padding:4px 8px; margin-top:4px;">Ver detalles</button>
             </div>
         `);
-        window.entregasMarkers[p.id] = marker;
+        entregasMarkers[p.id] = marker;
     });
 
-    const markersArray = Object.values(window.entregasMarkers);
+    const markersArray = Object.values(entregasMarkers);
     if (markersArray.length > 0) {
         const group = new L.featureGroup(markersArray);
-        window.entregasMapInst.fitBounds(group.getBounds().pad(0.1));
+        entregasMapInst.fitBounds(group.getBounds().pad(0.1));
     } else {
-        window.entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
+        entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
     }
 };
 
-// ========== SEGUIMIENTO DE PERSONAL CORREGIDO ==========
-function iniciarSeguimientoPersonalEntregas() {
-    console.log('🚀 iniciarSeguimientoPersonalEntregas se ejecutó');
-    if (window.entregasRepartidoresUnsubscribe) {
-        window.entregasRepartidoresUnsubscribe();
-        window.entregasRepartidoresUnsubscribe = null;
+// ---------- Seguimiento en tiempo real de repartidores ----------
+function iniciarSeguimientoPersonal() {
+    if (entregasRepartidoresUnsubscribe) {
+        entregasRepartidoresUnsubscribe();
+        entregasRepartidoresUnsubscribe = null;
     }
 
-    window.entregasRepartidoresUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
-        if (!window.entregasMapInst) return;
+    entregasRepartidoresUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
+        if (!entregasMapInst) return;
 
-        const currentUserIds = new Set();
+        // Eliminar marcadores antiguos de personal
+        Object.values(repartidoresMarkers).forEach(m => {
+            if (entregasMapInst) entregasMapInst.removeLayer(m);
+        });
+        repartidoresMarkers = {};
+
+        if (!snap.exists()) return;
+
         const promises = [];
         snap.forEach(child => {
-            currentUserIds.add(child.key);
             promises.push(getDoc(doc(db, "users", child.key)));
         });
         const usersDocs = await Promise.all(promises);
-
-        // Eliminar marcadores huérfanos
-        Object.keys(window.repartidoresMarkers).forEach(uid => {
-            if (!currentUserIds.has(uid)) {
-                window.entregasMapInst.removeLayer(window.repartidoresMarkers[uid]);
-                delete window.repartidoresMarkers[uid];
-            }
-        });
 
         let idx = 0;
         snap.forEach(child => {
@@ -5541,44 +5499,56 @@ function iniciarSeguimientoPersonalEntregas() {
 
             if (pos && pos.lat && pos.lng) {
                 const popupContent = `
-                    <div style="font-size:12px; font-family:sans-serif; min-width:160px; background:#1A1A1A; color:white; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
+                    <div style="font-size:12px; background:#1A1A1A; color:white; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
                         <b>${escapeHtml(nombre)}</b><br>
                         ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
                         <div style="display:flex; gap:8px; margin-top:8px;">
-                            ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
-                            ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                            ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; cursor:pointer;">📞 Llamar</button>` : ''}
+                            ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; cursor:pointer;">💬 WhatsApp</button>` : ''}
                         </div>
                     </div>
                 `;
-
-                let marker = window.repartidoresMarkers[uid];
-                if (marker) {
-                    marker.setLatLng([pos.lat, pos.lng]);
-                    marker.setPopupContent(popupContent);
-                } else {
-                    marker = L.marker([pos.lat, pos.lng], {
-                        icon: L.divIcon({
-                            className: 'repartidor-marker',
-                            html: `<div style="background:#3b82f6; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:14px; color:white;">🏍️</div>`,
-                            iconSize: [28,28],
-                            iconAnchor: [14,14]
-                        })
-                    }).addTo(window.entregasMapInst);
-                    marker.bindPopup(popupContent);
-                    window.repartidoresMarkers[uid] = marker;
-                }
-            } else {
-                if (window.repartidoresMarkers[uid]) {
-                    window.entregasMapInst.removeLayer(window.repartidoresMarkers[uid]);
-                    delete window.repartidoresMarkers[uid];
-                }
+                const marker = L.marker([pos.lat, pos.lng], {
+                    icon: L.divIcon({
+                        className: 'repartidor-marker',
+                        html: `<div style="background:#3b82f6; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:14px; color:white;">🏍️</div>`,
+                        iconSize: [28,28],
+                        iconAnchor: [14,14]
+                    })
+                }).addTo(entregasMapInst);
+                marker.bindPopup(popupContent);
+                repartidoresMarkers[uid] = marker;
             }
             idx++;
         });
     });
 }
 
-// Seleccionar una entrega desde el mapa o lista
+// ---------- Filtros de fecha y estatus ----------
+window.cargarEntregasConFiltroFecha = async () => {
+    const inicio = document.getElementById('entregas-fecha-inicio')?.value;
+    const fin = document.getElementById('entregas-fecha-fin')?.value;
+    currentFechaInicio = inicio;
+    currentFechaFin = fin;
+    await window.cargarListadoEntregas();
+    await window.renderEntregasMapa();
+};
+
+window.filtrarEntregasPorEstatus = (estatus) => {
+    currentEntregaFilter = estatus;
+    document.querySelectorAll('.filter-btn-estatus').forEach(btn => {
+        btn.classList.remove('bg-white/20', 'border-white/30');
+        btn.classList.add('bg-white/5', 'border-white/10');
+        if (btn.getAttribute('data-estatus') === estatus) {
+            btn.classList.remove('bg-white/5', 'border-white/10');
+            btn.classList.add('bg-white/20', 'border-white/30');
+        }
+    });
+    window.cargarListadoEntregas();
+    window.renderEntregasMapa();
+};
+
+// ---------- Selección de entrega ----------
 window.seleccionarEntregaDesdeMarker = async (pedidoId) => {
     window.entregaSeleccionadaId = pedidoId;
     const snap = await getDoc(doc(db, "pedidos_online", pedidoId));
@@ -5597,8 +5567,8 @@ window.seleccionarEntregaDesdeMarker = async (pedidoId) => {
     } else if (data.estado_entrega === 'entregado') {
         if (panel) panel.classList.add('hidden');
     }
-    if (window.entregasMapInst && data.lat && data.lng) {
-        window.entregasMapInst.setView([data.lat, data.lng], 15);
+    if (entregasMapInst && data.lat && data.lng) {
+        entregasMapInst.setView([data.lat, data.lng], 15);
     }
 };
 
@@ -5649,12 +5619,7 @@ window.confirmarCobroEntrega = async () => {
                 });
             }
         }
-        rtdbSet(dbRef(rtdb, 'notificaciones_caja/pedido_' + Date.now()), {
-            msg: 'Cobro de entrega pendiente por confirmar en CAJA',
-            type: 'cobro_entrega',
-            pedidoId: window.entregaSeleccionadaId,
-            monto: total
-        });
+        rtdbSet(dbRef(rtdb, 'notificaciones_caja/pedido_' + Date.now()), { msg: 'Cobro de entrega pendiente', type: 'cobro_entrega', pedidoId: window.entregaSeleccionadaId, monto: total });
         showToast("Cobro registrado. Entrega finalizada.");
         toggleModal('modal-cobro-entrega', false);
         document.getElementById('entrega-actions-panel').classList.add('hidden');
@@ -5666,6 +5631,7 @@ window.confirmarCobroEntrega = async () => {
     }
 };
 
+// ---------- Reportes PDF/CSV ----------
 window.generarReporteEntregas = async () => {
     const tipo = await new Promise((resolve) => {
         const modalId = 'modal-reporte-opciones';
@@ -5695,10 +5661,10 @@ window.generarReporteEntregas = async () => {
     if (!tipo) return;
 
     let q = query(collection(db, "pedidos_online"));
-    if (window.currentFechaInicio && window.currentFechaFin) {
-        const startDate = new Date(window.currentFechaInicio);
+    if (currentFechaInicio && currentFechaFin) {
+        const startDate = new Date(currentFechaInicio);
         startDate.setHours(0,0,0,0);
-        const endDate = new Date(window.currentFechaFin);
+        const endDate = new Date(currentFechaFin);
         endDate.setHours(23,59,59,999);
         q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
     }
@@ -5714,106 +5680,92 @@ window.generarReporteEntregas = async () => {
         return;
     }
 
-    if (tipo === 'pdf' || tipo === 'ambos') await generarPDFEntregas(pedidos);
-    if (tipo === 'csv' || tipo === 'ambos') generarCSVEntregas(pedidos);
-};
-
-async function generarPDFEntregas(pedidos) {
-    const { jsPDF } = window.jspdf;
-    const pdfDoc = new jsPDF();
-    const logoImg = new Image();
-    logoImg.src = 'logo_claro.png';
-    await new Promise(resolve => { logoImg.onload = resolve; if (logoImg.complete) resolve(); });
-    const addFooter = window._setupProfessionalPDF(pdfDoc, 'REPORTE DE ENTREGAS', logoImg);
-    pdfDoc.setFontSize(16);
-    pdfDoc.text(`Reporte de Entregas (${window.currentFechaInicio || 'inicio'} - ${window.currentFechaFin || 'fin'})`, 14, 30);
-    const bodyRows = pedidos.map(p => [
-        new Date(p.timestamp).toLocaleDateString(),
-        p.cliente || 'Sin nombre',
-        p.items.map(i=>i.name).join(', ').substring(0,40),
-        p.tipoEntrega === 'domicilio' ? 'Domicilio' : 'Recoger',
-        p.estado_entrega || 'Pendiente',
-        `$${p.total?.toFixed(2)}`
-    ]);
-    pdfDoc.autoTable({
-        startY: 40,
-        head: [['Fecha', 'Cliente', 'Productos', 'Tipo', 'Estado', 'Total']],
-        body: bodyRows,
-        theme: 'striped',
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [255,107,0] }
-    });
-    addFooter(pdfDoc);
-    pdfDoc.save(`Reporte_Entregas_${new Date().toISOString().slice(0,19)}.pdf`);
-}
-
-function generarCSVEntregas(pedidos) {
-    const rows = [['Fecha', 'Cliente', 'Productos', 'Tipo', 'Estado', 'Total']];
-    pedidos.forEach(p => {
-        rows.push([
+    if (tipo === 'pdf' || tipo === 'ambos') {
+        const { jsPDF } = window.jspdf;
+        const pdfDoc = new jsPDF();
+        const logoImg = new Image();
+        logoImg.src = 'logo_claro.png';
+        await new Promise(resolve => { logoImg.onload = resolve; if (logoImg.complete) resolve(); });
+        const addFooter = window._setupProfessionalPDF(pdfDoc, 'REPORTE DE ENTREGAS', logoImg);
+        pdfDoc.setFontSize(16);
+        pdfDoc.text(`Reporte de Entregas (${currentFechaInicio || 'inicio'} - ${currentFechaFin || 'fin'})`, 14, 30);
+        const bodyRows = pedidos.map(p => [
             new Date(p.timestamp).toLocaleDateString(),
-            p.cliente || '',
-            p.items.map(i=>i.name).join('|'),
+            p.cliente || 'Sin nombre',
+            p.items.map(i=>i.name).join(', ').substring(0,40),
             p.tipoEntrega === 'domicilio' ? 'Domicilio' : 'Recoger',
             p.estado_entrega || 'Pendiente',
-            p.total?.toFixed(2)
+            `$${p.total?.toFixed(2)}`
         ]);
-    });
-    const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
-    const link = document.createElement('a');
-    link.setAttribute('href', encodeURI(csvContent));
-    link.setAttribute('download', `Entregas_${new Date().toISOString().slice(0,19)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
+        pdfDoc.autoTable({
+            startY: 40,
+            head: [['Fecha', 'Cliente', 'Productos', 'Tipo', 'Estado', 'Total']],
+            body: bodyRows,
+            theme: 'striped',
+            styles: { fontSize: 8 },
+            headStyles: { fillColor: [255,107,0] }
+        });
+        addFooter(pdfDoc);
+        pdfDoc.save(`Reporte_Entregas_${new Date().toISOString().slice(0,19)}.pdf`);
+    }
+    if (tipo === 'csv' || tipo === 'ambos') {
+        const rows = [['Fecha', 'Cliente', 'Productos', 'Tipo', 'Estado', 'Total']];
+        pedidos.forEach(p => {
+            rows.push([
+                new Date(p.timestamp).toLocaleDateString(),
+                p.cliente || '',
+                p.items.map(i=>i.name).join('|'),
+                p.tipoEntrega === 'domicilio' ? 'Domicilio' : 'Recoger',
+                p.estado_entrega || 'Pendiente',
+                p.total?.toFixed(2)
+            ]);
+        });
+        const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
+        const link = document.createElement('a');
+        link.setAttribute('href', encodeURI(csvContent));
+        link.setAttribute('download', `Entregas_${new Date().toISOString().slice(0,19)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+};
 
-// Función principal de carga de entregas
+// ---------- Función principal de carga ----------
 window.loadEntregas = () => {
     console.log('🔄 loadEntregas ejecutado');
     if (!auth.currentUser) return;
-
-    // 1. Cancelar todas las suscripciones activas
-    if (window.entregasPedidosUnsubscribe) {
-        window.entregasPedidosUnsubscribe();
-        window.entregasPedidosUnsubscribe = null;
+    // Limpieza completa antes de iniciar
+    if (entregasRepartidoresUnsubscribe) {
+        entregasRepartidoresUnsubscribe();
+        entregasRepartidoresUnsubscribe = null;
     }
-    if (window.entregasRepartidoresUnsubscribe) {
-        window.entregasRepartidoresUnsubscribe();
-        window.entregasRepartidoresUnsubscribe = null;
+    if (entregasPedidosUnsubscribe) {
+        entregasPedidosUnsubscribe();
+        entregasPedidosUnsubscribe = null;
     }
-
-    // 2. Eliminar el mapa actual y todos sus marcadores
-    if (window.entregasMapInst) {
-        window.entregasMapInst.remove();
-        window.entregasMapInst = null;
+    if (entregasMapInst) {
+        entregasMapInst.remove();
+        entregasMapInst = null;
     }
+    entregasMarkers = {};
+    repartidoresMarkers = {};
 
-    // 3. Vaciar los objetos de marcadores
-    window.entregasMarkers = {};
-    window.repartidoresMarkers = {};
-
-    // 4. Forzar que el seguimiento se reinicie (opcional)
-    window.personalTrackingStarted = false;
-
-    // Ahora sí, inicializar de nuevo
+    // Inicializar
     window.cargarListadoEntregas();
     window.renderEntregasMapa();
-    
-    if (!window.personalTrackingStarted) {
-        iniciarSeguimientoPersonalEntregas();
-        window.personalTrackingStarted = true;
-    }
-    
-    window.entregasPedidosUnsubscribe = onSnapshot(collection(db, "pedidos_online"), () => {
+    iniciarSeguimientoPersonal();
+
+    // Suscribirse a cambios en pedidos
+    entregasPedidosUnsubscribe = onSnapshot(collection(db, "pedidos_online"), () => {
         window.cargarListadoEntregas();
         window.renderEntregasMapa();
     });
 };
+
 // Redimensionar mapa al cambiar de pestaña
 window.addEventListener('visibilitychange', () => {
-    if (!document.hidden && window.entregasMapInst) {
-        setTimeout(() => window.entregasMapInst.invalidateSize(), 200);
+    if (!document.hidden && entregasMapInst) {
+        setTimeout(() => entregasMapInst.invalidateSize(), 200);
         window.renderEntregasMapa();
     }
 });
