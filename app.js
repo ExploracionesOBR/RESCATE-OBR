@@ -3950,18 +3950,46 @@ window.downloadStaffReport = async (uid) => {
     addFooter(pdfDoc);
     pdfDoc.save(`Reporte_Eficiencia_Staff_${user.name || 'Técnico'}.pdf`);
 };
+
 // ======================================================
-// === SOS MEJORADO (con listado lateral, filtros por fecha, reportes PDF/CSV) ===
+// === SOS MEJORADO (con listado lateral, filtros, TTS, WhatsApp personalizado, POS) ===
 // ======================================================
-// Usamos las variables globales ya existentes (adminSOSGlobalMapInst, adminSOSMarkers, etc.)
+
 window.currentSOSFilter = window.currentSOSFilter || 'pending';
 let sosFechaInicio = null;
 let sosFechaFin = null;
+let lastSOSCount = 0; // para detectar nuevas solicitudes
 
-// ---------- Funciones auxiliares internas ----------
+// ---------- Notificación TTS de nueva solicitud ----------
+function iniciarNotificacionSOS() {
+    const qSOS = query(collection(db, "rescates"), where("status", "==", "pending"));
+    onSnapshot(qSOS, (snap) => {
+        const currentCount = snap.size;
+        if (lastSOSCount > 0 && currentCount > lastSOSCount) {
+            playSound('alert');
+            speakTTS('¡Nueva solicitud de rescate entrante!');
+            showToast("🚨 ¡Nueva solicitud de auxilio!", false);
+        }
+        lastSOSCount = currentCount;
+    });
+}
+
+// ---------- Enviar WhatsApp personalizado al cliente ----------
+async function enviarWhatsAppPersonalizado(telefonoCliente, nombreCliente, nombreMecanico, servicioSeleccionado) {
+    if (!telefonoCliente) return;
+    const telefonoClean = telefonoCliente.replace('+52', '');
+    const mensaje = `Hola ${nombreCliente}, soy ${nombreMecanico}, tu mecánico asignado. Estaré llegando lo antes posible a tu ubicación para resolver tu caso: ${servicioSeleccionado}. Puedes seguir mi llegada desde la app o estar atento a este canal de contacto para cualquier duda.`;
+    const url = `https://api.whatsapp.com/send?phone=+52${telefonoClean}&text=${encodeURIComponent(mensaje)}`;
+    window.open(url, '_blank');
+}
+
+// ---------- Cargar listado lateral de SOS ----------
 async function cargarListadoSOS() {
     const listaDiv = document.getElementById('admin-sos-list');
-    if (!listaDiv) return;
+    if (!listaDiv) {
+        console.warn('No se encontró el contenedor admin-sos-list');
+        return;
+    }
     listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">Cargando...</p>';
 
     let q = query(collection(db, "rescates"));
@@ -4041,6 +4069,7 @@ async function cargarListadoSOS() {
     });
 }
 
+// ---------- Renderizar mapa con marcadores ----------
 async function renderSOSMapa() {
     const mapEl = document.getElementById('admin-sos-global-map');
     if (!mapEl) return;
@@ -4135,7 +4164,7 @@ async function renderSOSMapa() {
         `);
         adminSOSMarkers[r.id] = marker;
 
-        // Si está aceptado, dibujar ruta del mecánico
+        // Ruta del mecánico si está aceptado
         if (r.status === 'accepted' && r.mech_uid) {
             if (window._adminSOSTrackingListeners && window._adminSOSTrackingListeners[r.id]) {
                 window._adminSOSTrackingListeners[r.id]();
@@ -4173,22 +4202,20 @@ async function renderSOSMapa() {
     window.fixMaps?.();
 }
 
-// ---------- Función de filtro ----------
+// ---------- Funciones de filtro y renderizado principal ----------
 window.filterSOS = (status) => {
     window.currentSOSFilter = status || 'pending';
     cargarListadoSOS();
     renderSOSMapa();
 };
 
-// ---------- Función principal de renderizado ----------
 window.renderSOSGlobalMap = async () => {
-    console.log('🔄 renderSOSGlobalMap ejecutado (nueva versión)');
+    console.log('🔄 renderSOSGlobalMap ejecutado');
     if (!auth.currentUser) return;
     await cargarListadoSOS();
     await renderSOSMapa();
 };
 
-// ---------- Filtro por fecha ----------
 window.cargarSOSConFiltroFecha = async () => {
     const inicio = document.getElementById('sos-fecha-inicio')?.value;
     const fin = document.getElementById('sos-fecha-fin')?.value;
@@ -4198,7 +4225,7 @@ window.cargarSOSConFiltroFecha = async () => {
     await renderSOSMapa();
 };
 
-// ---------- Reporte PDF/CSV ----------
+// ---------- Generar reporte PDF / CSV ----------
 window.generarReporteSOS = async () => {
     const tipo = await new Promise((resolve) => {
         const modalId = 'modal-reporte-sos-opciones';
@@ -4295,7 +4322,7 @@ window.generarReporteSOS = async () => {
     }
 };
 
-// ---------- Funciones originales (aceptar, cancelar, cambiar estado, etc.) ----------
+// ---------- Funciones de aceptar, cancelar, cambiar estado ----------
 window.acceptSOS = (id) => {
     window.currentSOSId = id;
     loadMecanicosActivosParaAsignar(id);
@@ -4362,6 +4389,7 @@ window.changeSOSStatus = async (id, newStatus) => {
     window.renderSOSGlobalMap();
 };
 
+// ---------- POS para mecánicos (cobro rápido) ----------
 window.openMechanicPOS = (sosId) => {
     window.currentSOSId = sosId;
     toggleModal('modal-mechanic-pos', true);
@@ -4443,6 +4471,7 @@ window.finalizeMechanicCharge = async () => {
     });
 };
 
+// ---------- Asignar mecánico y enviar WhatsApp ----------
 async function loadMecanicosActivosParaAsignar(sosId) {
     const lista = document.getElementById('lista-mecanicos-asignar');
     if (!lista) return;
@@ -4462,14 +4491,29 @@ window.asignarMecanicoASOS = async (mechUid, sosId) => {
     const mechSnap = await getDoc(doc(db, "users", mechUid));
     if (!mechSnap.exists()) return showToast("Mecánico no encontrado", true);
     const mech = mechSnap.data();
+    const sosSnap = await getDoc(doc(db, "rescates", sosId));
+    if (!sosSnap.exists()) return showToast("SOS no encontrado", true);
+    const sosData = sosSnap.data();
+
+    let servicioSeleccionado = sosData.falla || "servicio de auxilio";
+    const match = servicioSeleccionado.match(/\[(.*?)\]/);
+    if (match) servicioSeleccionado = match[1];
+
     await updateDoc(doc(db, "rescates", sosId), { status: 'accepted', mech_uid: mechUid, mech_name: mech.name });
     window.activeMechanicSOSId = sosId;
-    const sosSnap = await getDoc(doc(db, "rescates", sosId));
-    if (sosSnap.exists() && sosSnap.data().uid) {
-        rtdbSet(dbRef(rtdb, 'notificaciones/' + mechUid), { msg: `🔧 Te han asignado un nuevo auxilio: ${sosId}` });
-        rtdbSet(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid), { ...sosSnap.data(), status: 'accepted' });
-        push(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid + '/notifs'), { msg: 'Mecánico asignado, en camino.' });
+
+    if (sosData.uid) {
+        rtdbSet(dbRef(rtdb, 'sos_alerts/' + sosData.uid), { ...sosData, status: 'accepted' });
+        push(dbRef(rtdb, 'sos_alerts/' + sosData.uid + '/notifs'), { msg: 'Mecánico asignado, en camino.' });
         speakTTS("Mecánico asignado, en camino.");
+        if (sosData.phone) {
+            await enviarWhatsAppPersonalizado(
+                sosData.phone,
+                sosData.clientName || "cliente",
+                mech.name,
+                servicioSeleccionado
+            );
+        }
     }
     showToast(`Asignado a ${mech.name}`);
     toggleModal('modal-asignar-mecanico', false);
@@ -4480,21 +4524,41 @@ window.tomarCasoDirecto = async () => {
     if (!auth.currentUser || !window.currentSOSId) return;
     const mech = window.currentUserDoc;
     if (!mech || mech.role !== 'mecanico') return showToast("Solo mecánicos", true);
-    await updateDoc(doc(db, "rescates", window.currentSOSId), { status: 'accepted', mech_uid: auth.currentUser.uid, mech_name: mech.name });
-    rtdbSet(dbRef(rtdb, 'notificaciones/' + auth.currentUser.uid), { msg: `🔧 Has tomado el caso: ${window.currentSOSId}` });
-    window.activeMechanicSOSId = window.currentSOSId;
-    const sosSnap = await getDoc(doc(db, "rescates", window.currentSOSId));
-    if (sosSnap.exists() && sosSnap.data().uid) {
-        rtdbSet(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid), { ...sosSnap.data(), status: 'accepted' });
-        push(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid + '/notifs'), { msg: 'Mecánico asignado, en camino.' });
+    const sosId = window.currentSOSId;
+    const sosSnap = await getDoc(doc(db, "rescates", sosId));
+    if (!sosSnap.exists()) return;
+    const sosData = sosSnap.data();
+    let servicioSeleccionado = sosData.falla || "servicio de auxilio";
+    const match = servicioSeleccionado.match(/\[(.*?)\]/);
+    if (match) servicioSeleccionado = match[1];
+
+    await updateDoc(doc(db, "rescates", sosId), { status: 'accepted', mech_uid: auth.currentUser.uid, mech_name: mech.name });
+    window.activeMechanicSOSId = sosId;
+    rtdbSet(dbRef(rtdb, 'notificaciones/' + auth.currentUser.uid), { msg: `🔧 Has tomado el caso: ${sosId}` });
+    if (sosData.uid) {
+        rtdbSet(dbRef(rtdb, 'sos_alerts/' + sosData.uid), { ...sosData, status: 'accepted' });
+        push(dbRef(rtdb, 'sos_alerts/' + sosData.uid + '/notifs'), { msg: 'Mecánico asignado, en camino.' });
         speakTTS("Mecánico asignado, en camino.");
+        if (sosData.phone) {
+            await enviarWhatsAppPersonalizado(
+                sosData.phone,
+                sosData.clientName || "cliente",
+                mech.name,
+                servicioSeleccionado
+            );
+        }
     }
     showToast("Caso tomado por ti");
     toggleModal('modal-asignar-mecanico', false);
     window.renderSOSGlobalMap();
 };
 
-// Redimensionar mapa al cambiar de pestaña
+// ---------- Iniciar notificaciones TTS ----------
+setTimeout(() => {
+    iniciarNotificacionSOS();
+}, 2000);
+
+// ---------- Redimensionar mapa al cambiar de pestaña ----------
 window.addEventListener('visibilitychange', () => {
     if (!document.hidden && adminSOSGlobalMapInst) {
         setTimeout(() => adminSOSGlobalMapInst.invalidateSize(), 200);
@@ -4502,6 +4566,7 @@ window.addEventListener('visibilitychange', () => {
     }
 });
 // ======================================================
+
 // ======================================================
 // === CITAS (con validación de usuario e invitación por WhatsApp) ===
 // ======================================================
