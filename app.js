@@ -5487,11 +5487,11 @@ window.renderEntregasMapa = async () => {
 
 // ========== FUNCIÓN CORREGIDA DE SEGUIMIENTO DE PERSONAL ==========
 function iniciarSeguimientoPersonalEntregas() {
+    console.log('🚀 iniciarSeguimientoPersonalEntregas se ejecutó');
     if (entregasRepartidoresUnsubscribe) {
         entregasRepartidoresUnsubscribe();
         entregasRepartidoresUnsubscribe = null;
     }
-
     entregasRepartidoresUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
         if (!entregasMapInst) return;
 
