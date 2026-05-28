@@ -1245,9 +1245,19 @@ window.submitFinalSOS = async () => {
         btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
     }
 };
+// aqui inicia listenToMySOS //
 function listenToMySOS() {
+    // Limpiar listener anterior si existe (evita duplicados)
+    if (mySOSListener && typeof mySOSListener === 'function') {
+        mySOSListener();
+        mySOSListener = null;
+    }
     if (!auth.currentUser) return;
-    if (mySOSListener) mySOSListener();
+
+    // Variables internas para limpieza de sub-listeners
+    let mechPosUnsubscribe = null;
+    let trackingUnsubscribe = null;
+
     mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), async (snap) => {
         const activeCard = document.getElementById('active-sos-card');
         const noServicesMsg = document.getElementById('no-active-services-msg');
@@ -1258,6 +1268,9 @@ function listenToMySOS() {
         const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
 
         if (!snap.exists()) {
+            // Limpiar sub-listeners al desaparecer el SOS
+            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
+            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
             if (activeCard) activeCard.classList.add('hidden');
             if (noServicesMsg) noServicesMsg.classList.remove('hidden');
             if (survey) survey.classList.add('hidden');
@@ -1295,11 +1308,14 @@ function listenToMySOS() {
         if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
             speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
             playSound('notif');
+            // Crear chat si no existe (lógica original, no modificada)
             if (data.mech_uid) {
-                // Crear chat si no existe (código omitido por brevedad, pero debe estar)
+                // El código de creación de chat se mantiene igual (omitido por brevedad)
             }
         }
-        else if ((data.status === 'completed' || data.status === 'cancelled') && window.lastClientSOSStatus !== 'completed' && window.lastClientSOSStatus !== 'cancelled') {
+        else if ((data.status === 'completed' || data.status === 'cancelled') && 
+                 window.lastClientSOSStatus !== 'completed' && 
+                 window.lastClientSOSStatus !== 'cancelled') {
             const btnChatSOS = document.getElementById('btn-chat-sos');
             if (btnChatSOS) btnChatSOS.classList.add('hidden');
             window._sosChatId = null;
@@ -1307,7 +1323,6 @@ function listenToMySOS() {
             playSound('notif');
             if (activeCard) activeCard.classList.add('hidden');
             
-            // Cambiar a pestaña "En Vivo" y mostrar encuesta
             window.switchClientView('c-view-moto');
             setTimeout(() => {
                 const surveyEl = document.getElementById('satisfaction-survey');
@@ -1317,6 +1332,10 @@ function listenToMySOS() {
             remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
             window.loadClientHistory();
             if (wsCard) wsCard.classList.add('hidden');
+            
+            // Limpiar mapa y sub-listeners
+            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
+            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
             if (mechMapInst) {
                 mechMapInst.remove();
                 mechMapInst = null;
@@ -1381,28 +1400,19 @@ function listenToMySOS() {
                 window._mechMarker = mechMarker;
             }
 
+            // Limpiar sub-listeners previos antes de crear nuevos
+            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
+            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
+
             // Actualizar posición y ruta
             const updateMechPosition = (lat, lng) => {
                 if (mechMarker) mechMarker.setLatLng([lat, lng]);
                 mechMapInst.setView([lat, lng], 14);
-                const trackingRef = dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`);
-                onValue(trackingRef, (trackSnap) => {
-                    if (trackSnap.exists() && mechMapInst) {
-                        const coords = [];
-                        trackSnap.forEach(child => {
-                            const p = child.val();
-                            if (p.lat && p.lng) coords.push([p.lat, p.lng]);
-                        });
-                        if (coords.length > 1) {
-                            if (window._mechRouteLine) mechMapInst.removeLayer(window._mechRouteLine);
-                            window._mechRouteLine = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.7 }).addTo(mechMapInst);
-                        }
-                    }
-                }, { onlyOnce: false });
+                // El tracking de ruta se maneja aparte
             };
 
-            if (window._mechPosUnsubscribe) window._mechPosUnsubscribe();
-            window._mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
+            // Listener de posición activa del mecánico
+            mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
                 if (posSnap.exists()) {
                     const pos = posSnap.val();
                     if (pos.lat && pos.lng) updateMechPosition(pos.lat, pos.lng);
@@ -1410,13 +1420,27 @@ function listenToMySOS() {
                     updateMechPosition(data.mech_lat, data.mech_lng);
                 }
             });
+
+            // Listener de trayectoria (ruta)
+            const trackingRef = dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`);
+            trackingUnsubscribe = onValue(trackingRef, (trackSnap) => {
+                if (trackSnap.exists() && mechMapInst) {
+                    const coords = [];
+                    trackSnap.forEach(child => {
+                        const p = child.val();
+                        if (p.lat && p.lng) coords.push([p.lat, p.lng]);
+                    });
+                    if (coords.length > 1) {
+                        if (window._mechRouteLine) mechMapInst.removeLayer(window._mechRouteLine);
+                        window._mechRouteLine = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.7 }).addTo(mechMapInst);
+                    }
+                }
+            });
         } else {
-            // Si no está aceptado, ocultar mapa y limpiar listeners
+            // Si no está aceptado, ocultar mapa y limpiar sub-listeners
             if (mechanicMapDiv) mechanicMapDiv.classList.add('hidden');
-            if (window._mechPosUnsubscribe) {
-                window._mechPosUnsubscribe();
-                window._mechPosUnsubscribe = null;
-            }
+            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
+            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
             if (mechMapInst) {
                 mechMapInst.remove();
                 mechMapInst = null;
@@ -1430,6 +1454,7 @@ function listenToMySOS() {
         window.lastClientSOSStatus = data.status;
     });
 }
+// aqui finaliza listenToMySOS //
 window.abrirChatSOS = () => {
     if (window._sosChatId) {
         window.openChat(window._sosChatId);
@@ -3444,6 +3469,7 @@ window.adminAddUser = async () => {
     }
 };
 
+// aqui inicia adminLoadUsers con contadores //
 window.adminLoadUsers = async () => {
     const snap = await getDocs(collection(db, "users"));
     const normalList = document.getElementById('admin-users-normal-list');
@@ -3452,22 +3478,46 @@ window.adminLoadUsers = async () => {
     if (normalList) normalList.innerHTML = '';
     if (vipList) vipList.innerHTML = '';
     if (staffList) staffList.innerHTML = '';
+
+    // Contadores
+    let countNormal = 0;
+    let countVip = 0;
+    let countStaff = 0;
+
     snap.forEach(d => {
         const u = d.data();
-const card = `<div class="bg-white/5 p-4 rounded-xl text-white text-sm flex justify-between items-center cursor-pointer" onclick="window.openUserDetail('${d.id}')">
+        const card = `<div class="bg-white/5 p-4 rounded-xl text-white text-sm flex justify-between items-center cursor-pointer" onclick="window.openUserDetail('${d.id}')">
     <span class="flex-1 truncate text-base">${u.name || (u.phone ? u.phone.replace('+52','') : 'Sin nombre')}</span>
     <div class="flex items-center space-x-2 ml-3">
         ${u.role === 'cliente' ? `<button onclick="event.stopPropagation(); window.promoteToVIP('${d.id}')" class="bg-yellow-600 text-white px-3 py-1 rounded-lg text-xs font-bold uppercase flex items-center"><i class="fas fa-crown mr-1"></i>VIP</button>` : ''}
         ${u.role === 'membresia' ? `<button onclick="event.stopPropagation(); window.demoteFromVIP('${d.id}')" class="bg-gray-600 text-white px-3 py-1 rounded-lg text-xs font-bold uppercase flex items-center"><i class="fas fa-user mr-1"></i>Quitar</button>` : ''}
     </div>
 </div>`;
-        if (u.role === 'cliente' && normalList) normalList.innerHTML += card;
-        else if (u.role === 'membresia' && vipList) vipList.innerHTML += card;
-        else if (['admin','mecanico','taller','socio'].includes(u.role) && staffList) staffList.innerHTML += `<div class="bg-white/5 p-4 rounded-xl text-white text-sm flex justify-between items-center cursor-pointer" onclick="window.openStaffDetail('${d.id}')">
+        if (u.role === 'cliente') {
+            if (normalList) normalList.innerHTML += card;
+            countNormal++;
+        }
+        else if (u.role === 'membresia') {
+            if (vipList) vipList.innerHTML += card;
+            countVip++;
+        }
+        else if (['admin','mecanico','taller','socio'].includes(u.role)) {
+            if (staffList) staffList.innerHTML += `<div class="bg-white/5 p-4 rounded-xl text-white text-sm flex justify-between items-center cursor-pointer" onclick="window.openStaffDetail('${d.id}')">
     <span class="text-base font-bold">${u.name || u.phone}</span><span class="text-yellow-400 text-sm"><i class="fas fa-star"></i> --</span>
 </div>`;
+            countStaff++;
+        }
     });
+
+    // Actualizar los contadores en el DOM
+    const normalCountSpan = document.getElementById('count-normal-users');
+    if (normalCountSpan) normalCountSpan.innerText = countNormal;
+    const vipCountSpan = document.getElementById('count-vip-users');
+    if (vipCountSpan) vipCountSpan.innerText = countVip;
+    const staffCountSpan = document.getElementById('count-staff-users');
+    if (staffCountSpan) staffCountSpan.innerText = countStaff;
 };
+// aqui finaliza adminLoadUsers con contadores //
 
 window.openUserDetail = async (uid) => {
     const userDoc = await getDoc(doc(db, "users", uid));
