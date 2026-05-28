@@ -452,7 +452,7 @@ function updateLogo() {
 function startMechanicTracking() {
     if(['admin', 'mecanico', 'taller'].includes(window.currentUserDoc?.role)) {
         if(navigator.geolocation) {
-            const watchId = navigator.geolocation.watchPosition(pos => {
+            navigator.geolocation.watchPosition(pos => {
                 const uid = auth.currentUser.uid;
                 const currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, name: window.currentUserDoc.name, ts: Date.now() };
                 update(dbRef(rtdb, 'mecanicos_activos/' + uid), currentPos);
@@ -485,12 +485,9 @@ function startMechanicTracking() {
                         ts: Date.now()
                     });
                 }
-            }, e => console.error(e), { enableHighAccuracy: true, maximumAge: 10000 });
-            
-            if (typeof window.registerGeolocationWatch === 'function') {
-                window.registerGeolocationWatch(watchId);
-            }
-        }
+            }, e=>console.error(e), {enableHighAccuracy: true, maximumAge: 10000});
+       if (typeof window.registerGeolocationWatch === 'function') {
+        window.registerGeolocationWatch(watchId);
     }
 }
 // ======================================================
@@ -5019,43 +5016,20 @@ window.updateGeofenceRadius = (val) => {
 };
 
 window.loadPromoVideo = () => {
-    const containerPublic = document.getElementById('video-banner-container');
-    const containerClient = document.getElementById('video-banner-container-client');
-    
+   const containerPublic = document.getElementById('video-banner-container');
+    const containerClient = document.getElementById('video-banner-container-client');    
+    if (!container) return;
     const now = new Date();
     const dayIndex = now.getDay();
     const todayVideo = globalSettings.videoSchedule?.[dayIndex];
-    
-    const updateContainer = (container, videoId) => {
-        if (!container) return;
-        if (todayVideo && todayVideo.trim() !== '') {
-            container.classList.remove('hidden');
-            container.style.display = 'block';
-            // Buscar el video dentro del contenedor (si ya existe, actualizar src)
-            let video = container.querySelector('video');
-            if (!video) {
-                // Si no hay video, crear la estructura
-                container.innerHTML = `<div style="pointer-events:none; user-select:none;" oncontextmenu="return false;">
-                    <video id="${videoId}" autoplay muted loop playsinline controlslist="nodownload nofullscreen" class="w-full max-h-[300px] object-contain rounded-xl"></video>
-                </div>`;
-                video = container.querySelector('video');
-            }
-            if (video) {
-                video.src = todayVideo;
-                video.load();
-            }
-        } else {
-            container.classList.add('hidden');
-            container.style.display = 'none';
-            // Limpiar contenido para liberar recursos
-            if (container.querySelector('video')) {
-                container.innerHTML = '';
-            }
-        }
-    };
-    
-    updateContainer(containerPublic, 'public-promo-video');
-    updateContainer(containerClient, 'client-promo-video');
+    if (todayVideo && todayVideo.trim() !== '') {
+        container.innerHTML = `<div style="pointer-events:none; user-select:none;" oncontextmenu="return false;"><video src="${todayVideo}" autoplay muted loop playsinline controlsList="nodownload nofullscreen" class="w-full max-h-[300px] object-contain rounded-xl"></video></div>`;
+        container.classList.remove('hidden');
+        container.style.display = 'block';
+    } else {
+        container.classList.add('hidden');
+        container.style.display = 'none';
+    }
 };
 
 window.loadPromoPreview = () => {
@@ -5413,265 +5387,185 @@ window.searchServiceStatus = async () => {
         `;
     }
 };
-// ======================================================
-// ENTREGAS REALES (tiempo real con mapa y listado)
-// ======================================================
-
+// ===== ENTREGAS A DOMICILIO (MAPA) =====
 let entregasMapInst = null;
-let entregasMarkers = {};      // marcadores de pedidos
-let repartidoresMarkers = {};  // marcadores de repartidores
-let repartidoresRutas = {};    // rutas de repartidores
+let entregasMarkers = {};
+window.entregaSeleccionadaId = null;
 
 window.loadEntregas = () => {
     if (!auth.currentUser) return;
     const mapEl = document.getElementById('entregas-map-container');
-    const listEl = document.getElementById('entregas-list-container');
-    if (!mapEl || !listEl) return;
+    if (!mapEl) return;
 
-    // Inicializar mapa (solo una vez)
+    // --- Inicializar mapa (solo una vez) ---
     if (!entregasMapInst) {
         const isLight = document.body.classList.contains('light-mode');
-        const layerUrl = isLight
-            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-        entregasMapInst = L.map('entregas-map-container', { zoomControl: true }).setView([TALLER_LAT, TALLER_LNG], 12);
+        const layerUrl = isLight ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        entregasMapInst = L.map('entregas-map-container', { zoomControl: true, scrollWheelZoom: false }).setView([TALLER_LAT, TALLER_LNG], 11);
         L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
-        // Marcador del taller
-        L.marker([TALLER_LAT, TALLER_LNG], {
-            icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] })
-        }).addTo(entregasMapInst);
     }
 
-    const role = window.currentUserDoc?.role;
-    let q;
-    const filtro = window.currentEntregaFilter || 'pendiente_asignar';
-    if (filtro === 'pendiente_asignar') {
-        q = query(collection(db, "pedidos_online"), where("status", "==", "pendiente"));
-    } else if (filtro === 'pendiente') {
-        q = query(collection(db, "pedidos_online"), where("status", "==", "aceptado"), where("estado_entrega", "in", ["pendiente", "en_camino"]));
-    } else {
-        q = query(collection(db, "pedidos_online"), where("estado_entrega", "==", "entregado"));
-    }
-
-    // Listener de pedidos
-    if (window._entregasPedidosListener) window._entregasPedidosListener();
-    window._entregasPedidosListener = onSnapshot(q, (snap) => {
-        // Limpiar marcadores de pedidos anteriores
-        Object.values(entregasMarkers).forEach(m => {
-            if (entregasMapInst) entregasMapInst.removeLayer(m);
-        });
-        entregasMarkers = {};
-        
-        // Renderizar listado lateral
-        listEl.innerHTML = '';
-        const pedidos = [];
-        snap.forEach(doc => {
-            const p = doc.data();
-            p.id = doc.id;
-            pedidos.push(p);
-        });
-        // Ordenar por timestamp descendente
-        pedidos.sort((a,b) => b.timestamp - a.timestamp);
-        
-        pedidos.forEach(p => {
-            if (!p.lat || !p.lng) return;
-            // Marcador en el mapa
-            const marker = L.marker([p.lat, p.lng], {
-                icon: L.divIcon({ className: 'entrega-marker', html: `<div style="background:#FF6B00;width:20px;height:20px;border-radius:50%;border:2px solid white;"></div>`, iconSize: [20,20], iconAnchor: [10,10] })
-            }).addTo(entregasMapInst);
-            marker.bindPopup(`<b>${p.cliente || 'Cliente'}</b><br>Total: $${(p.total || 0).toFixed(2)}<br>Estado: ${p.estado_entrega || 'pendiente'}`);
-            entregasMarkers[p.id] = marker;
-            
-            // Elemento del listado
-            let estadoTexto = '';
-            let estadoColor = '';
-            if (p.estado_entrega === 'entregado') {
-                estadoTexto = '✅ Entregado';
-                estadoColor = 'text-green-400';
-            } else if (p.estado_entrega === 'en_camino') {
-                estadoTexto = '🚚 En camino';
-                estadoColor = 'text-yellow-400';
-            } else {
-                estadoTexto = '⏳ Pendiente';
-                estadoColor = 'text-gray-400';
-            }
-            const asignado = p.repartidor_uid ? `Repartidor: ${p.repartidor_nombre || 'Asignado'}` : 'Sin asignar';
-            listEl.innerHTML += `
-                <div class="entrega-card bg-white/5 p-3 rounded-xl mb-2 cursor-pointer hover:bg-white/10 transition-all" data-id="${p.id}" onclick="window.seleccionarEntrega('${p.id}')">
-                    <div class="flex justify-between items-start">
-                        <span class="font-bold text-sm">${p.cliente || 'Cliente'}</span>
-                        <span class="text-xs ${estadoColor}">${estadoTexto}</span>
-                    </div>
-                    <p class="text-xs text-gray-400 truncate">${p.items.map(i=>i.name).join(', ')}</p>
-                    <p class="text-xs font-bold text-naranja mt-1">$${(p.total || 0).toFixed(2)}</p>
-                    <p class="text-[10px] text-gray-500">${asignado}</p>
-                </div>
-            `;
-        });
-        if (pedidos.length === 0) listEl.innerHTML = '<p class="text-gray-500 text-xs text-center">No hay pedidos</p>';
-        
-        // Ajustar mapa a los marcadores de pedidos
-        const markersGroup = Object.values(entregasMarkers);
-        if (markersGroup.length && entregasMapInst) {
-            const group = new L.featureGroup(markersGroup);
-            entregasMapInst.fitBounds(group.getBounds().pad(0.1));
-        } else if (entregasMapInst) {
-            entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 12);
-        }
+    // --- Marcador del taller (fijo) ---
+    let tallerMarker = null;
+    entregasMapInst.eachLayer(layer => {
+        if (layer._isTaller) tallerMarker = layer;
     });
+    if (!tallerMarker) {
+        const marker = L.marker([TALLER_LAT, TALLER_LNG], {
+            icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }),
+            interactive: false
+        }).addTo(entregasMapInst);
+        marker._isTaller = true;
+    }
 
-    // Listener de ubicaciones de repartidores (todos los usuarios con rol mecánico/admin/taller que tengan entrega activa)
-    if (window._entregasRepartidoresListener) window._entregasRepartidoresListener();
-    window._entregasRepartidoresListener = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
-        // Limpiar marcadores y rutas de repartidores anteriores
-        Object.values(repartidoresMarkers).forEach(m => {
-            if (entregasMapInst) entregasMapInst.removeLayer(m);
-        });
-        Object.values(repartidoresRutas).forEach(r => {
-            if (r) r.remove();
-        });
-        repartidoresMarkers = {};
-        repartidoresRutas = {};
-        
-        if (!snap.exists()) return;
-        
-        // Procesar cada repartidor activo
+    // --- Limpiar listener anterior de repartidores ---
+    if (window._entregasRepartidoresListener) {
+        window._entregasRepartidoresListener();
+        window._entregasRepartidoresListener = null;
+    }
+
+    // --- Escuchar ubicaciones de repartidores activos (en tiempo real) ---
+   window._entregasRepartidoresListener = onValue(dbRef(rtdb, 'mecanicos_activos'), (snap) => {
+    // Eliminar marcadores de repartidores previos
+    entregasMapInst.eachLayer(layer => {
+        if (layer._isRepartidor) entregasMapInst.removeLayer(layer);
+    });
+    // Limpiar rutas anteriores
+    if (window._repartidorRouteLines) {
+        Object.values(window._repartidorRouteLines).forEach(line => line.remove());
+    }
+    window._repartidorRouteLines = {};
+
+    if (snap.exists()) {
+        // Obtener nombres de los usuarios para mostrar en popup
         const promises = [];
         snap.forEach(child => {
-            promises.push((async () => {
-                const uid = child.key;
-                const pos = child.val();
-                if (!pos.lat || !pos.lng) return;
-                // Obtener datos del usuario
-                const userSnap = await getDoc(doc(db, "users", uid));
-                if (!userSnap.exists()) return;
-                const user = userSnap.data();
-                if (!['mecanico','admin','taller'].includes(user.role)) return;
-                // Verificar si tiene algún pedido en curso (asignado y no entregado)
-                const pedidosQuery = query(collection(db, "pedidos_online"), where("repartidor_uid", "==", uid), where("estado_entrega", "in", ["pendiente", "en_camino"]));
-                const pedidosSnap = await getDocs(pedidosQuery);
-                if (pedidosSnap.empty) return;
-                
-                // Marcador del repartidor
-                if (!entregasMapInst) return;
-                const marker = L.marker([pos.lat, pos.lng], {
-                    icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
-                }).addTo(entregasMapInst);
-                marker.bindPopup(`<b>${user.name}</b><br>En camino`);
-                repartidoresMarkers[uid] = marker;
-                
-                // Dibujar ruta desde tracking
-                const trackingRef = dbRef(rtdb, `mecanicos_tracking/${uid}`);
-                onValue(trackingRef, (trackSnap) => {
-                    if (trackSnap.exists() && entregasMapInst) {
-                        const coords = [];
-                        trackSnap.forEach(tc => {
-                            const p = tc.val();
-                            if (p.lat && p.lng) coords.push([p.lat, p.lng]);
-                        });
-                        if (coords.length > 1) {
-                            if (repartidoresRutas[uid]) repartidoresRutas[uid].remove();
-                            repartidoresRutas[uid] = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.8 }).addTo(entregasMapInst);
-                        }
-                    }
-                }, { onlyOnce: false });
-            })());
+            promises.push(getDoc(doc(db, "users", child.key)).catch(() => null));
         });
-        await Promise.all(promises);
-    });
-};
+        Promise.all(promises).then(users => {
+            let idx = 0;
+            snap.forEach(child => {
+                const pos = child.val();
+                const userData = users[idx];
+                const repartidorName = userData?.exists() ? userData.data().name : 'Repartidor';
+                if (pos.lat && pos.lng) {
+                    const marker = L.marker([pos.lat, pos.lng], {
+                        icon: L.divIcon({
+                            className: 'entrega-marker',
+                            html: `<div style="background:#22c55e;width:16px;height:16px;border-radius:50%;border:2px solid white;box-shadow:0 0 5px rgba(0,0,0,0.5);"></div>`,
+                            iconSize: [16,16],
+                            iconAnchor: [8,8]
+                        })
+                    }).addTo(entregasMapInst);
+                    marker._isRepartidor = true;
+                    marker.bindPopup(`<b>${repartidorName}</b><br>En camino`);
+                    
+                    // Dibujar ruta
+                    const trackingRef = dbRef(rtdb, `mecanicos_tracking/${child.key}`);
+                    onValue(trackingRef, (trackSnap) => {
+                        if (trackSnap.exists() && entregasMapInst) {
+                            const coords = [];
+                            trackSnap.forEach(tc => {
+                                const p = tc.val();
+                                if (p.lat && p.lng) coords.push([p.lat, p.lng]);
+                            });
+                            if (coords.length > 1) {
+                                if (window._repartidorRouteLines[child.key]) {
+                                    window._repartidorRouteLines[child.key].remove();
+                                }
+                                window._repartidorRouteLines[child.key] = L.polyline(coords, { color: '#22c55e', weight: 3, opacity: 0.6 }).addTo(entregasMapInst);
+                            }
+                        }
+                    });
+                }
+                idx++;
+            });
+        });
+    }
+});
+    // --- Determinar la consulta según el rol ---
+    const role = window.currentUserDoc?.role;
+    let q;
+    if (['admin', 'taller', 'socio'].includes(role)) {
+        const filtro = window.currentEntregaFilter || 'pendiente_asignar';
+        if (filtro === 'pendiente_asignar') {
+            q = query(collection(db, "pedidos_online"), where("status", "==", "pendiente"));
+        } else if (filtro === 'pendiente') {
+            q = query(collection(db, "pedidos_online"), where("status", "==", "aceptado"), where("estado_entrega", "in", ["pendiente", "en_camino"]));
+        } else if (filtro === 'entregado') {
+            q = query(collection(db, "pedidos_online"), where("estado_entrega", "==", "entregado"));
+        }
+    } else {
+        q = query(collection(db, "pedidos_online"),
+            where("repartidor_uid", "==", auth.currentUser.uid),
+            where("status", "==", "aceptado"),
+            where("estado_entrega", "in", ["pendiente", "en_camino"]));
+    }
 
-window.seleccionarEntrega = (pedidoId) => {
-    window.entregaSeleccionadaId = pedidoId;
-    // Resaltar la tarjeta seleccionada
-    document.querySelectorAll('.entrega-card').forEach(card => {
-        card.classList.remove('border-naranja', 'bg-naranja/20');
-    });
-    const card = document.querySelector(`.entrega-card[data-id="${pedidoId}"]`);
-    if (card) card.classList.add('border-naranja', 'bg-naranja/20');
-    // Centrar mapa en el marcador
-    const marker = entregasMarkers[pedidoId];
-    if (marker && entregasMapInst) entregasMapInst.setView(marker.getLatLng(), 15);
-    // Mostrar panel de acciones
-    const panel = document.getElementById('entrega-actions-panel');
-    if (panel) panel.classList.remove('hidden');
-    // Cargar detalles del pedido para mostrar botones según estado
-    getDoc(doc(db, "pedidos_online", pedidoId)).then(snap => {
-        if (!snap.exists()) return;
-        const data = snap.data();
-        const btnIniciar = document.getElementById('btn-iniciar-entrega-main');
-        const btnCobrar = document.getElementById('btn-cobrar-entrega-main');
-        if (data.estado_entrega === 'pendiente') {
-            if (btnIniciar) btnIniciar.style.display = 'block';
-            if (btnCobrar) btnCobrar.style.display = 'none';
-        } else if (data.estado_entrega === 'en_camino') {
-            if (btnIniciar) btnIniciar.style.display = 'none';
-            if (btnCobrar) btnCobrar.style.display = 'block';
+    // --- Limpiar listener anterior de pedidos ---
+    if (window._entregasPedidosListener) {
+        window._entregasPedidosListener();
+        window._entregasPedidosListener = null;
+    }
+
+    // --- Mostrar/ocultar barra de filtros según rol ---
+    const filterBar = document.getElementById('entregas-filter-bar');
+    if (filterBar) {
+        filterBar.style.display = ['admin', 'taller', 'socio'].includes(role) ? 'flex' : 'none';
+    }
+
+    // --- Escuchar pedidos ---
+    window._entregasPedidosListener = onSnapshot(q, (snap) => {
+        entregasMapInst.eachLayer(layer => {
+            if (layer._isPedido) entregasMapInst.removeLayer(layer);
+        });
+        const markersGroup = [];
+
+        snap.forEach(dSnap => {
+            const p = dSnap.data();
+            const id = dSnap.id;
+            if (!p.lat || !p.lng) return;
+            const marker = L.marker([p.lat, p.lng], {
+                icon: L.divIcon({
+                    className: 'entrega-marker',
+                    html: `<div style="background:#FF6B00;width:20px;height:20px;border-radius:50%;border:2px solid white;"></div>`,
+                    iconSize: [20,20],
+                    iconAnchor: [10,10]
+                })
+            }).addTo(entregasMapInst);
+            marker._isPedido = true;
+
+            const estadoEntrega = p.estado_entrega || 'pendiente';
+            const textoEstado = estadoEntrega === 'en_camino' ? 'En camino' : (estadoEntrega === 'entregado' ? 'Entregado' : 'Pendiente');
+            marker.bindPopup(`
+                <div style="font-family:sans-serif;font-size:12px;">
+                    <b>${p.cliente || 'Cliente'}</b><br>
+                    ${p.items.map(i=>i.name).join(', ')}<br>
+                    <b>$${p.total.toFixed(2)}</b> | ${p.metodoPago || 'N/A'}<br>
+                    <span style="color:#FF6B00;">Estado: ${textoEstado}</span><br>
+                    <button onclick="window.seleccionarEntregaDesdeMarker('${id}')" style="background:#FF6B00;color:white;border:none;padding:4px 8px;border-radius:4px;font-size:11px;margin-top:4px;">Ver detalles</button>
+                </div>
+            `);
+            marker.on('click', () => {
+                window.seleccionarEntregaDesdeMarker(id);
+            });
+            markersGroup.push(marker);
+        });
+
+        if (markersGroup.length > 0) {
+            const group = new L.featureGroup(markersGroup);
+            entregasMapInst.fitBounds(group.getBounds().pad(0.1));
+        } else {
+            entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
         }
     });
 };
-
-window.asignarRepartidor = async (repartidorUid, pedidoId) => {
-    const userSnap = await getDoc(doc(db, "users", repartidorUid));
-    const repartidorNombre = userSnap.exists() ? userSnap.data().name : 'Repartidor';
-    await updateDoc(doc(db, "pedidos_online", pedidoId), {
-        status: 'aceptado',
-        repartidor_uid: repartidorUid,
-        repartidor_nombre: repartidorNombre,
-        estado_entrega: 'pendiente'
-    });
-    window.showToast(`Asignado a ${repartidorNombre}`);
-    window.loadEntregas(); // refrescar
-    window.toggleModal('modal-asignar-repartidor', false);
-};
-
-window.iniciarEntrega = async () => {
-    if (!window.entregaSeleccionadaId) return;
-    await updateDoc(doc(db, "pedidos_online", window.entregaSeleccionadaId), { estado_entrega: 'en_camino' });
-    window.showToast("Entrega iniciada. Dirígete al cliente.");
-    window.loadEntregas();
-    window.seleccionarEntrega(window.entregaSeleccionadaId);
-};
-
-window.abrirCobroEntrega = async () => {
-    if (!window.entregaSeleccionadaId) return;
-    const snap = await getDoc(doc(db, "pedidos_online", window.entregaSeleccionadaId));
-    if (!snap.exists()) return;
-    const data = snap.data();
-    document.getElementById('cobro-entrega-total').innerText = `$${(data.total || 0).toFixed(2)}`;
-    window.toggleModal('modal-cobro-entrega', true);
-};
-
-window.confirmarCobroEntrega = async () => {
-    if (!window.entregaSeleccionadaId) return;
-    const metodo = document.getElementById('cobro-entrega-metodo')?.value || 'Efectivo';
-    const snap = await getDoc(doc(db, "pedidos_online", window.entregaSeleccionadaId));
-    if (!snap.exists()) return;
-    const data = snap.data();
-    await updateDoc(doc(db, "pedidos_online", window.entregaSeleccionadaId), { estado_entrega: 'entregado', metodoPago: metodo });
-    // Registrar cobro pendiente para caja
-    await addDoc(collection(db, "cobros_pendientes"), {
-        mech_uid: auth.currentUser.uid,
-        mech_name: window.currentUserDoc?.name || 'Repartidor',
-        concepto: `Entrega pedido ${window.entregaSeleccionadaId}`,
-        monto: data.total || 0,
-        metodo: metodo,
-        estado: 'pendiente',
-        pedidoId: window.entregaSeleccionadaId,
-        timestamp: Date.now()
-    });
-    window.showToast("Entrega finalizada. El cobro queda pendiente en caja.");
-    window.toggleModal('modal-cobro-entrega', false);
-    const panel = document.getElementById('entrega-actions-panel');
-    if (panel) panel.classList.add('hidden');
-    window.loadEntregas();
-};
-
+// Filtro de entregas (para admin)
 window.filterEntregas = (filtro) => {
     window.currentEntregaFilter = filtro;
     window.loadEntregas();
 };
-        window.seleccionarEntregaDesdeMarker = async (pedidoId) => {
+window.seleccionarEntregaDesdeMarker = async (pedidoId) => {
     window.entregaSeleccionadaId = pedidoId;
     const snap = await getDoc(doc(db, "pedidos_online", pedidoId));
     if (!snap.exists()) return;
