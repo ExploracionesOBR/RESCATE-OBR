@@ -5770,10 +5770,10 @@ function generarCSVEntregas(pedidos) {
 
 // Función principal de carga de entregas
 window.loadEntregas = () => {
-    console.log('🔄 window.loadEntregas() ejecutado');
+    console.log('🔄 loadEntregas ejecutado');
     if (!auth.currentUser) return;
-    
-    // Limpiar cualquier resto anterior
+
+    // 1. Cancelar todas las suscripciones activas
     if (window.entregasPedidosUnsubscribe) {
         window.entregasPedidosUnsubscribe();
         window.entregasPedidosUnsubscribe = null;
@@ -5782,14 +5782,21 @@ window.loadEntregas = () => {
         window.entregasRepartidoresUnsubscribe();
         window.entregasRepartidoresUnsubscribe = null;
     }
-    // Reiniciar marcadores
+
+    // 2. Eliminar el mapa actual y todos sus marcadores
     if (window.entregasMapInst) {
         window.entregasMapInst.remove();
         window.entregasMapInst = null;
     }
+
+    // 3. Vaciar los objetos de marcadores
     window.entregasMarkers = {};
     window.repartidoresMarkers = {};
 
+    // 4. Forzar que el seguimiento se reinicie (opcional)
+    window.personalTrackingStarted = false;
+
+    // Ahora sí, inicializar de nuevo
     window.cargarListadoEntregas();
     window.renderEntregasMapa();
     
@@ -5803,7 +5810,6 @@ window.loadEntregas = () => {
         window.renderEntregasMapa();
     });
 };
-
 // Redimensionar mapa al cambiar de pestaña
 window.addEventListener('visibilitychange', () => {
     if (!document.hidden && window.entregasMapInst) {
