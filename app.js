@@ -636,42 +636,24 @@ const loginLandingBtn = document.getElementById('login-landing-btn');
     if (loginLandingBtn) {
         loginLandingBtn.style.display = auth.currentUser ? 'none' : 'flex';
     }
-window.loadPromoVideo = () => {
-    const containerPublic = document.getElementById('video-banner-container');
-    const containerClient = document.getElementById('video-banner-container-client');
-    
+    window.loadPromoVideo();
+}
+function findNextOpenDay() {
     const now = new Date();
-    const dayIndex = now.getDay();
-    const todayVideo = globalSettings.videoSchedule?.[dayIndex];
-    
-    const updateContainer = (container, videoId) => {
-        if (!container) return;
-        if (todayVideo && todayVideo.trim() !== '') {
-            container.classList.remove('hidden');
-            container.style.display = 'block';
-            let video = container.querySelector('video');
-            if (!video) {
-                container.innerHTML = `<div style="pointer-events:none; user-select:none;" oncontextmenu="return false;">
-                    <video id="${videoId}" autoplay muted loop playsinline controlslist="nodownload nofullscreen" class="w-full max-h-[300px] object-contain rounded-xl"></video>
-                </div>`;
-                video = container.querySelector('video');
-            }
-            if (video) {
-                video.src = todayVideo;
-                video.load();
-            }
-        } else {
-            container.classList.add('hidden');
-            container.style.display = 'none';
-            if (container.querySelector('video')) {
-                container.innerHTML = '';
-            }
+    for (let i = 0; i < 7; i++) {
+        const check = new Date(now);
+        check.setDate(now.getDate() + i);
+        const dayIdx = check.getDay() === 0 ? 6 : check.getDay() - 1;
+        const s = globalSettings.schedule[dayIdx] || { o: "08:00", c: "20:00" };
+        const [h, m] = s.o.split(':').map(Number);
+        const openMins = h * 60 + m;
+        const currentMins = (i === 0) ? now.getHours() * 60 + now.getMinutes() : 0;
+        if (openMins > currentMins) {
+            return { day: ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][check.getDay()], time: s.o };
         }
-    };
-    
-    updateContainer(containerPublic, 'public-promo-video');
-    updateContainer(containerClient, 'client-promo-video');
-};
+    }
+    return null;
+}
 
 // === CARGA DE TIENDA Y SERVICIOS ===
 async function loadPublicStore() {
@@ -766,31 +748,16 @@ onAuthStateChanged(auth, async user => {
         globalSettings.centerLng = TALLER_LNG;
         showView('app-admin');
         document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
-setTimeout(async () => {
-    try {
-        console.log('1. Iniciando carga de admin...');
-        await window.adminRefreshConfigUI();
-        console.log('2. adminRefreshConfigUI OK');
-        await window.adminLoadInventory();
-        console.log('3. adminLoadInventory OK');
-        await window.adminLoadSales();
-        console.log('4. adminLoadSales OK');
-        await window.filterSOS('pending');
-        console.log('5. filterSOS OK');
-        await window.adminListenServices();
-        console.log('6. adminListenServices OK');
-        await window.adminLoadCitas();
-        console.log('7. adminLoadCitas OK');
-        await window.loadChatList();
-        console.log('8. loadChatList OK');
-        await window.applyViewPermissions?.();
-        console.log('9. applyViewPermissions OK');
-        console.log('✅ Todas las funciones de admin cargaron correctamente');
-    } catch (error) {
-        console.error('❌ Error en la función de admin:', error);
-        window.showToast('Error al cargar panel de admin: ' + error.message, true);
-    }
-}, 100);
+        setTimeout(() => {
+            window.adminRefreshConfigUI();
+            window.adminLoadInventory();
+            window.adminLoadSales();
+            window.filterSOS('pending');
+            window.adminListenServices();
+            window.adminLoadCitas();
+            window.loadChatList();
+            window.applyViewPermissions?.();
+        }, 100);
         if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
     } else {
         showView('app-client');
@@ -5052,20 +5019,45 @@ window.updateGeofenceRadius = (val) => {
 };
 
 window.loadPromoVideo = () => {
-    const container = document.getElementById('video-banner-container');
-    if (!container) return;
+    const containerPublic = document.getElementById('video-banner-container');
+    const containerClient = document.getElementById('video-banner-container-client');
+    
     const now = new Date();
     const dayIndex = now.getDay();
     const todayVideo = globalSettings.videoSchedule?.[dayIndex];
-    if (todayVideo && todayVideo.trim() !== '') {
-        container.innerHTML = `<div style="pointer-events:none; user-select:none;" oncontextmenu="return false;"><video src="${todayVideo}" autoplay muted loop playsinline controlsList="nodownload nofullscreen" class="w-full max-h-[300px] object-contain rounded-xl"></video></div>`;
-        container.classList.remove('hidden');
-        container.style.display = 'block';
-    } else {
-        container.classList.add('hidden');
-        container.style.display = 'none';
-    }
+    
+    const updateContainer = (container, videoId) => {
+        if (!container) return;
+        if (todayVideo && todayVideo.trim() !== '') {
+            container.classList.remove('hidden');
+            container.style.display = 'block';
+            // Buscar el video dentro del contenedor (si ya existe, actualizar src)
+            let video = container.querySelector('video');
+            if (!video) {
+                // Si no hay video, crear la estructura
+                container.innerHTML = `<div style="pointer-events:none; user-select:none;" oncontextmenu="return false;">
+                    <video id="${videoId}" autoplay muted loop playsinline controlslist="nodownload nofullscreen" class="w-full max-h-[300px] object-contain rounded-xl"></video>
+                </div>`;
+                video = container.querySelector('video');
+            }
+            if (video) {
+                video.src = todayVideo;
+                video.load();
+            }
+        } else {
+            container.classList.add('hidden');
+            container.style.display = 'none';
+            // Limpiar contenido para liberar recursos
+            if (container.querySelector('video')) {
+                container.innerHTML = '';
+            }
+        }
+    };
+    
+    updateContainer(containerPublic, 'public-promo-video');
+    updateContainer(containerClient, 'client-promo-video');
 };
+
 window.loadPromoPreview = () => {
     const previewContainer = document.getElementById('promo-video-preview');
     const player = document.getElementById('promo-video-player');
