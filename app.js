@@ -5288,24 +5288,39 @@ window.searchServiceStatus = async () => {
     }
 };
 // ======================================================
-// === ENTREGAS A DOMICILIO (MAPA) con control total ===
+// === ENTREGAS A DOMICILIO (MAPA) - VERSIÓN DEFINITIVA ===
 // ======================================================
-let entregasMapInst = null;
-let entregasMarkers = {};      // marcadores de pedidos
-let repartidoresMarkers = {};  // marcadores de personal
-let entregasPedidosUnsubscribe = null;
-let entregasRepartidoresUnsubscribe = null;
-let currentEntregaFilter = 'todos';
-let currentFechaInicio = null;
-let currentFechaFin = null;
-let lastFilterCall = { estatus: null, time: 0 };
-let personalTrackingStarted = false;  // control para iniciar seguimiento solo una vez
+// Variables globales (aseguradas en window)
+window.entregasMapInst = null;
+window.entregasMarkers = {};      // marcadores de pedidos
+window.repartidoresMarkers = {};  // marcadores de personal
+window.entregasPedidosUnsubscribe = null;
+window.entregasRepartidoresUnsubscribe = null;
+window.currentEntregaFilter = 'todos';
+window.currentFechaInicio = null;
+window.currentFechaFin = null;
+window.lastFilterCall = { estatus: null, time: 0 };
+window.personalTrackingStarted = false;
 window.entregaSeleccionadaId = null;
+
+// Referencias locales para comodidad (opcional)
+let entregasMapInst = window.entregasMapInst;
+let entregasMarkers = window.entregasMarkers;
+let repartidoresMarkers = window.repartidoresMarkers;
+let entregasPedidosUnsubscribe = window.entregasPedidosUnsubscribe;
+let entregasRepartidoresUnsubscribe = window.entregasRepartidoresUnsubscribe;
+let currentEntregaFilter = window.currentEntregaFilter;
+let currentFechaInicio = window.currentFechaInicio;
+let currentFechaFin = window.currentFechaFin;
+let lastFilterCall = window.lastFilterCall;
+let personalTrackingStarted = window.personalTrackingStarted;
 
 // Función para cargar entregas con filtro de fecha
 window.cargarEntregasConFiltroFecha = async () => {
     const inicio = document.getElementById('entregas-fecha-inicio')?.value;
     const fin = document.getElementById('entregas-fecha-fin')?.value;
+    window.currentFechaInicio = inicio;
+    window.currentFechaFin = fin;
     currentFechaInicio = inicio;
     currentFechaFin = fin;
     await window.cargarListadoEntregas();
@@ -5315,10 +5330,11 @@ window.cargarEntregasConFiltroFecha = async () => {
 // Filtro por estatus con doble clic para resetear a 'todos'
 window.filtrarEntregasPorEstatus = (estatus) => {
     const now = Date.now();
-    if (lastFilterCall.estatus === estatus && (now - lastFilterCall.time) < 300) {
+    if (window.lastFilterCall.estatus === estatus && (now - window.lastFilterCall.time) < 300) {
         estatus = 'todos';
     }
-    lastFilterCall = { estatus, time: now };
+    window.lastFilterCall = { estatus, time: now };
+    window.currentEntregaFilter = estatus;
     currentEntregaFilter = estatus;
 
     document.querySelectorAll('.filter-btn-estatus').forEach(btn => {
@@ -5339,10 +5355,10 @@ window.cargarListadoEntregas = async () => {
     listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">Cargando...</p>';
 
     let q = query(collection(db, "pedidos_online"));
-    if (currentFechaInicio && currentFechaFin) {
-        const startDate = new Date(currentFechaInicio);
+    if (window.currentFechaInicio && window.currentFechaFin) {
+        const startDate = new Date(window.currentFechaInicio);
         startDate.setHours(0,0,0,0);
-        const endDate = new Date(currentFechaFin);
+        const endDate = new Date(window.currentFechaFin);
         endDate.setHours(23,59,59,999);
         q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
     }
@@ -5355,10 +5371,10 @@ window.cargarListadoEntregas = async () => {
     });
 
     let filtered = pedidos;
-    if (currentEntregaFilter === 'pendiente_asignar') filtered = pedidos.filter(p => p.status === 'pendiente');
-    else if (currentEntregaFilter === 'pendiente') filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
-    else if (currentEntregaFilter === 'en_camino') filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
-    else if (currentEntregaFilter === 'entregado') filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
+    if (window.currentEntregaFilter === 'pendiente_asignar') filtered = pedidos.filter(p => p.status === 'pendiente');
+    else if (window.currentEntregaFilter === 'pendiente') filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
+    else if (window.currentEntregaFilter === 'en_camino') filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
+    else if (window.currentEntregaFilter === 'entregado') filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
 
     listaDiv.innerHTML = '';
     if (filtered.length === 0) {
@@ -5401,30 +5417,32 @@ window.renderEntregasMapa = async () => {
     const isLight = document.body.classList.contains('light-mode');
     const layerUrl = isLight ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
-    if (!entregasMapInst) {
-        entregasMapInst = L.map(mapEl, { zoomControl: true, scrollWheelZoom: false }).setView([TALLER_LAT, TALLER_LNG], 11);
-        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
+    if (!window.entregasMapInst) {
+        window.entregasMapInst = L.map(mapEl, { zoomControl: true, scrollWheelZoom: false }).setView([TALLER_LAT, TALLER_LNG], 11);
+        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(window.entregasMapInst);
         L.marker([TALLER_LAT, TALLER_LNG], {
             icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }),
             interactive: false
-        }).addTo(entregasMapInst);
+        }).addTo(window.entregasMapInst);
     } else {
-        entregasMapInst.eachLayer(layer => {
-            if (layer instanceof L.TileLayer) entregasMapInst.removeLayer(layer);
+        // Actualizar capa del mapa
+        window.entregasMapInst.eachLayer(layer => {
+            if (layer instanceof L.TileLayer) window.entregasMapInst.removeLayer(layer);
         });
-        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
+        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(window.entregasMapInst);
     }
 
-    Object.values(entregasMarkers).forEach(m => {
-        if (entregasMapInst) entregasMapInst.removeLayer(m);
+    // Limpiar marcadores de pedidos anteriores
+    Object.values(window.entregasMarkers).forEach(m => {
+        if (window.entregasMapInst) window.entregasMapInst.removeLayer(m);
     });
-    entregasMarkers = {};
+    window.entregasMarkers = {};
 
     let q = query(collection(db, "pedidos_online"));
-    if (currentFechaInicio && currentFechaFin) {
-        const startDate = new Date(currentFechaInicio);
+    if (window.currentFechaInicio && window.currentFechaFin) {
+        const startDate = new Date(window.currentFechaInicio);
         startDate.setHours(0,0,0,0);
-        const endDate = new Date(currentFechaFin);
+        const endDate = new Date(window.currentFechaFin);
         endDate.setHours(23,59,59,999);
         q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
     }
@@ -5437,10 +5455,10 @@ window.renderEntregasMapa = async () => {
     });
 
     let filtered = pedidos;
-    if (currentEntregaFilter === 'pendiente_asignar') filtered = pedidos.filter(p => p.status === 'pendiente');
-    else if (currentEntregaFilter === 'pendiente') filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
-    else if (currentEntregaFilter === 'en_camino') filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
-    else if (currentEntregaFilter === 'entregado') filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
+    if (window.currentEntregaFilter === 'pendiente_asignar') filtered = pedidos.filter(p => p.status === 'pendiente');
+    else if (window.currentEntregaFilter === 'pendiente') filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
+    else if (window.currentEntregaFilter === 'en_camino') filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
+    else if (window.currentEntregaFilter === 'entregado') filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
 
     filtered.forEach(p => {
         if (!p.lat || !p.lng) return;
@@ -5453,7 +5471,7 @@ window.renderEntregasMapa = async () => {
                 iconSize: [28,28],
                 iconAnchor: [14,14]
             })
-        }).addTo(entregasMapInst);
+        }).addTo(window.entregasMapInst);
 
         const telefonoCliente = p.phone || '';
         const telefonoClean = telefonoCliente.replace('+52', '');
@@ -5473,27 +5491,28 @@ window.renderEntregasMapa = async () => {
                 <button onclick="window.seleccionarEntregaDesdeMarker('${p.id}')" style="background:#FF6B00; color:white; border:none; border-radius:8px; padding:4px 8px; margin-top:4px;">Ver detalles</button>
             </div>
         `);
-        entregasMarkers[p.id] = marker;
+        window.entregasMarkers[p.id] = marker;
     });
 
-    const markersArray = Object.values(entregasMarkers);
+    const markersArray = Object.values(window.entregasMarkers);
     if (markersArray.length > 0) {
         const group = new L.featureGroup(markersArray);
-        entregasMapInst.fitBounds(group.getBounds().pad(0.1));
+        window.entregasMapInst.fitBounds(group.getBounds().pad(0.1));
     } else {
-        entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
+        window.entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
     }
 };
 
-// ========== FUNCIÓN CORREGIDA DE SEGUIMIENTO DE PERSONAL ==========
+// ========== SEGUIMIENTO DE PERSONAL CORREGIDO ==========
 function iniciarSeguimientoPersonalEntregas() {
     console.log('🚀 iniciarSeguimientoPersonalEntregas se ejecutó');
-    if (entregasRepartidoresUnsubscribe) {
-        entregasRepartidoresUnsubscribe();
-        entregasRepartidoresUnsubscribe = null;
+    if (window.entregasRepartidoresUnsubscribe) {
+        window.entregasRepartidoresUnsubscribe();
+        window.entregasRepartidoresUnsubscribe = null;
     }
-    entregasRepartidoresUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
-        if (!entregasMapInst) return;
+
+    window.entregasRepartidoresUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
+        if (!window.entregasMapInst) return;
 
         const currentUserIds = new Set();
         const promises = [];
@@ -5504,10 +5523,10 @@ function iniciarSeguimientoPersonalEntregas() {
         const usersDocs = await Promise.all(promises);
 
         // Eliminar marcadores huérfanos
-        Object.keys(repartidoresMarkers).forEach(uid => {
+        Object.keys(window.repartidoresMarkers).forEach(uid => {
             if (!currentUserIds.has(uid)) {
-                entregasMapInst.removeLayer(repartidoresMarkers[uid]);
-                delete repartidoresMarkers[uid];
+                window.entregasMapInst.removeLayer(window.repartidoresMarkers[uid]);
+                delete window.repartidoresMarkers[uid];
             }
         });
 
@@ -5521,7 +5540,6 @@ function iniciarSeguimientoPersonalEntregas() {
             const telefonoClean = telefono.replace('+52', '');
 
             if (pos && pos.lat && pos.lng) {
-                // Popup con diseño similar a la app (fondo oscuro, bordes redondeados)
                 const popupContent = `
                     <div style="font-size:12px; font-family:sans-serif; min-width:160px; background:#1A1A1A; color:white; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
                         <b>${escapeHtml(nombre)}</b><br>
@@ -5533,7 +5551,7 @@ function iniciarSeguimientoPersonalEntregas() {
                     </div>
                 `;
 
-                let marker = repartidoresMarkers[uid];
+                let marker = window.repartidoresMarkers[uid];
                 if (marker) {
                     marker.setLatLng([pos.lat, pos.lng]);
                     marker.setPopupContent(popupContent);
@@ -5545,14 +5563,14 @@ function iniciarSeguimientoPersonalEntregas() {
                             iconSize: [28,28],
                             iconAnchor: [14,14]
                         })
-                    }).addTo(entregasMapInst);
+                    }).addTo(window.entregasMapInst);
                     marker.bindPopup(popupContent);
-                    repartidoresMarkers[uid] = marker;
+                    window.repartidoresMarkers[uid] = marker;
                 }
             } else {
-                if (repartidoresMarkers[uid]) {
-                    entregasMapInst.removeLayer(repartidoresMarkers[uid]);
-                    delete repartidoresMarkers[uid];
+                if (window.repartidoresMarkers[uid]) {
+                    window.entregasMapInst.removeLayer(window.repartidoresMarkers[uid]);
+                    delete window.repartidoresMarkers[uid];
                 }
             }
             idx++;
@@ -5579,8 +5597,8 @@ window.seleccionarEntregaDesdeMarker = async (pedidoId) => {
     } else if (data.estado_entrega === 'entregado') {
         if (panel) panel.classList.add('hidden');
     }
-    if (entregasMapInst && data.lat && data.lng) {
-        entregasMapInst.setView([data.lat, data.lng], 15);
+    if (window.entregasMapInst && data.lat && data.lng) {
+        window.entregasMapInst.setView([data.lat, data.lng], 15);
     }
 };
 
@@ -5677,10 +5695,10 @@ window.generarReporteEntregas = async () => {
     if (!tipo) return;
 
     let q = query(collection(db, "pedidos_online"));
-    if (currentFechaInicio && currentFechaFin) {
-        const startDate = new Date(currentFechaInicio);
+    if (window.currentFechaInicio && window.currentFechaFin) {
+        const startDate = new Date(window.currentFechaInicio);
         startDate.setHours(0,0,0,0);
-        const endDate = new Date(currentFechaFin);
+        const endDate = new Date(window.currentFechaFin);
         endDate.setHours(23,59,59,999);
         q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
     }
@@ -5708,7 +5726,7 @@ async function generarPDFEntregas(pedidos) {
     await new Promise(resolve => { logoImg.onload = resolve; if (logoImg.complete) resolve(); });
     const addFooter = window._setupProfessionalPDF(pdfDoc, 'REPORTE DE ENTREGAS', logoImg);
     pdfDoc.setFontSize(16);
-    pdfDoc.text(`Reporte de Entregas (${currentFechaInicio || 'inicio'} - ${currentFechaFin || 'fin'})`, 14, 30);
+    pdfDoc.text(`Reporte de Entregas (${window.currentFechaInicio || 'inicio'} - ${window.currentFechaFin || 'fin'})`, 14, 30);
     const bodyRows = pedidos.map(p => [
         new Date(p.timestamp).toLocaleDateString(),
         p.cliente || 'Sin nombre',
@@ -5750,17 +5768,37 @@ function generarCSVEntregas(pedidos) {
     document.body.removeChild(link);
 }
 
-// Cargar entregas al inicio (solo una vez el seguimiento)
+// Función principal de carga de entregas
 window.loadEntregas = () => {
+    console.log('🔄 window.loadEntregas() ejecutado');
     if (!auth.currentUser) return;
+    
+    // Limpiar cualquier resto anterior
+    if (window.entregasPedidosUnsubscribe) {
+        window.entregasPedidosUnsubscribe();
+        window.entregasPedidosUnsubscribe = null;
+    }
+    if (window.entregasRepartidoresUnsubscribe) {
+        window.entregasRepartidoresUnsubscribe();
+        window.entregasRepartidoresUnsubscribe = null;
+    }
+    // Reiniciar marcadores
+    if (window.entregasMapInst) {
+        window.entregasMapInst.remove();
+        window.entregasMapInst = null;
+    }
+    window.entregasMarkers = {};
+    window.repartidoresMarkers = {};
+
     window.cargarListadoEntregas();
     window.renderEntregasMapa();
-    if (!personalTrackingStarted) {
+    
+    if (!window.personalTrackingStarted) {
         iniciarSeguimientoPersonalEntregas();
-        personalTrackingStarted = true;
+        window.personalTrackingStarted = true;
     }
-    if (entregasPedidosUnsubscribe) entregasPedidosUnsubscribe();
-    entregasPedidosUnsubscribe = onSnapshot(collection(db, "pedidos_online"), () => {
+    
+    window.entregasPedidosUnsubscribe = onSnapshot(collection(db, "pedidos_online"), () => {
         window.cargarListadoEntregas();
         window.renderEntregasMapa();
     });
@@ -5768,8 +5806,8 @@ window.loadEntregas = () => {
 
 // Redimensionar mapa al cambiar de pestaña
 window.addEventListener('visibilitychange', () => {
-    if (!document.hidden && entregasMapInst) {
-        setTimeout(() => entregasMapInst.invalidateSize(), 200);
+    if (!document.hidden && window.entregasMapInst) {
+        setTimeout(() => window.entregasMapInst.invalidateSize(), 200);
         window.renderEntregasMapa();
     }
 });
