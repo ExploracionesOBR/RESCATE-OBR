@@ -69,6 +69,7 @@ window.activePosFilter = 'todos';
 window.garantiasActivas = [];
 let mySOSListener = null;
 let serviciosListener = null, sosListener = null, pedidosListener = null, citasListener = null;
+window._servicesCatalogUnsubscribe = null;
 const generateShortId = () => 'OBR-' + Math.floor(10000 + Math.random() * 90000);
 // aqui inicia escapeHtml //
 function escapeHtml(str) {
@@ -790,7 +791,17 @@ window.switchAdminView = (id) => {
     const chatBtn = document.getElementById('admin-chat-float-btn');
     if(chatBtn) chatBtn.classList.toggle('hidden', !['a-view-pos', 'a-view-alertas'].includes(id));
 
-    if(id === 'a-view-config') { window.adminRefreshConfigUI(); window.renderAdminMap(); }
+    if(id === 'a-view-config') {
+    window.adminRefreshConfigUI();
+    window.renderAdminMap();
+    // Suscribirse a cambios en servicios para actualizar automáticamente el catálogo
+    if (window._servicesCatalogUnsubscribe) {
+        window._servicesCatalogUnsubscribe();
+    }
+    window._servicesCatalogUnsubscribe = onSnapshot(collection(db, "servicios"), () => {
+        refreshCatalogUI();
+    });
+}
     if(id === 'a-view-usuarios') window.adminLoadUsers();
     if(id === 'a-view-promos') { window.adminLoadLoyalty(); populatePromoProductSelect(); window.loadPromoPreview?.(); }
     if(id === 'a-view-stats') window.loadStats();
@@ -2523,24 +2534,23 @@ window.deleteService = (serviceId) => {
 };
 
 function refreshCatalogUI() {
-    if (document.getElementById('a-view-config') && !document.getElementById('a-view-config').classList.contains('hidden')) {
-        const catalogList = document.getElementById('admin-service-catalog');
-        if (catalogList) {
-            getDocs(collection(db, "servicios")).then(snap => {
-                catalogList.innerHTML = '';
-                snap.forEach(d => {
-                    const s = d.data();
-                    catalogList.innerHTML += `<div class="flex justify-between bg-white/5 p-2 rounded text-xs">
-                        <span>${s.name} ($${s.price})</span>
-                        <div>
-                            <button onclick="window.editService('${d.id}')" class="text-blue-400 mr-2"><i class="fas fa-edit"></i></button>
-                            <button onclick="window.deleteService('${d.id}')" class="text-red-400"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </div>`;
-                });
-            });
-        }
-    }
+    const catalogList = document.getElementById('admin-service-catalog');
+    if (!catalogList) return;
+    // Siempre consultar datos frescos
+    getDocs(collection(db, "servicios")).then(snap => {
+        catalogList.innerHTML = '';
+        snap.forEach(d => {
+            const s = d.data();
+            catalogList.innerHTML += `<div class="flex justify-between bg-white/5 p-2 rounded text-xs">
+                <span>${escapeHtml(s.name)} ($${s.price})</span>
+                <div>
+                    <button onclick="window.editService('${d.id}')" class="text-blue-400 mr-2"><i class="fas fa-edit"></i></button>
+                    <button onclick="window.deleteService('${d.id}')" class="text-red-400"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>`;
+        });
+        if (snap.empty) catalogList.innerHTML = '<p class="text-gray-500 text-xs">No hay servicios registrados.</p>';
+    }).catch(err => console.error('Error cargando servicios:', err));
 }
 
 // === FUNCIONES DE ALMACÉN: eliminar, ocultar, modificar stock ===
