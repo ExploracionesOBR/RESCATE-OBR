@@ -1588,156 +1588,379 @@ window.adminListenServices = () => {
 // ======================================================
 // === INGRESO DE MOTO AL TALLER CON CHECKLIST PROFESIONAL ===
 // ======================================================
-// Variable global para almacenar el checklist temporal
-let tempChecklist = {
-    marca: '', modelo: '', anio: '', cilindraje: '',
-    espejos: null, lucesDireccionales: null, faro: null,
-    tapaderas: null, asiento: null, rayaduras: '',
-    nivelBateria: '', combustible: '', observaciones: '',
-    fotos: []
-};
+let tempEvidencias = {}; // { 'espejos': { texto, fotos:[] }, ... }
+// Variables para canvas de daños
+let canvasPuntos = []; // almacena { x, y, zona, timestamp }
+let canvasCtx = null;
+let canvasImagen = null;
 
-// Función para abrir el modal de ingreso con checklist
+// Función para dibujar la silueta base (líneas)
+function dibujarSiluetaMoto(ctx, width, height) {
+    ctx.clearRect(0, 0, width, height);
+    ctx.strokeStyle = '#FF6B00';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    // Ejemplo de líneas (ajusta según tu diseño real)
+    // Estas líneas son ilustrativas, debes ajustar las coordenadas a tu canvas real
+    ctx.moveTo(width*0.2, height*0.2);
+    ctx.lineTo(width*0.4, height*0.1);
+    ctx.lineTo(width*0.6, height*0.1);
+    ctx.lineTo(width*0.8, height*0.2);
+    ctx.lineTo(width*0.8, height*0.8);
+    ctx.lineTo(width*0.6, height*0.9);
+    ctx.lineTo(width*0.4, height*0.9);
+    ctx.lineTo(width*0.2, height*0.8);
+    ctx.closePath();
+    ctx.stroke();
+    // Dibujar ejes o zonas (opcional)
+}
+
+// Inicializar canvas cuando se abre el modal
+function inicializarCanvasDaños() {
+    const canvas = document.getElementById('motoCanvas');
+    if (!canvas) return;
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+    canvasCtx = canvas.getContext('2d');
+    // Cargar imagen de fondo? Si no, dibujar silueta
+    dibujarSiluetaMoto(canvasCtx, canvas.width, canvas.height);
+    
+    // Dibujar puntos guardados
+    canvasPuntos.forEach(p => {
+        canvasCtx.fillStyle = '#FF6B00';
+        canvasCtx.beginPath();
+        canvasCtx.arc(p.x, p.y, 6, 0, 2 * Math.PI);
+        canvasCtx.fill();
+        canvasCtx.fillStyle = 'white';
+        canvasCtx.font = 'bold 12px sans-serif';
+        canvasCtx.fillText(p.zona, p.x-10, p.y-8);
+    });
+    
+    // Evento click/touch
+    canvas.addEventListener('click', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        let clientX, clientY;
+        if (e.touches) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+        const canvasX = (clientX - rect.left) * scaleX;
+        const canvasY = (clientY - rect.top) * scaleY;
+        // Determinar zona basada en coordenadas (ejemplo simplificado)
+        let zona = '';
+        if (canvasX < canvas.width/3) zona = 'Lado izquierdo';
+        else if (canvasX > 2*canvas.width/3) zona = 'Lado derecho';
+        else if (canvasY < canvas.height/3) zona = 'Frente';
+        else if (canvasY > 2*canvas.height/3) zona = 'Detrás';
+        else zona = 'Centro';
+        canvasPuntos.push({ x: canvasX, y: canvasY, zona, timestamp: Date.now() });
+        // Redibujar
+        dibujarSiluetaMoto(canvasCtx, canvas.width, canvas.height);
+        canvasPuntos.forEach(p => {
+            canvasCtx.fillStyle = '#FF6B00';
+            canvasCtx.beginPath();
+            canvasCtx.arc(p.x, p.y, 6, 0, 2 * Math.PI);
+            canvasCtx.fill();
+            canvasCtx.fillStyle = 'white';
+            canvasCtx.font = 'bold 10px sans-serif';
+            canvasCtx.fillText(p.zona, p.x-12, p.y-8);
+        });
+        actualizarListaPuntos();
+    });
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches[0];
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const canvasX = (touch.clientX - rect.left) * scaleX;
+        const canvasY = (touch.clientY - rect.top) * scaleY;
+        let zona = '';
+        if (canvasX < canvas.width/3) zona = 'Lado izquierdo';
+        else if (canvasX > 2*canvas.width/3) zona = 'Lado derecho';
+        else if (canvasY < canvas.height/3) zona = 'Frente';
+        else if (canvasY > 2*canvas.height/3) zona = 'Detrás';
+        else zona = 'Centro';
+        canvasPuntos.push({ x: canvasX, y: canvasY, zona, timestamp: Date.now() });
+        dibujarSiluetaMoto(canvasCtx, canvas.width, canvas.height);
+        canvasPuntos.forEach(p => {
+            canvasCtx.fillStyle = '#FF6B00';
+            canvasCtx.beginPath();
+            canvasCtx.arc(p.x, p.y, 6, 0, 2 * Math.PI);
+            canvasCtx.fill();
+            canvasCtx.fillStyle = 'white';
+            canvasCtx.font = 'bold 10px sans-serif';
+            canvasCtx.fillText(p.zona, p.x-12, p.y-8);
+        });
+        actualizarListaPuntos();
+    });
+    document.getElementById('borrarPuntosCanvas')?.addEventListener('click', () => {
+        canvasPuntos = [];
+        dibujarSiluetaMoto(canvasCtx, canvas.width, canvas.height);
+        actualizarListaPuntos();
+    });
+}
+
+function actualizarListaPuntos() {
+    const container = document.getElementById('puntosMarcados');
+    if (!container) return;
+    container.innerHTML = '';
+    canvasPuntos.forEach((p, idx) => {
+        const chip = document.createElement('span');
+        chip.className = 'bg-naranja/30 text-white px-2 py-1 rounded-full text-xs flex items-center gap-1';
+        chip.innerHTML = `${p.zona} <button data-idx="${idx}" class="remove-punto ml-1 text-red-300 font-bold">✕</button>`;
+        chip.querySelector('.remove-punto').onclick = () => {
+            canvasPuntos.splice(idx, 1);
+            inicializarCanvasDaños(); // redibujar
+        };
+        container.appendChild(chip);
+    });
+}
+
+// Llamar a inicializarCanvasDaños cuando se abre el modal
+// Dentro de window.abrirModalIngresoServicio, al final, añadir:
+// setTimeout(() => inicializarCanvasDaños(), 100);
+// Función para abrir el modal (primero valida teléfono)
 window.abrirModalIngresoServicio = () => {
-    // Reiniciar checklist temporal
-    tempChecklist = {
-        marca: '', modelo: '', anio: '', cilindraje: '',
-        espejos: null, lucesDireccionales: null, faro: null,
-        tapaderas: null, asiento: null, rayaduras: '',
-        nivelBateria: '', combustible: '', observaciones: '',
-        fotos: []
-    };
-    // Limpiar campos del modal
-    document.getElementById('checklist-marca').value = '';
-    document.getElementById('checklist-modelo').value = '';
-    document.getElementById('checklist-anio').value = '';
-    document.getElementById('checklist-cilindraje').value = '';
-    document.getElementById('checklist-phone').value = '';
-    // Resetear checkboxes y radios
-    document.querySelectorAll('input[name="checklist-espejos"]').forEach(r => r.checked = false);
-    document.querySelectorAll('input[name="checklist-luces"]').forEach(r => r.checked = false);
-    document.querySelectorAll('input[name="checklist-faro"]').forEach(r => r.checked = false);
-    document.querySelectorAll('input[name="checklist-tapaderas"]').forEach(r => r.checked = false);
-    document.querySelectorAll('input[name="checklist-asiento"]').forEach(r => r.checked = false);
-    document.getElementById('checklist-rayaduras').value = '';
-    document.getElementById('checklist-bateria').value = '';
-    document.getElementById('checklist-combustible').value = '';
-    document.getElementById('checklist-observaciones').value = '';
-    document.getElementById('checklist-fotos-container').innerHTML = '';
-    tempChecklist.fotos = [];
+    // Limpiar variables
+    tempEvidencias = {};
+    // Resetear formulario
+    const phoneInput = document.getElementById('checklist-phone');
+    if (phoneInput) phoneInput.value = '';
+    const marca = document.getElementById('checklist-marca');
+    if (marca) marca.value = '';
+    const modelo = document.getElementById('checklist-modelo');
+    if (modelo) modelo.value = '';
+    const anio = document.getElementById('checklist-anio');
+    if (anio) anio.value = '';
+    const cilindraje = document.getElementById('checklist-cilindraje');
+    if (cilindraje) cilindraje.value = '';
+    const cuadro = document.getElementById('checklist-cuadro');
+    if (cuadro) cuadro.value = '';
+    const rayaduras = document.getElementById('checklist-rayaduras');
+    if (rayaduras) rayaduras.value = '';
+    const observaciones = document.getElementById('checklist-observaciones');
+    if (observaciones) observaciones.value = '';
+    const bateria = document.getElementById('checklist-bateria');
+    if (bateria) bateria.value = '';
+    const combustible = document.getElementById('checklist-combustible');
+    if (combustible) combustible.value = '';
+    // Resetear radios
+    document.querySelectorAll('input[type="radio"]').forEach(r => r.checked = false);
+    // Ocultar todos los paneles de daño
+    document.querySelectorAll('[id^="damage-"]').forEach(div => div.classList.add('hidden'));
+    // Limpiar previsualizaciones
+    document.querySelectorAll('.evidencia-preview').forEach(div => div.innerHTML = '');
+    
+    // Registrar eventos para mostrar/ocultar paneles de daño (si no están ya asignados)
+    document.querySelectorAll('input[type="radio"][data-damage]').forEach(radio => {
+        radio.removeEventListener('change', window.toggleDamagePanel);
+        radio.addEventListener('change', window.toggleDamagePanel);
+    });
+    document.querySelectorAll('.btn-evidencia').forEach(btn => {
+        btn.removeEventListener('click', window.handleEvidenciaClick);
+        btn.addEventListener('click', window.handleEvidenciaClick);
+    });
+    
     toggleModal('modal-checklist-ingreso', true);
 };
 
-// Función para añadir fotos al checklist
-window.agregarFotoChecklist = () => {
+// Mostrar/ocultar panel de daño según selección
+window.toggleDamagePanel = (e) => {
+    const radio = e.target;
+    const targetId = radio.getAttribute('data-damage');
+    const panel = document.getElementById(`damage-${targetId}`);
+    if (radio.value === 'no' && radio.checked) {
+        panel.classList.remove('hidden');
+    } else {
+        panel.classList.add('hidden');
+        // Limpiar datos de evidencia de ese ítem
+        if (tempEvidencias[targetId]) delete tempEvidencias[targetId];
+        const preview = panel.querySelector('.evidencia-preview');
+        if (preview) preview.innerHTML = '';
+    }
+};
+
+// Manejar clic en botón de subir evidencia
+window.handleEvidenciaClick = (e) => {
+    const btn = e.currentTarget;
+    const target = btn.getAttribute('data-target');
+    const textarea = document.querySelector(`#damage-${target} textarea`);
+    const comentario = textarea ? textarea.value : '';
+    // Crear input file
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.onchange = async (e) => {
-        const file = e.target.files[0];
+    input.onchange = async (ev) => {
+        const file = ev.target.files[0];
         if (!file) return;
         const compressed = await window.compressImage(file);
         const reader = new FileReader();
-        reader.onload = (ev) => {
-            const imgData = ev.target.result;
-            tempChecklist.fotos.push(imgData); // base64 temporal
-            const container = document.getElementById('checklist-fotos-container');
+        reader.onload = (event) => {
+            const imgData = event.target.result;
+            if (!tempEvidencias[target]) tempEvidencias[target] = { texto: comentario, fotos: [] };
+            tempEvidencias[target].texto = comentario;
+            tempEvidencias[target].fotos.push(imgData);
+            // Mostrar previsualización
+            const previewDiv = document.querySelector(`#damage-${target} .evidencia-preview`);
+            if (!previewDiv) return;
             const imgDiv = document.createElement('div');
             imgDiv.className = 'relative inline-block mr-2 mb-2';
             imgDiv.innerHTML = `
-                <img src="${imgData}" class="w-20 h-20 object-cover rounded-lg border border-white/10">
-                <button type="button" onclick="this.parentElement.remove(); tempChecklist.fotos = tempChecklist.fotos.filter(f => f !== '${imgData}')" class="absolute -top-2 -right-2 bg-red-600 rounded-full w-5 h-5 flex items-center justify-center text-white text-xs">×</button>
+                <img src="${imgData}" class="w-16 h-16 object-cover rounded-lg border border-white/10">
+                <button type="button" class="remove-evidencia absolute -top-2 -right-2 bg-red-600 rounded-full w-5 h-5 text-white text-xs">×</button>
             `;
-            container.appendChild(imgDiv);
+            imgDiv.querySelector('.remove-evidencia').onclick = () => {
+                const index = tempEvidencias[target].fotos.indexOf(imgData);
+                if (index !== -1) tempEvidencias[target].fotos.splice(index, 1);
+                imgDiv.remove();
+                if (tempEvidencias[target].fotos.length === 0 && !tempEvidencias[target].texto) delete tempEvidencias[target];
+            };
+            previewDiv.appendChild(imgDiv);
         };
         reader.readAsDataURL(compressed);
     };
     input.click();
 };
 
+// Función para crear usuario si no existe
+async function asegurarUsuario(phoneNumber) {
+    if (!phoneNumber || phoneNumber.length !== 10) throw new Error("Teléfono inválido");
+    const fullPhone = "+52" + phoneNumber;
+    const q = query(collection(db, "users"), where("phone", "==", fullPhone), limit(1));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+        const userDoc = snap.docs[0];
+        return { uid: userDoc.id, userData: userDoc.data(), created: false };
+    } else {
+        // Crear usuario en Authentication y Firestore
+        const fakeEmail = `${phoneNumber}@motorescateobr.com`;
+        let userCredential;
+        try {
+            userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, "123456");
+        } catch (e) {
+            if (e.code === 'auth/email-already-in-use') {
+                // Si ya existe en Auth pero no en Firestore, lo recuperamos
+                userCredential = await signInWithEmailAndPassword(auth, fakeEmail, "123456");
+            } else throw e;
+        }
+        const uid = userCredential.user.uid;
+        const userData = {
+            phone: fullPhone,
+            name: `Cliente ${phoneNumber}`,
+            role: 'cliente',
+            pwd: '123456',
+            firstLogin: true,
+            created: Date.now()
+        };
+        await setDoc(doc(db, "users", uid), userData);
+        return { uid, userData, created: true };
+    }
+}
+
 // Guardar checklist y crear el servicio
 window.guardarChecklistIngreso = async () => {
-    // Obtener valores
-    tempChecklist.marca = document.getElementById('checklist-marca').value.trim();
-    tempChecklist.modelo = document.getElementById('checklist-modelo').value.trim();
-    tempChecklist.anio = document.getElementById('checklist-anio').value.trim();
-    tempChecklist.cilindraje = document.getElementById('checklist-cilindraje').value.trim();
-    tempChecklist.espejos = document.querySelector('input[name="checklist-espejos"]:checked')?.value === 'si';
-    tempChecklist.lucesDireccionales = document.querySelector('input[name="checklist-luces"]:checked')?.value === 'si';
-    tempChecklist.faro = document.querySelector('input[name="checklist-faro"]:checked')?.value === 'si';
-    tempChecklist.tapaderas = document.querySelector('input[name="checklist-tapaderas"]:checked')?.value === 'si';
-    tempChecklist.asiento = document.querySelector('input[name="checklist-asiento"]:checked')?.value === 'si';
-    tempChecklist.rayaduras = document.getElementById('checklist-rayaduras').value.trim();
-    tempChecklist.nivelBateria = document.getElementById('checklist-bateria').value;
-    tempChecklist.combustible = document.getElementById('checklist-combustible').value;
-    tempChecklist.observaciones = document.getElementById('checklist-observaciones').value.trim();
+    // 1. Teléfono obligatorio y creación de usuario
+    const phone = document.getElementById('checklist-phone').value.trim();
+    if (!phone || phone.length !== 10) {
+        showToast("El teléfono del cliente es obligatorio (10 dígitos)", true);
+        return;
+    }
+    let cliente;
+    try {
+        cliente = await asegurarUsuario(phone);
+    } catch (e) {
+        showToast("Error al verificar/crear usuario: " + e.message, true);
+        return;
+    }
 
-    // Validar campos obligatorios
-    if (!tempChecklist.marca || !tempChecklist.modelo) {
+    // 2. Datos básicos de la moto (incluyendo número de cuadro)
+    const marca = document.getElementById('checklist-marca').value.trim();
+    const modelo = document.getElementById('checklist-modelo').value.trim();
+    if (!marca || !modelo) {
         showToast("Marca y modelo son obligatorios", true);
         return;
+    }
+    const anio = document.getElementById('checklist-anio').value.trim();
+    const cilindraje = document.getElementById('checklist-cilindraje').value.trim();
+    const numeroCuadro = document.getElementById('checklist-cuadro')?.value.trim() || '';
+    if (!numeroCuadro) {
+        showToast("Los últimos 4 dígitos del cuadro son obligatorios", true);
+        return;
+    }
+
+    // 3. Estado de los elementos (radios)
+    const espejos = document.querySelector('input[name="checklist-espejos"]:checked')?.value === 'si';
+    const luces = document.querySelector('input[name="checklist-luces"]:checked')?.value === 'si';
+    const faro = document.querySelector('input[name="checklist-faro"]:checked')?.value === 'si';
+    const tapaderas = document.querySelector('input[name="checklist-tapaderas"]:checked')?.value === 'si';
+    const asiento = document.querySelector('input[name="checklist-asiento"]:checked')?.value === 'si';
+    const rayaduras = document.getElementById('checklist-rayaduras').value.trim();
+    const nivelBateria = document.getElementById('checklist-bateria').value;
+    const combustible = document.getElementById('checklist-combustible').value;
+    const observaciones = document.getElementById('checklist-observaciones').value.trim();
+
+    // 4. Evidencias (subir fotos a Storage)
+    const evidenciasFinal = {};
+    for (const [key, data] of Object.entries(tempEvidencias)) {
+        const fotosUrls = [];
+        for (const base64 of data.fotos) {
+            const blob = await (await fetch(base64)).blob();
+            const file = new File([blob], `evidencia_${key}_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            const url = await uploadWithTimeout(file, `rescates/checklist/${Date.now()}_${file.name}`);
+            if (url) fotosUrls.push(url);
+        }
+        evidenciasFinal[key] = {
+            comentario: data.texto,
+            fotos: fotosUrls
+        };
     }
 
     const btn = document.querySelector('#modal-checklist-ingreso button.bg-green-600');
     if (btn) {
         btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Guardando...';
     }
 
     try {
-        // Subir fotos a Storage (si las hay)
-        const fotosUrls = [];
-        for (const base64 of tempChecklist.fotos) {
-            const blob = await (await fetch(base64)).blob();
-            const file = new File([blob], `foto_${Date.now()}.jpg`, { type: 'image/jpeg' });
-            const url = await uploadWithTimeout(file, `rescates/checklist/${Date.now()}_${file.name}`);
-            if (url) fotosUrls.push(url);
-        }
-
-        // Crear documento en rescates
-        const phone = document.getElementById('checklist-phone')?.value.trim() || null;
         const shortId = generateShortId();
         const servicioData = {
             shortId: shortId,
-            phone: phone ? "+52" + phone : null,
-            marca: tempChecklist.marca,
-            modelo: tempChecklist.modelo,
-            anio: tempChecklist.anio,
-            cc: tempChecklist.cilindraje,
+            uid: cliente.uid,
+            phone: "+52" + phone,
+            clientName: cliente.userData.name || `Cliente ${phone}`,
+            marca, modelo, anio, cc: cilindraje,
+            numeroCuadro: numeroCuadro,   // <-- Guardado aquí
             falla: "INGRESO MANUAL CON CHECKLIST",
             status: 'completed',
             tallerStatus: 'recibida',
             timestamp: Date.now(),
             checklist: {
-                espejos: tempChecklist.espejos,
-                lucesDireccionales: tempChecklist.lucesDireccionales,
-                faro: tempChecklist.faro,
-                tapaderas: tempChecklist.tapaderas,
-                asiento: tempChecklist.asiento,
-                rayaduras: tempChecklist.rayaduras,
-                nivelBateria: tempChecklist.nivelBateria,
-                combustible: tempChecklist.combustible,
-                observaciones: tempChecklist.observaciones,
-                fotos: fotosUrls
+                espejos, luces, faro, tapaderas, asiento,
+                rayaduras, nivelBateria, combustible, observaciones,
+                evidencias: evidenciasFinal
             }
         };
         await addDoc(collection(db, "rescates"), servicioData);
-
-        showToast("Moto ingresada con checklist completo");
+        showToast("Moto ingresada correctamente");
         toggleModal('modal-checklist-ingreso', false);
-        window.adminListenServices(); // refrescar la lista del taller
+        window.adminListenServices();
     } catch (e) {
         console.error(e);
-        showToast("Error al ingresar la moto", true);
+        showToast("Error al guardar: " + e.message, true);
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-save mr-2"></i>INGRESAR CON CHECKLIST';
+            btn.innerHTML = '<i class="fas fa-save mr-2"></i>INGRESAR';
         }
     }
 };
-
-// Reemplazar la función antigua por la nueva (para que el botón "Ingresar Moto" funcione)
+// Reemplazar la función antigua
 window.adminIngresarServicioManual = window.abrirModalIngresoServicio;
 
 window.openDetalleServicio = async (id) => {
@@ -2109,12 +2332,24 @@ window.downloadCompletedServicePDF = async (id) => {
     pdfDoc.setFont("helvetica", "bold");
     pdfDoc.setTextColor(15, 23, 42);
     pdfDoc.text("Resumen de Orden de Auxilio", 16, y + 6);
+    // Dentro de downloadCompletedServicePDF, después de mostrar la moto
+if (data.numeroCuadro) {
+    pdfDoc.setFont("helvetica", "normal");
+    pdfDoc.setFontSize(8.5);
+    pdfDoc.setTextColor(71, 85, 105);
+    pdfDoc.text(`Número de cuadro (últimos 4): ${data.numeroCuadro}`, 16, y);
+    y += 5;
+}
     pdfDoc.setFont("helvetica", "normal");
     pdfDoc.setFontSize(8.5);
     pdfDoc.text(`Servicio: ${data.shortId || id}`, 16, y + 12);
     pdfDoc.text(`Fecha: ${new Date(data.timestamp).toLocaleString('es-MX')}`, 16, y + 17);
     pdfDoc.text(`Cliente: ${data.clientName || data.phone || 'Mostrador'}`, pageWidth / 2 + 10, y + 12);
     pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, pageWidth / 2 + 10, y + 17);
+    if (data.numeroCuadro) {
+    pdfDoc.text(`Número de cuadro: ${data.numeroCuadro}`, 16, y + 22);
+    y += 5; // ajustar la y para que no se solape con el badge
+}
     // Badge de estado
     let badgeColor = [245, 158, 11]; // warning
     if (data.status === 'completed') badgeColor = [34, 197, 94]; // green
@@ -2226,6 +2461,21 @@ if (data.checklist) {
         pdfDoc.text(`Se adjuntaron ${ch.fotos.length} foto(s) en el expediente digital.`, 14, y);
         y += 6;
     }
+}
+    if (data.zonasDañadas && data.zonasDañadas.length) {
+    if (y > 240) { pdfDoc.addPage(); y = 36; }
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.setFontSize(10);
+    pdfDoc.setTextColor(15, 23, 42);
+    pdfDoc.text("Zonas dañadas marcadas:", 12, y);
+    y += 6;
+    pdfDoc.setFontSize(8.5);
+    pdfDoc.setTextColor(71, 85, 105);
+    data.zonasDañadas.forEach(z => {
+        pdfDoc.text(`• ${z.zona} (coordenadas: ${Math.round(z.x)}, ${Math.round(z.y)})`, 14, y);
+        y += 5;
+        if (y > 280) { pdfDoc.addPage(); y = 36; }
+    });
 }
 
     // === FOOTER ===
