@@ -80,6 +80,27 @@ function escapeHtml(str) {
         return m;
     });
 }
+
+// aqui inicia obtenerPromedioCalificacion //
+async function obtenerPromedioCalificacion(uid) {
+    if (!uid) return null;
+    const q = query(collection(db, "satisfaction"), where("uid", "==", uid));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    let total = 0, count = 0;
+    snap.forEach(doc => {
+        const rating = doc.data().rating;
+        if (typeof rating === 'number') {
+            total += rating;
+            count++;
+        }
+    });
+    if (count === 0) return null;
+    const promedio = total / count;
+    return { promedio: promedio.toFixed(1), total: count };
+}
+// aqui finaliza obtenerPromedioCalificacion //
+
 // === UTILIDADES ===
 window.showToast = (msg, isError = false) => {
     console.log("🔴 TOAST ERROR:", msg, isError); // <-- añade esto temporalmente
@@ -6547,36 +6568,6 @@ window.openChat = (chatId) => {
 
     const messagesContainer = document.getElementById('chat-messages');
     messagesContainer.innerHTML = '';
-
-    // Función auxiliar para escapar HTML (evita inyección)
-    const escapeHtml = (str) => {
-        return str.replace(/[&<>]/g, function(m) {
-            if (m === '&') return '&amp;';
-            if (m === '<') return '&lt;';
-            if (m === '>') return '&gt;';
-            return m;
-        });
-    };
-
-// aqui inicia obtenerPromedioCalificacion //
-async function obtenerPromedioCalificacion(uid) {
-    if (!uid) return null;
-    const q = query(collection(db, "satisfaction"), where("uid", "==", uid));
-    const snap = await getDocs(q);
-    if (snap.empty) return null;
-    let total = 0, count = 0;
-    snap.forEach(doc => {
-        const rating = doc.data().rating;
-        if (typeof rating === 'number') {
-            total += rating;
-            count++;
-        }
-    });
-    if (count === 0) return null;
-    const promedio = total / count;
-    return { promedio: promedio.toFixed(1), total: count };
-}
-// aqui finaliza obtenerPromedioCalificacion //
 
     chatUnsubscribe = onSnapshot(collection(db, "chats", chatId, "mensajes"), (snap) => {
         // Detectar mensajes nuevos (solo los que se añaden)
