@@ -1007,6 +1007,10 @@
                 </div>
             </div>
         </section>
+        <!-- Botón flotante Chat IA -->
+<button id="btn-chat-ai-float" onclick="toggleModal('modal-chat-ai', true)" class="fixed bottom-24 right-20 w-14 h-14 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl z-40 hover:bg-orange-500 transition-all animate-pulse-soft" title="Chat con IA (Mecánico Virtual)">
+    <i class="fas fa-robot text-2xl"></i>
+</button>
     </main>
 
     <!-- BARRA DE NAVEGACIÓN INFERIOR DEL ADMIN -->
@@ -1575,6 +1579,60 @@
         <textarea id="garantia-observaciones" placeholder="Observaciones (opcional)" rows="2" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-4 text-white resize-none"></textarea>
         <button onclick="window.aplicarGarantia?.()" class="w-full bg-green-500 hover:bg-green-400 text-white p-3 rounded-xl font-black uppercase">Confirmar Aplicación</button>
     </div>
+    <!-- Modal Chat IA -->
+<div id="modal-chat-ai" class="fixed inset-0 bg-black/95 z-[400] flex flex-col hidden backdrop-blur-sm">
+    <div class="flex flex-col h-full w-full max-w-6xl mx-auto bg-asfalto rounded-none lg:rounded-3xl shadow-2xl overflow-hidden">
+        <!-- Cabecera -->
+        <div class="flex justify-between items-center p-4 border-b border-white/10 bg-asfalto/80">
+            <div class="flex items-center space-x-2">
+                <i class="fas fa-robot text-naranja text-2xl"></i>
+                <h2 class="text-xl font-black text-white">Asistente Mecánico IA</h2>
+            </div>
+            <div class="flex space-x-2">
+                <button onclick="window.crearNuevoGrupoIA()" class="bg-green-600/20 text-green-400 px-3 py-1 rounded-lg text-xs font-black uppercase"><i class="fas fa-plus"></i> Nuevo grupo</button>
+                <button onclick="toggleModal('modal-chat-ai', false)" class="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white"><i class="fas fa-times"></i></button>
+            </div>
+        </div>
+        <!-- Cuerpo: lista de grupos + chat -->
+        <div class="flex flex-1 overflow-hidden">
+            <!-- Lista de grupos (sidebar) -->
+            <div class="w-64 bg-black/30 border-r border-white/10 flex flex-col">
+                <div class="p-3 border-b border-white/10">
+                    <input type="text" id="search-grupo-ia" placeholder="Buscar grupo..." class="w-full bg-white/5 border border-white/10 rounded-lg p-2 text-xs text-white">
+                </div>
+                <div id="lista-grupos-ia" class="flex-1 overflow-y-auto p-2 space-y-2"></div>
+                <div class="p-2 border-t border-white/10">
+                    <button onclick="window.exportarChatIA()" class="w-full bg-blue-600/20 text-blue-400 py-2 rounded-lg text-xs font-black uppercase">Exportar chat</button>
+                </div>
+            </div>
+            <!-- Área de chat -->
+            <div class="flex-1 flex flex-col">
+                <div class="p-3 bg-white/5 border-b border-white/10 flex justify-between items-center">
+                    <div>
+                        <span id="chat-ai-titulo" class="font-bold text-white">Selecciona un grupo</span>
+                        <span id="chat-ai-servicio-id" class="text-xs text-gray-400 ml-2"></span>
+                    </div>
+                    <div class="flex space-x-1">
+                        <button onclick="window.vincularGrupoAServicio()" class="bg-purple-600/20 text-purple-400 px-2 py-1 rounded text-[10px] font-black uppercase">Vincular a servicio</button>
+                        <button onclick="window.renombrarGrupoIA()" class="bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded text-[10px] font-black uppercase">Renombrar</button>
+                        <button onclick="window.eliminarGrupoIA()" class="bg-red-600/20 text-red-400 px-2 py-1 rounded text-[10px] font-black uppercase">Eliminar</button>
+                    </div>
+                </div>
+                <!-- Mensajes -->
+                <div id="chat-ai-mensajes" class="flex-1 overflow-y-auto p-4 space-y-4"></div>
+                <!-- Input -->
+                <div class="p-4 border-t border-white/10 bg-black/20">
+                    <div class="flex items-center space-x-2">
+                        <textarea id="chat-ai-input" rows="1" placeholder="Escribe tu consulta (puedes describir fallas, subir fotos)..." class="flex-1 bg-white/5 border border-white/10 rounded-xl p-3 text-white text-sm resize-none focus:border-naranja"></textarea>
+                        <button onclick="window.enviarMensajeIA()" class="bg-naranja text-white p-3 rounded-xl"><i class="fas fa-paper-plane"></i></button>
+                        <button onclick="window.subirImagenIA()" class="bg-blue-600 text-white p-3 rounded-xl"><i class="fas fa-camera"></i></button>
+                    </div>
+                    <p class="text-[9px] text-gray-500 mt-2">La IA analizará imágenes y texto para ayudarte a diagnosticar fallos.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 </div>
 <!-- FIN DE MODALES -->
 <script type="module" src="app.js"></script>
