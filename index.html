@@ -1444,16 +1444,120 @@
         </button>
     </div>
 </div>
-    <!-- Modal Ingresar Moto -->
-<div id="modal-nuevo-servicio" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-md lg:max-w-2xl rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl">
-        <button onclick="toggleModal('modal-nuevo-servicio', false)" class="absolute top-4 right-4 w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20"><i class="fas fa-times"></i></button>
-        <h2 class="text-xl font-black mb-4 text-white">Ingresar Moto al Taller</h2>
-        <input id="manual-srv-phone" type="tel" maxlength="10" placeholder="Celular del cliente (opcional)" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
-        <input id="manual-srv-moto" type="text" placeholder="Marca y modelo" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
-        <textarea id="manual-srv-falla" rows="2" placeholder="Falla o trabajo a realizar" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white"></textarea>
-        <input type="file" id="manual-srv-media" accept="image/*" capture="environment" multiple class="w-full bg-white/5 border border-white/10 p-2 rounded-xl mb-4 text-xs text-gray-400 file:bg-naranja file:text-white file:border-0 file:rounded-md file:px-3 file:py-1">
-        <button onclick="window.adminIngresarServicioManual?.()" class="w-full bg-green-500 hover:bg-green-400 text-white p-4 rounded-xl font-black uppercase transition-colors"><i class="fas fa-check mr-2"></i>INGRESAR</button>
+<!-- Modal Checklist Profesional para Ingreso de Moto al Taller -->
+<div id="modal-checklist-ingreso" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full max-w-4xl max-h-[90vh] rounded-[2rem] relative border border-naranja/30 shadow-2xl overflow-y-auto">
+        <button onclick="toggleModal('modal-checklist-ingreso', false)" class="absolute top-4 right-4 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors z-10"><i class="fas fa-times"></i></button>
+        <div class="p-6">
+            <h2 class="text-2xl font-black italic uppercase text-white mb-2">Ingreso de Moto al Taller</h2>
+            <p class="text-xs text-gray-400 mb-6">Complete el checklist de estado al recibir la unidad.</p>
+
+            <!-- Datos básicos -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Marca *</label>
+                    <input id="checklist-marca" type="text" placeholder="Ej. Italika" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white">
+                </div>
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Modelo *</label>
+                    <input id="checklist-modelo" type="text" placeholder="Ej. FT150" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white">
+                </div>
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Año</label>
+                    <input id="checklist-anio" type="text" placeholder="Ej. 2020" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white">
+                </div>
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Cilindraje</label>
+                    <input id="checklist-cilindraje" type="text" placeholder="Ej. 150cc" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white">
+                </div>
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Celular cliente (opcional)</label>
+                    <input id="checklist-phone" type="tel" maxlength="10" placeholder="10 dígitos" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white">
+                </div>
+            </div>
+
+            <!-- Checklist de elementos visibles -->
+            <h3 class="text-lg font-black text-white mb-3 border-b border-white/10 pb-1">Estado de la unidad al ingreso</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="text-sm font-bold text-white">Espejos</label>
+                    <div class="flex space-x-4 mt-1">
+                        <label class="flex items-center space-x-2"><input type="radio" name="checklist-espejos" value="si" class="accent-green-500"> <span>✓ Bueno</span></label>
+                        <label class="flex items-center space-x-2"><input type="radio" name="checklist-espejos" value="no" class="accent-red-500"> <span>✗ Dañado/Falta</span></label>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-sm font-bold text-white">Luces direccionales</label>
+                    <div class="flex space-x-4 mt-1">
+                        <label class="flex items-center space-x-2"><input type="radio" name="checklist-luces" value="si" class="accent-green-500"> <span>✓ Funcionan</span></label>
+                        <label class="flex items-center space-x-2"><input type="radio" name="checklist-luces" value="no" class="accent-red-500"> <span>✗ No funcionan / Rotas</span></label>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-sm font-bold text-white">Faro delantero</label>
+                    <div class="flex space-x-4 mt-1">
+                        <label class="flex items-center space-x-2"><input type="radio" name="checklist-faro" value="si" class="accent-green-500"> <span>✓ Funciona</span></label>
+                        <label class="flex items-center space-x-2"><input type="radio" name="checklist-faro" value="no" class="accent-red-500"> <span>✗ No funciona / Roto</span></label>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-sm font-bold text-white">Tapaderas laterales</label>
+                    <div class="flex space-x-4 mt-1">
+                        <label class="flex items-center space-x-2"><input type="radio" name="checklist-tapaderas" value="si" class="accent-green-500"> <span>✓ Correctas</span></label>
+                        <label class="flex items-center space-x-2"><input type="radio" name="checklist-tapaderas" value="no" class="accent-red-500"> <span>✗ Rotas / Faltantes</span></label>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-sm font-bold text-white">Asiento</label>
+                    <div class="flex space-x-4 mt-1">
+                        <label class="flex items-center space-x-2"><input type="radio" name="checklist-asiento" value="si" class="accent-green-500"> <span>✓ Buen estado</span></label>
+                        <label class="flex items-center space-x-2"><input type="radio" name="checklist-asiento" value="no" class="accent-red-500"> <span>✗ Roto / Descosido</span></label>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-sm font-bold text-white">Nivel de batería</label>
+                    <select id="checklist-bateria" class="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-white">
+                        <option value="">Seleccionar</option>
+                        <option value="Buena">Buena (arranca bien)</option>
+                        <option value="Regular">Regular (cuesta arrancar)</option>
+                        <option value="Baja">Baja (no arranca)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-sm font-bold text-white">Combustible</label>
+                    <select id="checklist-combustible" class="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-white">
+                        <option value="">Seleccionar</option>
+                        <option value="Vacío">Vacío</option>
+                        <option value="1/4">1/4</option>
+                        <option value="1/2">1/2</option>
+                        <option value="3/4">3/4</option>
+                        <option value="Lleno">Lleno</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Observaciones y rayaduras -->
+            <div class="mb-6">
+                <label class="text-sm font-bold text-white">Rayaduras / golpes visibles</label>
+                <textarea id="checklist-rayaduras" rows="2" placeholder="Describa ubicación y tamaño..." class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white"></textarea>
+            </div>
+            <div class="mb-6">
+                <label class="text-sm font-bold text-white">Observaciones adicionales</label>
+                <textarea id="checklist-observaciones" rows="2" placeholder="Cualquier otra observación..." class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white"></textarea>
+            </div>
+
+            <!-- Fotos -->
+            <div class="mb-6">
+                <label class="text-sm font-bold text-white block mb-2">Evidencia fotográfica</label>
+                <button type="button" onclick="window.agregarFotoChecklist()" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase mb-3"><i class="fas fa-camera mr-2"></i>Añadir foto</button>
+                <div id="checklist-fotos-container" class="flex flex-wrap gap-2"></div>
+            </div>
+
+            <div class="flex space-x-3">
+                <button onclick="window.guardarChecklistIngreso()" class="flex-1 bg-green-600 hover:bg-green-500 text-white py-4 rounded-xl font-black uppercase tracking-widest shadow-lg transition-all"><i class="fas fa-save mr-2"></i>INGRESAR CON CHECKLIST</button>
+                <button onclick="toggleModal('modal-checklist-ingreso', false)" class="bg-gray-600 hover:bg-gray-500 text-white px-6 py-4 rounded-xl font-black uppercase text-sm">Cancelar</button>
+            </div>
+        </div>
     </div>
 </div>
     <!-- Modal Aplicar Garantía -->
