@@ -3952,15 +3952,16 @@ window.downloadStaffReport = async (uid) => {
 };
 
 // ======================================================
-// === SOS COMPLETO (listado lateral, mapa, personal en tiempo real, filtros, reportes) ===
+// === SOS COMPLETO (mapa, listado, personal en tiempo real, filtros, reportes) ===
 // ======================================================
-// Variables globales (se reutilizan las que ya existen: adminSOSGlobalMapInst, adminSOSMarkers, etc.)
-window.currentSOSFilter = window.currentSOSFilter || 'todos'; // 'todos', 'pending', 'accepted', 'completed'
+// Variables globales (se asume que existen: adminSOSGlobalMapInst, adminSOSMarkers, _adminSOSTrackingListeners, _adminSOSRouteLines)
+window.currentSOSFilter = window.currentSOSFilter || 'pending';
 let sosFechaInicio = null;
 let sosFechaFin = null;
 let lastSOSCount = 0;
-let sosPersonalMarkers = {};      // marcadores de personal (mecánicos, admins)
+let sosPersonalMarkers = {};      // marcadores de personal (uno por UID)
 let sosPersonalUnsubscribe = null;
+let sosPersonalPositions = {};    // última posición conocida por UID
 
 // ---------- Notificación TTS de nueva solicitud ----------
 function iniciarNotificacionSOS() {
@@ -3997,9 +3998,9 @@ async function cargarListadoSOS() {
     let q = query(collection(db, "rescates"));
     if (sosFechaInicio && sosFechaFin) {
         const startDate = new Date(sosFechaInicio);
-        startDate.setHours(0, 0, 0, 0);
+        startDate.setHours(0,0,0,0);
         const endDate = new Date(sosFechaFin);
-        endDate.setHours(23, 59, 59, 999);
+        endDate.setHours(23,59,59,999);
         q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
     }
     const snap = await getDocs(q);
@@ -4011,13 +4012,10 @@ async function cargarListadoSOS() {
     });
 
     let filtered = rescates;
-    if (window.currentSOSFilter === 'pending') {
-        filtered = rescates.filter(r => r.status === 'pending');
-    } else if (window.currentSOSFilter === 'accepted') {
-        filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
-    } else if (window.currentSOSFilter === 'completed') {
-        filtered = rescates.filter(r => r.status === 'completed');
-    } // 'todos' no filtra
+    if (window.currentSOSFilter === 'pending') filtered = rescates.filter(r => r.status === 'pending');
+    else if (window.currentSOSFilter === 'accepted') filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
+    else if (window.currentSOSFilter === 'completed') filtered = rescates.filter(r => r.status === 'completed');
+    // 'todos' no filtra
 
     listaDiv.innerHTML = '';
     if (filtered.length === 0) {
@@ -4026,11 +4024,11 @@ async function cargarListadoSOS() {
     }
 
     filtered.forEach(r => {
-        const estadoTexto = r.status === 'completed' ? '✅ Completado' :
-            (r.status === 'accepted' ? '🚚 En camino' :
-                (r.status === 'repairing' ? '🔧 Reparando' : '🆕 Pendiente'));
+        const estadoTexto = r.status === 'completed' ? '✅ Completado' : 
+                           (r.status === 'accepted' ? '🚚 En camino' : 
+                           (r.status === 'repairing' ? '🔧 Reparando' : '🆕 Pendiente'));
         const colorClase = r.status === 'completed' ? 'text-green-400' :
-            (r.status === 'accepted' ? 'text-blue-400' : 'text-yellow-400');
+                          (r.status === 'accepted' ? 'text-blue-400' : 'text-yellow-400');
         const telefonoCliente = r.phone || '';
         const telefonoClean = telefonoCliente.replace('+52', '');
         const botonesContacto = telefonoClean ? `
@@ -4106,7 +4104,7 @@ async function renderSOSMapa() {
     });
     adminSOSMarkers = {};
 
-    // Limpiar listeners de tracking y líneas de ruta (si existían)
+    // Limpiar listeners de tracking y líneas de ruta
     if (window._adminSOSTrackingListeners) {
         Object.values(window._adminSOSTrackingListeners).forEach(unsub => unsub());
         window._adminSOSTrackingListeners = {};
@@ -4119,9 +4117,9 @@ async function renderSOSMapa() {
     let q = query(collection(db, "rescates"));
     if (sosFechaInicio && sosFechaFin) {
         const startDate = new Date(sosFechaInicio);
-        startDate.setHours(0, 0, 0, 0);
+        startDate.setHours(0,0,0,0);
         const endDate = new Date(sosFechaFin);
-        endDate.setHours(23, 59, 59, 999);
+        endDate.setHours(23,59,59,999);
         q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
     }
     const snap = await getDocs(q);
@@ -4133,15 +4131,11 @@ async function renderSOSMapa() {
     });
 
     let filtered = rescates;
-    if (window.currentSOSFilter === 'pending') {
-        filtered = rescates.filter(r => r.status === 'pending');
-    } else if (window.currentSOSFilter === 'accepted') {
-        filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
-    } else if (window.currentSOSFilter === 'completed') {
-        filtered = rescates.filter(r => r.status === 'completed');
-    }
+    if (window.currentSOSFilter === 'pending') filtered = rescates.filter(r => r.status === 'pending');
+    else if (window.currentSOSFilter === 'accepted') filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
+    else if (window.currentSOSFilter === 'completed') filtered = rescates.filter(r => r.status === 'completed');
 
-    // Array para acumular coordenadas de todos los puntos (incluyendo taller)
+    // Array para acumular coordenadas de todos los puntos (taller + SOS)
     const allBounds = [];
     allBounds.push([TALLER_LAT, TALLER_LNG]);
 
@@ -4154,8 +4148,8 @@ async function renderSOSMapa() {
             icon: L.divIcon({
                 className: 'sos-marker',
                 html: `<div style="background:${isCompleted ? '#22c55e' : '#FF6B00'}; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; border:2px solid white; box-shadow:0 2px 5px rgba(0,0,0,0.3);">${iconHtml}</div>`,
-                iconSize: [28, 28],
-                iconAnchor: [14, 14]
+                iconSize: [28,28],
+                iconAnchor: [14,14]
             })
         }).addTo(adminSOSGlobalMapInst);
 
@@ -4179,7 +4173,7 @@ async function renderSOSMapa() {
         `);
         adminSOSMarkers[r.id] = marker;
 
-        // Ruta del mecánico si está aceptado
+        // Ruta del mecánico si está aceptado (opcional)
         if (r.status === 'accepted' && r.mech_uid) {
             if (window._adminSOSTrackingListeners && window._adminSOSTrackingListeners[r.id]) {
                 window._adminSOSTrackingListeners[r.id]();
@@ -4217,29 +4211,39 @@ async function renderSOSMapa() {
     window.fixMaps?.();
 }
 
-// ---------- Seguimiento de personal activo en el mapa SOS (mecánicos, administradores, etc.) ----------
+// ---------- Seguimiento de personal activo (un solo marcador por usuario, actualización suave) ----------
 function iniciarSeguimientoPersonalSOS() {
     if (sosPersonalUnsubscribe) {
         sosPersonalUnsubscribe();
         sosPersonalUnsubscribe = null;
     }
 
+    // Limpiar marcadores existentes
+    Object.values(sosPersonalMarkers).forEach(m => {
+        if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.removeLayer(m);
+    });
+    sosPersonalMarkers = {};
+    sosPersonalPositions = {};
+
     sosPersonalUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
         if (!adminSOSGlobalMapInst) return;
 
-        // Limpiar marcadores antiguos de personal
-        Object.values(sosPersonalMarkers).forEach(m => {
-            if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.removeLayer(m);
-        });
-        sosPersonalMarkers = {};
-
-        if (!snap.exists()) return;
-
+        const currentUserIds = new Set();
         const promises = [];
         snap.forEach(child => {
+            currentUserIds.add(child.key);
             promises.push(getDoc(doc(db, "users", child.key)));
         });
         const usersDocs = await Promise.all(promises);
+
+        // Eliminar marcadores de usuarios que ya no están activos
+        Object.keys(sosPersonalMarkers).forEach(uid => {
+            if (!currentUserIds.has(uid)) {
+                adminSOSGlobalMapInst.removeLayer(sosPersonalMarkers[uid]);
+                delete sosPersonalMarkers[uid];
+                delete sosPersonalPositions[uid];
+            }
+        });
 
         let idx = 0;
         snap.forEach(child => {
@@ -4261,23 +4265,39 @@ function iniciarSeguimientoPersonalSOS() {
                         </div>
                     </div>
                 `;
-                const marker = L.marker([pos.lat, pos.lng], {
-                    icon: L.divIcon({
-                        className: 'sos-personal-marker',
-                        html: `<div style="background:#3b82f6; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:14px; color:white;">👨‍🔧</div>`,
-                        iconSize: [28, 28],
-                        iconAnchor: [14, 14]
-                    })
-                }).addTo(adminSOSGlobalMapInst);
-                marker.bindPopup(popupContent);
-                sosPersonalMarkers[uid] = marker;
+
+                if (sosPersonalMarkers[uid]) {
+                    // Actualizar posición y popup del marcador existente
+                    sosPersonalMarkers[uid].setLatLng([pos.lat, pos.lng]);
+                    sosPersonalMarkers[uid].setPopupContent(popupContent);
+                } else {
+                    // Crear nuevo marcador
+                    const marker = L.marker([pos.lat, pos.lng], {
+                        icon: L.divIcon({
+                            className: 'sos-personal-marker',
+                            html: `<div style="background:#3b82f6; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:14px; color:white;">🏍️</div>`,
+                            iconSize: [28,28],
+                            iconAnchor: [14,14]
+                        })
+                    }).addTo(adminSOSGlobalMapInst);
+                    marker.bindPopup(popupContent);
+                    sosPersonalMarkers[uid] = marker;
+                }
+                sosPersonalPositions[uid] = { lat: pos.lat, lng: pos.lng };
+            } else {
+                // Si no hay coordenadas, eliminar marcador si existe
+                if (sosPersonalMarkers[uid]) {
+                    adminSOSGlobalMapInst.removeLayer(sosPersonalMarkers[uid]);
+                    delete sosPersonalMarkers[uid];
+                    delete sosPersonalPositions[uid];
+                }
             }
             idx++;
         });
     });
 }
 
-// ---------- Funciones de filtro (respetando el nombre usado en HTML: window.filtrarSOSPorEstatus) ----------
+// ---------- Funciones de filtro (respetando el nombre usado en HTML) ----------
 window.filtrarSOSPorEstatus = (estatus) => {
     window.currentSOSFilter = estatus; // 'todos', 'pending', 'accepted', 'completed'
     // Actualizar la UI de los botones
@@ -4294,21 +4314,21 @@ window.filtrarSOSPorEstatus = (estatus) => {
     renderSOSMapa();
 };
 
-// También mantenemos la función original filterSOS para compatibilidad (si se llama desde otro lugar)
+// Mantener compatibilidad con la función antigua (si se llama)
 window.filterSOS = (status) => {
     window.filtrarSOSPorEstatus(status);
 };
 
-// ---------- Función principal de renderizado (se llama desde switchAdminView) ----------
+// ---------- Función principal de renderizado ----------
 window.renderSOSGlobalMap = async () => {
     console.log('🔄 renderSOSGlobalMap ejecutado');
     if (!auth.currentUser) return;
     await cargarListadoSOS();
     await renderSOSMapa();
-    iniciarSeguimientoPersonalSOS(); // añadir personal en tiempo real
+    iniciarSeguimientoPersonalSOS();
 };
 
-// ---------- Filtro por fecha (desde los inputs) ----------
+// ---------- Filtro por fecha ----------
 window.cargarSOSConFiltroFecha = async () => {
     const inicio = document.getElementById('sos-fecha-inicio')?.value;
     const fin = document.getElementById('sos-fecha-fin')?.value;
@@ -4350,9 +4370,9 @@ window.generarReporteSOS = async () => {
     let q = query(collection(db, "rescates"));
     if (sosFechaInicio && sosFechaFin) {
         const startDate = new Date(sosFechaInicio);
-        startDate.setHours(0, 0, 0, 0);
+        startDate.setHours(0,0,0,0);
         const endDate = new Date(sosFechaFin);
-        endDate.setHours(23, 59, 59, 999);
+        endDate.setHours(23,59,59,999);
         q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
     }
     const snap = await getDocs(q);
@@ -4389,10 +4409,10 @@ window.generarReporteSOS = async () => {
             body: bodyRows,
             theme: 'striped',
             styles: { fontSize: 8 },
-            headStyles: { fillColor: [255, 107, 0] }
+            headStyles: { fillColor: [255,107,0] }
         });
         addFooter(pdfDoc);
-        pdfDoc.save(`Reporte_SOS_${new Date().toISOString().slice(0, 19)}.pdf`);
+        pdfDoc.save(`Reporte_SOS_${new Date().toISOString().slice(0,19)}.pdf`);
     }
     if (tipo === 'csv' || tipo === 'ambos') {
         const rows = [['Fecha', 'Cliente', 'Falla', 'Estado', 'Costo']];
@@ -4408,14 +4428,14 @@ window.generarReporteSOS = async () => {
         const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
         const link = document.createElement('a');
         link.setAttribute('href', encodeURI(csvContent));
-        link.setAttribute('download', `SOS_${new Date().toISOString().slice(0, 19)}.csv`);
+        link.setAttribute('download', `SOS_${new Date().toISOString().slice(0,19)}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     }
 };
 
-// ---------- Funciones de aceptar, cancelar, cambiar estado (ya existentes, pero las incluimos para que no falten) ----------
+// ---------- Funciones de aceptar, cancelar, cambiar estado (mantenidas igual) ----------
 window.acceptSOS = (id) => {
     window.currentSOSId = id;
     loadMecanicosActivosParaAsignar(id);
@@ -4446,28 +4466,11 @@ window.changeSOSStatus = async (id, newStatus) => {
     let notifMsg = '';
     let finalizar = false;
 
-    switch (newStatus) {
-        case 'repairing':
-            updates.status = 'repairing';
-            updates.repairedAt = now;
-            notifMsg = 'El mecánico está reparando tu moto.';
-            break;
-        case 'to_shop':
-            updates.status = 'to_shop';
-            updates.shopAt = now;
-            notifMsg = 'Tu moto será llevada al taller.';
-            break;
-        case 'ready':
-            updates.status = 'completed';
-            updates.tallerStatus = 'lista';
-            notifMsg = 'Tu moto está lista para entregar.';
-            finalizar = true;
-            break;
-        case 'cancelled':
-            updates.status = 'cancelled';
-            notifMsg = 'El taller ha cancelado el servicio.';
-            finalizar = true;
-            break;
+    switch(newStatus) {
+        case 'repairing': updates.status = 'repairing'; updates.repairedAt = now; notifMsg = 'El mecánico está reparando tu moto.'; break;
+        case 'to_shop': updates.status = 'to_shop'; updates.shopAt = now; notifMsg = 'Tu moto será llevada al taller.'; break;
+        case 'ready': updates.status = 'completed'; updates.tallerStatus = 'lista'; notifMsg = 'Tu moto está lista para entregar.'; finalizar = true; break;
+        case 'cancelled': updates.status = 'cancelled'; notifMsg = 'El taller ha cancelado el servicio.'; finalizar = true; break;
     }
     await updateDoc(docRef, updates);
 
@@ -4480,11 +4483,11 @@ window.changeSOSStatus = async (id, newStatus) => {
             if (trackingSnap.exists()) {
                 const points = [];
                 trackingSnap.forEach(child => points.push(child.val()));
-                points.sort((a, b) => a.ts - b.ts);
+                points.sort((a,b) => a.ts - b.ts);
                 await updateDoc(docRef, { mech_track: points });
             }
             await remove(dbRef(rtdb, `sos_tracking/${id}`));
-        } catch (e) {
+        } catch(e) {
             console.warn('Error al consolidar trayectoria:', e);
         }
         window.activeMechanicSOSId = null;
@@ -4499,7 +4502,7 @@ window.changeSOSStatus = async (id, newStatus) => {
     window.renderSOSGlobalMap();
 };
 
-// ---------- POS para mecánicos (cobro rápido) ----------
+// ---------- POS para mecánicos ----------
 window.openMechanicPOS = (sosId) => {
     window.currentSOSId = sosId;
     toggleModal('modal-mechanic-pos', true);
@@ -4522,7 +4525,7 @@ window.addMechanicPOSItem = (id) => {
     if (p) {
         window.posTicket.push({ type: 'almacen', id: p.id, name: p.name, price: p.priceTaller, cost: p.cost });
         window.renderTicket();
-        const total = window.posTicket.reduce((s, i) => s + i.price, 0);
+        const total = window.posTicket.reduce((s,i)=>s+i.price,0);
         const totalEl = document.getElementById('mechanic-total');
         if (totalEl) totalEl.innerText = total.toFixed(2);
         showToast("Agregado");
@@ -4581,7 +4584,7 @@ window.finalizeMechanicCharge = async () => {
     });
 };
 
-// ---------- Asignar mecánico y enviar WhatsApp personalizado ----------
+// ---------- Asignar mecánico y enviar WhatsApp ----------
 async function loadMecanicosActivosParaAsignar(sosId) {
     const lista = document.getElementById('lista-mecanicos-asignar');
     if (!lista) return;
@@ -4663,7 +4666,7 @@ window.tomarCasoDirecto = async () => {
     window.renderSOSGlobalMap();
 };
 
-// ---------- Iniciar notificaciones TTS al cargar ----------
+// ---------- Iniciar notificaciones TTS ----------
 setTimeout(() => {
     iniciarNotificacionSOS();
 }, 2000);
@@ -4677,7 +4680,6 @@ window.addEventListener('visibilitychange', () => {
 });
 // ======================================================
 
-// ======================================================
 // === CITAS (con validación de usuario e invitación por WhatsApp) ===
 // ======================================================
 window.adminCrearCita = async () => {
