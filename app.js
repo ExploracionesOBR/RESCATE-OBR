@@ -771,7 +771,12 @@ window.switchClientView = (id) => {
     document.querySelectorAll('.c-view').forEach(v => v.classList.add('hidden')); document.getElementById(id).classList.remove('hidden');
     document.querySelectorAll('.c-nav-btn').forEach(b => b.classList.remove('tab-active'));
     const btn = Array.from(document.querySelectorAll('.c-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
-    if(btn) btn.classList.add('tab-active'); window.fixMaps?.();
+    if(btn) btn.classList.add('tab-active');
+        // Cargar el video promocional cuando se entra a la tienda
+    if (id === 'c-view-tienda') {
+        window.loadPromoVideo();
+    }
+    window.fixMaps?.();
 };
 
 window.switchAdminView = (id) => {
@@ -5754,18 +5759,51 @@ window.updateGeofenceRadius = (val) => {
 };
 
 window.loadPromoVideo = () => {
-    const container = document.getElementById('video-banner-container');
-    if (!container) return;
+    const containerPublic = document.getElementById('video-banner-container');
+    const containerClient = document.getElementById('video-banner-container-client');
+    if (!containerPublic && !containerClient) return;
+    
     const now = new Date();
-    const dayIndex = now.getDay();
+    const dayIndex = now.getDay(); // 0 = domingo, 1 = lunes, etc.
     const todayVideo = globalSettings.videoSchedule?.[dayIndex];
+    
     if (todayVideo && todayVideo.trim() !== '') {
-        container.innerHTML = `<div style="pointer-events:none; user-select:none;" oncontextmenu="return false;"><video src="${todayVideo}" autoplay muted loop playsinline controlsList="nodownload nofullscreen" class="w-full max-h-[300px] object-contain rounded-xl"></video></div>`;
-        container.classList.remove('hidden');
-        container.style.display = 'block';
+        // HTML del video con tamaño reducido y sin controles
+        const videoHtml = `
+            <div style="pointer-events: none; user-select: none; width: 100%; margin: 0 auto;">
+                <video 
+                    src="${todayVideo}" 
+                    autoplay 
+                    muted 
+                    loop 
+                    playsinline 
+                    controlsList="nodownload nofullscreen"
+                    class="w-full object-contain rounded-xl"
+                    style="max-height: 200px; height: auto; width: 100%;"
+                    oncontextmenu="return false">
+                </video>
+            </div>
+        `;
+        if (containerPublic) {
+            containerPublic.innerHTML = videoHtml;
+            containerPublic.classList.remove('hidden');
+            containerPublic.style.display = 'block';
+        }
+        if (containerClient) {
+            containerClient.innerHTML = videoHtml;
+            containerClient.classList.remove('hidden');
+            containerClient.style.display = 'block';
+        }
     } else {
-        container.classList.add('hidden');
-        container.style.display = 'none';
+        // Ocultar ambos contenedores si no hay video
+        if (containerPublic) {
+            containerPublic.classList.add('hidden');
+            containerPublic.style.display = 'none';
+        }
+        if (containerClient) {
+            containerClient.classList.add('hidden');
+            containerClient.style.display = 'none';
+        }
     }
 };
 
