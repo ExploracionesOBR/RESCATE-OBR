@@ -1008,7 +1008,7 @@
             </div>
         </section>
         <!-- Botón flotante Chat IA -->
-<button id="btn-chat-ai-float" onclick="toggleModal('modal-chat-ai', true)" class="fixed bottom-24 right-20 w-14 h-14 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl z-40 hover:bg-orange-500 transition-all animate-pulse-soft" title="Chat con IA (Mecánico Virtual)">
+<button id="btn-chat-ai-float" style="display: none;" onclick="toggleModal('modal-chat-ai', true)" class="fixed bottom-24 right-20 w-14 h-14 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl z-40 hover:bg-orange-500 transition-all animate-pulse-soft" title="Chat con IA (Mecánico Virtual)">
     <i class="fas fa-robot text-2xl"></i>
 </button>
     </main>
@@ -1579,7 +1579,7 @@
         <textarea id="garantia-observaciones" placeholder="Observaciones (opcional)" rows="2" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-4 text-white resize-none"></textarea>
         <button onclick="window.aplicarGarantia?.()" class="w-full bg-green-500 hover:bg-green-400 text-white p-3 rounded-xl font-black uppercase">Confirmar Aplicación</button>
     </div>
-    <!-- Modal Chat IA -->
+   <!-- Modal Chat IA -->
 <div id="modal-chat-ai" class="fixed inset-0 bg-black/95 z-[400] flex flex-col hidden backdrop-blur-sm">
     <div class="flex flex-col h-full w-full max-w-6xl mx-auto bg-asfalto rounded-none lg:rounded-3xl shadow-2xl overflow-hidden">
         <!-- Cabecera -->
@@ -1632,7 +1632,6 @@
             </div>
         </div>
     </div>
-</div>
 </div>
 <!-- FIN DE MODALES -->
 <script type="module" src="app.js"></script>
