@@ -1585,45 +1585,160 @@ window.adminListenServices = () => {
     });
 };
 
-window.adminIngresarServicioManual = async () => {
-    const phone = document.getElementById('manual-srv-phone').value.trim() || null;
-    const moto = document.getElementById('manual-srv-moto').value.trim();
-    const falla = document.getElementById('manual-srv-falla').value.trim();
-    const fileInput = document.getElementById('manual-srv-media');
-    if(!moto || !falla) return showToast("Completar marca/modelo y falla", true);
+// ======================================================
+// === INGRESO DE MOTO AL TALLER CON CHECKLIST PROFESIONAL ===
+// ======================================================
+// Variable global para almacenar el checklist temporal
+let tempChecklist = {
+    marca: '', modelo: '', anio: '', cilindraje: '',
+    espejos: null, lucesDireccionales: null, faro: null,
+    tapaderas: null, asiento: null, rayaduras: '',
+    nivelBateria: '', combustible: '', observaciones: '',
+    fotos: []
+};
 
-    const btn = document.querySelector('#modal-nuevo-servicio button.bg-green-500');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
+// Función para abrir el modal de ingreso con checklist
+window.abrirModalIngresoServicio = () => {
+    // Reiniciar checklist temporal
+    tempChecklist = {
+        marca: '', modelo: '', anio: '', cilindraje: '',
+        espejos: null, lucesDireccionales: null, faro: null,
+        tapaderas: null, asiento: null, rayaduras: '',
+        nivelBateria: '', combustible: '', observaciones: '',
+        fotos: []
+    };
+    // Limpiar campos del modal
+    document.getElementById('checklist-marca').value = '';
+    document.getElementById('checklist-modelo').value = '';
+    document.getElementById('checklist-anio').value = '';
+    document.getElementById('checklist-cilindraje').value = '';
+    document.getElementById('checklist-phone').value = '';
+    // Resetear checkboxes y radios
+    document.querySelectorAll('input[name="checklist-espejos"]').forEach(r => r.checked = false);
+    document.querySelectorAll('input[name="checklist-luces"]').forEach(r => r.checked = false);
+    document.querySelectorAll('input[name="checklist-faro"]').forEach(r => r.checked = false);
+    document.querySelectorAll('input[name="checklist-tapaderas"]').forEach(r => r.checked = false);
+    document.querySelectorAll('input[name="checklist-asiento"]').forEach(r => r.checked = false);
+    document.getElementById('checklist-rayaduras').value = '';
+    document.getElementById('checklist-bateria').value = '';
+    document.getElementById('checklist-combustible').value = '';
+    document.getElementById('checklist-observaciones').value = '';
+    document.getElementById('checklist-fotos-container').innerHTML = '';
+    tempChecklist.fotos = [];
+    toggleModal('modal-checklist-ingreso', true);
+};
+
+// Función para añadir fotos al checklist
+window.agregarFotoChecklist = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const compressed = await window.compressImage(file);
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const imgData = ev.target.result;
+            tempChecklist.fotos.push(imgData); // base64 temporal
+            const container = document.getElementById('checklist-fotos-container');
+            const imgDiv = document.createElement('div');
+            imgDiv.className = 'relative inline-block mr-2 mb-2';
+            imgDiv.innerHTML = `
+                <img src="${imgData}" class="w-20 h-20 object-cover rounded-lg border border-white/10">
+                <button type="button" onclick="this.parentElement.remove(); tempChecklist.fotos = tempChecklist.fotos.filter(f => f !== '${imgData}')" class="absolute -top-2 -right-2 bg-red-600 rounded-full w-5 h-5 flex items-center justify-center text-white text-xs">×</button>
+            `;
+            container.appendChild(imgDiv);
+        };
+        reader.readAsDataURL(compressed);
+    };
+    input.click();
+};
+
+// Guardar checklist y crear el servicio
+window.guardarChecklistIngreso = async () => {
+    // Obtener valores
+    tempChecklist.marca = document.getElementById('checklist-marca').value.trim();
+    tempChecklist.modelo = document.getElementById('checklist-modelo').value.trim();
+    tempChecklist.anio = document.getElementById('checklist-anio').value.trim();
+    tempChecklist.cilindraje = document.getElementById('checklist-cilindraje').value.trim();
+    tempChecklist.espejos = document.querySelector('input[name="checklist-espejos"]:checked')?.value === 'si';
+    tempChecklist.lucesDireccionales = document.querySelector('input[name="checklist-luces"]:checked')?.value === 'si';
+    tempChecklist.faro = document.querySelector('input[name="checklist-faro"]:checked')?.value === 'si';
+    tempChecklist.tapaderas = document.querySelector('input[name="checklist-tapaderas"]:checked')?.value === 'si';
+    tempChecklist.asiento = document.querySelector('input[name="checklist-asiento"]:checked')?.value === 'si';
+    tempChecklist.rayaduras = document.getElementById('checklist-rayaduras').value.trim();
+    tempChecklist.nivelBateria = document.getElementById('checklist-bateria').value;
+    tempChecklist.combustible = document.getElementById('checklist-combustible').value;
+    tempChecklist.observaciones = document.getElementById('checklist-observaciones').value.trim();
+
+    // Validar campos obligatorios
+    if (!tempChecklist.marca || !tempChecklist.modelo) {
+        showToast("Marca y modelo son obligatorios", true);
+        return;
+    }
+
+    const btn = document.querySelector('#modal-checklist-ingreso button.bg-green-600');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
+    }
+
     try {
-        let mediaUrls = [];
-        if (fileInput && fileInput.files.length > 0) {
-            const files = Array.from(fileInput.files).slice(0, 3);
-            for (const file of files) {
-                const url = await uploadWithTimeout(file, `rescates/manual/${Date.now()}_${file.name}`);
-                if (url) mediaUrls.push(url);
-            }
+        // Subir fotos a Storage (si las hay)
+        const fotosUrls = [];
+        for (const base64 of tempChecklist.fotos) {
+            const blob = await (await fetch(base64)).blob();
+            const file = new File([blob], `foto_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            const url = await uploadWithTimeout(file, `rescates/checklist/${Date.now()}_${file.name}`);
+            if (url) fotosUrls.push(url);
         }
-        await addDoc(collection(db, "rescates"), {
-            shortId: generateShortId(),
+
+        // Crear documento en rescates
+        const phone = document.getElementById('checklist-phone')?.value.trim() || null;
+        const shortId = generateShortId();
+        const servicioData = {
+            shortId: shortId,
             phone: phone ? "+52" + phone : null,
-            marca: moto.split(' ')[0] || moto,
-            modelo: moto.replace(moto.split(' ')[0], '').trim() || moto,
-            falla,
-            mediaUrl: mediaUrls.length === 1 ? mediaUrls[0] : (mediaUrls.length > 1 ? mediaUrls : ''),
+            marca: tempChecklist.marca,
+            modelo: tempChecklist.modelo,
+            anio: tempChecklist.anio,
+            cc: tempChecklist.cilindraje,
+            falla: "INGRESO MANUAL CON CHECKLIST",
             status: 'completed',
             tallerStatus: 'recibida',
-            timestamp: Date.now()
-        });
-        showToast("Moto ingresada al Taller");
-        toggleModal('modal-nuevo-servicio', false);
+            timestamp: Date.now(),
+            checklist: {
+                espejos: tempChecklist.espejos,
+                lucesDireccionales: tempChecklist.lucesDireccionales,
+                faro: tempChecklist.faro,
+                tapaderas: tempChecklist.tapaderas,
+                asiento: tempChecklist.asiento,
+                rayaduras: tempChecklist.rayaduras,
+                nivelBateria: tempChecklist.nivelBateria,
+                combustible: tempChecklist.combustible,
+                observaciones: tempChecklist.observaciones,
+                fotos: fotosUrls
+            }
+        };
+        await addDoc(collection(db, "rescates"), servicioData);
+
+        showToast("Moto ingresada con checklist completo");
+        toggleModal('modal-checklist-ingreso', false);
+        window.adminListenServices(); // refrescar la lista del taller
     } catch (e) {
-        showToast("Error", true);
+        console.error(e);
+        showToast("Error al ingresar la moto", true);
     } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-check mr-2"></i>INGRESAR';
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save mr-2"></i>INGRESAR CON CHECKLIST';
+        }
     }
 };
+
+// Reemplazar la función antigua por la nueva (para que el botón "Ingresar Moto" funcione)
+window.adminIngresarServicioManual = window.abrirModalIngresoServicio;
 
 window.openDetalleServicio = async (id) => {
     const docSnap = await getDoc(doc(db, "rescates", id)); if(!docSnap.exists()) return;
@@ -2075,6 +2190,43 @@ window.downloadCompletedServicePDF = async (id) => {
         pdfDoc.setTextColor(15, 23, 42);
         pdfDoc.text(`Costo Estimado de Asistencia: $${data.costoRescateEstimado}`, 12, y);
     }
+
+    // Mostrar checklist si existe (dentro de downloadCompletedServicePDF)
+if (data.checklist) {
+    if (y > 220) { pdfDoc.addPage(); y = 36; }
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.setFontSize(10);
+    pdfDoc.setTextColor(15, 23, 42);
+    pdfDoc.text("CHECKLIST DE INGRESO AL TALLER:", 12, y);
+    y += 6;
+    pdfDoc.setFontSize(8.5);
+    pdfDoc.setTextColor(71, 85, 105);
+    const ch = data.checklist;
+    const items = [
+        `• Espejos: ${ch.espejos ? '✓ Correctos' : '✗ Dañados/Faltantes'}`,
+        `• Luces direccionales: ${ch.lucesDireccionales ? '✓ Funcionan' : '✗ No funcionan/Rotas'}`,
+        `• Faro: ${ch.faro ? '✓ Funciona' : '✗ No funciona/Roto'}`,
+        `• Tapaderas: ${ch.tapaderas ? '✓ Correctas' : '✗ Rotas/Faltantes'}`,
+        `• Asiento: ${ch.asiento ? '✓ Buen estado' : '✗ Roto/Descosido'}`,
+        `• Nivel de batería: ${ch.nivelBateria || 'No especificado'}`,
+        `• Combustible: ${ch.combustible || 'No especificado'}`,
+        `• Rayaduras: ${ch.rayaduras || 'Ninguna'}`,
+        `• Observaciones: ${ch.observaciones || 'Ninguna'}`
+    ];
+    items.forEach(item => {
+        const lines = pdfDoc.splitTextToSize(item, pageWidth - 24);
+        pdfDoc.text(lines, 14, y);
+        y += (lines.length * 4.5) + 2;
+        if (y > 280) { pdfDoc.addPage(); y = 36; }
+    });
+    if (ch.fotos && ch.fotos.length) {
+        if (y > 260) { pdfDoc.addPage(); y = 36; }
+        pdfDoc.text("📸 Evidencia fotográfica:", 12, y);
+        y += 6;
+        pdfDoc.text(`Se adjuntaron ${ch.fotos.length} foto(s) en el expediente digital.`, 14, y);
+        y += 6;
+    }
+}
 
     // === FOOTER ===
     const totalPages = pdfDoc.internal.getNumberOfPages();
