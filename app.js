@@ -329,10 +329,14 @@ window.changeThemeMode = async (mode) => {
 
 function applyTheme() {
     let mode = globalSettings.themeMode || 'auto';
-    if (mode === 'auto') { const h = new Date().getHours(); mode = (h >= 7 && h < 19) ? 'light' : 'dark'; }
+    if (mode === 'auto') {
+        const h = new Date().getHours();
+        mode = (h >= 7 && h < 19) ? 'light' : 'dark';
+    }
     document.body.classList.toggle('light-mode', mode === 'light');
-    const sel = document.getElementById('theme-selector'); if(sel) sel.value = globalSettings.themeMode || 'auto';
-    updateLogo(); // <-- añadido
+    const sel = document.getElementById('theme-selector');
+    if (sel) sel.value = globalSettings.themeMode || 'auto';
+    updateLogo();
     switchMapLayer(mode === 'light');
 }
 
@@ -341,11 +345,7 @@ function switchMapLayer(isLight) {
         ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
         : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     const attribution = '&copy; <a href="https://carto.com/">CARTO</a>';
-
-    // Quitar cualquier filtro residual
-    document.documentElement.style.setProperty('--map-filter', 'none');
-
-   const maps = [adminSOSGlobalMapInst, adminGeoMap, mechMapInst, sosMapInstance, entregasMapInst];
+    const maps = [adminSOSGlobalMapInst, adminGeoMap, mechMapInst, sosMapInstance, entregasMapInst];
     maps.forEach(map => {
         if (map) {
             map.eachLayer(layer => {
@@ -354,7 +354,7 @@ function switchMapLayer(isLight) {
             L.tileLayer(layerUrl, { attribution }).addTo(map);
         }
     });
-    if(entregasMapInst) entregasMapInst.invalidateSize();
+    if (entregasMapInst) entregasMapInst.invalidateSize();
 }
 
 function updateLogo() {
