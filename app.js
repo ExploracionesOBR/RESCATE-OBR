@@ -4307,19 +4307,24 @@ function iniciarSeguimientoPersonalSOS() {
                 const ratingText = calificacion ? `${calificacion.promedio} ⭐ (${calificacion.total} reseñas)` : 'Sin reseñas';
 
                 if (pos && pos.lat && pos.lng) {
-                    const popupContent = `
-                        <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:#1A1A1A; color:white; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
-                            <b>${escapeHtml(nombre)}</b><br>
-                            <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
-                            ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
-                            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-                                ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
-                                ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
-                                <button onclick="window.openStaffDetail('${uid}')" style="background:#3b82f6; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">Ver perfil</button>
-                            </div>
-                        </div>
-                    `;
+// Dentro de iniciarSeguimientoPersonal(), en la creación del popupContent
+const esModoClaro = document.body.classList.contains('light-mode');
+const bgColor = esModoClaro ? '#ffffff' : '#1A1A1A';
+const textColor = esModoClaro ? '#111111' : '#ffffff';
+const borderColor = esModoClaro ? '#FF6B00' : '#FF6B00'; // el naranja igual
 
+const popupContent = `
+    <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${bgColor}; color:${textColor}; border-radius:16px; padding:10px; border:1px solid ${borderColor};">
+        <b>${escapeHtml(nombre)}</b><br>
+        <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
+        ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+            ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+            ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+            <button onclick="window.openStaffDetail('${uid}')" style="background:#3b82f6; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">Ver perfil</button>
+        </div>
+    </div>
+`;
                     let marker = sosPersonalMarkers[uid];
                     if (marker) {
                         marker.setLatLng([pos.lat, pos.lng]);
@@ -5931,18 +5936,24 @@ function iniciarSeguimientoPersonal() {
                 const ratingText = calificacion ? `${calificacion.promedio} ⭐ (${calificacion.total} reseñas)` : 'Sin reseñas';
 
                 if (pos && pos.lat && pos.lng) {
-                    const popupContent = `
-                        <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:#1A1A1A; color:white; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
-                            <b>${escapeHtml(nombre)}</b><br>
-                            <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
-                            ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
-                            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-                                ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
-                                ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
-                                <button onclick="window.openStaffDetail('${uid}')" style="background:#3b82f6; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">Ver perfil</button>
-                            </div>
-                        </div>
-                    `;
+// Dentro de iniciarSeguimientoPersonal(), en la creación del popupContent
+const esModoClaro = document.body.classList.contains('light-mode');
+const bgColor = esModoClaro ? '#ffffff' : '#1A1A1A';
+const textColor = esModoClaro ? '#111111' : '#ffffff';
+const borderColor = esModoClaro ? '#FF6B00' : '#FF6B00'; // el naranja igual
+
+const popupContent = `
+    <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${bgColor}; color:${textColor}; border-radius:16px; padding:10px; border:1px solid ${borderColor};">
+        <b>${escapeHtml(nombre)}</b><br>
+        <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
+        ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+            ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+            ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+            <button onclick="window.openStaffDetail('${uid}')" style="background:#3b82f6; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">Ver perfil</button>
+        </div>
+    </div>
+`;
 
                     let marker = repartidoresMarkers[uid];
                     if (marker) {
