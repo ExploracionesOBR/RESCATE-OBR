@@ -845,3 +845,11 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
         width: 130px;
     }
 }
+@keyframes soft-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+.animate-pulse-soft {
+    animation: soft-pulse 1.5s infinite ease-in-out;
+}
