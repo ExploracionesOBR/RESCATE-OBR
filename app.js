@@ -5635,8 +5635,8 @@ const buttonClass = isClosed ? 'bg-red-600' : 'bg-green-600';
         scheduleContainer.innerHTML += `
             <div class="grid grid-cols-4 gap-2 items-center bg-white/5 p-2 rounded-xl">
                 <span class="font-bold text-white text-xs">${daysFull[i]}</span>
-                <input id="sch-${i}-o" type="time" value="${s.o}" class="bg-asfalto border border-white/10 p-2 rounded-lg text-white text-xs w-full focus:border-naranja">
-                <input id="sch-${i}-c" type="time" value="${s.c}" class="bg-asfalto border border-white/10 p-2 rounded-lg text-white text-xs w-full focus:border-naranja">
+                <input id="sch-${i}-o" type="time" value="${s.o}" class="bg-asfalto border border-white/10 p-2 rounded-lg text-white text-sm w-32 focus:border-naranja">
+                <input id="sch-${i}-c" type="time" value="${s.c}" class="bg-asfalto border border-white/10 p-2 rounded-lg text-white text-sm w-32 focus:border-naranja">
                 <button onclick="window.toggleDayState(${i})" class="${buttonClass} text-white px-2 py-1 rounded text-[9px] font-bold uppercase">${buttonText}</button>
             </div>
         `;
