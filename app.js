@@ -342,7 +342,7 @@ function updateLogo() {
     logo.src = isLight ? 'logo_claro.png' : 'logo_oscuro.png';
 }
 
-// aqui inicia startMechanicTracking automatico (con set y limpieza) //
+// aqui inicia startMechanicTracking (automatico, un registro por usuario)
 function startMechanicTracking() {
     const role = window.currentUserDoc?.role;
     if (!['admin', 'mecanico', 'taller'].includes(role)) return;
@@ -357,10 +357,10 @@ function startMechanicTracking() {
             name: window.currentUserDoc.name || 'Usuario',
             ts: Date.now()
         };
-        // Usamos set para sobrescribir completamente la entrada (evita duplicados)
+        // set sobrescribe la entrada (si ya existe, la actualiza; si no, la crea)
         set(dbRef(rtdb, 'mecanicos_activos/' + uid), currentPos).catch(console.error);
 
-        // Guardar historial de tracking (últimos 50 puntos)
+        // Historial de tracking (últimos 50 puntos)
         const trackingRef = dbRef(rtdb, `mecanicos_tracking/${uid}`);
         push(trackingRef, currentPos).then(() => {
             onValue(trackingRef, (snap) => {
@@ -378,7 +378,7 @@ function startMechanicTracking() {
             }, { onlyOnce: true });
         });
 
-        // Si hay un SOS activo, guardar punto de trayectoria
+        // Si hay SOS activo, guardar punto de trayectoria
         if (window.activeMechanicSOSId) {
             push(dbRef(rtdb, `sos_tracking/${window.activeMechanicSOSId}/${uid}/points`), {
                 lat: pos.coords.latitude,
@@ -388,16 +388,14 @@ function startMechanicTracking() {
         }
     };
 
-    const errorHandler = (err) => console.error('Geolocation error:', err);
-
-    watchId = navigator.geolocation.watchPosition(updatePosition, errorHandler, {
+    watchId = navigator.geolocation.watchPosition(updatePosition, (err) => console.error(err), {
         enableHighAccuracy: true,
         maximumAge: 10000,
         timeout: 30000
     });
     window._mechWatchId = watchId;
 }
-// aqui finaliza startMechanicTracking automatico //
+// aqui finaliza startMechanicTracking
 
 // ======================================================
 // ACTUALIZACIÓN DEL BOTÓN DE EMERGENCIA (SEGÚN HORARIO)
@@ -645,6 +643,7 @@ onAuthStateChanged(auth, async user => {
     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
                 // Recargar ajustes desde Firestore (para que el radio y otros valores se actualicen)
         const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
+        startMechanicTracking();
         if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
         globalSettings.centerLat = TALLER_LAT;
         globalSettings.centerLng = TALLER_LNG;
@@ -994,7 +993,7 @@ window.forceSetupSubmit = async () => {
 };
 window.logout = () => {
     window.confirmModal('¿Cerrar sesión? Perderás las notificaciones en tiempo real hasta que vuelvas a iniciar sesión.', async () => {
-        // Limpiar listeners de tiempo real para evitar fugas
+        // Limpiar listeners (código original)
         const listeners = [
             '_clientHistoryListener', '_clientCitasListener', '_adminCitasListener',
             '_onlineOrdersListener', '_entregasPedidosListener', '_entregasRepartidoresListener',
@@ -1006,7 +1005,6 @@ window.logout = () => {
             }
             delete window[name];
         });
-        // Limpiar líneas de ruta y objetos globales de tracking
         if (window._adminSOSTrackingListeners) {
             Object.values(window._adminSOSTrackingListeners).forEach(unsub => unsub());
             window._adminSOSTrackingListeners = {};
@@ -1015,10 +1013,22 @@ window.logout = () => {
             Object.values(window._adminSOSRouteLines).forEach(line => line.remove());
             window._adminSOSRouteLines = {};
         }
+
+        // Eliminar la posicion activa
+        const uid = auth.currentUser?.uid;
+        if (uid) {
+            await remove(dbRef(rtdb, 'mecanicos_activos/' + uid)).catch(console.error);
+            if (window._mechWatchId) {
+                navigator.geolocation.clearWatch(window._mechWatchId);
+                window._mechWatchId = null;
+            }
+        }
+
         await signOut(auth);
         window.location.href = window.location.pathname;
     });
 };
+// aqui finaliza logout
 window.filterServiceOptions = () => {
     const input = document.getElementById('sos-service-input');
     const dropdown = document.getElementById('sos-service-dropdown');
@@ -4089,7 +4099,7 @@ async function cargarListadoSOS() {
     });
 }
 
-// ---------- Renderizar mapa con marcadores de SOS y ajuste de zoom ----------
+// aqui inicia renderSOSMapa (pulso naranja y zoom con personal)
 async function renderSOSMapa() {
     const mapEl = document.getElementById('admin-sos-global-map');
     if (!mapEl) return;
@@ -4151,7 +4161,6 @@ async function renderSOSMapa() {
     else if (window.currentSOSFilter === 'accepted') filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
     else if (window.currentSOSFilter === 'completed') filtered = rescates.filter(r => r.status === 'completed');
 
-    // Array para acumular coordenadas de todos los puntos (taller + SOS)
     const allBounds = [];
     allBounds.push([TALLER_LAT, TALLER_LNG]);
 
@@ -4159,13 +4168,14 @@ async function renderSOSMapa() {
         if (!r.lat || !r.lng) return;
         allBounds.push([r.lat, r.lng]);
         const isCompleted = r.status === 'completed';
+        const markerColor = isCompleted ? '#22c55e' : '#FF6B00';
         const iconHtml = isCompleted ? '🏍️✅' : '🏍️';
         const marker = L.marker([r.lat, r.lng], {
             icon: L.divIcon({
-                className: 'sos-marker',
-                html: `<div style="background:${isCompleted ? '#22c55e' : '#FF6B00'}; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; border:2px solid white; box-shadow:0 2px 5px rgba(0,0,0,0.3);">${iconHtml}</div>`,
-                iconSize: [28,28],
-                iconAnchor: [14,14]
+                className: 'gps-pulse-marker',
+                html: `<div class="pulse-inner" style="background:${markerColor}; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; border:2px solid white; box-shadow:0 0 0 rgba(0,0,0,0.3);">${iconHtml}</div>`,
+                iconSize: [32,32],
+                iconAnchor: [16,16]
             })
         }).addTo(adminSOSGlobalMapInst);
 
@@ -4189,7 +4199,7 @@ async function renderSOSMapa() {
         `);
         adminSOSMarkers[r.id] = marker;
 
-        // Ruta del mecánico si está aceptado (opcional)
+        // Ruta del mecánico si está aceptado
         if (r.status === 'accepted' && r.mech_uid) {
             if (window._adminSOSTrackingListeners && window._adminSOSTrackingListeners[r.id]) {
                 window._adminSOSTrackingListeners[r.id]();
@@ -4217,7 +4227,12 @@ async function renderSOSMapa() {
         }
     });
 
-    // Ajustar el mapa para mostrar todos los puntos con padding
+    // Añadir puntos del personal activo a los bounds
+    Object.values(sosPersonalMarkers).forEach(marker => {
+        const latlng = marker.getLatLng();
+        if (latlng) allBounds.push([latlng.lat, latlng.lng]);
+    });
+
     if (allBounds.length > 0) {
         const bounds = L.latLngBounds(allBounds);
         adminSOSGlobalMapInst.fitBounds(bounds, { padding: [50, 50] });
@@ -4226,93 +4241,92 @@ async function renderSOSMapa() {
     }
     window.fixMaps?.();
 }
+// aqui finaliza renderSOSMapa
 
-// ---------- Seguimiento de personal activo (un solo marcador por usuario, actualización suave) ----------
+// aqui inicia iniciarSeguimientoPersonalSOS mejorado
 function iniciarSeguimientoPersonalSOS() {
     if (sosPersonalUnsubscribe) {
         sosPersonalUnsubscribe();
         sosPersonalUnsubscribe = null;
     }
 
-    // Limpiar marcadores existentes
-    Object.values(sosPersonalMarkers).forEach(m => {
-        if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.removeLayer(m);
-    });
-    sosPersonalMarkers = {};
-    sosPersonalPositions = {};
-
     sosPersonalUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
         if (!adminSOSGlobalMapInst) return;
 
-        const currentUserIds = new Set();
+        const userMap = new Map();
         const promises = [];
         snap.forEach(child => {
-            currentUserIds.add(child.key);
-            promises.push(getDoc(doc(db, "users", child.key)));
+            const uid = child.key;
+            promises.push(getDoc(doc(db, "users", uid)).then(docSnap => {
+                if (docSnap.exists()) userMap.set(uid, docSnap.data());
+            }));
         });
-        const usersDocs = await Promise.all(promises);
+        await Promise.all(promises);
 
-        // Eliminar marcadores de usuarios que ya no están activos
+        const currentUids = new Set();
+        snap.forEach(child => currentUids.add(child.key));
         Object.keys(sosPersonalMarkers).forEach(uid => {
-            if (!currentUserIds.has(uid)) {
+            if (!currentUids.has(uid)) {
                 adminSOSGlobalMapInst.removeLayer(sosPersonalMarkers[uid]);
                 delete sosPersonalMarkers[uid];
-                delete sosPersonalPositions[uid];
             }
         });
 
-        let idx = 0;
+        const tasks = [];
         snap.forEach(child => {
-            const pos = child.val();
-            const uid = child.key;
-            const userData = usersDocs[idx]?.exists() ? usersDocs[idx].data() : null;
-            const nombre = userData?.name || 'Personal';
-            const telefono = userData?.phone || '';
-            const telefonoClean = telefono.replace('+52', '');
+            tasks.push((async () => {
+                const pos = child.val();
+                const uid = child.key;
+                const userData = userMap.get(uid);
+                const nombre = userData?.name || 'Personal';
+                const telefono = userData?.phone || '';
+                const telefonoClean = telefono.replace('+52', '');
+                const calificacion = await obtenerPromedioCalificacion(uid);
+                const stars = calificacion ? '★'.repeat(Math.round(calificacion.promedio)) + '☆'.repeat(5 - Math.round(calificacion.promedio)) : '☆☆☆☆☆';
+                const ratingText = calificacion ? `${calificacion.promedio} ⭐ (${calificacion.total} reseñas)` : 'Sin reseñas';
 
-            if (pos && pos.lat && pos.lng) {
-                const popupContent = `
-                    <div style="font-size:12px; background:#1A1A1A; color:white; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
-                        <b>${escapeHtml(nombre)}</b><br>
-                        ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
-                        <div style="display:flex; gap:8px; margin-top:8px;">
-                            ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; cursor:pointer;">📞 Llamar</button>` : ''}
-                            ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                if (pos && pos.lat && pos.lng) {
+                    const popupContent = `
+                        <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:#1A1A1A; color:white; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
+                            <b>${escapeHtml(nombre)}</b><br>
+                            <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
+                            ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+                            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                                ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+                                ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                                <button onclick="window.openStaffDetail('${uid}')" style="background:#3b82f6; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">Ver perfil</button>
+                            </div>
                         </div>
-                    </div>
-                `;
+                    `;
 
-                if (sosPersonalMarkers[uid]) {
-                    // Actualizar posición y popup del marcador existente
-                    sosPersonalMarkers[uid].setLatLng([pos.lat, pos.lng]);
-                    sosPersonalMarkers[uid].setPopupContent(popupContent);
+                    let marker = sosPersonalMarkers[uid];
+                    if (marker) {
+                        marker.setLatLng([pos.lat, pos.lng]);
+                        marker.setPopupContent(popupContent);
+                    } else {
+                        marker = L.marker([pos.lat, pos.lng], {
+                            icon: L.divIcon({
+                                className: 'sos-personal-marker',
+                                html: `<div style="background:#3b82f6; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:14px; color:white;">🏍️</div>`,
+                                iconSize: [28,28],
+                                iconAnchor: [14,14]
+                            })
+                        }).addTo(adminSOSGlobalMapInst);
+                        marker.bindPopup(popupContent);
+                        sosPersonalMarkers[uid] = marker;
+                    }
                 } else {
-                    // Crear nuevo marcador
-                    const marker = L.marker([pos.lat, pos.lng], {
-                        icon: L.divIcon({
-                            className: 'sos-personal-marker',
-                            html: `<div style="background:#3b82f6; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:14px; color:white;">🏍️</div>`,
-                            iconSize: [28,28],
-                            iconAnchor: [14,14]
-                        })
-                    }).addTo(adminSOSGlobalMapInst);
-                    marker.bindPopup(popupContent);
-                    sosPersonalMarkers[uid] = marker;
+                    if (sosPersonalMarkers[uid]) {
+                        adminSOSGlobalMapInst.removeLayer(sosPersonalMarkers[uid]);
+                        delete sosPersonalMarkers[uid];
+                    }
                 }
-                sosPersonalPositions[uid] = { lat: pos.lat, lng: pos.lng };
-            } else {
-                // Si no hay coordenadas, eliminar marcador si existe
-                if (sosPersonalMarkers[uid]) {
-                    adminSOSGlobalMapInst.removeLayer(sosPersonalMarkers[uid]);
-                    delete sosPersonalMarkers[uid];
-                    delete sosPersonalPositions[uid];
-                }
-            }
-            idx++;
+            })());
         });
+        await Promise.all(tasks);
     });
 }
-
+// aqui finaliza iniciarSeguimientoPersonalSOS
 // ---------- Funciones de filtro (respetando el nombre usado en HTML) ----------
 window.filtrarSOSPorEstatus = (estatus) => {
     window.currentSOSFilter = estatus; // 'todos', 'pending', 'accepted', 'completed'
@@ -6513,6 +6527,26 @@ window.openChat = (chatId) => {
             return m;
         });
     };
+
+    // aqui inicia obtenerPromedioCalificacion
+async function obtenerPromedioCalificacion(uid) {
+    if (!uid) return null;
+    const q = query(collection(db, "satisfaction"), where("uid", "==", uid));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    let total = 0, count = 0;
+    snap.forEach(doc => {
+        const rating = doc.data().rating;
+        if (typeof rating === 'number') {
+            total += rating;
+            count++;
+        }
+    });
+    if (count === 0) return null;
+    const promedio = total / count;
+    return { promedio: promedio.toFixed(1), total: count };
+}
+// aqui finaliza obtenerPromedioCalificacion
 
     chatUnsubscribe = onSnapshot(collection(db, "chats", chatId, "mensajes"), (snap) => {
         // Detectar mensajes nuevos (solo los que se añaden)
