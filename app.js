@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, where, limit, updateDoc, deleteDoc, orderBy, onSnapshot, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getDatabase, ref as dbRef, set as rtdbSet, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref as dbRef, set, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
 const firebaseConfig = {
@@ -358,7 +358,7 @@ function startMechanicTracking() {
             ts: Date.now()
         };
         // set sobrescribe la entrada (si ya existe, la actualiza; si no, la crea)
-        set(dbRef(rtdb, 'mecanicos_activos/' + uid), currentPos).catch(console.error);
+       set(dbRef(rtdb, 'mecanicos_activos/' + uid), currentPos).catch(console.error);
 
         // Historial de tracking (últimos 50 puntos)
         const trackingRef = dbRef(rtdb, `mecanicos_tracking/${uid}`);
@@ -5697,8 +5697,9 @@ window.searchServiceStatus = async () => {
     }
 };
 // ======================================================
-// === ENTREGAS - VERSIÓN SIMPLIFICADA Y ROBUSTA ===
+// === ENTREGAS - VERSIÓN COMPLETA (con seguimiento mejorado y calificaciones) ===
 // ======================================================
+// Variables globales
 let entregasMapInst = null;
 let entregasMarkers = {};
 let repartidoresMarkers = {};
@@ -5707,6 +5708,7 @@ let entregasRepartidoresUnsubscribe = null;
 let currentEntregaFilter = 'todos';
 let currentFechaInicio = null;
 let currentFechaFin = null;
+
 // ---------- Cargar listado lateral ----------
 window.cargarListadoEntregas = async () => {
     const listaDiv = document.getElementById('entregas-lista-lateral');
@@ -5861,7 +5863,7 @@ window.renderEntregasMapa = async () => {
     }
 };
 
-// ---------- Seguimiento en tiempo real de repartidores ----------
+// ---------- Seguimiento en tiempo real de personal (repartidores/mecánicos/admins) con calificación y botón perfil ----------
 function iniciarSeguimientoPersonal() {
     if (entregasRepartidoresUnsubscribe) {
         entregasRepartidoresUnsubscribe();
@@ -5871,53 +5873,81 @@ function iniciarSeguimientoPersonal() {
     entregasRepartidoresUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
         if (!entregasMapInst) return;
 
-        // Eliminar marcadores antiguos de personal
-        Object.values(repartidoresMarkers).forEach(m => {
-            if (entregasMapInst) entregasMapInst.removeLayer(m);
-        });
-        repartidoresMarkers = {};
-
-        if (!snap.exists()) return;
-
+        // Obtener datos de usuarios
+        const userMap = new Map();
         const promises = [];
         snap.forEach(child => {
-            promises.push(getDoc(doc(db, "users", child.key)));
-        });
-        const usersDocs = await Promise.all(promises);
-
-        let idx = 0;
-        snap.forEach(child => {
-            const pos = child.val();
             const uid = child.key;
-            const userData = usersDocs[idx]?.exists() ? usersDocs[idx].data() : null;
-            const nombre = userData?.name || 'Personal';
-            const telefono = userData?.phone || '';
-            const telefonoClean = telefono.replace('+52', '');
-
-            if (pos && pos.lat && pos.lng) {
-                const popupContent = `
-                    <div style="font-size:12px; background:#1A1A1A; color:white; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
-                        <b>${escapeHtml(nombre)}</b><br>
-                        ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
-                        <div style="display:flex; gap:8px; margin-top:8px;">
-                            ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; cursor:pointer;">📞 Llamar</button>` : ''}
-                            ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; cursor:pointer;">💬 WhatsApp</button>` : ''}
-                        </div>
-                    </div>
-                `;
-                const marker = L.marker([pos.lat, pos.lng], {
-                    icon: L.divIcon({
-                        className: 'repartidor-marker',
-                        html: `<div style="background:#3b82f6; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:14px; color:white;">🏍️</div>`,
-                        iconSize: [28,28],
-                        iconAnchor: [14,14]
-                    })
-                }).addTo(entregasMapInst);
-                marker.bindPopup(popupContent);
-                repartidoresMarkers[uid] = marker;
-            }
-            idx++;
+            promises.push(getDoc(doc(db, "users", uid)).then(docSnap => {
+                if (docSnap.exists()) userMap.set(uid, docSnap.data());
+            }));
         });
+        await Promise.all(promises);
+
+        // Eliminar marcadores de usuarios que ya no están activos
+        const currentUids = new Set();
+        snap.forEach(child => currentUids.add(child.key));
+        Object.keys(repartidoresMarkers).forEach(uid => {
+            if (!currentUids.has(uid)) {
+                entregasMapInst.removeLayer(repartidoresMarkers[uid]);
+                delete repartidoresMarkers[uid];
+            }
+        });
+
+        // Procesar cada posición
+        const tasks = [];
+        snap.forEach(child => {
+            tasks.push((async () => {
+                const pos = child.val();
+                const uid = child.key;
+                const userData = userMap.get(uid);
+                const nombre = userData?.name || 'Personal';
+                const telefono = userData?.phone || '';
+                const telefonoClean = telefono.replace('+52', '');
+                // Obtener calificación promedio
+                const calificacion = await obtenerPromedioCalificacion(uid);
+                const stars = calificacion ? '★'.repeat(Math.round(calificacion.promedio)) + '☆'.repeat(5 - Math.round(calificacion.promedio)) : '☆☆☆☆☆';
+                const ratingText = calificacion ? `${calificacion.promedio} ⭐ (${calificacion.total} reseñas)` : 'Sin reseñas';
+
+                if (pos && pos.lat && pos.lng) {
+                    const popupContent = `
+                        <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:#1A1A1A; color:white; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
+                            <b>${escapeHtml(nombre)}</b><br>
+                            <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
+                            ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+                            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                                ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+                                ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                                <button onclick="window.openStaffDetail('${uid}')" style="background:#3b82f6; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">Ver perfil</button>
+                            </div>
+                        </div>
+                    `;
+
+                    let marker = repartidoresMarkers[uid];
+                    if (marker) {
+                        marker.setLatLng([pos.lat, pos.lng]);
+                        marker.setPopupContent(popupContent);
+                    } else {
+                        marker = L.marker([pos.lat, pos.lng], {
+                            icon: L.divIcon({
+                                className: 'repartidor-marker',
+                                html: `<div style="background:#3b82f6; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:14px; color:white;">🏍️</div>`,
+                                iconSize: [28,28],
+                                iconAnchor: [14,14]
+                            })
+                        }).addTo(entregasMapInst);
+                        marker.bindPopup(popupContent);
+                        repartidoresMarkers[uid] = marker;
+                    }
+                } else {
+                    if (repartidoresMarkers[uid]) {
+                        entregasMapInst.removeLayer(repartidoresMarkers[uid]);
+                        delete repartidoresMarkers[uid];
+                    }
+                }
+            })());
+        });
+        await Promise.all(tasks);
     });
 }
 
@@ -6528,7 +6558,7 @@ window.openChat = (chatId) => {
         });
     };
 
-    // aqui inicia obtenerPromedioCalificacion
+// aqui inicia obtenerPromedioCalificacion //
 async function obtenerPromedioCalificacion(uid) {
     if (!uid) return null;
     const q = query(collection(db, "satisfaction"), where("uid", "==", uid));
@@ -6546,7 +6576,7 @@ async function obtenerPromedioCalificacion(uid) {
     const promedio = total / count;
     return { promedio: promedio.toFixed(1), total: count };
 }
-// aqui finaliza obtenerPromedioCalificacion
+// aqui finaliza obtenerPromedioCalificacion //
 
     chatUnsubscribe = onSnapshot(collection(db, "chats", chatId, "mensajes"), (snap) => {
         // Detectar mensajes nuevos (solo los que se añaden)
