@@ -1445,7 +1445,7 @@
     </div>
 </div>
 
-    <!-- Modal Checklist Profesional (con creación automática de usuario y número de cuadro) -->
+ <!-- Modal Checklist Profesional (con creación automática de usuario, número de cuadro y evidencias) -->
 <div id="modal-checklist-ingreso" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-4xl max-h-[90vh] rounded-[2rem] relative border border-naranja/30 shadow-2xl overflow-y-auto">
         <button onclick="toggleModal('modal-checklist-ingreso', false)" class="absolute top-4 right-4 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors z-10"><i class="fas fa-times"></i></button>
@@ -1453,7 +1453,7 @@
             <h2 class="text-2xl font-black italic uppercase text-white mb-2">Ingreso de Moto al Taller</h2>
             <p class="text-xs text-gray-400 mb-4">Complete el checklist. <span class="text-naranja">* Teléfono obligatorio</span></p>
 
-            <!-- Teléfono del cliente (obligatorio, primero) -->
+            <!-- Teléfono del cliente (obligatorio) -->
             <div class="mb-6 p-4 bg-naranja/10 rounded-xl border border-naranja/30">
                 <label class="text-sm font-bold text-white block mb-1">📱 Celular del cliente *</label>
                 <input type="tel" id="checklist-phone" maxlength="10" placeholder="10 dígitos (ej. 6311551533)" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white text-center text-lg font-bold">
@@ -1466,7 +1466,7 @@
                 <div><label class="text-[10px] text-gray-400 font-bold uppercase">Modelo *</label><input id="checklist-modelo" type="text" placeholder="Ej. FT150" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white"></div>
                 <div><label class="text-[10px] text-gray-400 font-bold uppercase">Año</label><input id="checklist-anio" type="text" placeholder="Ej. 2020" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white"></div>
                 <div><label class="text-[10px] text-gray-400 font-bold uppercase">Cilindraje</label><input id="checklist-cilindraje" type="text" placeholder="Ej. 150cc" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white"></div>
-                <!-- NUEVO CAMPO: Últimos 4 dígitos del cuadro -->
+                <!-- Últimos 4 dígitos del cuadro -->
                 <div class="md:col-span-2">
                     <label class="text-[10px] text-gray-400 font-bold uppercase">Últimos 4 dígitos del cuadro / placa *</label>
                     <input id="checklist-cuadro" type="text" maxlength="4" placeholder="Ej. 1234" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white text-center text-lg font-mono tracking-widest">
@@ -1474,7 +1474,7 @@
                 </div>
             </div>
 
-            <!-- Checklist de elementos (igual que antes) -->
+            <!-- Checklist de elementos -->
             <h3 class="text-lg font-black text-white mb-3 border-b border-white/10 pb-1">Estado de la unidad al ingreso</h3>
             <div class="space-y-4 mb-6">
                 <!-- Espejos -->
@@ -1544,7 +1544,7 @@
                 </div>
                 <!-- Nivel de batería y combustible -->
                 <div class="grid grid-cols-2 gap-3">
-                    <div><label class="text-sm font-bold text-white">Nivel de batería</label><select id="checklist-bateria" class="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-white"><option value="">Seleccionar</option><option>Buena</option><option>Regular</option><option>Baja</option></select></div>
+                    <div><label class="text-sm font-bold text-white">Nivel de batería</label><select id="checklist-bateria" class="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-white"><option value="">Seleccionar</option><option>Buena</option><option>Regular</option><option>Baja</option><option>No tiene</option></select></div>
                     <div><label class="text-sm font-bold text-white">Combustible</label><select id="checklist-combustible" class="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-white"><option value="">Seleccionar</option><option>Vacío</option><option>1/4</option><option>1/2</option><option>3/4</option><option>Lleno</option></select></div>
                 </div>
                 <!-- Rayaduras y observaciones -->
@@ -1558,7 +1558,7 @@
             </div>
         </div>
     </div>
-</div>    
+</div> 
     <!-- Modal Aplicar Garantía -->
 <div id="modal-aplicar-garantia" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl">
