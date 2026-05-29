@@ -342,47 +342,63 @@ function updateLogo() {
     logo.src = isLight ? 'logo_claro.png' : 'logo_oscuro.png';
 }
 
-// === RASTREO MECÁNICO ===
+// aqui inicia startMechanicTracking automatico (con set y limpieza) //
 function startMechanicTracking() {
-    if(['admin', 'mecanico', 'taller'].includes(window.currentUserDoc?.role)) {
-        if(navigator.geolocation) {
-            navigator.geolocation.watchPosition(pos => {
-                const uid = auth.currentUser.uid;
-                const currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, name: window.currentUserDoc.name, ts: Date.now() };
-                update(dbRef(rtdb, 'mecanicos_activos/' + uid), currentPos);
-                
-                // Guardar en historial de tracking (últimas 50 posiciones)
-                const trackingRef = dbRef(rtdb, `mecanicos_tracking/${uid}`);
-                push(trackingRef, currentPos).then(() => {
-                    // Mantener solo los últimos 50 puntos para no sobrecargar
-                    onValue(trackingRef, (snap) => {
-                        if (snap.exists()) {
-                            const arr = [];
-                            snap.forEach(child => arr.push(child.val()));
-                            arr.sort((a,b) => a.ts - b.ts);
-                            if (arr.length > 50) {
-                                const toRemove = arr.slice(0, arr.length - 50);
-                                toRemove.forEach(old => {
-                                    const oldKey = Object.keys(snap.val()).find(key => snap.val()[key].ts === old.ts);
-                                    if (oldKey) remove(dbRef(rtdb, `mecanicos_tracking/${uid}/${oldKey}`));
-                                });
-                            }
-                        }
-                    }, { onlyOnce: true });
-                });
-                
-                // Si hay un SOS activo, guardar punto de trayectoria
-                if (window.activeMechanicSOSId) {
-                    push(dbRef(rtdb, `sos_tracking/${window.activeMechanicSOSId}/${uid}/points`), {
-                        lat: pos.coords.latitude,
-                        lng: pos.coords.longitude,
-                        ts: Date.now()
+    const role = window.currentUserDoc?.role;
+    if (!['admin', 'mecanico', 'taller'].includes(role)) return;
+    if (!navigator.geolocation) return;
+
+    let watchId = null;
+    const updatePosition = (pos) => {
+        const uid = auth.currentUser.uid;
+        const currentPos = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            name: window.currentUserDoc.name || 'Usuario',
+            ts: Date.now()
+        };
+        // Usamos set para sobrescribir completamente la entrada (evita duplicados)
+        set(dbRef(rtdb, 'mecanicos_activos/' + uid), currentPos).catch(console.error);
+
+        // Guardar historial de tracking (últimos 50 puntos)
+        const trackingRef = dbRef(rtdb, `mecanicos_tracking/${uid}`);
+        push(trackingRef, currentPos).then(() => {
+            onValue(trackingRef, (snap) => {
+                if (!snap.exists()) return;
+                const arr = [];
+                snap.forEach(child => arr.push(child.val()));
+                arr.sort((a,b) => a.ts - b.ts);
+                if (arr.length > 50) {
+                    const toRemove = arr.slice(0, arr.length - 50);
+                    toRemove.forEach(old => {
+                        const oldKey = Object.keys(snap.val()).find(key => snap.val()[key].ts === old.ts);
+                        if (oldKey) remove(dbRef(rtdb, `mecanicos_tracking/${uid}/${oldKey}`));
                     });
                 }
-            }, e=>console.error(e), {enableHighAccuracy: true, maximumAge: 10000});
+            }, { onlyOnce: true });
+        });
+
+        // Si hay un SOS activo, guardar punto de trayectoria
+        if (window.activeMechanicSOSId) {
+            push(dbRef(rtdb, `sos_tracking/${window.activeMechanicSOSId}/${uid}/points`), {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                ts: Date.now()
+            });
         }
-    }
+    };
+
+    const errorHandler = (err) => console.error('Geolocation error:', err);
+
+    watchId = navigator.geolocation.watchPosition(updatePosition, errorHandler, {
+        enableHighAccuracy: true,
+        maximumAge: 10000,
+        timeout: 30000
+    });
+    window._mechWatchId = watchId;
 }
+// aqui finaliza startMechanicTracking automatico //
+
 // ======================================================
 // ACTUALIZACIÓN DEL BOTÓN DE EMERGENCIA (SEGÚN HORARIO)
 // ======================================================
