@@ -839,3 +839,9 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
         height: 200px;
     }
 }
+@media (min-width: 768px) {
+    input[type="time"] {
+        font-size: 1rem;
+        width: 130px;
+    }
+}
