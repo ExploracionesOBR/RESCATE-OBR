@@ -5764,11 +5764,10 @@ window.loadPromoVideo = () => {
     if (!containerPublic && !containerClient) return;
     
     const now = new Date();
-    const dayIndex = now.getDay(); // 0 = domingo, 1 = lunes, etc.
+    const dayIndex = now.getDay();
     const todayVideo = globalSettings.videoSchedule?.[dayIndex];
     
     if (todayVideo && todayVideo.trim() !== '') {
-        // HTML del video con tamaño reducido y sin controles
         const videoHtml = `
             <div style="pointer-events: none; user-select: none; width: 100%; margin: 0 auto;">
                 <video 
@@ -5778,8 +5777,8 @@ window.loadPromoVideo = () => {
                     loop 
                     playsinline 
                     controlsList="nodownload nofullscreen"
-                    class="w-full object-contain rounded-xl"
-                    style="max-height: 200px; height: auto; width: 100%;"
+                    class="w-full object-cover rounded-xl"
+                    style="height: 180px; width: 100%;"
                     oncontextmenu="return false">
                 </video>
             </div>
@@ -5795,7 +5794,6 @@ window.loadPromoVideo = () => {
             containerClient.style.display = 'block';
         }
     } else {
-        // Ocultar ambos contenedores si no hay video
         if (containerPublic) {
             containerPublic.classList.add('hidden');
             containerPublic.style.display = 'none';
