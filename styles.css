@@ -577,11 +577,6 @@ input:focus, select:focus, textarea:focus {
     overflow: hidden;
     background: #000;
 }
-#video-banner-container video {
-    width: 100%;
-    max-height: 300px;
-    object-fit: contain;
-}
 /* Ajuste para el video promocional en móviles */
 @media (max-width: 768px) {
     #video-banner-container video,
@@ -808,17 +803,39 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 #sos-service-dropdown div:hover {
     background-color: rgba(255, 107, 0, 0.3);
 }
-#video-banner-container-client video,
-#video-banner-container video {
+/* Contenedor del video (sin padding extra) */
+#video-banner-container,
+#video-banner-container-client {
     width: 100%;
-    height: 180px;
-    object-fit: contain;
+    margin: 0;
+    padding: 0;
+    border-radius: 1rem;
+    overflow: hidden;
     background-color: #000;
+}
+
+/* Video que llena todo el contenedor sin bordes negros */
+#video-banner-container video,
+#video-banner-container-client video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;   /* Cambiado de 'contain' a 'cover' */
+    display: block;
     border-radius: 1rem;
 }
-@media (min-width: 1024px) {
-    #video-banner-container-client video,
-    #video-banner-container video {
+
+/* En móviles, altura fija más pequeña (opcional) */
+@media (max-width: 768px) {
+    #video-banner-container,
+    #video-banner-container-client {
+        height: 170px;  /* Ajusta según tu diseño */
+    }
+}
+
+/* En escritorio, altura un poco mayor (opcional) */
+@media (min-width: 769px) {
+    #video-banner-container,
+    #video-banner-container-client {
         height: 200px;
     }
 }
