@@ -582,9 +582,11 @@ input:focus, select:focus, textarea:focus {
     max-height: 300px;
     object-fit: contain;
 }
+/* Ajuste para el video promocional en móviles */
 @media (max-width: 768px) {
-    #video-banner-container video {
-        max-height: 200px;
+    #video-banner-container video,
+    #video-banner-container-client video {
+        max-height: 150px !important;
     }
 }
 
