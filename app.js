@@ -3952,13 +3952,15 @@ window.downloadStaffReport = async (uid) => {
 };
 
 // ======================================================
-// === SOS MEJORADO (con listado lateral, filtros, TTS, WhatsApp personalizado, POS) ===
+// === SOS COMPLETO (listado lateral, mapa, personal en tiempo real, filtros, reportes) ===
 // ======================================================
-
-window.currentSOSFilter = window.currentSOSFilter || 'pending';
+// Variables globales (se reutilizan las que ya existen: adminSOSGlobalMapInst, adminSOSMarkers, etc.)
+window.currentSOSFilter = window.currentSOSFilter || 'todos'; // 'todos', 'pending', 'accepted', 'completed'
 let sosFechaInicio = null;
 let sosFechaFin = null;
-let lastSOSCount = 0; // para detectar nuevas solicitudes
+let lastSOSCount = 0;
+let sosPersonalMarkers = {};      // marcadores de personal (mecánicos, admins)
+let sosPersonalUnsubscribe = null;
 
 // ---------- Notificación TTS de nueva solicitud ----------
 function iniciarNotificacionSOS() {
@@ -3985,9 +3987,9 @@ async function enviarWhatsAppPersonalizado(telefonoCliente, nombreCliente, nombr
 
 // ---------- Cargar listado lateral de SOS ----------
 async function cargarListadoSOS() {
-    const listaDiv = document.getElementById('admin-sos-list');
+    const listaDiv = document.getElementById('admin-sos-list-lateral');
     if (!listaDiv) {
-        console.warn('No se encontró el contenedor admin-sos-list');
+        console.warn('No se encontró el contenedor admin-sos-list-lateral');
         return;
     }
     listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">Cargando...</p>';
@@ -3995,9 +3997,9 @@ async function cargarListadoSOS() {
     let q = query(collection(db, "rescates"));
     if (sosFechaInicio && sosFechaFin) {
         const startDate = new Date(sosFechaInicio);
-        startDate.setHours(0,0,0,0);
+        startDate.setHours(0, 0, 0, 0);
         const endDate = new Date(sosFechaFin);
-        endDate.setHours(23,59,59,999);
+        endDate.setHours(23, 59, 59, 999);
         q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
     }
     const snap = await getDocs(q);
@@ -4009,9 +4011,13 @@ async function cargarListadoSOS() {
     });
 
     let filtered = rescates;
-    if (window.currentSOSFilter === 'pending') filtered = rescates.filter(r => r.status === 'pending');
-    else if (window.currentSOSFilter === 'accepted') filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
-    else if (window.currentSOSFilter === 'completed') filtered = rescates.filter(r => r.status === 'completed');
+    if (window.currentSOSFilter === 'pending') {
+        filtered = rescates.filter(r => r.status === 'pending');
+    } else if (window.currentSOSFilter === 'accepted') {
+        filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
+    } else if (window.currentSOSFilter === 'completed') {
+        filtered = rescates.filter(r => r.status === 'completed');
+    } // 'todos' no filtra
 
     listaDiv.innerHTML = '';
     if (filtered.length === 0) {
@@ -4020,11 +4026,11 @@ async function cargarListadoSOS() {
     }
 
     filtered.forEach(r => {
-        const estadoTexto = r.status === 'completed' ? '✅ Completado' : 
-                           (r.status === 'accepted' ? '🚚 En camino' : 
-                           (r.status === 'repairing' ? '🔧 Reparando' : '🆕 Pendiente'));
+        const estadoTexto = r.status === 'completed' ? '✅ Completado' :
+            (r.status === 'accepted' ? '🚚 En camino' :
+                (r.status === 'repairing' ? '🔧 Reparando' : '🆕 Pendiente'));
         const colorClase = r.status === 'completed' ? 'text-green-400' :
-                          (r.status === 'accepted' ? 'text-blue-400' : 'text-yellow-400');
+            (r.status === 'accepted' ? 'text-blue-400' : 'text-yellow-400');
         const telefonoCliente = r.phone || '';
         const telefonoClean = telefonoCliente.replace('+52', '');
         const botonesContacto = telefonoClean ? `
@@ -4055,7 +4061,7 @@ async function cargarListadoSOS() {
             <div class="sos-card-compact" onclick="openDetalleServicio('${r.id}')">
                 <div class="flex justify-between items-center">
                     <span class="text-[0.8rem] font-bold">${escapeHtml(r.phone) || ''}</span>
-                    <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${window.getStatusInfo(r.status).color}">${window.getStatusInfo(r.status).text}</span>
+                    <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${colorClase}">${estadoTexto}</span>
                 </div>
                 <p class="text-[0.7rem] text-gray-400 truncate">${escapeHtml(r.falla || '')}</p>
                 <div class="flex justify-between items-center mt-1">
@@ -4069,7 +4075,7 @@ async function cargarListadoSOS() {
     });
 }
 
-// ---------- Renderizar mapa con marcadores ----------
+// ---------- Renderizar mapa con marcadores de SOS y ajuste de zoom ----------
 async function renderSOSMapa() {
     const mapEl = document.getElementById('admin-sos-global-map');
     if (!mapEl) return;
@@ -4081,7 +4087,7 @@ async function renderSOSMapa() {
     const attribution = '&copy; <a href="https://carto.com/">CARTO</a>';
 
     if (!adminSOSGlobalMapInst) {
-        adminSOSGlobalMapInst = L.map(mapEl, { zoomControl: true, scrollWheelZoom: false }).setView([TALLER_LAT, TALLER_LNG], 11);
+        adminSOSGlobalMapInst = L.map(mapEl, { zoomControl: true, scrollWheelZoom: true }).setView([TALLER_LAT, TALLER_LNG], 11);
         L.tileLayer(layerUrl, { attribution }).addTo(adminSOSGlobalMapInst);
         L.marker([TALLER_LAT, TALLER_LNG], {
             icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36, 36], iconAnchor: [18, 36] }),
@@ -4094,13 +4100,13 @@ async function renderSOSMapa() {
         L.tileLayer(layerUrl, { attribution }).addTo(adminSOSGlobalMapInst);
     }
 
-    // Limpiar marcadores antiguos
+    // Limpiar marcadores de SOS antiguos
     Object.values(adminSOSMarkers).forEach(m => {
         if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.removeLayer(m);
     });
     adminSOSMarkers = {};
 
-    // Limpiar listeners de tracking y líneas de ruta
+    // Limpiar listeners de tracking y líneas de ruta (si existían)
     if (window._adminSOSTrackingListeners) {
         Object.values(window._adminSOSTrackingListeners).forEach(unsub => unsub());
         window._adminSOSTrackingListeners = {};
@@ -4113,9 +4119,9 @@ async function renderSOSMapa() {
     let q = query(collection(db, "rescates"));
     if (sosFechaInicio && sosFechaFin) {
         const startDate = new Date(sosFechaInicio);
-        startDate.setHours(0,0,0,0);
+        startDate.setHours(0, 0, 0, 0);
         const endDate = new Date(sosFechaFin);
-        endDate.setHours(23,59,59,999);
+        endDate.setHours(23, 59, 59, 999);
         q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
     }
     const snap = await getDocs(q);
@@ -4127,20 +4133,29 @@ async function renderSOSMapa() {
     });
 
     let filtered = rescates;
-    if (window.currentSOSFilter === 'pending') filtered = rescates.filter(r => r.status === 'pending');
-    else if (window.currentSOSFilter === 'accepted') filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
-    else if (window.currentSOSFilter === 'completed') filtered = rescates.filter(r => r.status === 'completed');
+    if (window.currentSOSFilter === 'pending') {
+        filtered = rescates.filter(r => r.status === 'pending');
+    } else if (window.currentSOSFilter === 'accepted') {
+        filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
+    } else if (window.currentSOSFilter === 'completed') {
+        filtered = rescates.filter(r => r.status === 'completed');
+    }
+
+    // Array para acumular coordenadas de todos los puntos (incluyendo taller)
+    const allBounds = [];
+    allBounds.push([TALLER_LAT, TALLER_LNG]);
 
     filtered.forEach(r => {
         if (!r.lat || !r.lng) return;
+        allBounds.push([r.lat, r.lng]);
         const isCompleted = r.status === 'completed';
         const iconHtml = isCompleted ? '🏍️✅' : '🏍️';
         const marker = L.marker([r.lat, r.lng], {
             icon: L.divIcon({
                 className: 'sos-marker',
                 html: `<div style="background:${isCompleted ? '#22c55e' : '#FF6B00'}; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; border:2px solid white; box-shadow:0 2px 5px rgba(0,0,0,0.3);">${iconHtml}</div>`,
-                iconSize: [28,28],
-                iconAnchor: [14,14]
+                iconSize: [28, 28],
+                iconAnchor: [14, 14]
             })
         }).addTo(adminSOSGlobalMapInst);
 
@@ -4192,30 +4207,108 @@ async function renderSOSMapa() {
         }
     });
 
-    const markersArray = Object.values(adminSOSMarkers);
-    if (markersArray.length > 0) {
-        const group = new L.featureGroup(markersArray);
-        adminSOSGlobalMapInst.fitBounds(group.getBounds().pad(0.1));
+    // Ajustar el mapa para mostrar todos los puntos con padding
+    if (allBounds.length > 0) {
+        const bounds = L.latLngBounds(allBounds);
+        adminSOSGlobalMapInst.fitBounds(bounds, { padding: [50, 50] });
     } else {
-        adminSOSGlobalMapInst.setView([TALLER_LAT, TALLER_LNG], 13);
+        adminSOSGlobalMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
     }
     window.fixMaps?.();
 }
 
-// ---------- Funciones de filtro y renderizado principal ----------
-window.filterSOS = (status) => {
-    window.currentSOSFilter = status || 'pending';
+// ---------- Seguimiento de personal activo en el mapa SOS (mecánicos, administradores, etc.) ----------
+function iniciarSeguimientoPersonalSOS() {
+    if (sosPersonalUnsubscribe) {
+        sosPersonalUnsubscribe();
+        sosPersonalUnsubscribe = null;
+    }
+
+    sosPersonalUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
+        if (!adminSOSGlobalMapInst) return;
+
+        // Limpiar marcadores antiguos de personal
+        Object.values(sosPersonalMarkers).forEach(m => {
+            if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.removeLayer(m);
+        });
+        sosPersonalMarkers = {};
+
+        if (!snap.exists()) return;
+
+        const promises = [];
+        snap.forEach(child => {
+            promises.push(getDoc(doc(db, "users", child.key)));
+        });
+        const usersDocs = await Promise.all(promises);
+
+        let idx = 0;
+        snap.forEach(child => {
+            const pos = child.val();
+            const uid = child.key;
+            const userData = usersDocs[idx]?.exists() ? usersDocs[idx].data() : null;
+            const nombre = userData?.name || 'Personal';
+            const telefono = userData?.phone || '';
+            const telefonoClean = telefono.replace('+52', '');
+
+            if (pos && pos.lat && pos.lng) {
+                const popupContent = `
+                    <div style="font-size:12px; background:#1A1A1A; color:white; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
+                        <b>${escapeHtml(nombre)}</b><br>
+                        ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+                        <div style="display:flex; gap:8px; margin-top:8px;">
+                            ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; cursor:pointer;">📞 Llamar</button>` : ''}
+                            ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                        </div>
+                    </div>
+                `;
+                const marker = L.marker([pos.lat, pos.lng], {
+                    icon: L.divIcon({
+                        className: 'sos-personal-marker',
+                        html: `<div style="background:#3b82f6; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:14px; color:white;">👨‍🔧</div>`,
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 14]
+                    })
+                }).addTo(adminSOSGlobalMapInst);
+                marker.bindPopup(popupContent);
+                sosPersonalMarkers[uid] = marker;
+            }
+            idx++;
+        });
+    });
+}
+
+// ---------- Funciones de filtro (respetando el nombre usado en HTML: window.filtrarSOSPorEstatus) ----------
+window.filtrarSOSPorEstatus = (estatus) => {
+    window.currentSOSFilter = estatus; // 'todos', 'pending', 'accepted', 'completed'
+    // Actualizar la UI de los botones
+    document.querySelectorAll('.filter-btn-sos-estatus').forEach(btn => {
+        btn.classList.remove('bg-white/20', 'border-white/30');
+        btn.classList.add('bg-white/5', 'border-white/10');
+        if (btn.getAttribute('data-sos-estatus') === estatus) {
+            btn.classList.remove('bg-white/5', 'border-white/10');
+            btn.classList.add('bg-white/20', 'border-white/30');
+        }
+    });
+    // Refrescar listado y mapa
     cargarListadoSOS();
     renderSOSMapa();
 };
 
+// También mantenemos la función original filterSOS para compatibilidad (si se llama desde otro lugar)
+window.filterSOS = (status) => {
+    window.filtrarSOSPorEstatus(status);
+};
+
+// ---------- Función principal de renderizado (se llama desde switchAdminView) ----------
 window.renderSOSGlobalMap = async () => {
     console.log('🔄 renderSOSGlobalMap ejecutado');
     if (!auth.currentUser) return;
     await cargarListadoSOS();
     await renderSOSMapa();
+    iniciarSeguimientoPersonalSOS(); // añadir personal en tiempo real
 };
 
+// ---------- Filtro por fecha (desde los inputs) ----------
 window.cargarSOSConFiltroFecha = async () => {
     const inicio = document.getElementById('sos-fecha-inicio')?.value;
     const fin = document.getElementById('sos-fecha-fin')?.value;
@@ -4225,7 +4318,7 @@ window.cargarSOSConFiltroFecha = async () => {
     await renderSOSMapa();
 };
 
-// ---------- Generar reporte PDF / CSV ----------
+// ---------- Generar reporte PDF/CSV ----------
 window.generarReporteSOS = async () => {
     const tipo = await new Promise((resolve) => {
         const modalId = 'modal-reporte-sos-opciones';
@@ -4257,9 +4350,9 @@ window.generarReporteSOS = async () => {
     let q = query(collection(db, "rescates"));
     if (sosFechaInicio && sosFechaFin) {
         const startDate = new Date(sosFechaInicio);
-        startDate.setHours(0,0,0,0);
+        startDate.setHours(0, 0, 0, 0);
         const endDate = new Date(sosFechaFin);
-        endDate.setHours(23,59,59,999);
+        endDate.setHours(23, 59, 59, 999);
         q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
     }
     const snap = await getDocs(q);
@@ -4296,10 +4389,10 @@ window.generarReporteSOS = async () => {
             body: bodyRows,
             theme: 'striped',
             styles: { fontSize: 8 },
-            headStyles: { fillColor: [255,107,0] }
+            headStyles: { fillColor: [255, 107, 0] }
         });
         addFooter(pdfDoc);
-        pdfDoc.save(`Reporte_SOS_${new Date().toISOString().slice(0,19)}.pdf`);
+        pdfDoc.save(`Reporte_SOS_${new Date().toISOString().slice(0, 19)}.pdf`);
     }
     if (tipo === 'csv' || tipo === 'ambos') {
         const rows = [['Fecha', 'Cliente', 'Falla', 'Estado', 'Costo']];
@@ -4315,14 +4408,14 @@ window.generarReporteSOS = async () => {
         const csvContent = "data:text/csv;charset=utf-8," + rows.map(e => e.join(",")).join("\n");
         const link = document.createElement('a');
         link.setAttribute('href', encodeURI(csvContent));
-        link.setAttribute('download', `SOS_${new Date().toISOString().slice(0,19)}.csv`);
+        link.setAttribute('download', `SOS_${new Date().toISOString().slice(0, 19)}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
     }
 };
 
-// ---------- Funciones de aceptar, cancelar, cambiar estado ----------
+// ---------- Funciones de aceptar, cancelar, cambiar estado (ya existentes, pero las incluimos para que no falten) ----------
 window.acceptSOS = (id) => {
     window.currentSOSId = id;
     loadMecanicosActivosParaAsignar(id);
@@ -4353,11 +4446,28 @@ window.changeSOSStatus = async (id, newStatus) => {
     let notifMsg = '';
     let finalizar = false;
 
-    switch(newStatus) {
-        case 'repairing': updates.status = 'repairing'; updates.repairedAt = now; notifMsg = 'El mecánico está reparando tu moto.'; break;
-        case 'to_shop': updates.status = 'to_shop'; updates.shopAt = now; notifMsg = 'Tu moto será llevada al taller.'; break;
-        case 'ready': updates.status = 'completed'; updates.tallerStatus = 'lista'; notifMsg = 'Tu moto está lista para entregar.'; finalizar = true; break;
-        case 'cancelled': updates.status = 'cancelled'; notifMsg = 'El taller ha cancelado el servicio.'; finalizar = true; break;
+    switch (newStatus) {
+        case 'repairing':
+            updates.status = 'repairing';
+            updates.repairedAt = now;
+            notifMsg = 'El mecánico está reparando tu moto.';
+            break;
+        case 'to_shop':
+            updates.status = 'to_shop';
+            updates.shopAt = now;
+            notifMsg = 'Tu moto será llevada al taller.';
+            break;
+        case 'ready':
+            updates.status = 'completed';
+            updates.tallerStatus = 'lista';
+            notifMsg = 'Tu moto está lista para entregar.';
+            finalizar = true;
+            break;
+        case 'cancelled':
+            updates.status = 'cancelled';
+            notifMsg = 'El taller ha cancelado el servicio.';
+            finalizar = true;
+            break;
     }
     await updateDoc(docRef, updates);
 
@@ -4370,11 +4480,11 @@ window.changeSOSStatus = async (id, newStatus) => {
             if (trackingSnap.exists()) {
                 const points = [];
                 trackingSnap.forEach(child => points.push(child.val()));
-                points.sort((a,b) => a.ts - b.ts);
+                points.sort((a, b) => a.ts - b.ts);
                 await updateDoc(docRef, { mech_track: points });
             }
             await remove(dbRef(rtdb, `sos_tracking/${id}`));
-        } catch(e) {
+        } catch (e) {
             console.warn('Error al consolidar trayectoria:', e);
         }
         window.activeMechanicSOSId = null;
@@ -4412,7 +4522,7 @@ window.addMechanicPOSItem = (id) => {
     if (p) {
         window.posTicket.push({ type: 'almacen', id: p.id, name: p.name, price: p.priceTaller, cost: p.cost });
         window.renderTicket();
-        const total = window.posTicket.reduce((s,i)=>s+i.price,0);
+        const total = window.posTicket.reduce((s, i) => s + i.price, 0);
         const totalEl = document.getElementById('mechanic-total');
         if (totalEl) totalEl.innerText = total.toFixed(2);
         showToast("Agregado");
@@ -4471,7 +4581,7 @@ window.finalizeMechanicCharge = async () => {
     });
 };
 
-// ---------- Asignar mecánico y enviar WhatsApp ----------
+// ---------- Asignar mecánico y enviar WhatsApp personalizado ----------
 async function loadMecanicosActivosParaAsignar(sosId) {
     const lista = document.getElementById('lista-mecanicos-asignar');
     if (!lista) return;
@@ -4553,12 +4663,12 @@ window.tomarCasoDirecto = async () => {
     window.renderSOSGlobalMap();
 };
 
-// ---------- Iniciar notificaciones TTS ----------
+// ---------- Iniciar notificaciones TTS al cargar ----------
 setTimeout(() => {
     iniciarNotificacionSOS();
 }, 2000);
 
-// ---------- Redimensionar mapa al cambiar de pestaña ----------
+// Redimensionar mapa al cambiar de pestaña
 window.addEventListener('visibilitychange', () => {
     if (!document.hidden && adminSOSGlobalMapInst) {
         setTimeout(() => adminSOSGlobalMapInst.invalidateSize(), 200);
