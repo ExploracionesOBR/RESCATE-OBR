@@ -5694,7 +5694,9 @@ window.adminAddKmRange = () => {
     if (isNaN(kmLimit) || isNaN(price)) return showToast("Ingresa valores numéricos", true);
     globalSettings.rescueKmRanges.push({ km: kmLimit, price });
     globalSettings.rescueKmRanges.sort((a,b) => a.km - b.km);
-    window.adminRefreshConfigUI();
+    window.adminRefreshConfigUI(); // actualiza la UI
+    window.adminSaveConfig();      // guarda en Firestore automáticamente
+    // Limpiar inputs
     const kmInput = document.getElementById('new-km-limit');
     const priceInput = document.getElementById('new-km-price');
     if (kmInput) kmInput.value = '';
@@ -5704,6 +5706,7 @@ window.adminAddKmRange = () => {
 window.removeKmRange = (index) => {
     globalSettings.rescueKmRanges.splice(index, 1);
     window.adminRefreshConfigUI();
+    window.adminSaveConfig();
 };
 
 window.usePreviousDayVideo = (dayIndex) => {
