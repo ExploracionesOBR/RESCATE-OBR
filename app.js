@@ -782,6 +782,11 @@ window.switchClientView = (id) => {
 
 window.switchAdminView = (id) => {
     toggleModal('modal-user-detail', false);
+    // Mostrar/ocultar botón flotante de chat IA solo en Taller
+    const chatAiBtn = document.getElementById('btn-chat-ai-float');
+    if (chatAiBtn) {
+        chatAiBtn.style.display = id === 'a-view-servicios' ? 'flex' : 'none';
+    }
     document.querySelectorAll('.a-view').forEach(v => v.classList.add('hidden')); 
     document.getElementById(id).classList.remove('hidden');
     document.querySelectorAll('.a-nav-btn').forEach(b => b.classList.remove('tab-active'));
