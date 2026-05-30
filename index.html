@@ -1027,7 +1027,7 @@
                 </div>
             </div>
         </section>
-        <button id="btn-chat-ai-float" class="fixed bottom-24 right-20 w-14 h-14 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl z-40 hover:bg-orange-500 transition-all animate-pulse-soft" title="Chat con IA (Mecánico Virtual)" style="display: none;">
+       <button id="btn-chat-ai-float" class="fixed bottom-24 right-20 w-14 h-14 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl z-40 hover:bg-orange-500 transition-all animate-pulse-soft" title="Chat con IA (Mecánico Virtual)" style="display: none;">
     <i class="fas fa-robot text-2xl"></i>
 </button>
            </main>
@@ -1036,11 +1036,6 @@
         <div class="flex w-full justify-between lg:justify-center lg:space-x-8 min-w-max px-2">
             <button onclick="window.switchAdminView?.('a-view-pos')" class="a-nav-btn tab-active flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-naranja min-w-[60px]"><i class="fas fa-cash-register text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Caja</span></button>
             <button onclick="window.switchAdminView?.('a-view-servicios')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-blue-400 min-w-[60px]"><i class="fas fa-clipboard-list text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Taller</span></button>
-           
-            <button onclick="toggleModal('modal-chat-ai', true)" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-purple-400 min-w-[60px]">
-    <i class="fas fa-robot text-xl mb-1"></i>
-    <span class="text-[8px] font-black uppercase tracking-widest mt-1">IA</span>
-</button>
             <button onclick="window.switchAdminView?.('a-view-alertas')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-red-500 min-w-[60px]"><i class="fas fa-exclamation-triangle text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">SOS</span></button>
             <button onclick="window.switchAdminView?.('a-view-entregas')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-green-400 min-w-[60px]"><i class="fas fa-truck text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Entregas</span></button>
             <button onclick="window.switchAdminView?.('a-view-inventario')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-green-400 min-w-[60px]"><i class="fas fa-box-open text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Almacén</span></button>
@@ -1049,6 +1044,7 @@
             <button onclick="window.switchAdminView?.('a-view-config')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-gray-400 min-w-[60px]"><i class="fas fa-cog text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Ajustes</span></button>
             <button onclick="window.switchAdminView?.('a-view-stats')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-naranja min-w-[60px]"><i class="fas fa-chart-bar text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Estadíst.</span></button>
             <button onclick="window.switchAdminView?.('a-view-citas')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-green-400 min-w-[60px]"><i class="fas fa-calendar-check text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Citas</span></button>
+            <button onclick="window.abrirChatIA()" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-purple-400 min-w-[60px]"><i class="fas fa-robot text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">IA</span></button>
         </div>
     </nav>
 </div>
