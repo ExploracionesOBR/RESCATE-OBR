@@ -36,6 +36,242 @@ window.loadHtml2Canvas = () => {
     });
 };
 
+// ========== CHAT IA - FUNCIONES COMPLETAS (UBICADAS AL PRINCIPIO) ==========
+let gruposIA = [];
+let grupoActivoIA = null;
+
+function guardarGruposIA() {
+    localStorage.setItem('obr_chat_ia_groups', JSON.stringify(gruposIA));
+}
+
+function cargarGruposIA() {
+    const stored = localStorage.getItem('obr_chat_ia_groups');
+    gruposIA = stored ? JSON.parse(stored) : [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+    guardarGruposIA();
+    renderizarListaGruposIA();
+    if (gruposIA.length) seleccionarGrupoIA(gruposIA[0].id);
+}
+
+function renderizarListaGruposIA() {
+    const container = document.getElementById('lista-grupos-ia');
+    if (!container) return;
+    container.innerHTML = '';
+    gruposIA.forEach(grupo => {
+        const div = document.createElement('div');
+        div.className = `p-2 rounded-xl cursor-pointer hover:bg-white/10 ${grupoActivoIA?.id === grupo.id ? 'bg-naranja/20 border-l-4 border-naranja' : 'bg-white/5'}`;
+        div.innerHTML = `<div class="flex justify-between items-center"><span class="text-sm font-bold truncate">${escapeHtml(grupo.nombre)}</span>${grupo.servicioId ? `<span class="text-[9px] text-purple-400">📎 ${grupo.servicioId.slice(-6)}</span>` : ''}</div><div class="text-[10px] text-gray-400 truncate">${grupo.mensajes.length} mensajes</div>`;
+        div.onclick = () => seleccionarGrupoIA(grupo.id);
+        container.appendChild(div);
+    });
+}
+
+function seleccionarGrupoIA(id) {
+    grupoActivoIA = gruposIA.find(g => g.id === id);
+    if (!grupoActivoIA) return;
+    const titulo = document.getElementById('chat-ai-titulo');
+    if (titulo) titulo.innerText = grupoActivoIA.nombre;
+    const servicioSpan = document.getElementById('chat-ai-servicio-id');
+    if (servicioSpan) servicioSpan.innerText = grupoActivoIA.servicioId ? `Servicio: ${grupoActivoIA.servicioId}` : '';
+    renderizarMensajesIA();
+    renderizarListaGruposIA();
+}
+
+function renderizarMensajesIA() {
+    const contenedor = document.getElementById('chat-ai-mensajes');
+    if (!contenedor || !grupoActivoIA) return;
+    contenedor.innerHTML = '';
+    grupoActivoIA.mensajes.forEach(msg => {
+        const div = document.createElement('div');
+        div.className = `flex ${msg.rol === 'usuario' ? 'justify-end' : 'justify-start'}`;
+        div.innerHTML = `<div class="${msg.rol === 'usuario' ? 'bg-naranja' : 'bg-blue-600'} max-w-[75%] p-3 rounded-2xl text-white text-sm"><div>${escapeHtml(msg.texto)}</div>${msg.imagenes ? `<div class="flex gap-1 mt-2">${msg.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox('${img}')">`).join('')}</div>` : ''}<div class="text-[9px] opacity-60 mt-1">${new Date(msg.timestamp).toLocaleTimeString()}</div></div>`;
+        contenedor.appendChild(div);
+    });
+    contenedor.scrollTop = contenedor.scrollHeight;
+}
+
+async function consultarGroq(promptUsuario) {
+    const GROQ_API_KEY = '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';
+    const contexto = grupoActivoIA.mensajes.slice(-5).filter(m => m.rol !== 'loading').map(m => `${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`).join('\n');
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({
+            model: 'llama3-8b-8192',
+            messages: [
+                { role: 'system', content: "Eres un mecánico especializado experto en resolver dudas analizando imágenes o preguntas que se indiquen para dar más pronto con el fallo que se tiene existente." },
+                { role: 'user', content: `Contexto: ${contexto}\nPregunta: ${promptUsuario}` }
+            ],
+            temperature: 0.7,
+            max_tokens: 1024
+        })
+    });
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.choices[0].message.content;
+}
+
+window.enviarMensajeIA = async () => {
+    const input = document.getElementById('chat-ai-input');
+    const texto = input?.value.trim();
+    if (!texto || !grupoActivoIA) return;
+    grupoActivoIA.mensajes.push({ rol: 'usuario', texto, timestamp: Date.now() });
+    guardarGruposIA();
+    renderizarMensajesIA();
+    if (input) input.value = '';
+    grupoActivoIA.mensajes.push({ rol: 'asistente', texto: '...', timestamp: Date.now(), loading: true });
+    renderizarMensajesIA();
+    try {
+        const respuesta = await consultarGroq(texto);
+        grupoActivoIA.mensajes.pop();
+        grupoActivoIA.mensajes.push({ rol: 'asistente', texto: respuesta, timestamp: Date.now() });
+        guardarGruposIA();
+        renderizarMensajesIA();
+    } catch (err) {
+        grupoActivoIA.mensajes.pop();
+        grupoActivoIA.mensajes.push({ rol: 'asistente', texto: 'Error al contactar con la IA. Revisa tu conexión o clave API.', timestamp: Date.now() });
+        guardarGruposIA();
+        renderizarMensajesIA();
+    }
+};
+
+window.subirImagenIA = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const compressed = await window.compressImage(file);
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const imgData = ev.target.result;
+            if (!grupoActivoIA) return;
+            grupoActivoIA.mensajes.push({ rol: 'usuario', texto: '[Imagen enviada]', timestamp: Date.now(), imagenes: [imgData] });
+            guardarGruposIA();
+            renderizarMensajesIA();
+        };
+        reader.readAsDataURL(compressed);
+    };
+    input.click();
+};
+
+window.crearNuevoGrupoIA = () => {
+    const nombre = prompt('Nombre del grupo (ej. "Moto Italika"):', 'Nuevo grupo');
+    if (!nombre) return;
+    gruposIA.push({ id: Date.now(), nombre, servicioId: null, mensajes: [] });
+    guardarGruposIA();
+    renderizarListaGruposIA();
+    seleccionarGrupoIA(gruposIA[gruposIA.length - 1].id);
+};
+
+window.renombrarGrupoIA = () => {
+    if (!grupoActivoIA) return;
+    const nuevo = prompt('Nuevo nombre:', grupoActivoIA.nombre);
+    if (nuevo) {
+        grupoActivoIA.nombre = nuevo;
+        guardarGruposIA();
+        renderizarListaGruposIA();
+        const titulo = document.getElementById('chat-ai-titulo');
+        if (titulo) titulo.innerText = nuevo;
+    }
+};
+
+window.eliminarGrupoIA = () => {
+    if (!grupoActivoIA) return;
+    if (!confirm('¿Eliminar este grupo y todos sus mensajes?')) return;
+    const idx = gruposIA.findIndex(g => g.id === grupoActivoIA.id);
+    if (idx !== -1) gruposIA.splice(idx, 1);
+    guardarGruposIA();
+    if (gruposIA.length === 0) {
+        gruposIA = [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+        guardarGruposIA();
+    }
+    seleccionarGrupoIA(gruposIA[0].id);
+    renderizarListaGruposIA();
+};
+
+window.vincularGrupoAServicio = async () => {
+    if (!grupoActivoIA) return;
+    const servicioId = prompt('ID del servicio (ej. OBR-12345):', grupoActivoIA.servicioId || '');
+    if (!servicioId) return;
+    try {
+        const q = query(collection(db, "rescates"), where("shortId", "==", servicioId), limit(1));
+        const snap = await getDocs(q);
+        if (snap.empty) {
+            window.showToast("Servicio no encontrado", true);
+            return;
+        }
+        const servicio = snap.docs[0].data();
+        const estadosValidos = ['pending', 'accepted', 'repairing', 'to_shop', 'ready'];
+        if (!estadosValidos.includes(servicio.status)) {
+            window.showToast("Solo puedes vincular servicios activos (no completados ni cancelados)", true);
+            return;
+        }
+        grupoActivoIA.servicioId = servicioId;
+        guardarGruposIA();
+        renderizarListaGruposIA();
+        const servicioSpan = document.getElementById('chat-ai-servicio-id');
+        if (servicioSpan) servicioSpan.innerText = `Servicio: ${servicioId}`;
+        window.showToast('Grupo vinculado al servicio');
+    } catch (e) {
+        window.showToast("Error al verificar servicio", true);
+    }
+};
+
+window.exportarChatIA = () => {
+    if (!grupoActivoIA) return;
+    let content = `Chat: ${grupoActivoIA.nombre}\nServicio: ${grupoActivoIA.servicioId || 'No vinculado'}\n---\n`;
+    grupoActivoIA.mensajes.forEach(m => {
+        content += `${m.rol === 'usuario' ? '👤' : '🤖'} (${new Date(m.timestamp).toLocaleString()}): ${m.texto}\n`;
+    });
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat_${grupoActivoIA.nombre}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+};
+
+// Función global para abrir el chat IA (con fuerza bruta)
+window.abrirChatIA = function() {
+    const modal = document.getElementById('modal-chat-ai');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+        modal.style.opacity = '1';
+        modal.style.visibility = 'visible';
+        modal.style.zIndex = '10000';
+        modal.style.position = 'fixed';
+        modal.style.inset = '0';
+        console.log('Chat IA abierto correctamente');
+    } else {
+        console.error('Modal chat IA no encontrado');
+        alert('Error: No se encontró el modal del chat IA. Revisa que el HTML tenga el div con id="modal-chat-ai".');
+    }
+};
+
+// Inicializar grupos al cargar la página
+document.addEventListener('DOMContentLoaded', function() {
+    cargarGruposIA();
+    // Asignar eventos a los botones
+    const btnMenu = document.getElementById('btn-ia-menu');
+    if (btnMenu) {
+        btnMenu.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.abrirChatIA();
+        });
+    }
+    const btnFloat = document.getElementById('btn-chat-ai-float');
+    if (btnFloat) {
+        btnFloat.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.abrirChatIA();
+        });
+    }
+});
+
 // === VARIABLES GLOBALES ===
 window.userIntent = 'inicio';
 let tempSOSGps = { lat: null, lng: null };
@@ -1319,6 +1555,7 @@ window.submitFinalSOS = async () => {
         btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
     }
 };
+
 function listenToMySOS() {
     if (mySOSListener && typeof mySOSListener === 'function') {
         mySOSListener();
@@ -1337,14 +1574,17 @@ function listenToMySOS() {
         const wsCard = document.getElementById('active-workshop-card');
         const wsProgress = document.getElementById('client-ws-progress');
         const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
+        const statusDesc = document.getElementById('sos-status-desc-client');
 
         if (!snap.exists()) {
-            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
-            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
+            // No hay SOS activo
             if (activeCard) activeCard.classList.add('hidden');
             if (noServicesMsg) noServicesMsg.classList.remove('hidden');
             if (survey) survey.classList.add('hidden');
-            if (mechanicMapDiv) mechanicMapDiv.classList.add('hidden');
+            if (mechanicMapDiv) {
+                mechanicMapDiv.classList.add('hidden');
+                mechanicMapDiv.style.display = 'none';
+            }
             if (wsCard) wsCard.classList.add('hidden');
             if (mechMapInst) {
                 mechMapInst.remove();
@@ -1353,6 +1593,8 @@ function listenToMySOS() {
                 window._clientMarker = null;
                 if (window._mechRouteLine) window._mechRouteLine = null;
             }
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (trackingUnsubscribe) trackingUnsubscribe();
             window.lastClientSOSStatus = null;
             return;
         }
@@ -1361,7 +1603,7 @@ function listenToMySOS() {
         if (activeCard) activeCard.classList.remove('hidden');
         if (noServicesMsg) noServicesMsg.classList.add('hidden');
 
-        // === Barra de progreso (4 pasos) ===
+        // Actualizar barra de progreso según estado
         const stepLabels = ['step-1-label', 'step-2-label', 'step-3-label', 'step-4-label'];
         const stepDots = ['step-dot-1', 'step-dot-2', 'step-dot-3', 'step-dot-4'];
         let currentStep = 0;
@@ -1402,7 +1644,6 @@ function listenToMySOS() {
         if (progressBar) progressBar.style.width = progressPercent + '%';
 
         // Texto del estado
-        const statusDesc = document.getElementById('sos-status-desc-client');
         if (statusDesc) {
             let estadoTexto = "Esperando confirmación";
             if (data.status === 'accepted') estadoTexto = "Mecánico en camino";
@@ -1414,13 +1655,11 @@ function listenToMySOS() {
             statusDesc.innerText = estadoTexto;
         }
 
-        // ===== MAPA EN VIVO (solo si está aceptado y la vista activa es 'c-view-moto') =====
-        const vistaActiva = document.querySelector('.c-view:not(.hidden)')?.id;
-        if (data.status === 'accepted' && data.mech_uid && vistaActiva === 'c-view-moto') {
+        // Mapa en tiempo real (solo si está aceptado)
+        if (data.status === 'accepted' && data.mech_uid) {
             if (mechanicMapDiv) {
                 mechanicMapDiv.classList.remove('hidden');
                 mechanicMapDiv.style.display = 'block';
-                mechanicMapDiv.style.visibility = 'visible';
                 setTimeout(() => {
                     if (mechMapInst) mechMapInst.invalidateSize();
                 }, 300);
@@ -1436,7 +1675,6 @@ function listenToMySOS() {
                     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
                 L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(mechMapInst);
                 setTimeout(() => mechMapInst.invalidateSize(), 200);
-                mechMapInst.on('load', () => mechMapInst.invalidateSize());
             } else {
                 mechMapInst.invalidateSize();
             }
@@ -1452,7 +1690,7 @@ function listenToMySOS() {
             // Marcador del mecánico
             let mechMarker = window._mechMarker;
             if (!mechMarker) {
-                mechMarker = L.marker([data.lat || TALLER_LAT, data.lng || TALLER_LNG], {
+                mechMarker = L.marker([data.mech_lat || TALLER_LAT, data.mech_lng || TALLER_LNG], {
                     icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
                 }).addTo(mechMapInst).bindPopup("Mecánico en camino");
                 window._mechMarker = mechMarker;
@@ -1471,8 +1709,6 @@ function listenToMySOS() {
                 if (posSnap.exists()) {
                     const pos = posSnap.val();
                     if (pos.lat && pos.lng) updateMechPosition(pos.lat, pos.lng);
-                } else if (data.mech_lat && data.mech_lng) {
-                    updateMechPosition(data.mech_lat, data.mech_lng);
                 }
             });
 
@@ -1491,6 +1727,7 @@ function listenToMySOS() {
                 }
             });
         } else {
+            // Ocultar mapa si no está aceptado
             if (mechanicMapDiv) {
                 mechanicMapDiv.classList.add('hidden');
                 mechanicMapDiv.style.display = 'none';
@@ -1523,7 +1760,7 @@ function listenToMySOS() {
             speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
             playSound('notif');
             if (activeCard) activeCard.classList.add('hidden');
-            window.switchClientView('c-view-moto');
+            // Mostrar encuesta después de un breve retraso
             setTimeout(() => {
                 const surveyEl = document.getElementById('satisfaction-survey');
                 if (surveyEl) surveyEl.classList.remove('hidden');
@@ -1540,6 +1777,7 @@ function listenToMySOS() {
                 window._clientMarker = null;
                 if (window._mechRouteLine) window._mechRouteLine = null;
             }
+            // Mostrar taller si la moto aún está en proceso
             if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                 if (wsCard) {
                     wsCard.classList.remove('hidden');
@@ -1551,11 +1789,6 @@ function listenToMySOS() {
                         if (el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
                     });
                 }
-                if (data.tallerServiceId) {
-                    window.loadClientWorkshopTimeline?.(data.tallerServiceId);
-                }
-            } else {
-                if (wsCard) wsCard.classList.add('hidden');
             }
             window.lastClientSOSStatus = data.status;
             return;
@@ -1564,6 +1797,7 @@ function listenToMySOS() {
         window.lastClientSOSStatus = data.status;
     });
 }
+
 // aqui finaliza listenToMySOS //
 window.abrirChatSOS = () => {
     if (window._sosChatId) {
@@ -7476,246 +7710,3 @@ window.aplicarHorarioALunes = () => {
         if (closeEl) closeEl.value = lunesC;
     }
 };
-// ========== CHAT IA - FUNCIONES COMPLETAS (SIMPLIFICADAS) ==========
-let gruposIA = [];
-let grupoActivoIA = null;
-
-function guardarGruposIA() {
-    localStorage.setItem('obr_chat_ia_groups', JSON.stringify(gruposIA));
-}
-
-function cargarGruposIA() {
-    const stored = localStorage.getItem('obr_chat_ia_groups');
-    gruposIA = stored ? JSON.parse(stored) : [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
-    guardarGruposIA();
-    renderizarListaGruposIA();
-    if (gruposIA.length) seleccionarGrupoIA(gruposIA[0].id);
-}
-
-function renderizarListaGruposIA() {
-    const container = document.getElementById('lista-grupos-ia');
-    if (!container) return;
-    container.innerHTML = '';
-    gruposIA.forEach(grupo => {
-        const div = document.createElement('div');
-        div.className = `p-2 rounded-xl cursor-pointer hover:bg-white/10 ${grupoActivoIA?.id === grupo.id ? 'bg-naranja/20 border-l-4 border-naranja' : 'bg-white/5'}`;
-        div.innerHTML = `<div class="flex justify-between items-center"><span class="text-sm font-bold truncate">${escapeHtml(grupo.nombre)}</span>${grupo.servicioId ? `<span class="text-[9px] text-purple-400">📎 ${grupo.servicioId.slice(-6)}</span>` : ''}</div><div class="text-[10px] text-gray-400 truncate">${grupo.mensajes.length} mensajes</div>`;
-        div.onclick = () => seleccionarGrupoIA(grupo.id);
-        container.appendChild(div);
-    });
-}
-
-function seleccionarGrupoIA(id) {
-    grupoActivoIA = gruposIA.find(g => g.id === id);
-    if (!grupoActivoIA) return;
-    const titulo = document.getElementById('chat-ai-titulo');
-    if (titulo) titulo.innerText = grupoActivoIA.nombre;
-    const servicioSpan = document.getElementById('chat-ai-servicio-id');
-    if (servicioSpan) servicioSpan.innerText = grupoActivoIA.servicioId ? `Servicio: ${grupoActivoIA.servicioId}` : '';
-    renderizarMensajesIA();
-    renderizarListaGruposIA();
-}
-
-function renderizarMensajesIA() {
-    const contenedor = document.getElementById('chat-ai-mensajes');
-    if (!contenedor || !grupoActivoIA) return;
-    contenedor.innerHTML = '';
-    grupoActivoIA.mensajes.forEach(msg => {
-        const div = document.createElement('div');
-        div.className = `flex ${msg.rol === 'usuario' ? 'justify-end' : 'justify-start'}`;
-        div.innerHTML = `<div class="${msg.rol === 'usuario' ? 'bg-naranja' : 'bg-blue-600'} max-w-[75%] p-3 rounded-2xl text-white text-sm"><div>${escapeHtml(msg.texto)}</div>${msg.imagenes ? `<div class="flex gap-1 mt-2">${msg.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox('${img}')">`).join('')}</div>` : ''}<div class="text-[9px] opacity-60 mt-1">${new Date(msg.timestamp).toLocaleTimeString()}</div></div>`;
-        contenedor.appendChild(div);
-    });
-    contenedor.scrollTop = contenedor.scrollHeight;
-}
-
-async function consultarGroq(promptUsuario) {
-    const GROQ_API_KEY = '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';
-    const contexto = grupoActivoIA.mensajes.slice(-5).filter(m => m.rol !== 'loading').map(m => `${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`).join('\n');
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
-        body: JSON.stringify({
-            model: 'llama3-8b-8192',
-            messages: [
-                { role: 'system', content: "Eres un mecánico especializado experto en resolver dudas analizando imágenes o preguntas que se indiquen para dar más pronto con el fallo que se tiene existente." },
-                { role: 'user', content: `Contexto: ${contexto}\nPregunta: ${promptUsuario}` }
-            ],
-            temperature: 0.7,
-            max_tokens: 1024
-        })
-    });
-    const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
-    return data.choices[0].message.content;
-}
-
-window.enviarMensajeIA = async () => {
-    const input = document.getElementById('chat-ai-input');
-    const texto = input?.value.trim();
-    if (!texto || !grupoActivoIA) return;
-    grupoActivoIA.mensajes.push({ rol: 'usuario', texto, timestamp: Date.now() });
-    guardarGruposIA();
-    renderizarMensajesIA();
-    if (input) input.value = '';
-    grupoActivoIA.mensajes.push({ rol: 'asistente', texto: '...', timestamp: Date.now(), loading: true });
-    renderizarMensajesIA();
-    try {
-        const respuesta = await consultarGroq(texto);
-        grupoActivoIA.mensajes.pop();
-        grupoActivoIA.mensajes.push({ rol: 'asistente', texto: respuesta, timestamp: Date.now() });
-        guardarGruposIA();
-        renderizarMensajesIA();
-    } catch (err) {
-        grupoActivoIA.mensajes.pop();
-        grupoActivoIA.mensajes.push({ rol: 'asistente', texto: 'Error al contactar con la IA. Revisa tu conexión o clave API.', timestamp: Date.now() });
-        guardarGruposIA();
-        renderizarMensajesIA();
-    }
-};
-
-window.subirImagenIA = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment';
-    input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const compressed = await window.compressImage(file);
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            const imgData = ev.target.result;
-            if (!grupoActivoIA) return;
-            grupoActivoIA.mensajes.push({ rol: 'usuario', texto: '[Imagen enviada]', timestamp: Date.now(), imagenes: [imgData] });
-            guardarGruposIA();
-            renderizarMensajesIA();
-        };
-        reader.readAsDataURL(compressed);
-    };
-    input.click();
-};
-
-window.crearNuevoGrupoIA = () => {
-    const nombre = prompt('Nombre del grupo (ej. "Moto Italika"):', 'Nuevo grupo');
-    if (!nombre) return;
-    gruposIA.push({ id: Date.now(), nombre, servicioId: null, mensajes: [] });
-    guardarGruposIA();
-    renderizarListaGruposIA();
-    seleccionarGrupoIA(gruposIA[gruposIA.length - 1].id);
-};
-
-window.renombrarGrupoIA = () => {
-    if (!grupoActivoIA) return;
-    const nuevo = prompt('Nuevo nombre:', grupoActivoIA.nombre);
-    if (nuevo) {
-        grupoActivoIA.nombre = nuevo;
-        guardarGruposIA();
-        renderizarListaGruposIA();
-        const titulo = document.getElementById('chat-ai-titulo');
-        if (titulo) titulo.innerText = nuevo;
-    }
-};
-
-window.eliminarGrupoIA = () => {
-    if (!grupoActivoIA) return;
-    if (!confirm('¿Eliminar este grupo y todos sus mensajes?')) return;
-    const idx = gruposIA.findIndex(g => g.id === grupoActivoIA.id);
-    if (idx !== -1) gruposIA.splice(idx, 1);
-    guardarGruposIA();
-    if (gruposIA.length === 0) {
-        gruposIA = [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
-        guardarGruposIA();
-    }
-    seleccionarGrupoIA(gruposIA[0].id);
-    renderizarListaGruposIA();
-};
-
-window.vincularGrupoAServicio = async () => {
-    if (!grupoActivoIA) return;
-    const servicioId = prompt('ID del servicio (ej. OBR-12345):', grupoActivoIA.servicioId || '');
-    if (!servicioId) return;
-    try {
-        const q = query(collection(db, "rescates"), where("shortId", "==", servicioId), limit(1));
-        const snap = await getDocs(q);
-        if (snap.empty) {
-            window.showToast("Servicio no encontrado", true);
-            return;
-        }
-        const servicio = snap.docs[0].data();
-        const estadosValidos = ['pending', 'accepted', 'repairing', 'to_shop', 'ready'];
-        if (!estadosValidos.includes(servicio.status)) {
-            window.showToast("Solo puedes vincular servicios activos (no completados ni cancelados)", true);
-            return;
-        }
-        grupoActivoIA.servicioId = servicioId;
-        guardarGruposIA();
-        renderizarListaGruposIA();
-        const servicioSpan = document.getElementById('chat-ai-servicio-id');
-        if (servicioSpan) servicioSpan.innerText = `Servicio: ${servicioId}`;
-        window.showToast('Grupo vinculado al servicio');
-    } catch (e) {
-        window.showToast("Error al verificar servicio", true);
-    }
-};
-
-window.exportarChatIA = () => {
-    if (!grupoActivoIA) return;
-    let content = `Chat: ${grupoActivoIA.nombre}\nServicio: ${grupoActivoIA.servicioId || 'No vinculado'}\n---\n`;
-    grupoActivoIA.mensajes.forEach(m => {
-        content += `${m.rol === 'usuario' ? '👤' : '🤖'} (${new Date(m.timestamp).toLocaleString()}): ${m.texto}\n`;
-    });
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `chat_${grupoActivoIA.nombre}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-};
-
-// === FUNCIÓN GLOBAL PARA ABRIR EL CHAT IA (FORZADA) ===
-window.abrirChatIA = function() {
-    const modal = document.getElementById('modal-chat-ai');
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.style.display = 'flex';
-        modal.style.opacity = '1';
-        modal.style.visibility = 'visible';
-        modal.style.zIndex = '9999';
-        // También forzamos que el modal ocupe toda la pantalla
-        modal.style.top = '0';
-        modal.style.left = '0';
-        modal.style.right = '0';
-        modal.style.bottom = '0';
-        console.log('Chat IA abierto correctamente');
-    } else {
-        console.error('No se encontró el modal modal-chat-ai');
-        alert('Error: No se encontró el modal del chat IA. Revisa que el HTML tenga el div con id="modal-chat-ai".');
-    }
-};
-
-// Inicializar grupos al cargar la página
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', cargarGruposIA);
-} else {
-    cargarGruposIA();
-}
-
-// Eventos para abrir el chat IA desde el botón del menú y el botón flotante
-document.addEventListener('DOMContentLoaded', function() {
-    const btnMenu = document.getElementById('btn-ia-menu');
-    if (btnMenu) {
-        btnMenu.addEventListener('click', function(e) {
-            e.preventDefault();
-            window.abrirChatIA();
-        });
-    }
-    const btnFloat = document.getElementById('btn-chat-ai-float');
-    if (btnFloat) {
-        btnFloat.addEventListener('click', function(e) {
-            e.preventDefault();
-            window.abrirChatIA();
-        });
-    }
-});
