@@ -193,7 +193,6 @@ window.toggleModal = (id, show) => {
             const fechaInput = document.getElementById('edit-cita-fecha');
             if(fechaInput) fechaInput.min = new Date().toISOString().split('T')[0];
         }
-        window.toggleModal = toggleModal;
     }
 };
 window.getStatusInfo = (status) => {
@@ -7641,3 +7640,27 @@ const setChatButtonEvent = () => {
     }
 };
 setChatButtonEvent();
+// ==================== INICIALIZACIÓN CHAT IA ====================
+// Asegurar que el botón flotante abra el modal
+const iniciarChatIA = () => {
+    const btn = document.getElementById('btn-chat-ai-float');
+    if (btn) {
+        btn.onclick = () => window.toggleModal('modal-chat-ai', true);
+        console.log('✅ Chat IA: evento asignado al botón');
+    } else {
+        console.warn('⚠️ Botón flotante no encontrado, reintentando...');
+        setTimeout(iniciarChatIA, 500);
+    }
+    // Cargar grupos del chat si la función existe
+    if (typeof cargarGruposIA === 'function') {
+        cargarGruposIA();
+    }
+};
+
+// Esperar a que el DOM esté listo
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', iniciarChatIA);
+} else {
+    iniciarChatIA();
+}
+// ======================================================
