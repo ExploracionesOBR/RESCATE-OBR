@@ -413,7 +413,7 @@
         <p id="sos-status-desc-client" class="text-xs text-gray-300 mb-4">Esperando confirmación...</p>
 
         <!-- MAPA EN VIVO – siempre visible con fondo gris -->
-        <div id="mechanic-live-map" class="h-64 w-full rounded-xl mb-4 border border-red-500/30 z-0" style="min-height: 250px; background-color: #374151; display: block;"></div>
+        <div id="mechanic-live-map" class="h-64 w-full rounded-xl mb-4 border border-red-500/30 z-0" style="min-height: 250px; background-color: #374151;"></div>
 
         <div id="client-sos-actions" class="flex space-x-2 mt-4">
             <button id="btn-contacto-taller" onclick="window.mostrarOpcionesContacto()" class="flex-1 bg-blue-600 text-white text-[10px] px-4 py-3 rounded-xl font-black uppercase flex items-center justify-center"><i class="fas fa-headset text-sm mr-2"></i>Contactar al Taller</button>
@@ -1044,7 +1044,10 @@
             <button onclick="window.switchAdminView?.('a-view-config')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-gray-400 min-w-[60px]"><i class="fas fa-cog text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Ajustes</span></button>
             <button onclick="window.switchAdminView?.('a-view-stats')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-naranja min-w-[60px]"><i class="fas fa-chart-bar text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Estadíst.</span></button>
             <button onclick="window.switchAdminView?.('a-view-citas')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-green-400 min-w-[60px]"><i class="fas fa-calendar-check text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Citas</span></button>
-            <button onclick="window.abrirChatIA()" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-purple-400 min-w-[60px]"><i class="fas fa-robot text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">IA</span></button>
+            <button id="btn-ia-menu" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-purple-400 min-w-[60px]">
+    <i class="fas fa-robot text-xl mb-1"></i>
+    <span class="text-[8px] font-black uppercase tracking-widest mt-1">IA</span>
+</button>
         </div>
     </nav>
 </div>
