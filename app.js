@@ -1414,98 +1414,97 @@ function listenToMySOS() {
             statusDesc.innerText = estadoTexto;
         }
 
-        // ===== MAPA EN VIVO (solo si aceptado y con mecánico) =====
-if (data.status === 'accepted' && data.mech_uid) {
-    if (mechanicMapDiv) {
-        mechanicMapDiv.classList.remove('hidden');
-        mechanicMapDiv.style.display = 'block';
-        mechanicMapDiv.style.visibility = 'visible';
-        setTimeout(() => {
-            if (mechMapInst) mechMapInst.invalidateSize();
-        }, 300);
-    }
-    // Crear el mapa si no existe
-    if (!mechMapInst) {
-        const centerLat = data.lat || TALLER_LAT;
-        const centerLng = data.lng || TALLER_LNG;
-        mechMapInst = L.map('mechanic-live-map').setView([centerLat, centerLng], 14);
-        const isLight = document.body.classList.contains('light-mode');
-        const layerUrl = isLight
-            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(mechMapInst);
-        // Forzar redimensionamiento después de crear
-        setTimeout(() => mechMapInst.invalidateSize(), 200);
-        mechMapInst.on('load', () => mechMapInst.invalidateSize());
-    } else {
-        mechMapInst.invalidateSize();
-    }
+        // ===== MAPA EN VIVO (solo si está aceptado y la vista activa es 'c-view-moto') =====
+        const vistaActiva = document.querySelector('.c-view:not(.hidden)')?.id;
+        if (data.status === 'accepted' && data.mech_uid && vistaActiva === 'c-view-moto') {
+            if (mechanicMapDiv) {
+                mechanicMapDiv.classList.remove('hidden');
+                mechanicMapDiv.style.display = 'block';
+                mechanicMapDiv.style.visibility = 'visible';
+                setTimeout(() => {
+                    if (mechMapInst) mechMapInst.invalidateSize();
+                }, 300);
+            }
 
-    // Marcador del cliente
-    if (data.lat && data.lng) {
-        if (window._clientMarker) mechMapInst.removeLayer(window._clientMarker);
-        window._clientMarker = L.marker([data.lat, data.lng], {
-            icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] })
-        }).addTo(mechMapInst).bindPopup("Tu ubicación").openPopup();
-    }
+            if (!mechMapInst) {
+                const centerLat = data.lat || TALLER_LAT;
+                const centerLng = data.lng || TALLER_LNG;
+                mechMapInst = L.map('mechanic-live-map').setView([centerLat, centerLng], 14);
+                const isLight = document.body.classList.contains('light-mode');
+                const layerUrl = isLight
+                    ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+                    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+                L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(mechMapInst);
+                setTimeout(() => mechMapInst.invalidateSize(), 200);
+                mechMapInst.on('load', () => mechMapInst.invalidateSize());
+            } else {
+                mechMapInst.invalidateSize();
+            }
 
-    // Marcador del mecánico (inicial con la ubicación del taller o la última conocida)
-    let mechMarker = window._mechMarker;
-    if (!mechMarker) {
-        mechMarker = L.marker([data.lat || TALLER_LAT, data.lng || TALLER_LNG], {
-            icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
-        }).addTo(mechMapInst).bindPopup("Mecánico en camino");
-        window._mechMarker = mechMarker;
-    }
+            // Marcador del cliente
+            if (data.lat && data.lng) {
+                if (window._clientMarker) mechMapInst.removeLayer(window._clientMarker);
+                window._clientMarker = L.marker([data.lat, data.lng], {
+                    icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] })
+                }).addTo(mechMapInst).bindPopup("Tu ubicación").openPopup();
+            }
 
-    // Limpiar listeners previos
-    if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
-    if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
+            // Marcador del mecánico
+            let mechMarker = window._mechMarker;
+            if (!mechMarker) {
+                mechMarker = L.marker([data.lat || TALLER_LAT, data.lng || TALLER_LNG], {
+                    icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
+                }).addTo(mechMapInst).bindPopup("Mecánico en camino");
+                window._mechMarker = mechMarker;
+            }
 
-    const updateMechPosition = (lat, lng) => {
-        if (mechMarker) mechMarker.setLatLng([lat, lng]);
-        mechMapInst.setView([lat, lng], 14);
-    };
+            // Limpiar listeners previos
+            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
+            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
 
-    mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
-        if (posSnap.exists()) {
-            const pos = posSnap.val();
-            if (pos.lat && pos.lng) updateMechPosition(pos.lat, pos.lng);
-        } else if (data.mech_lat && data.mech_lng) {
-            updateMechPosition(data.mech_lat, data.mech_lng);
-        }
-    });
+            const updateMechPosition = (lat, lng) => {
+                if (mechMarker) mechMarker.setLatLng([lat, lng]);
+                mechMapInst.setView([lat, lng], 14);
+            };
 
-    const trackingRef = dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`);
-    trackingUnsubscribe = onValue(trackingRef, (trackSnap) => {
-        if (trackSnap.exists() && mechMapInst) {
-            const coords = [];
-            trackSnap.forEach(child => {
-                const p = child.val();
-                if (p.lat && p.lng) coords.push([p.lat, p.lng]);
+            mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
+                if (posSnap.exists()) {
+                    const pos = posSnap.val();
+                    if (pos.lat && pos.lng) updateMechPosition(pos.lat, pos.lng);
+                } else if (data.mech_lat && data.mech_lng) {
+                    updateMechPosition(data.mech_lat, data.mech_lng);
+                }
             });
-            if (coords.length > 1) {
-                if (window._mechRouteLine) mechMapInst.removeLayer(window._mechRouteLine);
-                window._mechRouteLine = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.7 }).addTo(mechMapInst);
+
+            const trackingRef = dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`);
+            trackingUnsubscribe = onValue(trackingRef, (trackSnap) => {
+                if (trackSnap.exists() && mechMapInst) {
+                    const coords = [];
+                    trackSnap.forEach(child => {
+                        const p = child.val();
+                        if (p.lat && p.lng) coords.push([p.lat, p.lng]);
+                    });
+                    if (coords.length > 1) {
+                        if (window._mechRouteLine) mechMapInst.removeLayer(window._mechRouteLine);
+                        window._mechRouteLine = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.7 }).addTo(mechMapInst);
+                    }
+                }
+            });
+        } else {
+            if (mechanicMapDiv) {
+                mechanicMapDiv.classList.add('hidden');
+                mechanicMapDiv.style.display = 'none';
+            }
+            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
+            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
+            if (mechMapInst) {
+                mechMapInst.remove();
+                mechMapInst = null;
+                window._mechMarker = null;
+                window._clientMarker = null;
+                if (window._mechRouteLine) window._mechRouteLine = null;
             }
         }
-    });
-} else {
-    // Ocultar el mapa cuando no hay servicio aceptado
-    if (mechanicMapDiv) {
-        mechanicMapDiv.classList.add('hidden');
-        mechanicMapDiv.style.display = 'none';
-    }
-    if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
-    if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
-    if (mechMapInst) {
-        mechMapInst.remove();
-        mechMapInst = null;
-        window._mechMarker = null;
-        window._clientMarker = null;
-        if (window._mechRouteLine) window._mechRouteLine = null;
-    }
-}
 
         // Notificaciones y chat
         if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
@@ -7477,7 +7476,7 @@ window.aplicarHorarioALunes = () => {
         if (closeEl) closeEl.value = lunesC;
     }
 };
-// ========== CHAT IA - FUNCIONES COMPLETAS ==========
+// ========== CHAT IA - FUNCIONES COMPLETAS (SIMPLIFICADAS) ==========
 let gruposIA = [];
 let grupoActivoIA = null;
 
@@ -7636,7 +7635,6 @@ window.vincularGrupoAServicio = async () => {
     if (!grupoActivoIA) return;
     const servicioId = prompt('ID del servicio (ej. OBR-12345):', grupoActivoIA.servicioId || '');
     if (!servicioId) return;
-
     try {
         const q = query(collection(db, "rescates"), where("shortId", "==", servicioId), limit(1));
         const snap = await getDocs(q);
@@ -7676,13 +7674,7 @@ window.exportarChatIA = () => {
     URL.revokeObjectURL(url);
 };
 
-// Inicializar grupos al cargar la página
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', cargarGruposIA);
-} else {
-    cargarGruposIA();
-}
-// === Función global para abrir el chat IA (desde el menú o botón flotante) ===
+// === FUNCIÓN GLOBAL PARA ABRIR EL CHAT IA (FORZADA) ===
 window.abrirChatIA = function() {
     const modal = document.getElementById('modal-chat-ai');
     if (modal) {
@@ -7690,14 +7682,35 @@ window.abrirChatIA = function() {
         modal.style.display = 'flex';
         modal.style.opacity = '1';
         modal.style.visibility = 'visible';
-        modal.style.zIndex = '10000';
+        modal.style.zIndex = '9999';
+        // También forzamos que el modal ocupe toda la pantalla
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.right = '0';
+        modal.style.bottom = '0';
+        console.log('Chat IA abierto correctamente');
     } else {
-        console.error('Modal chat IA no encontrado');
+        console.error('No se encontró el modal modal-chat-ai');
+        alert('Error: No se encontró el modal del chat IA. Revisa que el HTML tenga el div con id="modal-chat-ai".');
     }
 };
 
-// Forzar que el botón flotante también abra el chat (independientemente del onclick)
+// Inicializar grupos al cargar la página
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', cargarGruposIA);
+} else {
+    cargarGruposIA();
+}
+
+// Eventos para abrir el chat IA desde el botón del menú y el botón flotante
 document.addEventListener('DOMContentLoaded', function() {
+    const btnMenu = document.getElementById('btn-ia-menu');
+    if (btnMenu) {
+        btnMenu.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.abrirChatIA();
+        });
+    }
     const btnFloat = document.getElementById('btn-chat-ai-float');
     if (btnFloat) {
         btnFloat.addEventListener('click', function(e) {
