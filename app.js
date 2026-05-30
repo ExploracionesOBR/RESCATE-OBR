@@ -1416,13 +1416,13 @@ function listenToMySOS() {
 
         // ===== MAPA EN VIVO (solo si aceptado y con mecánico) =====
         if (data.status === 'accepted' && data.mech_uid) {
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.remove('hidden');
-                mechanicMapDiv.style.display = 'block'; // fuerza display
-                setTimeout(() => {
-                    if (mechMapInst) mechMapInst.invalidateSize();
-                }, 300);
-            }
+    if (mechanicMapDiv) {
+        mechanicMapDiv.classList.remove('hidden');
+        mechanicMapDiv.style.display = 'block';  // fuerza display block
+        setTimeout(() => {
+            if (mechMapInst) mechMapInst.invalidateSize();
+        }, 300);
+    }
 
             if (!mechMapInst) {
                 const centerLat = data.lat || TALLER_LAT;
@@ -1488,11 +1488,11 @@ function listenToMySOS() {
                     }
                 }
             });
-        } else {
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.add('hidden');
-                mechanicMapDiv.style.display = 'none';
-            }
+        }  else {
+    if (mechanicMapDiv) {
+        mechanicMapDiv.classList.add('hidden');
+        mechanicMapDiv.style.display = 'none';
+    }
             if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
             if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
             if (mechMapInst) {
@@ -7629,16 +7629,32 @@ window.eliminarGrupoIA = () => {
     renderizarListaGruposIA();
 };
 
-window.vincularGrupoAServicio = () => {
+window.vincularGrupoAServicio = async () => {
     if (!grupoActivoIA) return;
-    const servicioId = prompt('ID del servicio (ej. OBR-12345) o número de cliente:', grupoActivoIA.servicioId || '');
-    if (servicioId) {
+    const servicioId = prompt('ID del servicio (ej. OBR-12345):', grupoActivoIA.servicioId || '');
+    if (!servicioId) return;
+
+    try {
+        const q = query(collection(db, "rescates"), where("shortId", "==", servicioId), limit(1));
+        const snap = await getDocs(q);
+        if (snap.empty) {
+            window.showToast("Servicio no encontrado", true);
+            return;
+        }
+        const servicio = snap.docs[0].data();
+        const estadosValidos = ['pending', 'accepted', 'repairing', 'to_shop', 'ready'];
+        if (!estadosValidos.includes(servicio.status)) {
+            window.showToast("Solo puedes vincular servicios activos (no completados ni cancelados)", true);
+            return;
+        }
         grupoActivoIA.servicioId = servicioId;
         guardarGruposIA();
         renderizarListaGruposIA();
         const servicioSpan = document.getElementById('chat-ai-servicio-id');
         if (servicioSpan) servicioSpan.innerText = `Servicio: ${servicioId}`;
         window.showToast('Grupo vinculado al servicio');
+    } catch (e) {
+        window.showToast("Error al verificar servicio", true);
     }
 };
 
