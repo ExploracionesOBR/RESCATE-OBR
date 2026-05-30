@@ -1424,9 +1424,6 @@ if (data.status === 'accepted' && data.mech_uid) {
             if (mechMapInst) mechMapInst.invalidateSize();
         }, 300);
     }
-    // ... resto del código
-}
-
     // Crear el mapa si no existe
     if (!mechMapInst) {
         const centerLat = data.lat || TALLER_LAT;
@@ -7698,3 +7695,14 @@ window.abrirChatIA = function() {
         console.error('Modal chat IA no encontrado');
     }
 };
+
+// Forzar que el botón flotante también abra el chat (independientemente del onclick)
+document.addEventListener('DOMContentLoaded', function() {
+    const btnFloat = document.getElementById('btn-chat-ai-float');
+    if (btnFloat) {
+        btnFloat.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.abrirChatIA();
+        });
+    }
+});
