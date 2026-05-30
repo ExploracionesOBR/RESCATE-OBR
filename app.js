@@ -1323,16 +1323,13 @@ window.submitFinalSOS = async () => {
         btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
     }
 };
-// aqui inicia listenToMySOS //
 function listenToMySOS() {
-    // Limpiar listener anterior si existe (evita duplicados)
     if (mySOSListener && typeof mySOSListener === 'function') {
         mySOSListener();
         mySOSListener = null;
     }
     if (!auth.currentUser) return;
 
-    // Variables internas para limpieza de sub-listeners
     let mechPosUnsubscribe = null;
     let trackingUnsubscribe = null;
 
@@ -1346,7 +1343,6 @@ function listenToMySOS() {
         const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
 
         if (!snap.exists()) {
-            // Limpiar sub-listeners al desaparecer el SOS
             if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
             if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
             if (activeCard) activeCard.classList.add('hidden');
@@ -1369,7 +1365,43 @@ function listenToMySOS() {
         if (activeCard) activeCard.classList.remove('hidden');
         if (noServicesMsg) noServicesMsg.classList.add('hidden');
 
-        // ===== 1. Actualizar texto del estado (siempre) =====
+        // ===== 1. Actualizar barra de progreso según estado =====
+        const stepLabels = ['step-1-label', 'step-2-label', 'step-3-label', 'step-4-label'];
+        const stepDots = ['step-dot-1', 'step-dot-2', 'step-dot-3', 'step-dot-4'];
+        let currentStep = 0;
+        let progressPercent = 0;
+
+        if (data.status === 'accepted') {
+            currentStep = 1;
+            progressPercent = 25;
+        } else if (data.status === 'repairing') {
+            currentStep = 2;
+            progressPercent = 50;
+        } else if (data.status === 'to_shop' || data.status === 'ready') {
+            currentStep = 3;
+            progressPercent = 75;
+        } else if (data.status === 'completed') {
+            currentStep = 4;
+            progressPercent = 100;
+        }
+
+        for (let i = 0; i < stepLabels.length; i++) {
+            const labelEl = document.getElementById(stepLabels[i]);
+            const dotEl = document.getElementById(stepDots[i]);
+            if (i < currentStep) {
+                if (labelEl) labelEl.classList.add('text-red-400', 'font-bold');
+                if (dotEl) dotEl.classList.remove('bg-asfalto', 'border-white/20');
+                if (dotEl) dotEl.classList.add('bg-red-500', 'border-asfalto');
+            } else {
+                if (labelEl) labelEl.classList.remove('text-red-400', 'font-bold');
+                if (dotEl) dotEl.classList.remove('bg-red-500', 'border-asfalto');
+                if (dotEl) dotEl.classList.add('bg-asfalto', 'border-white/20');
+            }
+        }
+        const progressBar = document.getElementById('sos-progress-bar');
+        if (progressBar) progressBar.style.width = progressPercent + '%';
+
+        // ===== 2. Actualizar texto del estado =====
         const statusDesc = document.getElementById('sos-status-desc-client');
         if (statusDesc) {
             let estadoTexto = "Esperando confirmación";
@@ -1382,36 +1414,78 @@ function listenToMySOS() {
             statusDesc.innerText = estadoTexto;
         }
 
-        // ===== 2. Manejo de eventos especiales (sonido, chat, encuesta) =====
-        if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
-            speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
-            playSound('notif');
-            // Crear chat si no existe (lógica original, no modificada)
-            if (data.mech_uid) {
-                // El código de creación de chat se mantiene igual (omitido por brevedad)
+        // ===== 3. Mapa en tiempo real (solo si está aceptado) =====
+        if (data.status === 'accepted' && data.mech_uid) {
+            if (mechanicMapDiv) mechanicMapDiv.classList.remove('hidden');
+
+            if (!mechMapInst) {
+                const centerLat = data.lat || TALLER_LAT;
+                const centerLng = data.lng || TALLER_LNG;
+                mechMapInst = L.map('mechanic-live-map', { dragging: true, zoomControl: true }).setView([centerLat, centerLng], 14);
+                const isLight = document.body.classList.contains('light-mode');
+                const layerUrl = isLight
+                    ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+                    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+                L.tileLayer(layerUrl).addTo(mechMapInst);
+                // Forzar redimensionamiento después de mostrar
+                setTimeout(() => mechMapInst.invalidateSize(), 200);
+            } else {
+                mechMapInst.invalidateSize();
             }
-        }
-        else if ((data.status === 'completed' || data.status === 'cancelled') && 
-                 window.lastClientSOSStatus !== 'completed' && 
-                 window.lastClientSOSStatus !== 'cancelled') {
-            const btnChatSOS = document.getElementById('btn-chat-sos');
-            if (btnChatSOS) btnChatSOS.classList.add('hidden');
-            window._sosChatId = null;
-            speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
-            playSound('notif');
-            if (activeCard) activeCard.classList.add('hidden');
-            
-            window.switchClientView('c-view-moto');
-            setTimeout(() => {
-                const surveyEl = document.getElementById('satisfaction-survey');
-                if (surveyEl) surveyEl.classList.remove('hidden');
-            }, 200);
-            
-            remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
-            window.loadClientHistory();
-            if (wsCard) wsCard.classList.add('hidden');
-            
-            // Limpiar mapa y sub-listeners
+
+            // Marcador del cliente
+            if (data.lat && data.lng) {
+                if (window._clientMarker) mechMapInst.removeLayer(window._clientMarker);
+                window._clientMarker = L.marker([data.lat, data.lng], {
+                    icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] })
+                }).addTo(mechMapInst).bindPopup("Tu ubicación").openPopup();
+            }
+
+            // Marcador del mecánico
+            let mechMarker = window._mechMarker;
+            if (!mechMarker) {
+                mechMarker = L.marker([data.lat || TALLER_LAT, data.lng || TALLER_LNG], {
+                    icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
+                }).addTo(mechMapInst).bindPopup("Mecánico en camino");
+                window._mechMarker = mechMarker;
+            }
+
+            // Limpiar sub-listeners previos
+            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
+            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
+
+            // Actualizar posición del mecánico
+            const updateMechPosition = (lat, lng) => {
+                if (mechMarker) mechMarker.setLatLng([lat, lng]);
+                mechMapInst.setView([lat, lng], 14);
+            };
+
+            mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
+                if (posSnap.exists()) {
+                    const pos = posSnap.val();
+                    if (pos.lat && pos.lng) updateMechPosition(pos.lat, pos.lng);
+                } else if (data.mech_lat && data.mech_lng) {
+                    updateMechPosition(data.mech_lat, data.mech_lng);
+                }
+            });
+
+            // Ruta del mecánico
+            const trackingRef = dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`);
+            trackingUnsubscribe = onValue(trackingRef, (trackSnap) => {
+                if (trackSnap.exists() && mechMapInst) {
+                    const coords = [];
+                    trackSnap.forEach(child => {
+                        const p = child.val();
+                        if (p.lat && p.lng) coords.push([p.lat, p.lng]);
+                    });
+                    if (coords.length > 1) {
+                        if (window._mechRouteLine) mechMapInst.removeLayer(window._mechRouteLine);
+                        window._mechRouteLine = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.7 }).addTo(mechMapInst);
+                    }
+                }
+            });
+        } else {
+            if (mechanicMapDiv) mechanicMapDiv.classList.add('hidden');
             if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
             if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
             if (mechMapInst) {
@@ -1421,7 +1495,44 @@ function listenToMySOS() {
                 window._clientMarker = null;
                 if (window._mechRouteLine) window._mechRouteLine = null;
             }
-            
+        }
+
+        // ===== 4. Notificaciones y chat =====
+        if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
+            speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
+            playSound('notif');
+            // Mostrar botón de chat
+            const chatBtn = document.getElementById('btn-chat-sos');
+            if (chatBtn && data.mech_uid) chatBtn.classList.remove('hidden');
+        }
+
+        if ((data.status === 'completed' || data.status === 'cancelled') && 
+            window.lastClientSOSStatus !== 'completed' && 
+            window.lastClientSOSStatus !== 'cancelled') {
+            const chatBtn = document.getElementById('btn-chat-sos');
+            if (chatBtn) chatBtn.classList.add('hidden');
+            window._sosChatId = null;
+            speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
+            playSound('notif');
+            if (activeCard) activeCard.classList.add('hidden');
+            window.switchClientView('c-view-moto');
+            setTimeout(() => {
+                const surveyEl = document.getElementById('satisfaction-survey');
+                if (surveyEl) surveyEl.classList.remove('hidden');
+            }, 200);
+            remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
+            window.loadClientHistory();
+            if (wsCard) wsCard.classList.add('hidden');
+            // Limpiar mapa
+            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
+            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
+            if (mechMapInst) {
+                mechMapInst.remove();
+                mechMapInst = null;
+                window._mechMarker = null;
+                window._clientMarker = null;
+                if (window._mechRouteLine) window._mechRouteLine = null;
+            }
             // Mostrar taller si la moto aún está en proceso
             if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                 if (wsCard) {
@@ -1441,9 +1552,12 @@ function listenToMySOS() {
                 if (wsCard) wsCard.classList.add('hidden');
             }
             window.lastClientSOSStatus = data.status;
-            return; // Salir para no ejecutar el mapa
+            return;
         }
 
+        window.lastClientSOSStatus = data.status;
+    });
+}
         // ===== 3. Mapa en tiempo real (solo si está aceptado) =====
         if (data.status === 'accepted' && data.mech_uid) {
             if (mechanicMapDiv) mechanicMapDiv.classList.remove('hidden');
