@@ -853,3 +853,12 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 .animate-pulse-soft {
     animation: soft-pulse 1.5s infinite ease-in-out;
 }
+/* Forzar que el modal del chat IA sea visible siempre que se muestre */
+#modal-chat-ai:not(.hidden) {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+    z-index: 9999 !important;
+    display: flex !important;
+    background-color: rgba(0,0,0,0.95) !important;
+}
