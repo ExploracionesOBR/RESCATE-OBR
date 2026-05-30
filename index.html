@@ -1036,6 +1036,11 @@
         <div class="flex w-full justify-between lg:justify-center lg:space-x-8 min-w-max px-2">
             <button onclick="window.switchAdminView?.('a-view-pos')" class="a-nav-btn tab-active flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-naranja min-w-[60px]"><i class="fas fa-cash-register text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Caja</span></button>
             <button onclick="window.switchAdminView?.('a-view-servicios')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-blue-400 min-w-[60px]"><i class="fas fa-clipboard-list text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Taller</span></button>
+           
+            <button onclick="toggleModal('modal-chat-ai', true)" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-purple-400 min-w-[60px]">
+    <i class="fas fa-robot text-xl mb-1"></i>
+    <span class="text-[8px] font-black uppercase tracking-widest mt-1">IA</span>
+</button>
             <button onclick="window.switchAdminView?.('a-view-alertas')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-red-500 min-w-[60px]"><i class="fas fa-exclamation-triangle text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">SOS</span></button>
             <button onclick="window.switchAdminView?.('a-view-entregas')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-green-400 min-w-[60px]"><i class="fas fa-truck text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Entregas</span></button>
             <button onclick="window.switchAdminView?.('a-view-inventario')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-green-400 min-w-[60px]"><i class="fas fa-box-open text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Almacén</span></button>
