@@ -1427,7 +1427,9 @@ function listenToMySOS() {
                     ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
                     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
                 L.tileLayer(layerUrl).addTo(mechMapInst);
-                setTimeout(() => mechMapInst.invalidateSize(), 200);
+                // Forzar redimensionamiento
+                setTimeout(() => { if (mechMapInst) mechMapInst.invalidateSize(); }, 200);
+                mechMapInst.on('load', () => mechMapInst.invalidateSize());
             } else {
                 mechMapInst.invalidateSize();
             }
@@ -1552,7 +1554,6 @@ function listenToMySOS() {
         window.lastClientSOSStatus = data.status;
     });
 }
-
 // aqui finaliza listenToMySOS //
 window.abrirChatSOS = () => {
     if (window._sosChatId) {
@@ -7309,7 +7310,23 @@ window.closeChat = () => {
     activeChatUid = null;
     toggleModal('modal-chat', false);
 };
-window.mostrarOpcionesContacto = () => {
+window.mostrarOpcionesContacto = async () => {
+    // Obtener el servicio SOS activo del usuario actual
+    let servicioActivo = null;
+    let mecanicoAsignado = null;
+    try {
+        const sosSnap = await getDocs(query(collection(db, "rescates"), where("uid", "==", auth.currentUser.uid), where("status", "in", ["accepted", "repairing", "to_shop", "ready"]), limit(1)));
+        if (!sosSnap.empty) {
+            servicioActivo = sosSnap.docs[0].data();
+            if (servicioActivo.mech_uid) {
+                const mechDoc = await getDoc(doc(db, "users", servicioActivo.mech_uid));
+                if (mechDoc.exists()) {
+                    mecanicoAsignado = mechDoc.data();
+                }
+            }
+        }
+    } catch(e) { console.warn(e); }
+
     const modalId = 'modal-contacto-taller-opciones';
     let modalEl = document.getElementById(modalId);
     if (!modalEl) {
@@ -7324,6 +7341,7 @@ window.mostrarOpcionesContacto = () => {
                     <button id="contact-call-1" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase"><i class="fas fa-phone mr-2"></i> Llamar 631 155 1533</button>
                     <button id="contact-call-2" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase"><i class="fas fa-phone mr-2"></i> Llamar 644 110 6011</button>
                     <button id="contact-chat" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black uppercase"><i class="fas fa-comments mr-2"></i> Chat con Soporte</button>
+                    <button id="contact-mechanic" class="hidden w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase"><i class="fab fa-whatsapp mr-2"></i> Contactar a mi Mecánico</button>
                     <button onclick="toggleModal('${modalId}', false)" class="w-full bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase">Cancelar</button>
                 </div>
             </div>
@@ -7335,6 +7353,28 @@ window.mostrarOpcionesContacto = () => {
             window.toggleModal(modalId, false);
             window.openChatWithTaller();
         };
+        document.getElementById('contact-mechanic').onclick = () => {
+            window.toggleModal(modalId, false);
+            if (mecanicoAsignado && servicioActivo) {
+                const telefonoClean = (mecanicoAsignado.phone || '').replace('+52', '');
+                if (telefonoClean) {
+                    const tipoServicio = servicioActivo.falla?.match(/\[(.*?)\]/)?.[1] || 'auxilio';
+                    const mensaje = `Hola ${mecanicoAsignado.name || 'mecánico'}, tienes mi caso asignado ${servicioActivo.shortId || 'servicio'} para un ${tipoServicio}. Puedes contactarme.`;
+                    window.open(`https://wa.me/+52${telefonoClean}?text=${encodeURIComponent(mensaje)}`, '_blank');
+                } else {
+                    window.showToast("El mecánico no tiene número de teléfono registrado", true);
+                }
+            }
+        };
+    }
+    // Mostrar/ocultar botón del mecánico según si hay asignado
+    const btnMech = document.getElementById('contact-mechanic');
+    if (btnMech) {
+        if (mecanicoAsignado && (mecanicoAsignado.phone || '').replace('+52', '')) {
+            btnMech.classList.remove('hidden');
+        } else {
+            btnMech.classList.add('hidden');
+        }
     }
     window.toggleModal(modalId, true);
 };
@@ -7346,36 +7386,18 @@ window.openChatWithTaller = async () => {
     const clienteUID = auth.currentUser.uid;
     const clienteNombre = window.currentUserDoc?.name || "Cliente";
 
-    // Buscar si ya existe un chat activo (no pendiente) donde participe este cliente
-    const qActivo = query(
-        collection(db, "chats"),
-        where("participantes", "array-contains", clienteUID),
-        where("estado", "in", ["activo", "cerrado"])
-    );
-    const snapActivo = await getDocs(qActivo);
-    let chatActivo = null;
-    snapActivo.forEach(doc => {
-        if (doc.data().estado === 'activo') chatActivo = doc;
+    // Buscar cualquier chat existente (activo o pendiente)
+    const qExistente = query(collection(db, "chats"), where("participantes", "array-contains", clienteUID));
+    const snapExistente = await getDocs(qExistente);
+    let chatExistente = null;
+    snapExistente.forEach(doc => {
+        const data = doc.data();
+        if (data.estado === 'activo' || data.estado === 'pendiente') {
+            chatExistente = doc;
+        }
     });
-    if (chatActivo) {
-        window.openChat(chatActivo.id);
-        return;
-    }
-
-    // Buscar si ya existe un chat pendiente (sin admin asignado)
-    const qPendiente = query(
-        collection(db, "chats"),
-        where("participantes", "array-contains", clienteUID),
-        where("estado", "==", "pendiente")
-    );
-    const snapPendiente = await getDocs(qPendiente);
-    let chatPendienteId = null;
-    snapPendiente.forEach(doc => {
-        chatPendienteId = doc.id;
-    });
-
-    if (chatPendienteId) {
-        window.showToast("Tu solicitud está pendiente. Espera a que un administrador la atienda.", false);
+    if (chatExistente) {
+        window.openChat(chatExistente.id);
         return;
     }
 
@@ -7383,14 +7405,13 @@ window.openChatWithTaller = async () => {
     const chatRef = await addDoc(collection(db, "chats"), {
         titulo: "Soporte General",
         participantes: [clienteUID],
-        nombres: {
-            [clienteUID]: clienteNombre
-        },
+        nombres: { [clienteUID]: clienteNombre },
         estado: "pendiente",
         creado: Date.now()
     });
     window.showToast("Solicitud enviada. Un administrador te atenderá pronto.", false);
 };
+
 window.cargarChatsPendientesAdmin = () => {
     const container = document.getElementById('admin-chats-pendientes-list');
     if (!container) return;
