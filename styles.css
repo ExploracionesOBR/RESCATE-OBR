@@ -853,14 +853,13 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 .animate-pulse-soft {
     animation: soft-pulse 1.5s infinite ease-in-out;
 }
-/* Forzar que el modal del chat IA sea visible siempre que se muestre */
+/* Forzar que el chat IA sea visible cuando se muestra */
 #modal-chat-ai:not(.hidden) {
-    opacity: 1 !important;
-    transform: none !important;
-    visibility: visible !important;
-    z-index: 9999 !important;
     display: flex !important;
-    background-color: rgba(0,0,0,0.95) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    z-index: 10000 !important;
+    background: rgba(0,0,0,0.95) !important;
 }
 /* Asegurar que el mapa tenga altura visible */
 #mechanic-live-map {
