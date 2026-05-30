@@ -853,20 +853,20 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 .animate-pulse-soft {
     animation: soft-pulse 1.5s infinite ease-in-out;
 }
-/* Forzar visibilidad del chat IA */
+/* Fuerza visibilidad del mapa */
+#mechanic-live-map {
+    min-height: 250px !important;
+    height: auto !important;
+    background-color: #374151 !important;
+    border-radius: 0.75rem;
+}
+
+/* Fuerza visibilidad del modal del chat IA */
 #modal-chat-ai:not(.hidden) {
     display: flex !important;
     opacity: 1 !important;
     visibility: visible !important;
-    z-index: 10000 !important;
-    background: rgba(0,0,0,0.95) !important;
-    position: fixed !important;
-    inset: 0 !important;
-}
-
-/* Asegurar que el mapa tenga altura */
-#mechanic-live-map {
-    min-height: 250px !important;
-    height: auto !important;
-    background: #374151 !important;
+    transform: none !important;
+    z-index: 100000 !important;
+    background-color: rgba(0,0,0,0.95) !important;
 }
