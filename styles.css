@@ -879,3 +879,16 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 #c-view-rescate {
     padding-bottom: 80px;
 }
+
+/* Fuerza altura mínima y fondo del mapa */
+#mechanic-live-map {
+    min-height: 250px !important;
+    height: auto !important;
+    background-color: #374151 !important;
+    border-radius: 0.75rem;
+}
+
+/* Evita que la barra de navegación tape el contenido de la pestaña RESCATE */
+#c-view-rescate {
+    padding-bottom: 80px;
+}
