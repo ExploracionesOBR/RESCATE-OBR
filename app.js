@@ -1567,7 +1567,6 @@ window.submitFinalSOS = async () => {
         btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
     }
 };
-
 function listenToMySOS() {
     if (mySOSListener && typeof mySOSListener === 'function') {
         mySOSListener();
@@ -1589,7 +1588,7 @@ function listenToMySOS() {
         const statusDesc = document.getElementById('sos-status-desc-client');
 
         if (!snap.exists()) {
-            // No hay SOS activo: ocultar todo
+            // Ocultar todo
             if (activeCard) activeCard.classList.add('hidden');
             if (noServicesMsg) noServicesMsg.classList.remove('hidden');
             if (survey) survey.classList.add('hidden');
@@ -1653,104 +1652,117 @@ function listenToMySOS() {
             statusDesc.innerText = estadoTexto;
         }
 
-        // ========== MAPA (solo si está aceptado) ==========
+        // ==================== MAPA (con todas las verificaciones) ====================
         if (data.status === 'accepted' && data.mech_uid) {
-            // 1. Asegurar que el contenedor sea visible
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.remove('hidden');
-                mechanicMapDiv.style.display = 'block';
-                mechanicMapDiv.style.visibility = 'visible';
-                // Forzar redimensionamiento después de un breve retraso
-                setTimeout(() => {
-                    if (mechMapInst) mechMapInst.invalidateSize();
-                }, 400);
+            // Verificación 1: el contenedor debe existir
+            if (!mechanicMapDiv) {
+                console.warn('No existe el contenedor #mechanic-live-map');
+                return;
             }
 
-            // 2. Crear el mapa si no existe
-            if (!mechMapInst) {
-                const centerLat = data.lat || TALLER_LAT;
-                const centerLng = data.lng || TALLER_LNG;
-                mechMapInst = L.map('mechanic-live-map').setView([centerLat, centerLng], 14);
-                const isLight = document.body.classList.contains('light-mode');
-                const layerUrl = isLight
-                    ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-                    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-                L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(mechMapInst);
-                // Múltiples invalidaciones para asegurar el dibujo
-                setTimeout(() => mechMapInst.invalidateSize(), 200);
-                setTimeout(() => mechMapInst.invalidateSize(), 600);
-                mechMapInst.on('load', () => mechMapInst.invalidateSize());
-            } else {
-                mechMapInst.invalidateSize();
-            }
-
-            // 3. Marcador del cliente (ubicación del SOS)
-            if (data.lat && data.lng) {
-                if (window._clientMarker) mechMapInst.removeLayer(window._clientMarker);
-                window._clientMarker = L.marker([data.lat, data.lng], {
-                    icon: L.divIcon({
-                        className: 'gps-pulse-marker',
-                        html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>',
-                        iconSize: [28,28], iconAnchor: [14,28]
-                    })
-                }).addTo(mechMapInst).bindPopup("Tu ubicación").openPopup();
-            }
-
-            // 4. Marcador del taller (fijo)
-            if (!window._tallerMarker) {
-                window._tallerMarker = L.marker([TALLER_LAT, TALLER_LNG], {
-                    icon: L.divIcon({
-                        className: 'obr-pin-marker',
-                        html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>',
-                        iconSize: [36,36], iconAnchor: [18,36]
-                    })
-                }).addTo(mechMapInst).bindPopup("Taller OBR");
-            }
-
-            // 5. Marcador del mecánico
-            let mechMarker = window._mechMarker;
-            if (!mechMarker) {
-                mechMarker = L.marker([data.mech_lat || TALLER_LAT, data.mech_lng || TALLER_LNG], {
-                    icon: L.divIcon({
-                        className: 'mech-pulse-marker',
-                        html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>',
-                        iconSize: [32,32], iconAnchor: [16,32]
-                    })
-                }).addTo(mechMapInst).bindPopup("Mecánico en camino");
-                window._mechMarker = mechMarker;
-            }
-
-            // 6. Limpiar listeners previos
-            if (mechPosUnsubscribe) mechPosUnsubscribe();
-            if (trackingUnsubscribe) trackingUnsubscribe();
-
-            // 7. Posición en tiempo real del mecánico
-            mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
-                if (posSnap.exists()) {
-                    const pos = posSnap.val();
-                    if (pos.lat && pos.lng) {
-                        if (mechMarker) mechMarker.setLatLng([pos.lat, pos.lng]);
-                        mechMapInst.setView([pos.lat, pos.lng], 14);
-                    }
+            // Verificación 3 y 4: primero mostrar la tarjeta y el contenedor, luego crear/actualizar mapa
+            mechanicMapDiv.classList.remove('hidden');
+            mechanicMapDiv.style.display = 'block';
+            mechanicMapDiv.style.visibility = 'visible';
+            // Forzar un breve retraso para que el navegador renderice el contenedor
+            setTimeout(() => {
+                // Verificación 5: asegurar altura real
+                const rect = mechanicMapDiv.getBoundingClientRect();
+                if (rect.height < 200) {
+                    mechanicMapDiv.style.height = '250px';
+                    mechanicMapDiv.style.minHeight = '250px';
                 }
-            });
 
-            // 8. Ruta (polilínea) en color azul (#440dfa)
-            trackingUnsubscribe = onValue(dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`), (trackSnap) => {
-                if (trackSnap.exists() && mechMapInst) {
-                    const coords = [];
-                    trackSnap.forEach(child => {
-                        const p = child.val();
-                        if (p.lat && p.lng) coords.push([p.lat, p.lng]);
-                    });
-                    if (coords.length > 1) {
-                        if (window._mechRouteLine) mechMapInst.removeLayer(window._mechRouteLine);
-                        window._mechRouteLine = L.polyline(coords, { color: '#440dfa', weight: 5, opacity: 0.9 }).addTo(mechMapInst);
-                    }
+                // Verificación 2 y 7: asegurar que Leaflet esté cargado antes de crear el mapa
+                if (typeof L === 'undefined') {
+                    console.error('Leaflet no está cargado. Revisa los scripts en el HTML.');
+                    return;
                 }
-            });
+
+                // Crear el mapa si no existe
+                if (!mechMapInst) {
+                    const centerLat = data.lat || TALLER_LAT;
+                    const centerLng = data.lng || TALLER_LNG;
+                    mechMapInst = L.map('mechanic-live-map').setView([centerLat, centerLng], 14);
+                    const isLight = document.body.classList.contains('light-mode');
+                    const layerUrl = isLight
+                        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+                        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+                    L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(mechMapInst);
+                    // Verificación 8: si los tiles fallan, se verá un fondo gris (eso es aceptable)
+                } else {
+                    // Verificación 4: forzar actualización de tamaño
+                    mechMapInst.invalidateSize();
+                }
+
+                // Marcador del cliente
+                if (data.lat && data.lng) {
+                    if (window._clientMarker) mechMapInst.removeLayer(window._clientMarker);
+                    window._clientMarker = L.marker([data.lat, data.lng], {
+                        icon: L.divIcon({
+                            className: 'gps-pulse-marker',
+                            html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>',
+                            iconSize: [28,28], iconAnchor: [14,28]
+                        })
+                    }).addTo(mechMapInst).bindPopup("Tu ubicación").openPopup();
+                }
+
+                // Marcador del taller
+                if (!window._tallerMarker) {
+                    window._tallerMarker = L.marker([TALLER_LAT, TALLER_LNG], {
+                        icon: L.divIcon({
+                            className: 'obr-pin-marker',
+                            html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>',
+                            iconSize: [36,36], iconAnchor: [18,36]
+                        })
+                    }).addTo(mechMapInst).bindPopup("Taller OBR");
+                }
+
+                // Marcador del mecánico
+                let mechMarker = window._mechMarker;
+                if (!mechMarker) {
+                    mechMarker = L.marker([data.mech_lat || TALLER_LAT, data.mech_lng || TALLER_LNG], {
+                        icon: L.divIcon({
+                            className: 'mech-pulse-marker',
+                            html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>',
+                            iconSize: [32,32], iconAnchor: [16,32]
+                        })
+                    }).addTo(mechMapInst).bindPopup("Mecánico en camino");
+                    window._mechMarker = mechMarker;
+                }
+
+                // Limpiar listeners previos
+                if (mechPosUnsubscribe) mechPosUnsubscribe();
+                if (trackingUnsubscribe) trackingUnsubscribe();
+
+                // Posición en tiempo real del mecánico
+                mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
+                    if (posSnap.exists()) {
+                        const pos = posSnap.val();
+                        if (pos.lat && pos.lng) {
+                            if (mechMarker) mechMarker.setLatLng([pos.lat, pos.lng]);
+                            mechMapInst.setView([pos.lat, pos.lng], 14);
+                        }
+                    }
+                });
+
+                // Ruta (polilínea) en color azul (#440dfa)
+                trackingUnsubscribe = onValue(dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`), (trackSnap) => {
+                    if (trackSnap.exists() && mechMapInst) {
+                        const coords = [];
+                        trackSnap.forEach(child => {
+                            const p = child.val();
+                            if (p.lat && p.lng) coords.push([p.lat, p.lng]);
+                        });
+                        if (coords.length > 1) {
+                            if (window._mechRouteLine) mechMapInst.removeLayer(window._mechRouteLine);
+                            window._mechRouteLine = L.polyline(coords, { color: '#440dfa', weight: 5, opacity: 0.9 }).addTo(mechMapInst);
+                        }
+                    }
+                });
+            }, 200); // espera 200ms para que el DOM se actualice
         } else {
-            // Ocultar mapa si no está aceptado
+            // Si no está aceptado, ocultar todo
             if (mechanicMapDiv) {
                 mechanicMapDiv.classList.add('hidden');
                 mechanicMapDiv.style.display = 'none';
@@ -1767,7 +1779,7 @@ function listenToMySOS() {
             }
         }
 
-        // ========== NOTIFICACIONES Y CHAT ==========
+        // Notificaciones y chat (sin cambios relevantes)
         if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
             speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
             playSound('notif');
@@ -1820,7 +1832,6 @@ function listenToMySOS() {
         window.lastClientSOSStatus = data.status;
     });
 }
-
 // aqui finaliza listenToMySOS //
 window.abrirChatSOS = () => {
     if (window._sosChatId) {
