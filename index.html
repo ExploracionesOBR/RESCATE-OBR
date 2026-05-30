@@ -379,7 +379,7 @@
 
         <section id="c-view-moto" class="c-view space-y-6">
     <h2 class="text-2xl font-black italic uppercase text-center">Estado en Vivo</h2>
-    <div id="no-active-services-msg" class="bg-white/5 border border-white/10 p-8 rounded-3xl text-center shadow-lg flex flex-col items-center justify-center hidden">
+    <div id="no-active-services-msg" class="bg-white/5 border border-white/10 p-8 rounded-3xl text-center shadow-lg flex flex-col items-center justify-center">
         <div class="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6">
             <i class="fas fa-map-marked-alt text-4xl text-gray-600"></i>
         </div>
@@ -388,11 +388,11 @@
         <p class="text-xs text-gray-500 mt-4">Esta pestaña se activará automáticamente cuando solicites un auxilio o ingreses tu moto al taller.</p>
     </div>
 
-    <div id="active-sos-card" class="bg-gradient-to-br from-red-900/40 to-asfalto border border-red-500 p-6 rounded-3xl relative overflow-hidden animate-fade-in shadow-xl">
+    <div id="active-sos-card" class="hidden bg-gradient-to-br from-red-900/40 to-asfalto border border-red-500 p-6 rounded-3xl relative overflow-hidden animate-fade-in shadow-xl">
         <!-- Barra de progreso de estados -->
         <div class="mb-6">
             <div class="flex justify-between text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
-                <span id="step-1-label" class="text-red-400 font-bold">Aceptado</span>
+                <span id="step-1-label">Aceptado</span>
                 <span id="step-2-label">En camino</span>
                 <span id="step-3-label">Reparando</span>
                 <span id="step-4-label">Finalizado</span>
@@ -412,7 +412,7 @@
         </div>
         <p id="sos-status-desc-client" class="text-xs text-gray-300 mb-4">Esperando confirmación...</p>
 
-        <!-- MAPA EN VIVO – siempre visible con fondo gris -->
+        <!-- Mapa en vivo -->
         <div id="mechanic-live-map" class="h-64 w-full rounded-xl mb-4 border border-red-500/30 z-0" style="min-height: 250px; background-color: #374151;"></div>
 
         <div id="client-sos-actions" class="flex space-x-2 mt-4">
