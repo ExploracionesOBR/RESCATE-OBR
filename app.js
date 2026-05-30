@@ -1018,9 +1018,9 @@ window.switchClientView = (id) => {
     document.querySelectorAll('.c-nav-btn').forEach(b => b.classList.remove('tab-active'));
     const btn = Array.from(document.querySelectorAll('.c-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
     if (btn) btn.classList.add('tab-active');
-    
-    // Si cambiamos a la pestaña del mapa, forzar redimensionamiento del mapa
-    if (id === 'c-view-mapa' && window.mechMapInst) {
+
+    // Si cambiamos a la pestaña de RESCATE, forzar redimensionamiento del mapa
+    if (id === 'c-view-rescate' && window.mechMapInst) {
         setTimeout(() => window.mechMapInst.invalidateSize(), 300);
     }
     // Cargar video promocional solo en tienda
@@ -1589,7 +1589,7 @@ function listenToMySOS() {
         const statusDesc = document.getElementById('sos-status-desc-client');
 
         if (!snap.exists()) {
-            // Ocultar todo
+            // No hay SOS activo: ocultar todo
             if (activeCard) activeCard.classList.add('hidden');
             if (noServicesMsg) noServicesMsg.classList.remove('hidden');
             if (survey) survey.classList.add('hidden');
@@ -1603,6 +1603,7 @@ function listenToMySOS() {
                 mechMapInst = null;
                 window._mechMarker = null;
                 window._clientMarker = null;
+                window._tallerMarker = null;
                 if (window._mechRouteLine) window._mechRouteLine = null;
             }
             if (mechPosUnsubscribe) mechPosUnsubscribe();
@@ -1640,7 +1641,7 @@ function listenToMySOS() {
         const progressBar = document.getElementById('sos-progress-bar');
         if (progressBar) progressBar.style.width = progressPercent + '%';
 
-        // Texto estado
+        // Texto del estado
         if (statusDesc) {
             let estadoTexto = "Esperando confirmación";
             if (data.status === 'accepted') estadoTexto = "Mecánico en camino";
@@ -1652,18 +1653,20 @@ function listenToMySOS() {
             statusDesc.innerText = estadoTexto;
         }
 
-        // ========== MAPA ==========
+        // ========== MAPA (solo si está aceptado) ==========
         if (data.status === 'accepted' && data.mech_uid) {
-            // Mostrar contenedor
+            // 1. Asegurar que el contenedor sea visible
             if (mechanicMapDiv) {
                 mechanicMapDiv.classList.remove('hidden');
                 mechanicMapDiv.style.display = 'block';
+                mechanicMapDiv.style.visibility = 'visible';
+                // Forzar redimensionamiento después de un breve retraso
                 setTimeout(() => {
                     if (mechMapInst) mechMapInst.invalidateSize();
-                }, 300);
+                }, 400);
             }
 
-            // Crear mapa si no existe
+            // 2. Crear el mapa si no existe
             if (!mechMapInst) {
                 const centerLat = data.lat || TALLER_LAT;
                 const centerLng = data.lng || TALLER_LNG;
@@ -1673,13 +1676,15 @@ function listenToMySOS() {
                     ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
                     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
                 L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(mechMapInst);
+                // Múltiples invalidaciones para asegurar el dibujo
                 setTimeout(() => mechMapInst.invalidateSize(), 200);
+                setTimeout(() => mechMapInst.invalidateSize(), 600);
                 mechMapInst.on('load', () => mechMapInst.invalidateSize());
             } else {
                 mechMapInst.invalidateSize();
             }
 
-            // Marcador del cliente (ubicación del SOS)
+            // 3. Marcador del cliente (ubicación del SOS)
             if (data.lat && data.lng) {
                 if (window._clientMarker) mechMapInst.removeLayer(window._clientMarker);
                 window._clientMarker = L.marker([data.lat, data.lng], {
@@ -1691,7 +1696,7 @@ function listenToMySOS() {
                 }).addTo(mechMapInst).bindPopup("Tu ubicación").openPopup();
             }
 
-            // Marcador del taller (fijo)
+            // 4. Marcador del taller (fijo)
             if (!window._tallerMarker) {
                 window._tallerMarker = L.marker([TALLER_LAT, TALLER_LNG], {
                     icon: L.divIcon({
@@ -1702,7 +1707,7 @@ function listenToMySOS() {
                 }).addTo(mechMapInst).bindPopup("Taller OBR");
             }
 
-            // Marcador del mecánico
+            // 5. Marcador del mecánico
             let mechMarker = window._mechMarker;
             if (!mechMarker) {
                 mechMarker = L.marker([data.mech_lat || TALLER_LAT, data.mech_lng || TALLER_LNG], {
@@ -1715,11 +1720,11 @@ function listenToMySOS() {
                 window._mechMarker = mechMarker;
             }
 
-            // Limpiar listeners previos
+            // 6. Limpiar listeners previos
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (trackingUnsubscribe) trackingUnsubscribe();
 
-            // Posición en tiempo real del mecánico
+            // 7. Posición en tiempo real del mecánico
             mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
                 if (posSnap.exists()) {
                     const pos = posSnap.val();
@@ -1730,7 +1735,7 @@ function listenToMySOS() {
                 }
             });
 
-            // Ruta (polilínea) en color azul (#440dfa)
+            // 8. Ruta (polilínea) en color azul (#440dfa)
             trackingUnsubscribe = onValue(dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`), (trackSnap) => {
                 if (trackSnap.exists() && mechMapInst) {
                     const coords = [];
@@ -1762,7 +1767,7 @@ function listenToMySOS() {
             }
         }
 
-        // Notificaciones y chat
+        // ========== NOTIFICACIONES Y CHAT ==========
         if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
             speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
             playSound('notif');
