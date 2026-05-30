@@ -332,158 +332,171 @@
 <!-- DASHBOARD CLIENTE -->
 <div id="app-client" class="app-view hidden pb-24 flex-col">
     <header class="p-5 lg:p-6 flex justify-between items-center bg-asfalto/90 backdrop-blur-md sticky top-0 z-40 border-b border-white/5 w-full shadow-lg">
-    <div class="flex items-center">
-        <div>
-            <p class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest">Mi Perfil</p>
-            <h2 id="client-name-display" class="font-black text-white lg:text-xl">Cargando...</h2>
+        <div class="flex items-center">
+            <div>
+                <p class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest">Mi Perfil</p>
+                <h2 id="client-name-display" class="font-black text-white lg:text-xl">Cargando...</h2>
+            </div>
+            <i id="client-crown-icon" class="fas fa-crown text-yellow-400 text-2xl lg:text-3xl ml-3 hidden drop-shadow-[0_0_8px_rgba(250,204,21,0.8)] animate-pulse" title="Membresía Activa"></i>
         </div>
-        <i id="client-crown-icon" class="fas fa-crown text-yellow-400 text-2xl lg:text-3xl ml-3 hidden drop-shadow-[0_0_8px_rgba(250,204,21,0.8)] animate-pulse" title="Membresía Activa"></i>
-    </div>
-    <button onclick="window.toggleSession()" class="w-10 h-10 bg-red-600/20 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors" title="Cerrar sesión">
-        <i class="fas fa-sign-out-alt text-lg"></i>
-    </button>
-</header>
+        <button onclick="window.toggleSession()" class="w-10 h-10 bg-red-600/20 hover:bg-red-600 text-white rounded-full flex items-center justify-center transition-colors" title="Cerrar sesión">
+            <i class="fas fa-sign-out-alt text-lg"></i>
+        </button>
+    </header>
+
     <main class="p-4 lg:p-8 max-w-lg lg:max-w-5xl mx-auto space-y-6 lg:space-y-10 animate-fade-in w-full flex-grow">
-    <!-- ==================== PESTAÑA MAPA (SEGUIMIENTO EN VIVO) ==================== -->
-    <section id="c-view-mapa" class="c-view space-y-6">
-        <h2 class="text-2xl font-black italic uppercase text-center">Seguimiento en Vivo</h2>
-        
-        <div id="no-active-services-msg" class="bg-white/5 border border-white/10 p-8 rounded-3xl text-center shadow-lg flex flex-col items-center justify-center">
-            <div class="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6">
-                <i class="fas fa-map-marked-alt text-4xl text-gray-600"></i>
-            </div>
-            <h3 class="text-xl font-black italic uppercase text-white mb-2">Sin actividad en vivo</h3>
-            <p class="text-gray-400 font-bold text-sm">No tienes rescates activos en este momento.</p>
-            <p class="text-xs text-gray-500 mt-4">El mapa se activará automáticamente cuando solicites un auxilio y sea aceptado.</p>
-        </div>
-
-        <div id="active-sos-card" class="hidden bg-gradient-to-br from-red-900/40 to-asfalto border border-red-500 p-6 rounded-3xl shadow-xl">
-            <!-- Barra de progreso -->
-            <div class="mb-6">
-                <div class="flex justify-between text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
-                    <span id="step-1-label">Aceptado</span>
-                    <span id="step-2-label">En camino</span>
-                    <span id="step-3-label">Reparando</span>
-                    <span id="step-4-label">Finalizado</span>
+        <!-- ==================== PESTAÑA RESCATE (antes MAPA) ==================== -->
+        <section id="c-view-rescate" class="c-view space-y-6">
+            <!-- Botón grande de emergencia -->
+            <button id="emergency-client-btn" onclick="startFlow('sos')" class="w-full bg-gradient-to-r from-red-600 to-naranja rounded-3xl p-6 shadow-[0_0_20px_rgba(255,107,0,0.3)] active:scale-95 transition-transform flex items-center justify-between border border-naranja/50">
+                <div class="text-left text-white">
+                    <h3 class="text-2xl font-black italic uppercase emergency-label">Emergencia</h3>
+                    <p class="text-[10px] uppercase font-bold tracking-widest opacity-80 emergency-label">Solicitar rescate ahora</p>
+                    <p id="emergency-closed-text" class="text-[10px] uppercase font-bold tracking-widest text-red-300 hidden">Abrimos a las 08:00 Hrs</p>
                 </div>
-                <div class="relative h-1.5 bg-white/10 rounded-full flex justify-between items-center">
-                    <div id="sos-progress-bar" class="h-full absolute bg-red-500 rounded-full transition-all duration-500" style="width: 0%;"></div>
-                    <div class="z-10 w-4 h-4 rounded-full bg-asfalto border-2 border-white/20" id="step-dot-1"></div>
-                    <div class="z-10 w-4 h-4 rounded-full bg-asfalto border-2 border-white/20" id="step-dot-2"></div>
-                    <div class="z-10 w-4 h-4 rounded-full bg-asfalto border-2 border-white/20" id="step-dot-3"></div>
-                    <div class="z-10 w-4 h-4 rounded-full bg-asfalto border-2 border-white/20" id="step-dot-4"></div>
+                <i class="fas fa-ambulance text-5xl text-white opacity-80 animate-pulse"></i>
+            </button>
+
+            <!-- Mensaje cuando no hay servicio activo -->
+            <div id="no-active-services-msg" class="bg-white/5 border border-white/10 p-8 rounded-3xl text-center shadow-lg flex flex-col items-center justify-center">
+                <div class="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6">
+                    <i class="fas fa-map-marked-alt text-4xl text-gray-600"></i>
+                </div>
+                <h3 class="text-xl font-black italic uppercase text-white mb-2">Sin actividad en vivo</h3>
+                <p class="text-gray-400 font-bold text-sm">No tienes rescates activos en este momento.</p>
+                <p class="text-xs text-gray-500 mt-4">El mapa se activará automáticamente cuando solicites un auxilio y sea aceptado.</p>
+            </div>
+
+            <!-- Tarjeta de SOS activo (con mapa y progreso) -->
+            <div id="active-sos-card" class="hidden bg-gradient-to-br from-red-900/40 to-asfalto border border-red-500 p-6 rounded-3xl shadow-xl">
+                <!-- Barra de progreso -->
+                <div class="mb-6">
+                    <div class="flex justify-between text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
+                        <span id="step-1-label">Aceptado</span>
+                        <span id="step-2-label">En camino</span>
+                        <span id="step-3-label">Reparando</span>
+                        <span id="step-4-label">Finalizado</span>
+                    </div>
+                    <div class="relative h-1.5 bg-white/10 rounded-full flex justify-between items-center">
+                        <div id="sos-progress-bar" class="h-full absolute bg-red-500 rounded-full transition-all duration-500" style="width: 0%;"></div>
+                        <div class="z-10 w-4 h-4 rounded-full bg-asfalto border-2 border-white/20" id="step-dot-1"></div>
+                        <div class="z-10 w-4 h-4 rounded-full bg-asfalto border-2 border-white/20" id="step-dot-2"></div>
+                        <div class="z-10 w-4 h-4 rounded-full bg-asfalto border-2 border-white/20" id="step-dot-3"></div>
+                        <div class="z-10 w-4 h-4 rounded-full bg-asfalto border-2 border-white/20" id="step-dot-4"></div>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-3 mb-2">
+                    <i class="fas fa-ambulance text-red-500 text-2xl animate-pulse"></i>
+                    <h3 class="font-black text-white uppercase italic">Rescate Solicitado</h3>
+                </div>
+                <p id="sos-status-desc-client" class="text-xs text-gray-300 mb-4">Esperando confirmación...</p>
+
+                <!-- Mapa (siempre presente, se oculta con CSS cuando no hay servicio) -->
+                <div id="mechanic-live-map" class="h-64 w-full rounded-xl mb-4 border border-red-500/30 z-0" style="min-height: 250px; background-color: #374151;"></div>
+
+                <div class="flex space-x-2 mt-4">
+                    <button id="btn-contacto-taller" onclick="window.mostrarOpcionesContacto()" class="flex-1 bg-blue-600 text-white text-[10px] px-4 py-3 rounded-xl font-black uppercase flex items-center justify-center">
+                        <i class="fas fa-headset text-sm mr-2"></i>Contactar al Taller
+                    </button>
+                    <button id="btn-chat-sos" onclick="event.stopPropagation(); window.abrirChatSOS?.()" class="flex-1 bg-green-600 text-white text-[10px] px-4 py-3 rounded-xl font-black uppercase flex items-center justify-center hidden">
+                        <i class="fas fa-comments text-sm mr-2"></i>Chat Mecánico
+                    </button>
                 </div>
             </div>
 
-            <div class="flex items-center space-x-3 mb-2">
-                <i class="fas fa-ambulance text-red-500 text-2xl animate-pulse"></i>
-                <h3 class="font-black text-white uppercase italic">Rescate Solicitado</h3>
+            <!-- Tarjeta de taller (cuando la moto está en reparación) -->
+            <div id="active-workshop-card" class="hidden bg-gradient-to-b from-black to-asfalto border border-blue-500/30 p-6 lg:p-8 rounded-3xl shadow-xl relative overflow-hidden cursor-pointer" onclick="window.viewActiveWorkshop?.()">
+                <div class="absolute top-0 right-0 bg-blue-600 text-white px-4 py-1 rounded-bl-2xl text-[10px] font-black uppercase shadow-md">Taller OBR</div>
+                <p class="text-[10px] lg:text-xs text-gray-500 font-bold uppercase tracking-widest mt-2 mb-1">Estado de Reparación</p>
+                <p class="font-black text-2xl lg:text-3xl mb-8 text-white" id="client-ws-display">En Taller</p>
+                <div class="relative h-1.5 lg:h-2 bg-white/10 rounded-full flex justify-between items-center mb-8">
+                    <div id="client-ws-progress" class="h-full absolute bg-blue-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    <div class="z-10 w-5 h-5 rounded-full bg-blue-500 border-4 border-asfalto" id="ws-dot-1"></div>
+                    <div class="z-10 w-5 h-5 rounded-full bg-asfalto border-4 border-white/20" id="ws-dot-2"></div>
+                    <div class="z-10 w-5 h-5 rounded-full bg-asfalto border-4 border-white/20" id="ws-dot-3"></div>
+                    <div class="z-10 w-5 h-5 rounded-full bg-asfalto border-4 border-white/20" id="ws-dot-4"></div>
+                </div>
+                <div class="grid grid-cols-4 text-[9px] lg:text-[10px] text-center font-black uppercase tracking-tighter text-gray-600">
+                    <div id="ws-text-1" class="text-blue-400">Recibida</div>
+                    <div id="ws-text-2">Mecánica</div>
+                    <div id="ws-text-3">Pruebas</div>
+                    <div id="ws-text-4">Lista</div>
+                </div>
+                <div id="client-ws-comments-area" class="mt-8 pt-6 border-t border-white/10 hidden">
+                    <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3"><i class="fas fa-comment-dots mr-1"></i> Bitácora del Mecánico</p>
+                    <div id="client-ws-timeline" class="space-y-3 max-h-40 overflow-y-auto hide-scroll pr-2"></div>
+                </div>
             </div>
-            <p id="sos-status-desc-client" class="text-xs text-gray-300 mb-4">Esperando confirmación...</p>
 
-            <!-- Mapa (siempre visible, se oculta con CSS si no hay servicio) -->
-            <div id="mechanic-live-map" class="h-64 w-full rounded-xl mb-4 border border-red-500/30 z-0" style="min-height: 250px; background-color: #374151;"></div>
-
-            <div class="flex space-x-2 mt-4">
-                <button id="btn-contacto-taller" onclick="window.mostrarOpcionesContacto()" class="flex-1 bg-blue-600 text-white text-[10px] px-4 py-3 rounded-xl font-black uppercase flex items-center justify-center">
-                    <i class="fas fa-headset text-sm mr-2"></i>Contactar al Taller
-                </button>
-                <button id="btn-chat-sos" onclick="event.stopPropagation(); window.abrirChatSOS?.()" class="flex-1 bg-green-600 text-white text-[10px] px-4 py-3 rounded-xl font-black uppercase flex items-center justify-center hidden">
-                    <i class="fas fa-comments text-sm mr-2"></i>Chat Mecánico
-                </button>
+            <!-- Encuesta de satisfacción -->
+            <div id="satisfaction-survey" class="hidden bg-black/50 p-6 rounded-3xl border border-naranja/50 shadow-2xl">
+                <p class="text-[10px] text-naranja font-black uppercase tracking-widest mb-2 text-center">¡Servicio Finalizado!</p>
+                <p class="text-sm text-white text-center mb-4 font-bold">¿Cómo calificarías a nuestro mecánico?</p>
+                <div class="flex justify-center space-x-3 text-3xl text-gray-600 mb-6" id="star-rating">
+                    <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(1)"></i>
+                    <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(2)"></i>
+                    <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(3)"></i>
+                    <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(4)"></i>
+                    <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(5)"></i>
+                </div>
+                <textarea id="survey-comments" placeholder="Cuéntanos qué podemos mejorar (opcional si es positiva)" rows="2" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white text-xs mb-3 hidden"></textarea>
+                <button onclick="window.submitSurvey?.()" class="w-full bg-naranja hover:bg-orange-600 text-white text-xs font-black uppercase py-3 rounded-xl transition-colors">Enviar Calificación</button>
             </div>
-        </div>
+        </section>
 
-        <!-- Tarjeta de taller (cuando la moto está en reparación) -->
-        <div id="active-workshop-card" class="hidden bg-gradient-to-b from-black to-asfalto border border-blue-500/30 p-6 lg:p-8 rounded-3xl shadow-xl relative overflow-hidden cursor-pointer" onclick="window.viewActiveWorkshop?.()">
-            <div class="absolute top-0 right-0 bg-blue-600 text-white px-4 py-1 rounded-bl-2xl text-[10px] font-black uppercase shadow-md">Taller OBR</div>
-            <p class="text-[10px] lg:text-xs text-gray-500 font-bold uppercase tracking-widest mt-2 mb-1">Estado de Reparación</p>
-            <p class="font-black text-2xl lg:text-3xl mb-8 text-white" id="client-ws-display">En Taller</p>
-            <div class="relative h-1.5 lg:h-2 bg-white/10 rounded-full flex justify-between items-center mb-8">
-                <div id="client-ws-progress" class="h-full absolute bg-blue-500 rounded-full transition-all duration-500" style="width: 0%"></div>
-                <div class="z-10 w-5 h-5 rounded-full bg-blue-500 border-4 border-asfalto" id="ws-dot-1"></div>
-                <div class="z-10 w-5 h-5 rounded-full bg-asfalto border-4 border-white/20" id="ws-dot-2"></div>
-                <div class="z-10 w-5 h-5 rounded-full bg-asfalto border-4 border-white/20" id="ws-dot-3"></div>
-                <div class="z-10 w-5 h-5 rounded-full bg-asfalto border-4 border-white/20" id="ws-dot-4"></div>
+        <!-- ==================== PESTAÑA TIENDA ==================== -->
+        <section id="c-view-tienda" class="c-view hidden space-y-6">
+            <h2 class="text-2xl font-black italic uppercase text-center">Refacciones</h2>
+            <div id="vip-banner-shop-client" class="hidden w-full vip-shimmer-banner bg-gradient-to-r from-yellow-500 to-amber-400 text-black py-4 px-5 rounded-xl font-black text-center cursor-pointer shadow-xl mb-4 relative overflow-hidden" onclick="window.toggleModal('modal-contact', true)">
+                <span class="relative z-10 text-sm md:text-lg tracking-wide">🌟 ¡Únete a VIP y recibe promociones exclusivas! 🌟</span>
             </div>
-            <div class="grid grid-cols-4 text-[9px] lg:text-[10px] text-center font-black uppercase tracking-tighter text-gray-600">
-                <div id="ws-text-1" class="text-blue-400">Recibida</div>
-                <div id="ws-text-2">Mecánica</div>
-                <div id="ws-text-3">Pruebas</div>
-                <div id="ws-text-4">Lista</div>
+            <div class="flex justify-end mb-4">
+                <button onclick="toggleModal('modal-cart', true)" class="relative bg-naranja text-white p-3 rounded-full shadow-lg"><i class="fas fa-shopping-cart text-xl"></i><span id="cart-count-mobile" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-black">0</span></button>
+                <button onclick="window.loadMyOrders(); toggleModal('modal-pedidos', true)" class="ml-2 bg-white/10 p-3 rounded-full text-white relative"><i class="fas fa-box text-xl"></i></button>
             </div>
-            <div id="client-ws-comments-area" class="mt-8 pt-6 border-t border-white/10 hidden">
-                <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3"><i class="fas fa-comment-dots mr-1"></i> Bitácora del Mecánico</p>
-                <div id="client-ws-timeline" class="space-y-3 max-h-40 overflow-y-auto hide-scroll pr-2"></div>
+            <div id="client-store-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-8 w-full"></div>
+            <div id="video-banner-container-client" class="w-full max-w-full lg:max-w-[1200px] mt-4 mb-4 hidden"></div>
+        </section>
+
+        <!-- ==================== PESTAÑA CITAS ==================== -->
+        <section id="c-view-citas" class="c-view hidden space-y-6">
+            <h2 class="text-2xl font-black italic uppercase text-center">Mis Citas</h2>
+            <button onclick="window.solicitarNuevaCita?.()" class="w-full bg-green-600/20 text-green-400 border border-green-500/50 py-3 rounded-xl text-[10px] font-black uppercase hover:bg-green-600/40 transition-all">+ Solicitar nueva cita</button>
+            <div id="client-appointments-list" class="space-y-3 max-h-96 overflow-y-auto hide-scroll">
+                <p class="text-gray-500 text-xs italic">Sin citas.</p>
             </div>
-        </div>
+        </section>
 
-        <!-- Encuesta de satisfacción -->
-        <div id="satisfaction-survey" class="hidden bg-black/50 p-6 rounded-3xl border border-naranja/50 shadow-2xl">
-            <p class="text-[10px] text-naranja font-black uppercase tracking-widest mb-2 text-center">¡Servicio Finalizado!</p>
-            <p class="text-sm text-white text-center mb-4 font-bold">¿Cómo calificarías a nuestro mecánico?</p>
-            <div class="flex justify-center space-x-3 text-3xl text-gray-600 mb-6" id="star-rating">
-                <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(1)"></i>
-                <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(2)"></i>
-                <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(3)"></i>
-                <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(4)"></i>
-                <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(5)"></i>
+        <!-- ==================== PESTAÑA HISTORIAL ==================== -->
+        <section id="c-view-historial" class="c-view hidden space-y-6">
+            <h2 class="text-2xl font-black italic uppercase text-center">Historial de Servicios</h2>
+            <div id="client-history-list" class="space-y-3">
+                <p class="text-xs text-center text-gray-600 italic">No tienes servicios registrados.</p>
             </div>
-            <textarea id="survey-comments" placeholder="Cuéntanos qué podemos mejorar (opcional si es positiva)" rows="2" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white text-xs mb-3 hidden"></textarea>
-            <button onclick="window.submitSurvey?.()" class="w-full bg-naranja hover:bg-orange-600 text-white text-xs font-black uppercase py-3 rounded-xl transition-colors">Enviar Calificación</button>
-        </div>
-    </section>
+        </section>
+    </main>
 
-    <!-- ==================== PESTAÑA HISTORIAL ==================== -->
-    <section id="c-view-historial" class="c-view hidden space-y-6">
-        <h2 class="text-2xl font-black italic uppercase text-center">Historial de Servicios</h2>
-        <div id="client-history-list" class="space-y-3">
-            <p class="text-xs text-center text-gray-600 italic">No tienes servicios registrados.</p>
-        </div>
-    </section>
-
-    <!-- ==================== PESTAÑA CITAS ==================== -->
-    <section id="c-view-citas" class="c-view hidden space-y-6">
-        <h2 class="text-2xl font-black italic uppercase text-center">Mis Citas</h2>
-        <button onclick="window.solicitarNuevaCita?.()" class="w-full bg-green-600/20 text-green-400 border border-green-500/50 py-3 rounded-xl text-[10px] font-black uppercase hover:bg-green-600/40 transition-all">+ Solicitar nueva cita</button>
-        <div id="client-appointments-list" class="space-y-3 max-h-96 overflow-y-auto hide-scroll">
-            <p class="text-gray-500 text-xs italic">Sin citas.</p>
-        </div>
-    </section>
-
-    <!-- ==================== PESTAÑA TIENDA (sin cambios) ==================== -->
-    <section id="c-view-tienda" class="c-view hidden space-y-6">
-        <h2 class="text-2xl font-black italic uppercase text-center">Refacciones</h2>
-        <div id="vip-banner-shop-client" class="hidden w-full vip-shimmer-banner bg-gradient-to-r from-yellow-500 to-amber-400 text-black py-4 px-5 rounded-xl font-black text-center cursor-pointer shadow-xl mb-4 relative overflow-hidden" onclick="window.toggleModal('modal-contact', true)">
-            <span class="relative z-10 text-sm md:text-lg tracking-wide">🌟 ¡Únete a VIP y recibe promociones exclusivas! 🌟</span>
-        </div>
-        <div class="flex justify-end mb-4">
-            <button onclick="toggleModal('modal-cart', true)" class="relative bg-naranja text-white p-3 rounded-full shadow-lg"><i class="fas fa-shopping-cart text-xl"></i><span id="cart-count-mobile" class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-black">0</span></button>
-            <button onclick="window.loadMyOrders(); toggleModal('modal-pedidos', true)" class="ml-2 bg-white/10 p-3 rounded-full text-white relative"><i class="fas fa-box text-xl"></i></button>
-        </div>
-        <div id="client-store-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-8 w-full"></div>
-        <div id="video-banner-container-client" class="w-full max-w-full lg:max-w-[1200px] mt-4 mb-4 hidden"></div>
-    </section>
-</main>
-
-<nav class="fixed bottom-0 w-full glass border-t border-white/5 flex justify-around p-3 z-50 bg-asfalto/90 backdrop-blur-lg lg:max-w-[600px] lg:mx-auto lg:left-0 lg:right-0 lg:rounded-t-3xl">
-    <button onclick="window.switchClientView?.('c-view-mapa')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
-        <i class="fas fa-map-marked-alt text-2xl mb-1"></i>
-        <span class="text-[10px] font-black uppercase tracking-widest mt-1">Mapa</span>
-    </button>
-    <button onclick="window.switchClientView?.('c-view-historial')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
-        <i class="fas fa-history text-2xl mb-1"></i>
-        <span class="text-[10px] font-black uppercase tracking-widest mt-1">Historial</span>
-    </button>
-    <button onclick="window.switchClientView?.('c-view-citas')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
-        <i class="fas fa-calendar-alt text-2xl mb-1"></i>
-        <span class="text-[10px] font-black uppercase tracking-widest mt-1">Citas</span>
-    </button>
-    <button onclick="window.switchClientView?.('c-view-tienda')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
-        <i class="fas fa-shopping-bag text-2xl mb-1"></i>
-        <span class="text-[10px] font-black uppercase tracking-widest mt-1">Tienda</span>
-    </button>
-</nav>
+    <!-- Navegación inferior en orden: RESCATE, TIENDA, CITAS, HISTORIAL -->
+    <nav class="fixed bottom-0 w-full glass border-t border-white/5 flex justify-around p-3 z-50 bg-asfalto/90 backdrop-blur-lg lg:max-w-[600px] lg:mx-auto lg:left-0 lg:right-0 lg:rounded-t-3xl">
+        <button onclick="window.switchClientView?.('c-view-rescate')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
+            <i class="fas fa-ambulance text-2xl mb-1"></i>
+            <span class="text-[10px] font-black uppercase tracking-widest mt-1">RESCATE</span>
+        </button>
+        <button onclick="window.switchClientView?.('c-view-tienda')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
+            <i class="fas fa-shopping-bag text-2xl mb-1"></i>
+            <span class="text-[10px] font-black uppercase tracking-widest mt-1">TIENDA</span>
+        </button>
+        <button onclick="window.switchClientView?.('c-view-citas')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
+            <i class="fas fa-calendar-alt text-2xl mb-1"></i>
+            <span class="text-[10px] font-black uppercase tracking-widest mt-1">CITAS</span>
+        </button>
+        <button onclick="window.switchClientView?.('c-view-historial')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
+            <i class="fas fa-history text-2xl mb-1"></i>
+            <span class="text-[10px] font-black uppercase tracking-widest mt-1">HISTORIAL</span>
+        </button>
+    </nav>
+</div>
 <!-- PANEL ADMINISTRADOR -->
 <div id="app-admin" class="app-view hidden pb-24 border-t-4 border-naranja flex-col bg-asfalto min-h-screen">
     <header class="p-5 flex justify-between items-center bg-asfalto sticky top-0 z-40 border-b border-naranja/20 shadow-md">
