@@ -238,17 +238,30 @@ window.exportarChatIA = () => {
 window.abrirChatIA = function() {
     const modal = document.getElementById('modal-chat-ai');
     if (modal) {
-        modal.classList.remove('hidden');
+        // Eliminar cualquier clase que lo oculte
+        modal.classList.remove('hidden', 'invisible', 'opacity-0', 'scale-0');
+        // Forzar estilos inline contundentes
         modal.style.display = 'flex';
         modal.style.opacity = '1';
         modal.style.visibility = 'visible';
-        modal.style.zIndex = '10000';
+        modal.style.transform = 'none';
         modal.style.position = 'fixed';
-        modal.style.inset = '0';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.right = '0';
+        modal.style.bottom = '0';
+        modal.style.width = '100%';
+        modal.style.height = '100%';
+        modal.style.zIndex = '100000';
+        modal.style.backgroundColor = 'rgba(0,0,0,0.95)';
+        modal.style.backdropFilter = 'blur(4px)';
+        modal.style.overflow = 'auto';
+        // Asegurar que el contenido interno se vea
+        const inner = modal.querySelector('.bg-asfalto');
+        if (inner) inner.style.opacity = '1';
         console.log('Chat IA abierto correctamente');
     } else {
-        console.error('Modal chat IA no encontrado');
-        alert('Error: No se encontró el modal del chat IA. Revisa que el HTML tenga el div con id="modal-chat-ai".');
+        console.error('No se encontró el modal modal-chat-ai');
     }
 };
 
@@ -1656,128 +1669,101 @@ function listenToMySOS() {
         }
 
         // Mapa en tiempo real (solo si está aceptado)
-        if (data.status === 'accepted' && data.mech_uid) {
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.remove('hidden');
-                mechanicMapDiv.style.display = 'block';
-                setTimeout(() => {
-                    if (mechMapInst) mechMapInst.invalidateSize();
-                }, 300);
-            }
+if (data.status === 'accepted' && data.mech_uid) {
+    // Forzar que el contenedor sea visible
+    if (mechanicMapDiv) {
+        mechanicMapDiv.classList.remove('hidden');
+        mechanicMapDiv.style.display = 'block';
+        mechanicMapDiv.style.visibility = 'visible';
+        // Pequeño retraso para que el DOM se actualice
+        setTimeout(() => {
+            if (mechMapInst) mechMapInst.invalidateSize();
+        }, 400);
+    }
 
-            if (!mechMapInst) {
-                const centerLat = data.lat || TALLER_LAT;
-                const centerLng = data.lng || TALLER_LNG;
-                mechMapInst = L.map('mechanic-live-map').setView([centerLat, centerLng], 14);
-                const isLight = document.body.classList.contains('light-mode');
-                const layerUrl = isLight
-                    ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-                    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-                L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(mechMapInst);
-                setTimeout(() => mechMapInst.invalidateSize(), 200);
-            } else {
-                mechMapInst.invalidateSize();
-            }
+    // Crear el mapa solo si no existe
+    if (!mechMapInst) {
+        const centerLat = data.lat || TALLER_LAT;
+        const centerLng = data.lng || TALLER_LNG;
+        mechMapInst = L.map('mechanic-live-map').setView([centerLat, centerLng], 14);
+        const isLight = document.body.classList.contains('light-mode');
+        const layerUrl = isLight
+            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(mechMapInst);
+        // Forzar redimensionamiento varias veces
+        setTimeout(() => mechMapInst.invalidateSize(), 200);
+        setTimeout(() => mechMapInst.invalidateSize(), 600);
+        mechMapInst.on('load', () => mechMapInst.invalidateSize());
+    } else {
+        mechMapInst.invalidateSize();
+    }
 
-            // Marcador del cliente
-            if (data.lat && data.lng) {
-                if (window._clientMarker) mechMapInst.removeLayer(window._clientMarker);
-                window._clientMarker = L.marker([data.lat, data.lng], {
-                    icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] })
-                }).addTo(mechMapInst).bindPopup("Tu ubicación").openPopup();
-            }
+    // Marcador del cliente
+    if (data.lat && data.lng) {
+        if (window._clientMarker) mechMapInst.removeLayer(window._clientMarker);
+        window._clientMarker = L.marker([data.lat, data.lng], {
+            icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] })
+        }).addTo(mechMapInst).bindPopup("Tu ubicación").openPopup();
+    }
 
-            // Marcador del mecánico
-            let mechMarker = window._mechMarker;
-            if (!mechMarker) {
-                mechMarker = L.marker([data.mech_lat || TALLER_LAT, data.mech_lng || TALLER_LNG], {
-                    icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
-                }).addTo(mechMapInst).bindPopup("Mecánico en camino");
-                window._mechMarker = mechMarker;
-            }
+    // Marcador del mecánico
+    let mechMarker = window._mechMarker;
+    if (!mechMarker) {
+        mechMarker = L.marker([data.mech_lat || TALLER_LAT, data.mech_lng || TALLER_LNG], {
+            icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
+        }).addTo(mechMapInst).bindPopup("Mecánico en camino");
+        window._mechMarker = mechMarker;
+    }
 
-            // Limpiar listeners previos
-            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
-            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
+    // Limpiar listeners previos
+    if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
+    if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
 
-            const updateMechPosition = (lat, lng) => {
-                if (mechMarker) mechMarker.setLatLng([lat, lng]);
-                mechMapInst.setView([lat, lng], 14);
-            };
+    const updateMechPosition = (lat, lng) => {
+        if (mechMarker) mechMarker.setLatLng([lat, lng]);
+        mechMapInst.setView([lat, lng], 14);
+    };
 
-            mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
-                if (posSnap.exists()) {
-                    const pos = posSnap.val();
-                    if (pos.lat && pos.lng) updateMechPosition(pos.lat, pos.lng);
-                }
+    mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
+        if (posSnap.exists()) {
+            const pos = posSnap.val();
+            if (pos.lat && pos.lng) updateMechPosition(pos.lat, pos.lng);
+        }
+    });
+
+    const trackingRef = dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`);
+    trackingUnsubscribe = onValue(trackingRef, (trackSnap) => {
+        if (trackSnap.exists() && mechMapInst) {
+            const coords = [];
+            trackSnap.forEach(child => {
+                const p = child.val();
+                if (p.lat && p.lng) coords.push([p.lat, p.lng]);
             });
-
-            const trackingRef = dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`);
-            trackingUnsubscribe = onValue(trackingRef, (trackSnap) => {
-                if (trackSnap.exists() && mechMapInst) {
-                    const coords = [];
-                    trackSnap.forEach(child => {
-                        const p = child.val();
-                        if (p.lat && p.lng) coords.push([p.lat, p.lng]);
-                    });
-                    if (coords.length > 1) {
-                        if (window._mechRouteLine) mechMapInst.removeLayer(window._mechRouteLine);
-                        window._mechRouteLine = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.7 }).addTo(mechMapInst);
-                    }
-                }
-            });
-        } else {
-            // Ocultar mapa si no está aceptado
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.add('hidden');
-                mechanicMapDiv.style.display = 'none';
-            }
-            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
-            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
-            if (mechMapInst) {
-                mechMapInst.remove();
-                mechMapInst = null;
-                window._mechMarker = null;
-                window._clientMarker = null;
-                if (window._mechRouteLine) window._mechRouteLine = null;
+            if (coords.length > 1) {
+                if (window._mechRouteLine) mechMapInst.removeLayer(window._mechRouteLine);
+                window._mechRouteLine = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.7 }).addTo(mechMapInst);
             }
         }
-
-        // Notificaciones y chat
-        if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
-            speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
-            playSound('notif');
-            const chatBtn = document.getElementById('btn-chat-sos');
-            if (chatBtn && data.mech_uid) chatBtn.classList.remove('hidden');
-        }
-
-        if ((data.status === 'completed' || data.status === 'cancelled') && 
-            window.lastClientSOSStatus !== 'completed' && 
-            window.lastClientSOSStatus !== 'cancelled') {
-            const chatBtn = document.getElementById('btn-chat-sos');
-            if (chatBtn) chatBtn.classList.add('hidden');
-            window._sosChatId = null;
-            speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
-            playSound('notif');
-            if (activeCard) activeCard.classList.add('hidden');
-            // Mostrar encuesta después de un breve retraso
-            setTimeout(() => {
-                const surveyEl = document.getElementById('satisfaction-survey');
-                if (surveyEl) surveyEl.classList.remove('hidden');
-            }, 200);
-            remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
-            window.loadClientHistory();
-            if (wsCard) wsCard.classList.add('hidden');
-            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
-            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
-            if (mechMapInst) {
-                mechMapInst.remove();
-                mechMapInst = null;
-                window._mechMarker = null;
-                window._clientMarker = null;
-                if (window._mechRouteLine) window._mechRouteLine = null;
-            }
-            // Mostrar taller si la moto aún está en proceso
+    });
+} else {
+    // Ocultar mapa si no está aceptado
+    if (mechanicMapDiv) {
+        mechanicMapDiv.classList.add('hidden');
+        mechanicMapDiv.style.display = 'none';
+    }
+    if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
+    if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
+    if (mechMapInst) {
+        mechMapInst.remove();
+        mechMapInst = null;
+        window._mechMarker = null;
+        window._clientMarker = null;
+        if (window._mechRouteLine) window._mechRouteLine = null;
+    }
+}
+        
+        // Mostrar taller si la moto aún está en proceso
             if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                 if (wsCard) {
                     wsCard.classList.remove('hidden');
