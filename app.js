@@ -1427,7 +1427,6 @@ function listenToMySOS() {
                     ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
                     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
                 L.tileLayer(layerUrl).addTo(mechMapInst);
-                // Forzar redimensionamiento después de mostrar
                 setTimeout(() => mechMapInst.invalidateSize(), 200);
             } else {
                 mechMapInst.invalidateSize();
@@ -1454,7 +1453,6 @@ function listenToMySOS() {
             if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
             if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
 
-            // Actualizar posición del mecánico
             const updateMechPosition = (lat, lng) => {
                 if (mechMarker) mechMarker.setLatLng([lat, lng]);
                 mechMapInst.setView([lat, lng], 14);
@@ -1469,7 +1467,6 @@ function listenToMySOS() {
                 }
             });
 
-            // Ruta del mecánico
             const trackingRef = dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`);
             trackingUnsubscribe = onValue(trackingRef, (trackSnap) => {
                 if (trackSnap.exists() && mechMapInst) {
@@ -1501,7 +1498,6 @@ function listenToMySOS() {
         if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
             speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
             playSound('notif');
-            // Mostrar botón de chat
             const chatBtn = document.getElementById('btn-chat-sos');
             if (chatBtn && data.mech_uid) chatBtn.classList.remove('hidden');
         }
@@ -1523,7 +1519,6 @@ function listenToMySOS() {
             remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
             window.loadClientHistory();
             if (wsCard) wsCard.classList.add('hidden');
-            // Limpiar mapa
             if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
             if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
             if (mechMapInst) {
@@ -1533,7 +1528,6 @@ function listenToMySOS() {
                 window._clientMarker = null;
                 if (window._mechRouteLine) window._mechRouteLine = null;
             }
-            // Mostrar taller si la moto aún está en proceso
             if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                 if (wsCard) {
                     wsCard.classList.remove('hidden');
@@ -1558,94 +1552,7 @@ function listenToMySOS() {
         window.lastClientSOSStatus = data.status;
     });
 }
-        // ===== 3. Mapa en tiempo real (solo si está aceptado) =====
-        if (data.status === 'accepted' && data.mech_uid) {
-            if (mechanicMapDiv) mechanicMapDiv.classList.remove('hidden');
 
-            if (!mechMapInst) {
-                const centerLat = data.lat || TALLER_LAT;
-                const centerLng = data.lng || TALLER_LNG;
-                mechMapInst = L.map('mechanic-live-map', { dragging: true, zoomControl: true }).setView([centerLat, centerLng], 14);
-                const isLight = document.body.classList.contains('light-mode');
-                const layerUrl = isLight
-                    ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-                    : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-                L.tileLayer(layerUrl).addTo(mechMapInst);
-            } else {
-                mechMapInst.invalidateSize();
-            }
-
-            // Marcador del cliente
-            if (data.lat && data.lng) {
-                if (window._clientMarker) mechMapInst.removeLayer(window._clientMarker);
-                window._clientMarker = L.marker([data.lat, data.lng], {
-                    icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] })
-                }).addTo(mechMapInst).bindPopup("Tu ubicación").openPopup();
-            }
-
-            // Marcador del mecánico
-            let mechMarker = window._mechMarker;
-            if (!mechMarker) {
-                mechMarker = L.marker([data.lat || TALLER_LAT, data.lng || TALLER_LNG], {
-                    icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
-                }).addTo(mechMapInst).bindPopup("Mecánico en camino");
-                window._mechMarker = mechMarker;
-            }
-
-            // Limpiar sub-listeners previos antes de crear nuevos
-            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
-            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
-
-            // Actualizar posición y ruta
-            const updateMechPosition = (lat, lng) => {
-                if (mechMarker) mechMarker.setLatLng([lat, lng]);
-                mechMapInst.setView([lat, lng], 14);
-                // El tracking de ruta se maneja aparte
-            };
-
-            // Listener de posición activa del mecánico
-            mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
-                if (posSnap.exists()) {
-                    const pos = posSnap.val();
-                    if (pos.lat && pos.lng) updateMechPosition(pos.lat, pos.lng);
-                } else if (data.mech_lat && data.mech_lng) {
-                    updateMechPosition(data.mech_lat, data.mech_lng);
-                }
-            });
-
-            // Listener de trayectoria (ruta)
-            const trackingRef = dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`);
-            trackingUnsubscribe = onValue(trackingRef, (trackSnap) => {
-                if (trackSnap.exists() && mechMapInst) {
-                    const coords = [];
-                    trackSnap.forEach(child => {
-                        const p = child.val();
-                        if (p.lat && p.lng) coords.push([p.lat, p.lng]);
-                    });
-                    if (coords.length > 1) {
-                        if (window._mechRouteLine) mechMapInst.removeLayer(window._mechRouteLine);
-                        window._mechRouteLine = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.7 }).addTo(mechMapInst);
-                    }
-                }
-            });
-        } else {
-            // Si no está aceptado, ocultar mapa y limpiar sub-listeners
-            if (mechanicMapDiv) mechanicMapDiv.classList.add('hidden');
-            if (mechPosUnsubscribe) { mechPosUnsubscribe(); mechPosUnsubscribe = null; }
-            if (trackingUnsubscribe) { trackingUnsubscribe(); trackingUnsubscribe = null; }
-            if (mechMapInst) {
-                mechMapInst.remove();
-                mechMapInst = null;
-                window._mechMarker = null;
-                window._clientMarker = null;
-                if (window._mechRouteLine) window._mechRouteLine = null;
-            }
-        }
-
-        // ===== 4. Actualizar último estado conocido (siempre al final) =====
-        window.lastClientSOSStatus = data.status;
-    });
-}
 // aqui finaliza listenToMySOS //
 window.abrirChatSOS = () => {
     if (window._sosChatId) {
