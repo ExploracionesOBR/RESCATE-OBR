@@ -7698,14 +7698,3 @@ window.abrirChatIA = function() {
         console.error('Modal chat IA no encontrado');
     }
 };
-
-// Forzar que el botón flotante también abra el chat (independientemente del onclick)
-document.addEventListener('DOMContentLoaded', function() {
-    const btnFloat = document.getElementById('btn-chat-ai-float');
-    if (btnFloat) {
-        btnFloat.addEventListener('click', function(e) {
-            e.preventDefault();
-            window.abrirChatIA();
-        });
-    }
-});
