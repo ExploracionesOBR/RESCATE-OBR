@@ -862,3 +862,9 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
     display: flex !important;
     background-color: rgba(0,0,0,0.95) !important;
 }
+/* Asegurar que el mapa tenga altura visible */
+#mechanic-live-map {
+    min-height: 250px !important;
+    height: auto !important;
+    background: #f0f0f0;
+}
