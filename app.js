@@ -7679,3 +7679,27 @@ if (document.readyState === 'loading') {
 } else {
     cargarGruposIA();
 }
+// === Función global para abrir el chat IA (desde el menú o botón flotante) ===
+window.abrirChatIA = function() {
+    const modal = document.getElementById('modal-chat-ai');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+        modal.style.opacity = '1';
+        modal.style.visibility = 'visible';
+        modal.style.zIndex = '10000';
+    } else {
+        console.error('Modal chat IA no encontrado');
+    }
+};
+
+// Forzar que el botón flotante también abra el chat (independientemente del onclick)
+document.addEventListener('DOMContentLoaded', function() {
+    const btnFloat = document.getElementById('btn-chat-ai-float');
+    if (btnFloat) {
+        btnFloat.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.abrirChatIA();
+        });
+    }
+});
