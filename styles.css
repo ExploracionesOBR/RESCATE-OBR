@@ -870,3 +870,12 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
     z-index: 100000 !important;
     background-color: rgba(0,0,0,0.95) !important;
 }
+/* Asegurar que el mapa tenga margen inferior suficiente para no ser tapado por la barra de navegación */
+#mechanic-live-map {
+    margin-bottom: 1rem;
+}
+
+/* Para la pestaña RESCATE, dar un poco más de espacio inferior */
+#c-view-rescate {
+    padding-bottom: 80px;
+}
