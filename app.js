@@ -1415,17 +1415,17 @@ function listenToMySOS() {
         }
 
         // ===== MAPA EN VIVO (solo si aceptado y con mecánico) =====
-        if (data.status === 'accepted' && data.mech_uid) {
-    // Mostrar el contenedor del mapa
+if (data.status === 'accepted' && data.mech_uid) {
     if (mechanicMapDiv) {
         mechanicMapDiv.classList.remove('hidden');
         mechanicMapDiv.style.display = 'block';
         mechanicMapDiv.style.visibility = 'visible';
-        // Forzar redimensionamiento después de un breve retraso
         setTimeout(() => {
             if (mechMapInst) mechMapInst.invalidateSize();
         }, 300);
     }
+    // ... resto del código
+}
 
     // Crear el mapa si no existe
     if (!mechMapInst) {
