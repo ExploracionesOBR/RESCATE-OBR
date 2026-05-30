@@ -377,9 +377,9 @@
             </div>
         </section>
 
-        <section id="c-view-moto" class="c-view hidden space-y-6">
+        <section id="c-view-moto" class="c-view space-y-6">
     <h2 class="text-2xl font-black italic uppercase text-center">Estado en Vivo</h2>
-    <div id="no-active-services-msg" class="bg-white/5 border border-white/10 p-8 rounded-3xl text-center shadow-lg flex flex-col items-center justify-center">
+    <div id="no-active-services-msg" class="bg-white/5 border border-white/10 p-8 rounded-3xl text-center shadow-lg flex flex-col items-center justify-center hidden">
         <div class="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6">
             <i class="fas fa-map-marked-alt text-4xl text-gray-600"></i>
         </div>
@@ -388,18 +388,18 @@
         <p class="text-xs text-gray-500 mt-4">Esta pestaña se activará automáticamente cuando solicites un auxilio o ingreses tu moto al taller.</p>
     </div>
 
-    <div id="active-sos-card" class="hidden bg-gradient-to-br from-red-900/40 to-asfalto border border-red-500 p-6 rounded-3xl relative overflow-hidden animate-fade-in shadow-xl">
+    <div id="active-sos-card" class="bg-gradient-to-br from-red-900/40 to-asfalto border border-red-500 p-6 rounded-3xl relative overflow-hidden animate-fade-in shadow-xl">
         <!-- Barra de progreso de estados -->
         <div class="mb-6">
             <div class="flex justify-between text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
-                <span id="step-1-label" class="text-red-400">Aceptado</span>
+                <span id="step-1-label" class="text-red-400 font-bold">Aceptado</span>
                 <span id="step-2-label">En camino</span>
                 <span id="step-3-label">Reparando</span>
                 <span id="step-4-label">Finalizado</span>
             </div>
             <div class="relative h-1.5 bg-white/10 rounded-full flex justify-between items-center">
-                <div id="sos-progress-bar" class="h-full absolute bg-red-500 rounded-full transition-all duration-500" style="width: 0%"></div>
-                <div class="z-10 w-4 h-4 rounded-full bg-red-500 border-2 border-asfalto" id="step-dot-1"></div>
+                <div id="sos-progress-bar" class="h-full absolute bg-red-500 rounded-full transition-all duration-500" style="width: 0%;"></div>
+                <div class="z-10 w-4 h-4 rounded-full bg-asfalto border-2 border-white/20" id="step-dot-1"></div>
                 <div class="z-10 w-4 h-4 rounded-full bg-asfalto border-2 border-white/20" id="step-dot-2"></div>
                 <div class="z-10 w-4 h-4 rounded-full bg-asfalto border-2 border-white/20" id="step-dot-3"></div>
                 <div class="z-10 w-4 h-4 rounded-full bg-asfalto border-2 border-white/20" id="step-dot-4"></div>
@@ -410,10 +410,10 @@
             <i class="fas fa-ambulance text-red-500 text-2xl animate-pulse"></i>
             <h3 class="font-black text-white uppercase italic">Rescate Solicitado</h3>
         </div>
-        <p id="sos-status-desc-client" class="text-xs text-gray-300 mb-4">El taller OBR ha recibido tu ubicación y detalles de la falla.</p>
+        <p id="sos-status-desc-client" class="text-xs text-gray-300 mb-4">Esperando confirmación...</p>
 
-        <!-- Mapa en vivo -->
-        <div id="mechanic-live-map" class="h-64 w-full bg-white rounded-xl mb-4 border border-red-500/30 z-0" style="min-height: 250px;"></div>
+        <!-- MAPA EN VIVO – siempre visible con fondo gris -->
+        <div id="mechanic-live-map" class="h-64 w-full rounded-xl mb-4 border border-red-500/30 z-0" style="min-height: 250px; background-color: #374151; display: block;"></div>
 
         <div id="client-sos-actions" class="flex space-x-2 mt-4">
             <button id="btn-contacto-taller" onclick="window.mostrarOpcionesContacto()" class="flex-1 bg-blue-600 text-white text-[10px] px-4 py-3 rounded-xl font-black uppercase flex items-center justify-center"><i class="fas fa-headset text-sm mr-2"></i>Contactar al Taller</button>
