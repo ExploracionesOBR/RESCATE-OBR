@@ -7413,5 +7413,3 @@ window.bindAutoSave = () => {
             el._autoSaveBound = true;
         }
     });
-};
-};
