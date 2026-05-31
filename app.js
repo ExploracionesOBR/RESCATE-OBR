@@ -35,6 +35,240 @@ window.loadHtml2Canvas = () => {
         document.head.appendChild(script);
     });
 };
+
+// ========== CHAT IA - FUNCIONES COMPLETAS (ÚNICO BLOQUE) ==========
+window.gruposIA = window.gruposIA || [];
+window.grupoActivoIA = window.grupoActivoIA || null;
+
+function guardarGruposIA() {
+    localStorage.setItem('obr_chat_ia_groups', JSON.stringify(window.gruposIA));
+}
+
+function cargarGruposIA() {
+    const stored = localStorage.getItem('obr_chat_ia_groups');
+    window.gruposIA = stored ? JSON.parse(stored) : [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+    if (!window.gruposIA.length) {
+        window.gruposIA = [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+    }
+    guardarGruposIA();
+    renderizarListaGruposIA();
+    if (window.gruposIA.length && !window.grupoActivoIA) seleccionarGrupoIA(window.gruposIA[0].id);
+}
+
+function renderizarListaGruposIA() {
+    const container = document.getElementById('lista-grupos-ia');
+    if (!container) return;
+    container.innerHTML = '';
+    window.gruposIA.forEach(grupo => {
+        const div = document.createElement('div');
+        div.className = `p-2 rounded-xl cursor-pointer hover:bg-white/10 ${window.grupoActivoIA?.id === grupo.id ? 'bg-naranja/20 border-l-4 border-naranja' : 'bg-white/5'}`;
+        div.innerHTML = `<div class="flex justify-between items-center"><span class="text-sm font-bold truncate">${escapeHtml(grupo.nombre)}</span>${grupo.servicioId ? `<span class="text-[9px] text-purple-400">📎 ${grupo.servicioId.slice(-6)}</span>` : ''}</div><div class="text-[10px] text-gray-400 truncate">${grupo.mensajes.length} mensajes</div>`;
+        div.onclick = () => seleccionarGrupoIA(grupo.id);
+        container.appendChild(div);
+    });
+}
+
+function seleccionarGrupoIA(id) {
+    window.grupoActivoIA = window.gruposIA.find(g => g.id === id);
+    if (!window.grupoActivoIA) return;
+    const titulo = document.getElementById('chat-ai-titulo');
+    if (titulo) titulo.innerText = window.grupoActivoIA.nombre;
+    const servicioSpan = document.getElementById('chat-ai-servicio-id');
+    if (servicioSpan) servicioSpan.innerText = window.grupoActivoIA.servicioId ? `Servicio: ${window.grupoActivoIA.servicioId}` : '';
+    renderizarMensajesIA();
+    renderizarListaGruposIA();
+}
+
+function renderizarMensajesIA() {
+    const contenedor = document.getElementById('chat-ai-mensajes');
+    if (!contenedor || !window.grupoActivoIA) return;
+    contenedor.innerHTML = '';
+    window.grupoActivoIA.mensajes.forEach(msg => {
+        const div = document.createElement('div');
+        div.className = `flex ${msg.rol === 'usuario' ? 'justify-end' : 'justify-start'}`;
+        div.innerHTML = `<div class="${msg.rol === 'usuario' ? 'bg-naranja' : 'bg-blue-600'} max-w-[75%] p-3 rounded-2xl text-white text-sm"><div>${escapeHtml(msg.texto)}</div>${msg.imagenes ? `<div class="flex gap-1 mt-2">${msg.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox('${img}')">`).join('')}</div>` : ''}<div class="text-[9px] opacity-60 mt-1">${new Date(msg.timestamp).toLocaleTimeString()}</div></div>`;
+        contenedor.appendChild(div);
+    });
+    contenedor.scrollTop = contenedor.scrollHeight;
+}
+
+async function consultarGroq(promptUsuario) {
+    const GROQ_API_KEY = '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';
+    const contexto = window.grupoActivoIA.mensajes.slice(-5).filter(m => m.rol !== 'loading').map(m => `${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`).join('\n');
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+        body: JSON.stringify({
+            model: 'llama3-8b-8192',
+            messages: [
+                { role: 'system', content: "Eres un mecánico especializado experto en resolver dudas analizando imágenes o preguntas que se indiquen para dar más pronto con el fallo que se tiene existente." },
+                { role: 'user', content: `Contexto: ${contexto}\nPregunta: ${promptUsuario}` }
+            ],
+            temperature: 0.7,
+            max_tokens: 1024
+        })
+    });
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    return data.choices[0].message.content;
+}
+
+window.enviarMensajeIA = async () => {
+    const input = document.getElementById('chat-ai-input');
+    const texto = input?.value.trim();
+    if (!texto || !window.grupoActivoIA) return;
+    window.grupoActivoIA.mensajes.push({ rol: 'usuario', texto, timestamp: Date.now() });
+    guardarGruposIA();
+    renderizarMensajesIA();
+    if (input) input.value = '';
+    window.grupoActivoIA.mensajes.push({ rol: 'asistente', texto: '...', timestamp: Date.now(), loading: true });
+    renderizarMensajesIA();
+    try {
+        const respuesta = await consultarGroq(texto);
+        window.grupoActivoIA.mensajes.pop();
+        window.grupoActivoIA.mensajes.push({ rol: 'asistente', texto: respuesta, timestamp: Date.now() });
+        guardarGruposIA();
+        renderizarMensajesIA();
+    } catch (err) {
+        window.grupoActivoIA.mensajes.pop();
+        window.grupoActivoIA.mensajes.push({ rol: 'asistente', texto: 'Error al contactar con la IA. Revisa tu conexión o clave API.', timestamp: Date.now() });
+        guardarGruposIA();
+        renderizarMensajesIA();
+    }
+};
+
+window.subirImagenIA = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment';
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const compressed = await window.compressImage(file);
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const imgData = ev.target.result;
+            if (!window.grupoActivoIA) return;
+            window.grupoActivoIA.mensajes.push({ rol: 'usuario', texto: '[Imagen enviada]', timestamp: Date.now(), imagenes: [imgData] });
+            guardarGruposIA();
+            renderizarMensajesIA();
+        };
+        reader.readAsDataURL(compressed);
+    };
+    input.click();
+};
+
+window.crearNuevoGrupoIA = () => {
+    const nombre = prompt('Nombre del grupo (ej. "Moto Italika"):', 'Nuevo grupo');
+    if (!nombre) return;
+    window.gruposIA.push({ id: Date.now(), nombre, servicioId: null, mensajes: [] });
+    guardarGruposIA();
+    renderizarListaGruposIA();
+    seleccionarGrupoIA(window.gruposIA[window.gruposIA.length - 1].id);
+};
+
+window.renombrarGrupoIA = () => {
+    if (!window.grupoActivoIA) return;
+    const nuevo = prompt('Nuevo nombre:', window.grupoActivoIA.nombre);
+    if (nuevo) {
+        window.grupoActivoIA.nombre = nuevo;
+        guardarGruposIA();
+        renderizarListaGruposIA();
+        const titulo = document.getElementById('chat-ai-titulo');
+        if (titulo) titulo.innerText = nuevo;
+    }
+};
+
+window.eliminarGrupoIA = () => {
+    if (!window.grupoActivoIA) return;
+    if (!confirm('¿Eliminar este grupo y todos sus mensajes?')) return;
+    const idx = window.gruposIA.findIndex(g => g.id === window.grupoActivoIA.id);
+    if (idx !== -1) window.gruposIA.splice(idx, 1);
+    guardarGruposIA();
+    if (window.gruposIA.length === 0) {
+        window.gruposIA = [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+        guardarGruposIA();
+    }
+    seleccionarGrupoIA(window.gruposIA[0].id);
+    renderizarListaGruposIA();
+};
+
+window.vincularGrupoAServicio = async () => {
+    if (!window.grupoActivoIA) return;
+    const servicioId = prompt('ID del servicio (ej. OBR-12345):', window.grupoActivoIA.servicioId || '');
+    if (!servicioId) return;
+    try {
+        const q = query(collection(db, "rescates"), where("shortId", "==", servicioId), limit(1));
+        const snap = await getDocs(q);
+        if (snap.empty) {
+            window.showToast("Servicio no encontrado", true);
+            return;
+        }
+        const servicio = snap.docs[0].data();
+        const estadosValidos = ['pending', 'accepted', 'repairing', 'to_shop', 'ready'];
+        if (!estadosValidos.includes(servicio.status)) {
+            window.showToast("Solo puedes vincular servicios activos (no completados ni cancelados)", true);
+            return;
+        }
+        window.grupoActivoIA.servicioId = servicioId;
+        guardarGruposIA();
+        renderizarListaGruposIA();
+        const servicioSpan = document.getElementById('chat-ai-servicio-id');
+        if (servicioSpan) servicioSpan.innerText = `Servicio: ${servicioId}`;
+        window.showToast('Grupo vinculado al servicio');
+    } catch (e) {
+        window.showToast("Error al verificar servicio", true);
+    }
+};
+
+window.exportarChatIA = () => {
+    if (!window.grupoActivoIA) return;
+    let content = `Chat: ${window.grupoActivoIA.nombre}\nServicio: ${window.grupoActivoIA.servicioId || 'No vinculado'}\n---\n`;
+    window.grupoActivoIA.mensajes.forEach(m => {
+        content += `${m.rol === 'usuario' ? '👤' : '🤖'} (${new Date(m.timestamp).toLocaleString()}): ${m.texto}\n`;
+    });
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat_${window.grupoActivoIA.nombre}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+};
+
+window.abrirChatIA = function() {
+    const modal = document.getElementById('modal-chat-ai');
+    if (!modal) {
+        console.error('No se encontró el modal modal-chat-ai');
+        return;
+    }
+    if (!window.gruposIA || window.gruposIA.length === 0) {
+        cargarGruposIA();
+    }
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
+    void modal.offsetHeight;
+    if (window.grupoActivoIA) {
+        renderizarMensajesIA();
+    } else if (window.gruposIA.length) {
+        seleccionarGrupoIA(window.gruposIA[0].id);
+    }
+    const msgContainer = document.getElementById('chat-ai-mensajes');
+    if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
+    console.log('✅ Chat IA abierto correctamente');
+};
+
+// Inicialización única
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => cargarGruposIA());
+} else {
+    cargarGruposIA();
+}
+// ========== FIN CHAT IA ==========
+
 // === VARIABLES GLOBALES ===
 window.userIntent = 'inicio';
 let tempSOSGps = { lat: null, lng: null };
@@ -70,6 +304,14 @@ let mySOSListener = null;
 let serviciosListener = null, sosListener = null, pedidosListener = null, citasListener = null;
 window._servicesCatalogUnsubscribe = null;
 const generateShortId = () => 'OBR-' + Math.floor(10000 + Math.random() * 90000);
+let clientMapInitialized = false;    // Para crear el mapa una sola vez
+let clientMapInstance = null;        // Referencia al mapa Leaflet
+let clientMapMarkers = { mech: null, client: null, taller: null };
+let clientMapRouteLine = null;
+let lastMechPos = null;              // Para calcular distancia
+let assignedMechPos = null;          // Posición al momento de asignación
+let repairProgressInterval = null;    // Para simular avance de barra
+let currentRepairPercent = 0;         // Progreso durante reparación
 // aqui inicia escapeHtml //
 function escapeHtml(str) {
     if (!str) return '';
@@ -495,6 +737,7 @@ async function loadGlobalSettings() {
                         showView('app-admin');
                     } else if (role === 'cliente' || role === 'membresia') {
                         showView('app-client');
+                        initClientMap();  // <-- AÑADE ESTA LÍNEA
                     }
                 } else {
                     showView('view-landing');
@@ -1322,7 +1565,6 @@ window.submitFinalSOS = async () => {
         btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
     }
 };
-
 function listenToMySOS() {
     if (window.mySOSListener && typeof window.mySOSListener === 'function') {
         window.mySOSListener();
@@ -1340,22 +1582,20 @@ function listenToMySOS() {
         const mechanicMapDiv = document.getElementById('mechanic-live-map');
         const wsCard = document.getElementById('active-workshop-card');
         const statusDesc = document.getElementById('sos-status-desc-client');
+        const progressBar = document.getElementById('sos-progress-bar');
+        const stepLabels = ['step-1-label', 'step-2-label', 'step-3-label', 'step-4-label'];
+        const stepDots = ['step-dot-1', 'step-dot-2', 'step-dot-3', 'step-dot-4'];
 
         if (!snap.exists()) {
+            // No hay SOS activo → ocultar mapa y limpiar
             if (activeCard) activeCard.classList.add('hidden');
             if (noServicesMsg) noServicesMsg?.classList.remove('hidden');
             if (survey) survey.classList.add('hidden');
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.add('hidden');
-                mechanicMapDiv.style.display = 'none';
-            }
+            if (mechanicMapDiv) mechanicMapDiv.classList.remove('visible');
             if (wsCard) wsCard.classList.add('hidden');
-            if (window._mechMap) {
-                window._mechMap.remove();
-                window._mechMap = null;
-            }
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (trackingUnsubscribe) trackingUnsubscribe();
+            if (repairProgressInterval) clearInterval(repairProgressInterval);
             window.lastClientSOSStatus = null;
             return;
         }
@@ -1363,16 +1603,43 @@ function listenToMySOS() {
         const data = snap.val();
         if (activeCard) activeCard.classList.remove('hidden');
         if (noServicesMsg) noServicesMsg.classList.add('hidden');
+        if (mechanicMapDiv) mechanicMapDiv.classList.add('visible'); // Mostrar mapa
 
-        // Actualizar barra de progreso (código original conservado, solo se muestra la parte del mapa)
-        const stepLabels = ['step-1-label', 'step-2-label', 'step-3-label', 'step-4-label'];
-        const stepDots = ['step-dot-1', 'step-dot-2', 'step-dot-3', 'step-dot-4'];
-        let currentStep = 0, progressPercent = 0;
-        if (data.status === 'accepted') { currentStep = 1; progressPercent = 25; }
-        else if (data.status === 'repairing') { currentStep = 2; progressPercent = 50; }
-        else if (data.status === 'to_shop' || data.status === 'ready') { currentStep = 3; progressPercent = 75; }
-        else if (data.status === 'completed') { currentStep = 4; progressPercent = 100; }
+        // ========== TEXTO DE ESTADO EN ESPAÑOL ==========
+        let estadoTexto = "Esperando confirmación";
+        let currentStep = 0;
+        let progressPercent = 0;
 
+        switch (data.status) {
+            case 'accepted':
+                estadoTexto = "En camino";
+                currentStep = 1;
+                progressPercent = 25;
+                break;
+            case 'repairing':
+                estadoTexto = "Reparando";
+                currentStep = 2;
+                progressPercent = 50;
+                break;
+            case 'to_shop':
+            case 'ready':
+                estadoTexto = "Finalizado";
+                currentStep = 3;
+                progressPercent = 75;
+                break;
+            case 'completed':
+                estadoTexto = "Finalizado";
+                currentStep = 4;
+                progressPercent = 100;
+                break;
+            default:
+                estadoTexto = "Pendiente";
+                currentStep = 0;
+                progressPercent = 0;
+        }
+        if (statusDesc) statusDesc.innerText = estadoTexto;
+
+        // Actualizar barra de progreso y pasos visuales
         for (let i = 0; i < stepLabels.length; i++) {
             const labelEl = document.getElementById(stepLabels[i]);
             const dotEl = document.getElementById(stepDots[i]);
@@ -1386,114 +1653,104 @@ function listenToMySOS() {
                 dotEl?.classList.add('bg-asfalto', 'border-white/20');
             }
         }
-        const progressBar = document.getElementById('sos-progress-bar');
         if (progressBar) progressBar.style.width = progressPercent + '%';
-        if (statusDesc) {
-            let estadoTexto = "Esperando confirmación";
-            if (data.status === 'accepted') estadoTexto = "Mecánico en camino";
-            else if (data.status === 'completed') estadoTexto = "Servicio finalizado";
-            else if (data.status === 'cancelled') estadoTexto = "Cancelado";
-            else if (data.status === 'repairing') estadoTexto = "Reparando";
-            else if (data.status === 'to_shop') estadoTexto = "En taller";
-            else if (data.status === 'ready') estadoTexto = "Listo";
-            statusDesc.innerText = estadoTexto;
-        }
 
-        // ========== MAPA: versión robusta ==========
+        // ========== MANEJO DEL MAPA Y ACTUALIZACIÓN DE MARCAS ==========
         if (data.status === 'accepted' && data.mech_uid) {
-            if (!mechanicMapDiv) return;
+            // Guardar posición inicial del mecánico si aún no se tiene
+            if (!assignedMechPos && data.mech_lat && data.mech_lng) {
+                assignedMechPos = { lat: data.mech_lat, lng: data.mech_lng };
+            }
 
-            mechanicMapDiv.classList.remove('hidden');
-            mechanicMapDiv.style.display = 'block';
-            mechanicMapDiv.style.visibility = 'visible';
+            // Marcador del cliente (ubicación del SOS)
+            if (data.lat && data.lng && clientMapInstance) {
+                if (clientMapMarkers.client) clientMapInstance.removeLayer(clientMapMarkers.client);
+                clientMapMarkers.client = L.marker([data.lat, data.lng], {
+                    icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] })
+                }).addTo(clientMapInstance).bindPopup("Tu ubicación").openPopup();
+            }
 
-            const initMap = () => {
-                const rect = mechanicMapDiv.getBoundingClientRect();
-                if (rect.height < 100) {
-                    requestAnimationFrame(initMap);
-                    return;
-                }
-
-                if (!window._mechMap) {
-                    const centerLat = data.lat || TALLER_LAT;
-                    const centerLng = data.lng || TALLER_LNG;
-                    window._mechMap = L.map('mechanic-live-map').setView([centerLat, centerLng], 14);
-                    const isLight = document.body.classList.contains('light-mode');
-                    const layerUrl = isLight
-                        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-                        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-                    L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(window._mechMap);
-
-                    if (!window._tallerMarker) {
-                        window._tallerMarker = L.marker([TALLER_LAT, TALLER_LNG], {
-                            icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] })
-                        }).addTo(window._mechMap).bindPopup("Taller OBR");
-                    }
-                } else {
-                    window._mechMap.invalidateSize();
-                }
-
-                if (data.lat && data.lng) {
-                    if (window._clientMarker) window._mechMap.removeLayer(window._clientMarker);
-                    window._clientMarker = L.marker([data.lat, data.lng], {
-                        icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] })
-                    }).addTo(window._mechMap).bindPopup("Tu ubicación").openPopup();
-                }
-
-                if (!window._mechMarker) {
-                    window._mechMarker = L.marker([TALLER_LAT, TALLER_LNG], {
-                        icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
-                    }).addTo(window._mechMap).bindPopup("Mecánico en camino");
-                } else {
-                    window._mechMarker.addTo(window._mechMap);
-                }
-
-                if (mechPosUnsubscribe) mechPosUnsubscribe();
-                if (trackingUnsubscribe) trackingUnsubscribe();
-
-                mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
-                    if (posSnap.exists() && window._mechMap) {
-                        const pos = posSnap.val();
-                        if (pos.lat && pos.lng && window._mechMarker) {
-                            window._mechMarker.setLatLng([pos.lat, pos.lng]);
-                            window._mechMap.setView([pos.lat, pos.lng], 14);
+            // Escuchar posición del mecánico en tiempo real
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
+                if (posSnap.exists() && clientMapInstance) {
+                    const pos = posSnap.val();
+                    if (pos.lat && pos.lng) {
+                        // Actualizar marcador del mecánico
+                        if (clientMapMarkers.mech) {
+                            clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
+                        } else {
+                            clientMapMarkers.mech = L.marker([pos.lat, pos.lng], {
+                                icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
+                            }).addTo(clientMapInstance).bindPopup("Mecánico en camino");
                         }
-                    }
-                });
+                        clientMapInstance.setView([pos.lat, pos.lng], 14);
 
-                trackingUnsubscribe = onValue(dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`), (trackSnap) => {
-                    if (trackSnap.exists() && window._mechMap) {
-                        const coords = [];
-                        trackSnap.forEach(child => {
-                            const p = child.val();
-                            if (p.lat && p.lng) coords.push([p.lat, p.lng]);
-                        });
-                        if (coords.length > 1) {
-                            if (window._mechRouteLine) window._mechMap.removeLayer(window._mechRouteLine);
-                            window._mechRouteLine = L.polyline(coords, { color: '#440dfa', weight: 5, opacity: 0.9 }).addTo(window._mechMap);
+                        // DETECCIÓN AUTOMÁTICA DE "EN CAMINO" si se movió más de 2km desde asignación
+                        if (assignedMechPos) {
+                            const dist = getDistanceKm(assignedMechPos.lat, assignedMechPos.lng, pos.lat, pos.lng);
+                            if (dist >= 2 && data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted_moving') {
+                                // Solo actualizamos la UI, no el estado en Firestore
+                                if (statusDesc) statusDesc.innerText = "En camino (moviéndose)";
+                                // Podríamos también cambiar el texto del paso 2
+                                const movingLabel = document.getElementById('step-2-label');
+                                if (movingLabel) movingLabel.innerText = "En camino";
+                                window.lastClientSOSStatus = 'accepted_moving';
+                            }
                         }
+                        lastMechPos = pos;
                     }
-                });
-            };
+                }
+            });
 
-            requestAnimationFrame(() => setTimeout(initMap, 300));
+            // Ruta (polilínea) del mecánico
+            if (trackingUnsubscribe) trackingUnsubscribe();
+            trackingUnsubscribe = onValue(dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`), (trackSnap) => {
+                if (trackSnap.exists() && clientMapInstance) {
+                    const coords = [];
+                    trackSnap.forEach(child => {
+                        const p = child.val();
+                        if (p.lat && p.lng) coords.push([p.lat, p.lng]);
+                    });
+                    if (coords.length > 1) {
+                        if (clientMapRouteLine) clientMapInstance.removeLayer(clientMapRouteLine);
+                        clientMapRouteLine = L.polyline(coords, { color: '#440dfa', weight: 5, opacity: 0.9 }).addTo(clientMapInstance);
+                    }
+                }
+            });
         } else {
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.add('hidden');
-                mechanicMapDiv.style.display = 'none';
-            }
-            if (window._mechMap) {
-                window._mechMap.remove();
-                window._mechMap = null;
-                window._mechMarker = null;
-                window._clientMarker = null;
-                window._mechRouteLine = null;
-            }
+            // No hay mecánico asignado o estado diferente → limpiar marcadores y rutas
+            if (clientMapMarkers.mech && clientMapInstance) clientMapInstance.removeLayer(clientMapMarkers.mech);
+            if (clientMapMarkers.client && clientMapInstance) clientMapInstance.removeLayer(clientMapMarkers.client);
+            if (clientMapRouteLine && clientMapInstance) clientMapInstance.removeLayer(clientMapRouteLine);
+            clientMapMarkers.mech = null;
+            clientMapMarkers.client = null;
+            clientMapRouteLine = null;
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (trackingUnsubscribe) trackingUnsubscribe();
+            assignedMechPos = null;
         }
 
-        // Notificaciones y encuesta (código original conservado)
+        // ========== SIMULACIÓN DE PROGRESO DURANTE REPARACIÓN ==========
+        if (data.status === 'repairing' && !repairProgressInterval) {
+            currentRepairPercent = 50; // ya estamos en 50% por defecto
+            repairProgressInterval = setInterval(() => {
+                if (data.status !== 'repairing') {
+                    clearInterval(repairProgressInterval);
+                    repairProgressInterval = null;
+                    return;
+                }
+                if (currentRepairPercent < 99) {
+                    currentRepairPercent += 1;
+                    if (progressBar) progressBar.style.width = currentRepairPercent + '%';
+                }
+            }, 30000); // cada 30 segundos avanza 1% (simula tiempo en reparación)
+        } else if (data.status !== 'repairing' && repairProgressInterval) {
+            clearInterval(repairProgressInterval);
+            repairProgressInterval = null;
+        }
+
+        // ========== NOTIFICACIONES Y ENCUESTA (sin cambios) ==========
         if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
             speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
             playSound('notif');
@@ -1519,13 +1776,10 @@ function listenToMySOS() {
             if (wsCard) wsCard.classList.add('hidden');
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (trackingUnsubscribe) trackingUnsubscribe();
-            if (window._mechMap) {
-                window._mechMap.remove();
-                window._mechMap = null;
-                window._mechMarker = null;
-                window._clientMarker = null;
-                window._mechRouteLine = null;
-            }
+            if (repairProgressInterval) clearInterval(repairProgressInterval);
+            if (clientMapInstance) clientMapInstance.remove();
+            clientMapInstance = null;
+            clientMapInitialized = false; // para que se vuelva a crear la próxima vez
             if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                 if (wsCard) {
                     wsCard.classList.remove('hidden');
@@ -7460,3 +7714,22 @@ window.aplicarHorarioALunes = () => {
         if (closeEl) closeEl.value = lunesC;
     }
 };
+function initClientMap() {
+    if (clientMapInitialized) return;
+    const container = document.getElementById('mechanic-live-map');
+    if (!container) return;
+    
+    clientMapInstance = L.map('mechanic-live-map', { zoomControl: true }).setView([TALLER_LAT, TALLER_LNG], 13);
+    const isLight = document.body.classList.contains('light-mode');
+    const layerUrl = isLight
+        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(clientMapInstance);
+    
+    // Marcador fijo del taller
+    clientMapMarkers.taller = L.marker([TALLER_LAT, TALLER_LNG], {
+        icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] })
+    }).addTo(clientMapInstance).bindPopup("Taller OBR");
+    
+    clientMapInitialized = true;
+}
