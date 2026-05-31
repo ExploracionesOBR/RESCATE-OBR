@@ -853,12 +853,20 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 .animate-pulse-soft {
     animation: soft-pulse 1.5s infinite ease-in-out;
 }
-/* Fuerza visibilidad del mapa */
+/* El mapa siempre está presente pero invisible hasta que haya rescate */
 #mechanic-live-map {
+    width: 100%;
     min-height: 250px !important;
-    height: auto !important;
-    background-color: #374151 !important;
+    height: 250px !important;
+    background-color: #374151;
     border-radius: 0.75rem;
+    transition: opacity 0.3s ease-in-out;
+    opacity: 0;
+    pointer-events: none; /* Evita que el usuario interactúe cuando está oculto */
+}
+#mechanic-live-map.visible {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 /* Fuerza visibilidad del modal del chat IA */
