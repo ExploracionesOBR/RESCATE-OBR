@@ -819,7 +819,7 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 #video-banner-container-client video {
     width: 100%;
     height: 100%;
-    object-fit: cover;   /* Cambiado de 'contain' a 'cover' */
+    object-fit: cover;
     display: block;
     border-radius: 1rem;
 }
@@ -828,7 +828,7 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 @media (max-width: 768px) {
     #video-banner-container,
     #video-banner-container-client {
-        height: 170px;  /* Ajusta según tu diseño */
+        height: 170px;
     }
 }
 
@@ -891,35 +891,4 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 /* Evita que la barra de navegación tape el contenido de la pestaña RESCATE */
 #c-view-rescate {
     padding-bottom: 80px;
-}
-/* Fuerza visibilidad del chat IA */
-#modal-chat-ai {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0,0,0,0.95);
-    backdrop-filter: blur(4px);
-    z-index: 100000;
-    overflow: auto;
-}
-#modal-chat-ai:not(.hidden) {
-    display: flex !important;
-    flex-direction: column !important;
-}
-
-/* Asegura que el contenedor del mapa tenga dimensiones mínimas incluso antes de mostrar */
-#mechanic-live-map {
-    min-height: 250px !important;
-    height: auto !important;
-    background-color: #374151 !important;
-    border-radius: 0.75rem;
-    display: none; /* Se mostrará dinámicamente */
-}
-#mechanic-live-map:not(.hidden) {
-    display: block !important;
 }
