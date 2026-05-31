@@ -332,44 +332,35 @@ window.exportarChatIA = () => {
     }
 };
 
-// ========== 4. ABRIR CHAT CON INICIALIZACIÓN SEGURA ==========
 window.abrirChatIA = function() {
-    console.log('IA-5 Abriendo chat IA');
     const modal = document.getElementById('modal-chat-ai');
     if (!modal) {
-        console.error('No se encontró el modal modal-chat-ai');
+        console.error('Modal no encontrado');
         return;
     }
-    try {
-        // Inicialización diferida (solo una vez)
-        if (!window._chatIAInicializado) {
-            cargarGruposIA();
-            window._chatIAInicializado = true;
-        }
-        modal.classList.remove('hidden');
-        modal.style.display = 'flex';
-        modal.style.visibility = 'visible';
-        modal.style.opacity = '1';
-        void modal.offsetHeight;
-        if (window.grupoActivoIA) {
-            renderizarMensajesIA();
-        } else if (window.gruposIA && window.gruposIA.length) {
-            seleccionarGrupoIA(window.gruposIA[0].id);
-        }
-        const msgContainer = document.getElementById('chat-ai-mensajes');
-        if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
-        console.log('IA-6 Chat IA abierto correctamente');
-    } catch (e) {
-        console.error('Error al abrir chat IA', e);
-        window.showToast('No se pudo abrir el chat. Intenta recargar la página.', true);
+    // Eliminar cualquier clase ocultadora
+    modal.classList.remove('hidden', 'invisible', 'opacity-0');
+    // Forzar estilos inline con !important (simulado)
+    modal.style.setProperty('display', 'flex', 'important');
+    modal.style.setProperty('visibility', 'visible', 'important');
+    modal.style.setProperty('opacity', '1', 'important');
+    modal.style.setProperty('z-index', '100000', 'important');
+    modal.style.setProperty('position', 'fixed', 'important');
+    modal.style.setProperty('top', '0', 'important');
+    modal.style.setProperty('left', '0', 'important');
+    modal.style.setProperty('right', '0', 'important');
+    modal.style.setProperty('bottom', '0', 'important');
+    modal.style.setProperty('width', '100%', 'important');
+    modal.style.setProperty('height', '100%', 'important');
+    modal.style.setProperty('background-color', 'rgba(0,0,0,0.95)', 'important');
+    
+    // Inicializar si es necesario
+    if (!window._chatIAInicializado) {
+        cargarGruposIA();
+        window._chatIAInicializado = true;
     }
+    console.log('Modal forzado a visible');
 };
-
-// ========== 5. INICIALIZACIÓN SEGURA (sin ejecución automática) ==========
-// Ya no se ejecuta automáticamente al cargar la página.
-// La inicialización ocurre solo cuando el usuario abre el chat.
-console.log('Módulo Chat IA cargado (modo seguro, inicialización diferida)');
-// ========== FIN CHAT IA ==========
 
 // === VARIABLES GLOBALES ===
 window.userIntent = 'inicio';
@@ -7767,16 +7758,16 @@ window.aplicarHorarioALunes = () => {
     }
 };
 function initClientMap() {
-    if (clientMapInstance) return; // ya existe
+    if (clientMapInstance) return;
     const container = document.getElementById('mechanic-live-map');
     if (!container) {
-        console.warn('No se encontró #mechanic-live-map');
+        console.warn('Contenedor #mechanic-live-map no encontrado');
         return;
     }
-    // Asegurar que el contenedor sea visible y tenga tamaño
-    container.style.display = 'block';
+    // Asegurar dimensiones
     container.style.height = '250px';
     container.style.minHeight = '250px';
+    container.style.display = 'block';
     
     clientMapInstance = L.map('mechanic-live-map').setView([TALLER_LAT, TALLER_LNG], 13);
     const isLight = document.body.classList.contains('light-mode');
@@ -7785,10 +7776,24 @@ function initClientMap() {
         : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(clientMapInstance);
     
-    // Marcador fijo del taller
     clientMapMarkers.taller = L.marker([TALLER_LAT, TALLER_LNG], {
         icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] })
     }).addTo(clientMapInstance).bindPopup("Taller OBR");
     
-    console.log('✅ Mapa del cliente inicializado correctamente');
+    console.log('✅ Mapa cliente inicializado');
+    setTimeout(() => clientMapInstance.invalidateSize(), 200);
 }
+// Dentro de window.abrirChatIA, después de seleccionar grupo, añade:
+setTimeout(() => {
+    const msgContainer = document.getElementById('chat-ai-mensajes');
+    if (msgContainer) {
+        msgContainer.style.minHeight = '300px';
+        msgContainer.style.height = 'auto';
+        msgContainer.scrollTop = msgContainer.scrollHeight;
+    }
+    const listContainer = document.getElementById('lista-grupos-ia');
+    if (listContainer && listContainer.children.length === 0) {
+        renderizarListaGruposIA();
+    }
+}, 100);
+
