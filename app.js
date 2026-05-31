@@ -1648,6 +1648,34 @@ window.submitFinalSOS = async () => {
         btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
     }
 };
+
+function initClientMap() {
+    if (window.clientMapInstance) return;
+    const container = document.getElementById('mechanic-live-map');
+    if (!container) {
+        console.warn('Contenedor #mechanic-live-map no encontrado');
+        return;
+    }
+    container.style.height = '250px';
+    container.style.minHeight = '250px';
+    container.style.display = 'block';
+    
+    window.clientMapInstance = L.map('mechanic-live-map').setView([TALLER_LAT, TALLER_LNG], 13);
+    const isLight = document.body.classList.contains('light-mode');
+    const layerUrl = isLight
+        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(window.clientMapInstance);
+    
+    window.clientMapMarkers = window.clientMapMarkers || { mech: null, client: null, taller: null };
+    window.clientMapMarkers.taller = L.marker([TALLER_LAT, TALLER_LNG], {
+        icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] })
+    }).addTo(window.clientMapInstance).bindPopup("Taller OBR");
+    
+    console.log('✅ Mapa cliente inicializado correctamente');
+    setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
+}
+
 function listenToMySOS() {
     if (window.mySOSListener && typeof window.mySOSListener === 'function') {
         window.mySOSListener();
@@ -1668,14 +1696,16 @@ function listenToMySOS() {
         const progressBar = document.getElementById('sos-progress-bar');
         const stepLabels = ['step-1-label', 'step-2-label', 'step-3-label', 'step-4-label'];
         const stepDots = ['step-dot-1', 'step-dot-2', 'step-dot-3', 'step-dot-4'];
+        const emergencyBtn = document.getElementById('emergency-client-btn');
 
+        // ========== SIN RESCATE ACTIVO ==========
         if (!snap.exists()) {
-            // No hay SOS activo – ocultar todo y limpiar mapa
             if (activeCard) activeCard.classList.add('hidden');
             if (noServicesMsg) noServicesMsg?.classList.remove('hidden');
             if (survey) survey.classList.add('hidden');
             if (mechanicMapDiv) mechanicMapDiv.style.opacity = '0';
             if (wsCard) wsCard.classList.add('hidden');
+            if (emergencyBtn) emergencyBtn.style.display = 'flex'; // Mostrar botón
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (trackingUnsubscribe) trackingUnsubscribe();
             if (window.clientMapInstance) {
@@ -1691,9 +1721,18 @@ function listenToMySOS() {
         const data = snap.val();
         if (activeCard) activeCard.classList.remove('hidden');
         if (noServicesMsg) noServicesMsg.classList.add('hidden');
-        if (mechanicMapDiv) mechanicMapDiv.style.opacity = '1'; // mostrar mapa
+        if (mechanicMapDiv) mechanicMapDiv.style.opacity = '1';
 
-        // Actualizar barra de progreso
+        // ========== CONTROL DEL BOTÓN DE EMERGENCIA ==========
+        // Ocultar solo mientras el rescate está en curso (no finalizado)
+        const estadosOcultar = ['accepted', 'repairing', 'to_shop', 'ready'];
+        if (estadosOcultar.includes(data.status)) {
+            if (emergencyBtn) emergencyBtn.style.display = 'none';
+        } else {
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+        }
+
+        // ========== PROGRESO Y PASOS ==========
         let currentStep = 0, progressPercent = 0;
         if (data.status === 'accepted') { currentStep = 1; progressPercent = 25; }
         else if (data.status === 'repairing') { currentStep = 2; progressPercent = 50; }
@@ -1715,7 +1754,7 @@ function listenToMySOS() {
         }
         if (progressBar) progressBar.style.width = progressPercent + '%';
 
-        // Texto de estado en español
+        // ========== TEXTO DE ESTADO EN ESPAÑOL ==========
         if (statusDesc) {
             let estadoTexto = "Esperando confirmación";
             if (data.status === 'accepted') estadoTexto = "Mecánico en camino";
@@ -1726,9 +1765,10 @@ function listenToMySOS() {
             statusDesc.innerText = estadoTexto;
         }
 
-        // ========== INICIALIZACIÓN Y ACTUALIZACIÓN DEL MAPA ==========
-        if (data.status === 'accepted' || data.status === 'repairing') {
-            // Verificar si el mapa ya existe, si no, inicializarlo con reintento
+        // ========== MAPA: INICIALIZACIÓN Y ACTUALIZACIÓN EN TIEMPO REAL ==========
+        const estadosConMapa = ['accepted', 'repairing'];
+        if (estadosConMapa.includes(data.status) && data.mech_uid) {
+            // Inicializar mapa si aún no existe (con reintento)
             if (!window.clientMapInstance) {
                 const container = document.getElementById('mechanic-live-map');
                 if (container && container.offsetHeight > 0) {
@@ -1740,17 +1780,18 @@ function listenToMySOS() {
                 }
             }
 
-            // Solo continuar si el mapa existe
             if (window.clientMapInstance) {
-                // Marcador del cliente
+                // ----- Marcador del cliente (ubicación del servicio) -----
                 if (data.lat && data.lng) {
                     if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
                     window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
                         icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] })
                     }).addTo(window.clientMapInstance).bindPopup("Tu ubicación").openPopup();
+                } else {
+                    console.warn('No hay coordenadas del servicio');
                 }
 
-                // Escuchar posición del mecánico en tiempo real
+                // ----- Escuchar posición del mecánico en tiempo real (mecanicos_activos) -----
                 if (mechPosUnsubscribe) mechPosUnsubscribe();
                 mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
                     if (posSnap.exists() && window.clientMapInstance) {
@@ -1769,7 +1810,7 @@ function listenToMySOS() {
                     }
                 });
 
-                // Ruta del mecánico (polilínea)
+                // ----- Ruta del mecánico (polilínea desde mecanicos_tracking) -----
                 if (trackingUnsubscribe) trackingUnsubscribe();
                 trackingUnsubscribe = onValue(dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`), (trackSnap) => {
                     if (trackSnap.exists() && window.clientMapInstance) {
@@ -1790,7 +1831,7 @@ function listenToMySOS() {
                 if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
                 if (window.clientMapMarkers.mech) {
                     const latlng = window.clientMapMarkers.mech.getLatLng();
-                    bounds.push([latlng.lat, latlng.lng]);
+                    if (latlng) bounds.push([latlng.lat, latlng.lng]);
                 }
                 if (bounds.length >= 2) {
                     window.clientMapInstance.fitBounds(bounds, { padding: [50, 50] });
@@ -1801,7 +1842,7 @@ function listenToMySOS() {
                 console.warn('Mapa cliente no disponible aún');
             }
         } else {
-            // Estado no requiere mapa (pendiente, completado, cancelado) → limpiar marcadores
+            // Si no hay estado que requiera mapa, limpiar marcadores y rutas
             if (window.clientMapInstance) {
                 if (window.clientMapMarkers.mech) window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
                 if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
@@ -1814,7 +1855,7 @@ function listenToMySOS() {
             if (trackingUnsubscribe) trackingUnsubscribe();
         }
 
-        // ========== NOTIFICACIONES Y ENCUESTA (sin cambios) ==========
+        // ========== NOTIFICACIONES SONORAS Y VISUALES ==========
         if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
             speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
             playSound('notif');
@@ -1822,6 +1863,7 @@ function listenToMySOS() {
             if (chatBtn && data.mech_uid) chatBtn.classList.remove('hidden');
         }
 
+        // ========== FINALIZACIÓN DEL RESCATE ==========
         if ((data.status === 'completed' || data.status === 'cancelled') && 
             window.lastClientSOSStatus !== 'completed' && 
             window.lastClientSOSStatus !== 'cancelled') {
@@ -7779,32 +7821,7 @@ window.aplicarHorarioALunes = () => {
         if (closeEl) closeEl.value = lunesC;
     }
 };
-function initClientMap() {
-    if (clientMapInstance) return;
-    const container = document.getElementById('mechanic-live-map');
-    if (!container) {
-        console.warn('Contenedor #mechanic-live-map no encontrado');
-        return;
-    }
-    // Asegurar dimensiones
-    container.style.height = '250px';
-    container.style.minHeight = '250px';
-    container.style.display = 'block';
-    
-    clientMapInstance = L.map('mechanic-live-map').setView([TALLER_LAT, TALLER_LNG], 13);
-    const isLight = document.body.classList.contains('light-mode');
-    const layerUrl = isLight
-        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(clientMapInstance);
-    
-    clientMapMarkers.taller = L.marker([TALLER_LAT, TALLER_LNG], {
-        icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] })
-    }).addTo(clientMapInstance).bindPopup("Taller OBR");
-    
-    console.log('✅ Mapa cliente inicializado');
-    setTimeout(() => clientMapInstance.invalidateSize(), 200);
-}
+
 // Dentro de window.abrirChatIA, después de seleccionar grupo, añade:
 setTimeout(() => {
     const msgContainer = document.getElementById('chat-ai-mensajes');
