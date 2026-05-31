@@ -35,7 +35,17 @@ window.loadHtml2Canvas = () => {
         document.head.appendChild(script);
     });
 };
-
+// aqui inicia escapeHtml //
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+console.log('ANTES DEL CHAT IA');
 // ========== CHAT IA - BLOQUE CORREGIDO (SIN ERRORES DE SINTAXIS) ==========
 window.gruposIA = window.gruposIA || [];
 window.grupoActivoIA = window.grupoActivoIA || null;
@@ -268,6 +278,7 @@ if (document.readyState === 'loading') {
     cargarGruposIA();
 }
 // ========== FIN CHAT IA ==========
+console.log('DESPUES DEL CHAT IA');
 
 // === VARIABLES GLOBALES ===
 window.userIntent = 'inicio';
@@ -312,17 +323,6 @@ let lastMechPos = null;              // Para calcular distancia
 let assignedMechPos = null;          // Posición al momento de asignación
 let repairProgressInterval = null;    // Para simular avance de barra
 let currentRepairPercent = 0;         // Progreso durante reparación
-// aqui inicia escapeHtml //
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>]/g, function(m) {
-        if (m === '&') return '&amp;';
-        if (m === '<') return '&lt;';
-        if (m === '>') return '&gt;';
-        return m;
-    });
-}
-
 // aqui inicia obtenerPromedioCalificacion //
 async function obtenerPromedioCalificacion(uid) {
     if (!uid) return null;
