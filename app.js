@@ -1123,7 +1123,7 @@ window.switchAdminView = (id) => {
     
     // Mostrar/ocultar botón flotante del chat IA
     const chatAiBtn = document.getElementById('btn-chat-ai-float');
-    if (chatAiFloat) chatAiFloat.style.display = 'flex';
+    if (chatAiFloat) chatAiFloat.style.display = 'flex';)
     
     // Mostrar/ocultar botón de chat de soporte (solo en POS y Alertas)
     const chatBtn = document.getElementById('admin-chat-float-btn');
