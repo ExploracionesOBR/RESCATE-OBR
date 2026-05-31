@@ -46,197 +46,82 @@ function escapeHtml(str) {
     });
 }
 
-// ========== CHAT IA – VERSIÓN SIMPLIFICADA Y SEGURA ==========
+// ========== CHAT IA – VERSIÓN COMPLETA (Firestore, cámara, PDF, tema, prompt restrictivo) ==========
 (function() {
-    // Función de escape local
-    const escapeHtml = (str) => {
-        if (!str) return '';
-        return str.replace(/[&<>]/g, function(m) {
-            if (m === '&') return '&amp;';
-            if (m === '<') return '&lt;';
-            if (m === '>') return '&gt;';
-            return m;
-        });
-    };
-
-    let grupos = [];
-    let grupoActivo = null;
+    let grupoActual = null;
     let modal = null;
-    let inicializado = false;
+    let unsubscribeMensajes = null;
+    let gruposUnsubscribe = null;
 
-    function guardar() {
-        localStorage.setItem('obr_chat_ia_groups', JSON.stringify(grupos));
+    // Función auxiliar para obtener el color del tema actual
+    function getThemeColors() {
+        const isLight = document.body.classList.contains('light-mode');
+        return {
+            bg: isLight ? '#f0f2f5' : '#1A1A1A',
+            text: isLight ? '#111111' : '#ffffff',
+            border: isLight ? '#ddd' : '#333',
+            inputBg: isLight ? '#fff' : '#2a2a2a',
+            userBubble: isLight ? '#FF6B00' : '#FF6B00',
+            aiBubble: isLight ? '#e5e7eb' : '#1f2937',
+            aiText: isLight ? '#111' : '#fff'
+        };
     }
 
-    function cargar() {
-        try {
-            const stored = localStorage.getItem('obr_chat_ia_groups');
-            if (stored) {
-                const parsed = JSON.parse(stored);
-                if (Array.isArray(parsed)) grupos = parsed;
-            }
-        } catch(e) { console.warn(e); }
-        if (!grupos.length) grupos = [{ id: Date.now(), nombre: 'General', mensajes: [] }];
-        guardar();
+    // Aplicar tema al modal cada vez que se abre (o cuando cambie el tema global)
+    function applyThemeToModal() {
+        if (!modal) return;
+        const colors = getThemeColors();
+        modal.style.backgroundColor = colors.bg;
+        const inner = modal.querySelector('.chat-ia-inner');
+        if (inner) inner.style.backgroundColor = colors.bg;
+        const messagesDiv = modal.querySelector('#chat-ia-msgs');
+        if (messagesDiv) messagesDiv.style.backgroundColor = colors.bg;
+        // Cambiar también el color de los mensajes ya renderizados (opcional)
     }
 
-    function renderLista() {
-        const cont = document.getElementById('chat-ia-lista');
-        if (!cont) return;
-        cont.innerHTML = '';
-        grupos.forEach(g => {
-            const div = document.createElement('div');
-            div.className = 'p-2 rounded-xl cursor-pointer hover:bg-white/10 ' + (grupoActivo && grupoActivo.id === g.id ? 'bg-naranja/20 border-l-4 border-naranja' : 'bg-white/5');
-            div.innerHTML = `<div class="flex justify-between"><span class="text-sm font-bold truncate">${escapeHtml(g.nombre)}</span><span class="text-[9px] text-purple-400">${g.mensajes.length}</span></div>`;
-            div.onclick = () => seleccionar(g.id);
-            cont.appendChild(div);
-        });
-    }
-
-    function seleccionar(id) {
-        grupoActivo = grupos.find(g => g.id === id);
-        if (!grupoActivo) return;
-        document.getElementById('chat-ia-titulo').innerText = grupoActivo.nombre;
-        renderMensajes();
-        renderLista();
-    }
-
-    function renderMensajes() {
-        const cont = document.getElementById('chat-ia-msgs');
-        if (!cont || !grupoActivo) return;
-        cont.innerHTML = '';
-        grupoActivo.mensajes.forEach(m => {
-            const div = document.createElement('div');
-            div.className = `flex ${m.rol === 'usuario' ? 'justify-end' : 'justify-start'}`;
-            div.innerHTML = `<div class="${m.rol === 'usuario' ? 'bg-naranja' : 'bg-blue-600'} max-w-[75%] p-3 rounded-2xl text-white text-sm">${escapeHtml(m.texto)}<div class="text-[9px] opacity-60 mt-1">${new Date(m.timestamp).toLocaleTimeString()}</div></div>`;
-            cont.appendChild(div);
-        });
-        cont.scrollTop = cont.scrollHeight;
-    }
-
-    async function consultarGroq(prompt) {
-        const key = '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';
-        const ctx = grupoActivo ? grupoActivo.mensajes.slice(-5).map(m => `${m.rol}: ${m.texto}`).join('\n') : '';
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-            body: JSON.stringify({
-                model: 'llama3-8b-8192',
-                messages: [
-                    { role: 'system', content: "Eres un mecánico experto. Ayudas a diagnosticar fallos con imágenes o descripciones." },
-                    { role: 'user', content: `Contexto:\n${ctx}\nPregunta: ${prompt}` }
-                ],
-                temperature: 0.7,
-                max_tokens: 1024
-            })
-        });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error.message);
-        return data.choices[0].message.content;
-    }
-
-    window.enviarMensajeIA = async () => {
-        const input = document.getElementById('chat-ia-input');
-        const txt = input?.value.trim();
-        if (!txt || !grupoActivo) return;
-        grupoActivo.mensajes.push({ rol: 'usuario', texto: txt, timestamp: Date.now() });
-        guardar();
-        renderMensajes();
-        input.value = '';
-        grupoActivo.mensajes.push({ rol: 'asistente', texto: '...', timestamp: Date.now() });
-        renderMensajes();
-        try {
-            const resp = await consultarGroq(txt);
-            grupoActivo.mensajes.pop();
-            grupoActivo.mensajes.push({ rol: 'asistente', texto: resp, timestamp: Date.now() });
-            guardar();
-            renderMensajes();
-        } catch(e) {
-            grupoActivo.mensajes.pop();
-            grupoActivo.mensajes.push({ rol: 'asistente', texto: 'Error al contactar con la IA.', timestamp: Date.now() });
-            renderMensajes();
-        }
-    };
-
-    window.crearNuevoGrupoIA = () => {
-        const nom = prompt('Nombre del grupo:', 'Nuevo grupo');
-        if (!nom) return;
-        grupos.push({ id: Date.now(), nombre: nom, mensajes: [] });
-        guardar();
-        renderLista();
-        seleccionar(grupos[grupos.length-1].id);
-    };
-
-    window.renombrarGrupoIA = () => {
-        if (!grupoActivo) return;
-        const nuevo = prompt('Nuevo nombre:', grupoActivo.nombre);
-        if (nuevo) {
-            grupoActivo.nombre = nuevo;
-            guardar();
-            renderLista();
-            document.getElementById('chat-ia-titulo').innerText = nuevo;
-        }
-    };
-
-    window.eliminarGrupoIA = () => {
-        if (!grupoActivo) return;
-        if (!confirm('¿Eliminar este grupo?')) return;
-        const idx = grupos.findIndex(g => g.id === grupoActivo.id);
-        if (idx !== -1) grupos.splice(idx, 1);
-        if (!grupos.length) grupos = [{ id: Date.now(), nombre: 'General', mensajes: [] }];
-        guardar();
-        seleccionar(grupos[0].id);
-        renderLista();
-    };
-
-    window.exportarChatIA = () => {
-        if (!grupoActivo) return;
-        let content = `Chat: ${grupoActivo.nombre}\n---\n`;
-        grupoActivo.mensajes.forEach(m => content += `${m.rol} (${new Date(m.timestamp).toLocaleString()}): ${m.texto}\n`);
-        const blob = new Blob([content], { type: 'text/plain' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `chat_${grupoActivo.nombre}.txt`;
-        a.click();
-        URL.revokeObjectURL(blob);
-    };
-
+    // ========== CREAR MODAL DINÁMICO ==========
     function crearModal() {
         if (document.getElementById('modal-chat-ia-dinamico')) return;
         const div = document.createElement('div');
         div.id = 'modal-chat-ia-dinamico';
         div.style.cssText = `
             display: none; position: fixed; top:0; left:0; width:100%; height:100%;
-            background: rgba(0,0,0,0.95); backdrop-filter: blur(4px);
             z-index: 1000000; flex-direction: column; font-family: system-ui, sans-serif;
+            transition: background-color 0.3s;
         `;
         div.innerHTML = `
-            <div style="display:flex; flex-direction:column; width:100%; max-width:1200px; margin:0 auto; background:#1A1A1A; height:100%; overflow:hidden;">
-                <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.5); flex-shrink:0;">
-                    <div style="display:flex; gap:12px;"><i class="fas fa-robot" style="color:#FF6B00; font-size:28px;"></i><h2 style="font-size:1.5rem; font-weight:900; color:white;">Asistente IA</h2></div>
-                    <button id="cerrar-chat-ia" style="background:rgba(255,255,255,0.1); border:none; width:40px; height:40px; border-radius:50%; color:white; cursor:pointer;"><i class="fas fa-times"></i></button>
+            <div class="chat-ia-inner" style="display:flex; flex-direction:column; width:100%; max-width:1200px; margin:0 auto; height:100%; overflow:hidden; border-radius:0;">
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border); flex-shrink:0;">
+                    <div style="display:flex; gap:12px;"><i class="fas fa-robot" style="color:#FF6B00; font-size:28px;"></i><h2 style="font-size:1.5rem; font-weight:900;">Asistente IA</h2></div>
+                    <button id="cerrar-chat-ia" style="background:rgba(0,0,0,0.2); border:none; width:40px; height:40px; border-radius:50%; cursor:pointer;"><i class="fas fa-times"></i></button>
                 </div>
                 <div style="display:flex; flex:1; overflow:hidden;">
-                    <div style="width:260px; background:rgba(0,0,0,0.3); border-right:1px solid rgba(255,255,255,0.1); display:flex; flex-direction:column;">
-                        <div style="padding:12px;"><input id="chat-ia-buscar" type="text" placeholder="Buscar grupo..." style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; padding:8px; color:white; font-size:12px;"></div>
+                    <div style="width:260px; background:rgba(0,0,0,0.2); border-right:1px solid var(--border); display:flex; flex-direction:column;">
+                        <div style="padding:12px;"><input id="chat-ia-buscar" type="text" placeholder="Buscar grupo..." style="width:100%; background:var(--inputBg); border:1px solid var(--border); border-radius:8px; padding:8px; font-size:12px;"></div>
                         <div id="chat-ia-lista" style="flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:8px;"></div>
-                        <div style="padding:12px; border-top:1px solid rgba(255,255,255,0.1);"><button onclick="window.exportarChatIA()" style="width:100%; background:rgba(59,130,246,0.2); color:#60a5fa; border:none; padding:8px; border-radius:12px; font-weight:900; font-size:10px; text-transform:uppercase; cursor:pointer;">Exportar</button></div>
+                        <div style="padding:12px; border-top:1px solid var(--border);">
+                            <button id="nuevo-grupo-ia" style="width:100%; background:#22c55e; color:white; border:none; padding:8px; border-radius:12px; font-weight:900; font-size:12px; cursor:pointer;">+ Nuevo grupo</button>
+                        </div>
                     </div>
                     <div style="flex:1; display:flex; flex-direction:column;">
-                        <div style="padding:12px; background:rgba(255,255,255,0.05); border-bottom:1px solid rgba(255,255,255,0.1); display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
-                            <span id="chat-ia-titulo" style="font-weight:bold; color:white;">Selecciona un grupo</span>
+                        <div style="padding:12px; background:rgba(0,0,0,0.1); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+                            <span id="chat-ia-titulo" style="font-weight:bold;">Selecciona un grupo</span>
                             <div style="display:flex; gap:8px;">
-                                <button onclick="window.renombrarGrupoIA()" style="background:rgba(234,179,8,0.2); color:#facc15; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900;">Renombrar</button>
-                                <button onclick="window.eliminarGrupoIA()" style="background:rgba(239,68,68,0.2); color:#f87171; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900;">Eliminar</button>
-                                <button onclick="window.crearNuevoGrupoIA()" style="background:rgba(34,197,94,0.2); color:#4ade80; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900;">Nuevo</button>
+                                <button id="vincular-servicio-ia" class="chat-ia-btn" style="background:rgba(147,51,234,0.2); color:#a78bfa; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900;">Vincular servicio</button>
+                                <button id="renombrar-grupo-ia" class="chat-ia-btn" style="background:rgba(234,179,8,0.2); color:#facc15; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900;">Renombrar</button>
+                                <button id="eliminar-grupo-ia" class="chat-ia-btn" style="background:rgba(239,68,68,0.2); color:#f87171; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900;">Eliminar</button>
+                                <button id="exportar-pdf-ia" class="chat-ia-btn" style="background:rgba(59,130,246,0.2); color:#60a5fa; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900;">Exportar PDF</button>
                             </div>
                         </div>
                         <div id="chat-ia-msgs" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:16px;"></div>
-                        <div style="padding:16px; border-top:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2);">
+                        <div style="padding:16px; border-top:1px solid var(--border); background:rgba(0,0,0,0.1);">
                             <div style="display:flex; gap:8px;">
-                                <textarea id="chat-ia-input" rows="1" placeholder="Escribe tu consulta..." style="flex:1; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:12px; color:white; font-size:14px; resize:none;"></textarea>
-                                <button onclick="window.enviarMensajeIA()" style="background:#FF6B00; border:none; width:48px; border-radius:12px; color:white; cursor:pointer;"><i class="fas fa-paper-plane"></i></button>
+                                <textarea id="chat-ia-input" rows="2" placeholder="Describe la falla, sube una foto o haz una pregunta mecánica..." style="flex:1; background:var(--inputBg); border:1px solid var(--border); border-radius:12px; padding:12px; font-size:14px; resize:none;"></textarea>
+                                <button id="enviar-msg-ia" style="background:#FF6B00; border:none; width:48px; border-radius:12px; color:white; cursor:pointer;"><i class="fas fa-paper-plane"></i></button>
+                                <button id="camara-ia" style="background:#2563eb; border:none; width:48px; border-radius:12px; color:white; cursor:pointer;"><i class="fas fa-camera"></i></button>
+                                <button id="subir-foto-ia" style="background:#16a34a; border:none; width:48px; border-radius:12px; color:white; cursor:pointer;"><i class="fas fa-image"></i></button>
                             </div>
+                            <p style="font-size:9px; color:#6b7280; margin-top:8px;">Adjunta fotos (la IA las analizará) o escribe tu consulta. Solo responderé temas de mecánica.</p>
                         </div>
                     </div>
                 </div>
@@ -244,30 +129,385 @@ function escapeHtml(str) {
         `;
         document.body.appendChild(div);
         modal = div;
+
+        // Aplicar tema inicial
+        const style = document.createElement('style');
+        style.textContent = `
+            .chat-ia-inner, #chat-ia-msgs, #chat-ia-lista, #chat-ia-input, #chat-ia-buscar {
+                transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+            }
+        `;
+        modal.appendChild(style);
+        // Asignar eventos a los botones
         document.getElementById('cerrar-chat-ia').onclick = () => { modal.style.display = 'none'; };
-        // Búsqueda
+        document.getElementById('nuevo-grupo-ia').onclick = () => mostrarModalNombre('Nuevo grupo', '', async (nombre) => {
+            if (!nombre) return;
+            const nuevoGrupo = {
+                id: Date.now(),
+                nombre: nombre,
+                servicioId: null,
+                creado: Date.now(),
+                creadoPor: auth.currentUser?.uid,
+                miembros: [auth.currentUser?.uid]
+            };
+            await addDoc(collection(db, "chat_ia_grupos"), nuevoGrupo);
+            cargarGruposFirestore();
+        });
+        document.getElementById('vincular-servicio-ia').onclick = () => vincularServicio();
+        document.getElementById('renombrar-grupo-ia').onclick = () => {
+            if (!grupoActual) return;
+            mostrarModalNombre('Renombrar grupo', grupoActual.nombre, async (nuevo) => {
+                if (nuevo && grupoActual) {
+                    await updateDoc(doc(db, "chat_ia_grupos", grupoActual.idDoc), { nombre: nuevo });
+                    grupoActual.nombre = nuevo;
+                    document.getElementById('chat-ia-titulo').innerText = nuevo;
+                    cargarGruposFirestore();
+                }
+            });
+        };
+        document.getElementById('eliminar-grupo-ia').onclick = () => {
+            if (!grupoActual) return;
+            mostrarModalConfirm('Eliminar grupo', '¿Eliminar este grupo y todos sus mensajes?', async () => {
+                if (unsubscribeMensajes) unsubscribeMensajes();
+                await deleteDoc(doc(db, "chat_ia_grupos", grupoActual.idDoc));
+                grupoActual = null;
+                cargarGruposFirestore();
+            });
+        };
+        document.getElementById('exportar-pdf-ia').onclick = () => exportarChatPDF();
+        document.getElementById('enviar-msg-ia').onclick = () => enviarMensaje();
+        document.getElementById('camara-ia').onclick = () => tomarFoto(true);
+        document.getElementById('subir-foto-ia').onclick = () => tomarFoto(false);
+        document.getElementById('chat-ia-input').addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensaje(); } });
+
+        // Búsqueda de grupos
         document.getElementById('chat-ia-buscar').addEventListener('input', (e) => {
             const term = e.target.value.toLowerCase();
             document.querySelectorAll('#chat-ia-lista > div').forEach(el => {
                 el.style.display = el.innerText.toLowerCase().includes(term) ? 'flex' : 'none';
             });
         });
+
+        // Observar cambios de tema para actualizar colores
+        const observer = new MutationObserver(() => applyThemeToModal());
+        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
     }
 
+    // ========== FIRESTORE: CARGAR GRUPOS ==========
+    async function cargarGruposFirestore() {
+        if (gruposUnsubscribe) gruposUnsubscribe();
+        const q = query(collection(db, "chat_ia_grupos"), orderBy("creado", "desc"));
+        gruposUnsubscribe = onSnapshot(q, (snap) => {
+            const grupos = [];
+            snap.forEach(doc => {
+                const g = doc.data();
+                g.idDoc = doc.id;
+                grupos.push(g);
+            });
+            renderListaGrupos(grupos);
+            if (!grupoActual && grupos.length) seleccionarGrupo(grupos[0]);
+        });
+    }
+
+    function renderListaGrupos(grupos) {
+        const cont = document.getElementById('chat-ia-lista');
+        if (!cont) return;
+        cont.innerHTML = '';
+        grupos.forEach(g => {
+            const div = document.createElement('div');
+            div.className = 'p-2 rounded-xl cursor-pointer hover:bg-white/10';
+            if (grupoActual && grupoActual.idDoc === g.idDoc) div.classList.add('bg-naranja/20', 'border-l-4', 'border-naranja');
+            div.innerHTML = `<div class="flex justify-between"><span class="text-sm font-bold truncate">${escapeHtml(g.nombre)}</span><span class="text-[9px] text-purple-400">${g.servicioId ? '📎' : ''}</span></div>`;
+            div.onclick = () => seleccionarGrupo(g);
+            cont.appendChild(div);
+        });
+    }
+
+    async function seleccionarGrupo(grupo) {
+        if (unsubscribeMensajes) unsubscribeMensajes();
+        grupoActual = grupo;
+        document.getElementById('chat-ia-titulo').innerText = grupo.nombre;
+        // Cargar mensajes
+        const mensajesRef = collection(db, "chat_ia_grupos", grupo.idDoc, "mensajes");
+        const q = query(mensajesRef, orderBy("timestamp", "asc"));
+        unsubscribeMensajes = onSnapshot(q, (snap) => {
+            const mensajes = [];
+            snap.forEach(doc => mensajes.push(doc.data()));
+            renderMensajes(mensajes);
+        });
+    }
+
+    function renderMensajes(mensajes) {
+        const cont = document.getElementById('chat-ia-msgs');
+        if (!cont) return;
+        cont.innerHTML = '';
+        mensajes.forEach(m => {
+            const div = document.createElement('div');
+            div.className = `flex ${m.rol === 'usuario' ? 'justify-end' : 'justify-start'}`;
+            const bubbleClass = m.rol === 'usuario' ? 'bg-naranja text-white' : 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white';
+            let imagenesHtml = '';
+            if (m.imagenes && m.imagenes.length) {
+                imagenesHtml = `<div class="flex gap-1 mt-2 flex-wrap">${m.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox('${img}')">`).join('')}</div>`;
+            }
+            div.innerHTML = `<div class="${bubbleClass} max-w-[75%] p-3 rounded-2xl text-sm"><div>${escapeHtml(m.texto)}</div>${imagenesHtml}<div class="text-[9px] opacity-60 mt-1">${new Date(m.timestamp).toLocaleTimeString()}</div></div>`;
+            cont.appendChild(div);
+        });
+        cont.scrollTop = cont.scrollHeight;
+    }
+
+    // ========== ENVIAR MENSAJE CON IA ==========
+    async function enviarMensaje() {
+        const input = document.getElementById('chat-ia-input');
+        const texto = input?.value.trim();
+        if (!texto || !grupoActual) return;
+        input.value = '';
+
+        // Guardar mensaje usuario
+        const msgUser = { rol: 'usuario', texto, timestamp: Date.now(), imagenes: [] };
+        await addDoc(collection(db, "chat_ia_grupos", grupoActual.idDoc, "mensajes"), msgUser);
+
+        // Mostrar mensaje de carga
+        const msgLoading = { rol: 'asistente', texto: '...', timestamp: Date.now(), loading: true };
+        const loadingRef = await addDoc(collection(db, "chat_ia_grupos", grupoActual.idDoc, "mensajes"), msgLoading);
+
+        try {
+            const respuesta = await consultarGroq(texto, grupoActual.idDoc);
+            await updateDoc(loadingRef, { texto: respuesta, loading: false });
+        } catch (err) {
+            console.error(err);
+            await updateDoc(loadingRef, { texto: 'Error al contactar con la IA. Intenta más tarde.', loading: false });
+        }
+    }
+
+    async function consultarGroq(prompt, grupoIdDoc) {
+        const key = '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';
+        // Obtener últimos 5 mensajes del grupo para contexto
+        const mensajesSnap = await getDocs(query(collection(db, "chat_ia_grupos", grupoIdDoc, "mensajes"), orderBy("timestamp", "desc"), limit(5)));
+        const historial = [];
+        mensajesSnap.forEach(doc => {
+            const m = doc.data();
+            if (!m.loading) historial.unshift(`${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`);
+        });
+        const contexto = historial.join('\n');
+        // Limitar longitud del prompt
+        const promptFinal = `Contexto:\n${contexto}\n\nPregunta: ${prompt}`.slice(0, 3000);
+        
+        // NUEVO PROMPT RESTRICTIVO
+        const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento; tu única función es responder consultas relacionadas con mecánica de motos y carros analizando preguntas, imágenes, sonidos, videos, síntomas o códigos de error para detectar el problema de forma rápida, clara y profesional; si la consulta no está relacionada con mecánica debes responder únicamente: "No puedo ayudarte con eso ahora, solo puedo responder temas relacionados con mecánica automotriz y motocicletas."`;
+
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+            body: JSON.stringify({
+                model: 'llama3-8b-8192',
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: promptFinal }
+                ],
+                temperature: 0.7,
+                max_tokens: 1024
+            })
+        });
+        if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`API error ${res.status}: ${errorText}`);
+        }
+        const data = await res.json();
+        return data.choices[0].message.content;
+    }
+
+    // ========== SUBIR IMAGEN (cámara o galería) ==========
+    async function tomarFoto(usarCamara = true) {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        if (usarCamara && navigator.mediaDevices) {
+            input.capture = 'environment';
+        }
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file || !grupoActual) return;
+            const compressed = await window.compressImage(file);
+            const reader = new FileReader();
+            reader.onload = async (ev) => {
+                const imgData = ev.target.result;
+                // Subir imagen a Storage (opcional, para persistencia)
+                let url = '';
+                try {
+                    const storageRef = sRef(storage, `chat_ia/${Date.now()}_${file.name}`);
+                    const snapshot = await uploadBytesResumable(storageRef, compressed);
+                    url = await getDownloadURL(snapshot.ref);
+                } catch(e) { console.warn('No se pudo subir a Storage, se usará base64'); url = imgData; }
+                const msg = { rol: 'usuario', texto: '[Imagen enviada]', timestamp: Date.now(), imagenes: [url] };
+                await addDoc(collection(db, "chat_ia_grupos", grupoActual.idDoc, "mensajes"), msg);
+                // Opcional: enviar imagen a IA (requiere API multimodal). Por ahora solo se muestra.
+            };
+            reader.readAsDataURL(compressed);
+        };
+        input.click();
+    }
+
+    // ========== VINCULAR SERVICIO ==========
+    async function vincularServicio() {
+        if (!grupoActual) return;
+        mostrarModalInput('ID del servicio', 'Ej. OBR-12345', async (servicioId) => {
+            if (!servicioId) return;
+            const q = query(collection(db, "rescates"), where("shortId", "==", servicioId), limit(1));
+            const snap = await getDocs(q);
+            if (snap.empty) {
+                window.showToast("Servicio no encontrado", true);
+                return;
+            }
+            const servicio = snap.docs[0].data();
+            if (!['pending','accepted','repairing','to_shop','ready'].includes(servicio.status)) {
+                window.showToast("Solo puedes vincular servicios activos", true);
+                return;
+            }
+            await updateDoc(doc(db, "chat_ia_grupos", grupoActual.idDoc), { servicioId });
+            grupoActual.servicioId = servicioId;
+            window.showToast("Grupo vinculado al servicio " + servicioId);
+        });
+    }
+
+    // ========== EXPORTAR A PDF ==========
+    async function exportarChatPDF() {
+        if (!grupoActual) return;
+        const mensajesSnap = await getDocs(query(collection(db, "chat_ia_grupos", grupoActual.idDoc, "mensajes"), orderBy("timestamp", "asc")));
+        const mensajes = [];
+        mensajesSnap.forEach(doc => mensajes.push(doc.data()));
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF();
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        let y = 20;
+        pdf.setFontSize(16);
+        pdf.text(`Chat: ${grupoActual.nombre}`, 10, y);
+        y += 10;
+        pdf.setFontSize(10);
+        for (const m of mensajes) {
+            if (y > 270) { pdf.addPage(); y = 20; }
+            const autor = m.rol === 'usuario' ? '👤 Usuario' : '🤖 Asistente';
+            const fecha = new Date(m.timestamp).toLocaleString();
+            pdf.text(`${autor} (${fecha}):`, 10, y);
+            y += 5;
+            const lines = pdf.splitTextToSize(m.texto, pageWidth - 20);
+            pdf.text(lines, 15, y);
+            y += lines.length * 5 + 5;
+            if (m.imagenes && m.imagenes.length) {
+                for (let imgUrl of m.imagenes) {
+                    if (y > 270) { pdf.addPage(); y = 20; }
+                    try {
+                        // Intentar cargar imagen al PDF (solo si es URL pública o base64)
+                        const imgData = imgUrl.startsWith('data:') ? imgUrl : await fetch(imgUrl).then(res => res.blob()).then(blob => URL.createObjectURL(blob));
+                        pdf.addImage(imgData, 'JPEG', 15, y, 50, 50);
+                        y += 55;
+                    } catch(e) { console.warn('No se pudo añadir imagen', e); }
+                }
+            }
+        }
+        pdf.save(`chat_${grupoActual.nombre}.pdf`);
+    }
+
+    // ========== MODALES PERSONALIZADOS ==========
+    function mostrarModalNombre(titulo, valorActual, callback) {
+        const modalId = 'modal-prompt-custom';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `
+                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-white/10">
+                    <p class="text-white font-bold mb-4" id="prompt-title">Título</p>
+                    <input id="prompt-input" type="text" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white mb-4">
+                    <div class="flex space-x-3">
+                        <button id="prompt-ok" class="bg-green-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">Aceptar</button>
+                        <button id="prompt-cancel" class="bg-gray-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">Cancelar</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalEl);
+        }
+        document.getElementById('prompt-title').innerText = titulo;
+        const input = document.getElementById('prompt-input');
+        input.value = valorActual;
+        const okBtn = document.getElementById('prompt-ok');
+        const cancelBtn = document.getElementById('prompt-cancel');
+        const close = () => { modalEl.classList.add('hidden'); };
+        okBtn.onclick = () => { close(); callback(input.value); };
+        cancelBtn.onclick = () => { close(); callback(null); };
+        modalEl.classList.remove('hidden');
+        input.focus();
+    }
+
+    function mostrarModalConfirm(titulo, mensaje, onConfirm) {
+        const modalId = 'modal-confirm-custom';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `
+                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-white/10 text-center">
+                    <p id="confirm-msg" class="text-white font-bold mb-6"></p>
+                    <div class="flex space-x-3">
+                        <button id="confirm-yes" class="bg-green-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">Sí</button>
+                        <button id="confirm-no" class="bg-gray-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">No</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalEl);
+        }
+        document.getElementById('confirm-msg').innerText = mensaje;
+        const yesBtn = document.getElementById('confirm-yes');
+        const noBtn = document.getElementById('confirm-no');
+        const close = () => { modalEl.classList.add('hidden'); };
+        yesBtn.onclick = () => { close(); onConfirm(); };
+        noBtn.onclick = () => { close(); };
+        modalEl.classList.remove('hidden');
+    }
+
+    function mostrarModalInput(titulo, placeholder, callback) {
+        const modalId = 'modal-input-custom';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `
+                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-white/10">
+                    <p class="text-white font-bold mb-4" id="input-title">Título</p>
+                    <input id="modal-input" type="text" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white mb-4" placeholder="">
+                    <div class="flex space-x-3">
+                        <button id="input-ok" class="bg-green-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">Aceptar</button>
+                        <button id="input-cancel" class="bg-gray-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">Cancelar</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalEl);
+        }
+        document.getElementById('input-title').innerText = titulo;
+        const input = document.getElementById('modal-input');
+        input.placeholder = placeholder;
+        input.value = '';
+        const okBtn = document.getElementById('input-ok');
+        const cancelBtn = document.getElementById('input-cancel');
+        const close = () => { modalEl.classList.add('hidden'); };
+        okBtn.onclick = () => { close(); callback(input.value); };
+        cancelBtn.onclick = () => { close(); callback(null); };
+        modalEl.classList.remove('hidden');
+        input.focus();
+    }
+
+    // ========== INICIALIZACIÓN ==========
     window.abrirChatIA = () => {
         if (!modal) crearModal();
-        if (!inicializado) {
-            cargar();
-            renderLista();
-            if (grupos.length) seleccionar(grupos[0].id);
-            inicializado = true;
-        }
+        applyThemeToModal();
         modal.style.display = 'flex';
-        if (grupoActivo) renderMensajes();
-        console.log('Chat IA abierto');
+        if (!gruposUnsubscribe) cargarGruposFirestore();
     };
 
-    // Asignar a botones existentes cuando el DOM esté listo
+    // Asignar eventos globales
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
             const floatBtn = document.getElementById('btn-chat-ai-float');
@@ -286,7 +526,6 @@ function escapeHtml(str) {
         if (oldModal) oldModal.remove();
     }
 })();
-
 // === VARIABLES GLOBALES ===
 window.userIntent = 'inicio';
 let tempSOSGps = { lat: null, lng: null };
