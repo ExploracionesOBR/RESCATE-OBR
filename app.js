@@ -36,29 +36,32 @@ window.loadHtml2Canvas = () => {
     });
 };
 
-// ========== CHAT IA - FUNCIONES COMPLETAS (UBICADAS AL PRINCIPIO) ==========
-let gruposIA = [];
-let grupoActivoIA = null;
+// ========== CHAT IA - FUNCIONES COMPLETAS (VERSIÓN ÚNICA Y CORREGIDA) ==========
+window.gruposIA = window.gruposIA || [];
+window.grupoActivoIA = window.grupoActivoIA || null;
 
 function guardarGruposIA() {
-    localStorage.setItem('obr_chat_ia_groups', JSON.stringify(gruposIA));
+    localStorage.setItem('obr_chat_ia_groups', JSON.stringify(window.gruposIA));
 }
 
 function cargarGruposIA() {
     const stored = localStorage.getItem('obr_chat_ia_groups');
-    gruposIA = stored ? JSON.parse(stored) : [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+    window.gruposIA = stored ? JSON.parse(stored) : [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+    if (!window.gruposIA.length) {
+        window.gruposIA = [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+    }
     guardarGruposIA();
     renderizarListaGruposIA();
-    if (gruposIA.length) seleccionarGrupoIA(gruposIA[0].id);
+    if (window.gruposIA.length && !window.grupoActivoIA) seleccionarGrupoIA(window.gruposIA[0].id);
 }
 
 function renderizarListaGruposIA() {
     const container = document.getElementById('lista-grupos-ia');
     if (!container) return;
     container.innerHTML = '';
-    gruposIA.forEach(grupo => {
+    window.gruposIA.forEach(grupo => {
         const div = document.createElement('div');
-        div.className = `p-2 rounded-xl cursor-pointer hover:bg-white/10 ${grupoActivoIA?.id === grupo.id ? 'bg-naranja/20 border-l-4 border-naranja' : 'bg-white/5'}`;
+        div.className = `p-2 rounded-xl cursor-pointer hover:bg-white/10 ${window.grupoActivoIA?.id === grupo.id ? 'bg-naranja/20 border-l-4 border-naranja' : 'bg-white/5'}`;
         div.innerHTML = `<div class="flex justify-between items-center"><span class="text-sm font-bold truncate">${escapeHtml(grupo.nombre)}</span>${grupo.servicioId ? `<span class="text-[9px] text-purple-400">📎 ${grupo.servicioId.slice(-6)}</span>` : ''}</div><div class="text-[10px] text-gray-400 truncate">${grupo.mensajes.length} mensajes</div>`;
         div.onclick = () => seleccionarGrupoIA(grupo.id);
         container.appendChild(div);
@@ -66,21 +69,21 @@ function renderizarListaGruposIA() {
 }
 
 function seleccionarGrupoIA(id) {
-    grupoActivoIA = gruposIA.find(g => g.id === id);
-    if (!grupoActivoIA) return;
+    window.grupoActivoIA = window.gruposIA.find(g => g.id === id);
+    if (!window.grupoActivoIA) return;
     const titulo = document.getElementById('chat-ai-titulo');
-    if (titulo) titulo.innerText = grupoActivoIA.nombre;
+    if (titulo) titulo.innerText = window.grupoActivoIA.nombre;
     const servicioSpan = document.getElementById('chat-ai-servicio-id');
-    if (servicioSpan) servicioSpan.innerText = grupoActivoIA.servicioId ? `Servicio: ${grupoActivoIA.servicioId}` : '';
+    if (servicioSpan) servicioSpan.innerText = window.grupoActivoIA.servicioId ? `Servicio: ${window.grupoActivoIA.servicioId}` : '';
     renderizarMensajesIA();
     renderizarListaGruposIA();
 }
 
 function renderizarMensajesIA() {
     const contenedor = document.getElementById('chat-ai-mensajes');
-    if (!contenedor || !grupoActivoIA) return;
+    if (!contenedor || !window.grupoActivoIA) return;
     contenedor.innerHTML = '';
-    grupoActivoIA.mensajes.forEach(msg => {
+    window.grupoActivoIA.mensajes.forEach(msg => {
         const div = document.createElement('div');
         div.className = `flex ${msg.rol === 'usuario' ? 'justify-end' : 'justify-start'}`;
         div.innerHTML = `<div class="${msg.rol === 'usuario' ? 'bg-naranja' : 'bg-blue-600'} max-w-[75%] p-3 rounded-2xl text-white text-sm"><div>${escapeHtml(msg.texto)}</div>${msg.imagenes ? `<div class="flex gap-1 mt-2">${msg.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox('${img}')">`).join('')}</div>` : ''}<div class="text-[9px] opacity-60 mt-1">${new Date(msg.timestamp).toLocaleTimeString()}</div></div>`;
@@ -91,7 +94,7 @@ function renderizarMensajesIA() {
 
 async function consultarGroq(promptUsuario) {
     const GROQ_API_KEY = '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';
-    const contexto = grupoActivoIA.mensajes.slice(-5).filter(m => m.rol !== 'loading').map(m => `${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`).join('\n');
+    const contexto = window.grupoActivoIA.mensajes.slice(-5).filter(m => m.rol !== 'loading').map(m => `${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`).join('\n');
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
@@ -113,22 +116,22 @@ async function consultarGroq(promptUsuario) {
 window.enviarMensajeIA = async () => {
     const input = document.getElementById('chat-ai-input');
     const texto = input?.value.trim();
-    if (!texto || !grupoActivoIA) return;
-    grupoActivoIA.mensajes.push({ rol: 'usuario', texto, timestamp: Date.now() });
+    if (!texto || !window.grupoActivoIA) return;
+    window.grupoActivoIA.mensajes.push({ rol: 'usuario', texto, timestamp: Date.now() });
     guardarGruposIA();
     renderizarMensajesIA();
     if (input) input.value = '';
-    grupoActivoIA.mensajes.push({ rol: 'asistente', texto: '...', timestamp: Date.now(), loading: true });
+    window.grupoActivoIA.mensajes.push({ rol: 'asistente', texto: '...', timestamp: Date.now(), loading: true });
     renderizarMensajesIA();
     try {
         const respuesta = await consultarGroq(texto);
-        grupoActivoIA.mensajes.pop();
-        grupoActivoIA.mensajes.push({ rol: 'asistente', texto: respuesta, timestamp: Date.now() });
+        window.grupoActivoIA.mensajes.pop();
+        window.grupoActivoIA.mensajes.push({ rol: 'asistente', texto: respuesta, timestamp: Date.now() });
         guardarGruposIA();
         renderizarMensajesIA();
     } catch (err) {
-        grupoActivoIA.mensajes.pop();
-        grupoActivoIA.mensajes.push({ rol: 'asistente', texto: 'Error al contactar con la IA. Revisa tu conexión o clave API.', timestamp: Date.now() });
+        window.grupoActivoIA.mensajes.pop();
+        window.grupoActivoIA.mensajes.push({ rol: 'asistente', texto: 'Error al contactar con la IA. Revisa tu conexión o clave API.', timestamp: Date.now() });
         guardarGruposIA();
         renderizarMensajesIA();
     }
@@ -146,8 +149,8 @@ window.subirImagenIA = () => {
         const reader = new FileReader();
         reader.onload = (ev) => {
             const imgData = ev.target.result;
-            if (!grupoActivoIA) return;
-            grupoActivoIA.mensajes.push({ rol: 'usuario', texto: '[Imagen enviada]', timestamp: Date.now(), imagenes: [imgData] });
+            if (!window.grupoActivoIA) return;
+            window.grupoActivoIA.mensajes.push({ rol: 'usuario', texto: '[Imagen enviada]', timestamp: Date.now(), imagenes: [imgData] });
             guardarGruposIA();
             renderizarMensajesIA();
         };
@@ -159,17 +162,17 @@ window.subirImagenIA = () => {
 window.crearNuevoGrupoIA = () => {
     const nombre = prompt('Nombre del grupo (ej. "Moto Italika"):', 'Nuevo grupo');
     if (!nombre) return;
-    gruposIA.push({ id: Date.now(), nombre, servicioId: null, mensajes: [] });
+    window.gruposIA.push({ id: Date.now(), nombre, servicioId: null, mensajes: [] });
     guardarGruposIA();
     renderizarListaGruposIA();
-    seleccionarGrupoIA(gruposIA[gruposIA.length - 1].id);
+    seleccionarGrupoIA(window.gruposIA[window.gruposIA.length - 1].id);
 };
 
 window.renombrarGrupoIA = () => {
-    if (!grupoActivoIA) return;
-    const nuevo = prompt('Nuevo nombre:', grupoActivoIA.nombre);
+    if (!window.grupoActivoIA) return;
+    const nuevo = prompt('Nuevo nombre:', window.grupoActivoIA.nombre);
     if (nuevo) {
-        grupoActivoIA.nombre = nuevo;
+        window.grupoActivoIA.nombre = nuevo;
         guardarGruposIA();
         renderizarListaGruposIA();
         const titulo = document.getElementById('chat-ai-titulo');
@@ -178,19 +181,98 @@ window.renombrarGrupoIA = () => {
 };
 
 window.eliminarGrupoIA = () => {
-    if (!grupoActivoIA) return;
+    if (!window.grupoActivoIA) return;
     if (!confirm('¿Eliminar este grupo y todos sus mensajes?')) return;
-    const idx = gruposIA.findIndex(g => g.id === grupoActivoIA.id);
-    if (idx !== -1) gruposIA.splice(idx, 1);
+    const idx = window.gruposIA.findIndex(g => g.id === window.grupoActivoIA.id);
+    if (idx !== -1) window.gruposIA.splice(idx, 1);
     guardarGruposIA();
-    if (gruposIA.length === 0) {
-        gruposIA = [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+    if (window.gruposIA.length === 0) {
+        window.gruposIA = [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
         guardarGruposIA();
     }
-    seleccionarGrupoIA(gruposIA[0].id);
+    seleccionarGrupoIA(window.gruposIA[0].id);
     renderizarListaGruposIA();
 };
 
+window.vincularGrupoAServicio = async () => {
+    if (!window.grupoActivoIA) return;
+    const servicioId = prompt('ID del servicio (ej. OBR-12345):', window.grupoActivoIA.servicioId || '');
+    if (!servicioId) return;
+    try {
+        const q = query(collection(db, "rescates"), where("shortId", "==", servicioId), limit(1));
+        const snap = await getDocs(q);
+        if (snap.empty) {
+            window.showToast("Servicio no encontrado", true);
+            return;
+        }
+        const servicio = snap.docs[0].data();
+        const estadosValidos = ['pending', 'accepted', 'repairing', 'to_shop', 'ready'];
+        if (!estadosValidos.includes(servicio.status)) {
+            window.showToast("Solo puedes vincular servicios activos (no completados ni cancelados)", true);
+            return;
+        }
+        window.grupoActivoIA.servicioId = servicioId;
+        guardarGruposIA();
+        renderizarListaGruposIA();
+        const servicioSpan = document.getElementById('chat-ai-servicio-id');
+        if (servicioSpan) servicioSpan.innerText = `Servicio: ${servicioId}`;
+        window.showToast('Grupo vinculado al servicio');
+    } catch (e) {
+        window.showToast("Error al verificar servicio", true);
+    }
+};
+
+window.exportarChatIA = () => {
+    if (!window.grupoActivoIA) return;
+    let content = `Chat: ${window.grupoActivoIA.nombre}\nServicio: ${window.grupoActivoIA.servicioId || 'No vinculado'}\n---\n`;
+    window.grupoActivoIA.mensajes.forEach(m => {
+        content += `${m.rol === 'usuario' ? '👤' : '🤖'} (${new Date(m.timestamp).toLocaleString()}): ${m.texto}\n`;
+    });
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat_${window.grupoActivoIA.nombre}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+};
+
+// Función global para abrir el chat IA (corregida, sin estilos inline conflictivos)
+window.abrirChatIA = function() {
+    const modal = document.getElementById('modal-chat-ai');
+    if (!modal) {
+        console.error('No se encontró el modal modal-chat-ai');
+        return;
+    }
+    // Cargar grupos si es necesario
+    if (!window.gruposIA || window.gruposIA.length === 0) {
+        cargarGruposIA();
+    }
+    // Mostrar modal
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
+    // Forzar reflow
+    void modal.offsetHeight;
+    // Renderizar mensajes si hay grupo activo
+    if (window.grupoActivoIA) {
+        renderizarMensajesIA();
+    } else if (window.gruposIA.length) {
+        seleccionarGrupoIA(window.gruposIA[0].id);
+    }
+    // Asegurar scroll
+    const msgContainer = document.getElementById('chat-ai-mensajes');
+    if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
+    console.log('✅ Chat IA abierto correctamente');
+};
+
+// Inicializar grupos al cargar la página (EVITAR DUPLICADO)
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => cargarGruposIA());
+} else {
+    cargarGruposIA();
+}
 window.vincularGrupoAServicio = async () => {
     if (!grupoActivoIA) return;
     const servicioId = prompt('ID del servicio (ej. OBR-12345):', grupoActivoIA.servicioId || '');
@@ -1542,55 +1624,6 @@ window.submitFinalSOS = async () => {
     }
 };
 
-// ======================== CHAT IA – CORREGIDO ========================
-window.abrirChatIA = function() {
-    const modal = document.getElementById('modal-chat-ai');
-    if (!modal) {
-        console.error('No se encontró el modal modal-chat-ai');
-        return;
-    }
-
-    // Asegurar que los grupos estén cargados antes de mostrar
-    if (!window.gruposIA || window.gruposIA.length === 0) {
-        if (typeof cargarGruposIA === 'function') cargarGruposIA();
-    }
-
-    // Remover hidden y forzar display flex (sin estilos inline innecesarios)
-    modal.classList.remove('hidden');
-    modal.style.display = 'flex';
-    modal.style.visibility = 'visible';
-    modal.style.opacity = '1';
-
-    // Forzar reflow para que el navegador calcule dimensiones
-    void modal.offsetHeight;
-
-    // Si ya hay un grupo activo, renderizar mensajes; si no, seleccionar el primero
-    if (window.grupoActivoIA) {
-        if (typeof renderizarMensajesIA === 'function') renderizarMensajesIA();
-    } else if (window.gruposIA && window.gruposIA.length) {
-        if (typeof seleccionarGrupoIA === 'function') seleccionarGrupoIA(window.gruposIA[0].id);
-    }
-
-    // Asegurar que el scroll funcione
-    const msgContainer = document.getElementById('chat-ai-mensajes');
-    if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
-
-    console.log('✅ Chat IA abierto y visible');
-};
-
-// Asegurar que cargarGruposIA cree al menos un grupo si no existe
-function cargarGruposIA() {
-    const stored = localStorage.getItem('obr_chat_ia_groups');
-    window.gruposIA = stored ? JSON.parse(stored) : [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
-    if (!window.gruposIA.length) {
-        window.gruposIA = [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
-    }
-    guardarGruposIA();
-    renderizarListaGruposIA();
-    if (window.gruposIA.length && !window.grupoActivoIA) seleccionarGrupoIA(window.gruposIA[0].id);
-}
-
-// ======================== MAPA CLIENTE – CORREGIDO ========================
 function listenToMySOS() {
     if (window.mySOSListener && typeof window.mySOSListener === 'function') {
         window.mySOSListener();
@@ -1610,7 +1643,6 @@ function listenToMySOS() {
         const statusDesc = document.getElementById('sos-status-desc-client');
 
         if (!snap.exists()) {
-            // Ocultar todo y destruir mapa si existe
             if (activeCard) activeCard.classList.add('hidden');
             if (noServicesMsg) noServicesMsg?.classList.remove('hidden');
             if (survey) survey.classList.add('hidden');
@@ -1633,33 +1665,57 @@ function listenToMySOS() {
         if (activeCard) activeCard.classList.remove('hidden');
         if (noServicesMsg) noServicesMsg.classList.add('hidden');
 
-        // Actualizar barra de progreso (código original conservado)
-        // ... (se mantiene igual)
+        // Actualizar barra de progreso (código original conservado, solo se muestra la parte del mapa)
+        const stepLabels = ['step-1-label', 'step-2-label', 'step-3-label', 'step-4-label'];
+        const stepDots = ['step-dot-1', 'step-dot-2', 'step-dot-3', 'step-dot-4'];
+        let currentStep = 0, progressPercent = 0;
+        if (data.status === 'accepted') { currentStep = 1; progressPercent = 25; }
+        else if (data.status === 'repairing') { currentStep = 2; progressPercent = 50; }
+        else if (data.status === 'to_shop' || data.status === 'ready') { currentStep = 3; progressPercent = 75; }
+        else if (data.status === 'completed') { currentStep = 4; progressPercent = 100; }
 
-        // ========== MAPA: lógica robusta ==========
-        if (data.status === 'accepted' && data.mech_uid) {
-            if (!mechanicMapDiv) {
-                console.warn('No existe #mechanic-live-map');
-                return;
+        for (let i = 0; i < stepLabels.length; i++) {
+            const labelEl = document.getElementById(stepLabels[i]);
+            const dotEl = document.getElementById(stepDots[i]);
+            if (i < currentStep) {
+                labelEl?.classList.add('text-red-400', 'font-bold');
+                dotEl?.classList.remove('bg-asfalto', 'border-white/20');
+                dotEl?.classList.add('bg-red-500', 'border-asfalto');
+            } else {
+                labelEl?.classList.remove('text-red-400', 'font-bold');
+                dotEl?.classList.remove('bg-red-500', 'border-asfalto');
+                dotEl?.classList.add('bg-asfalto', 'border-white/20');
             }
+        }
+        const progressBar = document.getElementById('sos-progress-bar');
+        if (progressBar) progressBar.style.width = progressPercent + '%';
+        if (statusDesc) {
+            let estadoTexto = "Esperando confirmación";
+            if (data.status === 'accepted') estadoTexto = "Mecánico en camino";
+            else if (data.status === 'completed') estadoTexto = "Servicio finalizado";
+            else if (data.status === 'cancelled') estadoTexto = "Cancelado";
+            else if (data.status === 'repairing') estadoTexto = "Reparando";
+            else if (data.status === 'to_shop') estadoTexto = "En taller";
+            else if (data.status === 'ready') estadoTexto = "Listo";
+            statusDesc.innerText = estadoTexto;
+        }
 
-            // Mostrar el contenedor del mapa
+        // ========== MAPA: versión robusta ==========
+        if (data.status === 'accepted' && data.mech_uid) {
+            if (!mechanicMapDiv) return;
+
             mechanicMapDiv.classList.remove('hidden');
             mechanicMapDiv.style.display = 'block';
             mechanicMapDiv.style.visibility = 'visible';
 
-            // Función para inicializar o actualizar el mapa
-            const initOrUpdateMap = () => {
-                // Verificar que el contenedor tenga dimensiones reales
+            const initMap = () => {
                 const rect = mechanicMapDiv.getBoundingClientRect();
                 if (rect.height < 100) {
-                    // Si aún no tiene altura, esperar otro frame
-                    requestAnimationFrame(initOrUpdateMap);
+                    requestAnimationFrame(initMap);
                     return;
                 }
 
                 if (!window._mechMap) {
-                    // Crear mapa por primera vez
                     const centerLat = data.lat || TALLER_LAT;
                     const centerLng = data.lng || TALLER_LNG;
                     window._mechMap = L.map('mechanic-live-map').setView([centerLat, centerLng], 14);
@@ -1669,18 +1725,15 @@ function listenToMySOS() {
                         : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
                     L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(window._mechMap);
 
-                    // Marcador del taller
                     if (!window._tallerMarker) {
                         window._tallerMarker = L.marker([TALLER_LAT, TALLER_LNG], {
                             icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] })
                         }).addTo(window._mechMap).bindPopup("Taller OBR");
                     }
                 } else {
-                    // Forzar redimensionamiento
                     window._mechMap.invalidateSize();
                 }
 
-                // Marcador del cliente (actualizar o crear)
                 if (data.lat && data.lng) {
                     if (window._clientMarker) window._mechMap.removeLayer(window._clientMarker);
                     window._clientMarker = L.marker([data.lat, data.lng], {
@@ -1688,7 +1741,6 @@ function listenToMySOS() {
                     }).addTo(window._mechMap).bindPopup("Tu ubicación").openPopup();
                 }
 
-                // Marcador del mecánico
                 if (!window._mechMarker) {
                     window._mechMarker = L.marker([TALLER_LAT, TALLER_LNG], {
                         icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
@@ -1697,11 +1749,9 @@ function listenToMySOS() {
                     window._mechMarker.addTo(window._mechMap);
                 }
 
-                // Limpiar listeners previos de posición y ruta
                 if (mechPosUnsubscribe) mechPosUnsubscribe();
                 if (trackingUnsubscribe) trackingUnsubscribe();
 
-                // Posición en tiempo real del mecánico
                 mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
                     if (posSnap.exists() && window._mechMap) {
                         const pos = posSnap.val();
@@ -1712,7 +1762,6 @@ function listenToMySOS() {
                     }
                 });
 
-                // Ruta (polilínea)
                 trackingUnsubscribe = onValue(dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`), (trackSnap) => {
                     if (trackSnap.exists() && window._mechMap) {
                         const coords = [];
@@ -1728,13 +1777,8 @@ function listenToMySOS() {
                 });
             };
 
-            // Esperar a que el DOM esté listo y el contenedor tenga tamaño
-            requestAnimationFrame(() => {
-                setTimeout(initOrUpdateMap, 300);
-            });
-
+            requestAnimationFrame(() => setTimeout(initMap, 300));
         } else {
-            // Ocultar mapa si no está aceptado
             if (mechanicMapDiv) {
                 mechanicMapDiv.classList.add('hidden');
                 mechanicMapDiv.style.display = 'none';
@@ -1750,6 +1794,60 @@ function listenToMySOS() {
             if (trackingUnsubscribe) trackingUnsubscribe();
         }
 
+        // Notificaciones y encuesta (código original conservado)
+        if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
+            speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
+            playSound('notif');
+            const chatBtn = document.getElementById('btn-chat-sos');
+            if (chatBtn && data.mech_uid) chatBtn.classList.remove('hidden');
+        }
+
+        if ((data.status === 'completed' || data.status === 'cancelled') && 
+            window.lastClientSOSStatus !== 'completed' && 
+            window.lastClientSOSStatus !== 'cancelled') {
+            const chatBtn = document.getElementById('btn-chat-sos');
+            if (chatBtn) chatBtn.classList.add('hidden');
+            window._sosChatId = null;
+            speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
+            playSound('notif');
+            if (activeCard) activeCard.classList.add('hidden');
+            setTimeout(() => {
+                const surveyEl = document.getElementById('satisfaction-survey');
+                if (surveyEl) surveyEl.classList.remove('hidden');
+            }, 200);
+            remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
+            window.loadClientHistory();
+            if (wsCard) wsCard.classList.add('hidden');
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (trackingUnsubscribe) trackingUnsubscribe();
+            if (window._mechMap) {
+                window._mechMap.remove();
+                window._mechMap = null;
+                window._mechMarker = null;
+                window._clientMarker = null;
+                window._mechRouteLine = null;
+            }
+            if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
+                if (wsCard) {
+                    wsCard.classList.remove('hidden');
+                    const steps = { 'recibida': 1, 'mecanica': 2, 'pruebas': 3, 'lista': 4 };
+                    const currentStep = steps[data.tallerStatus] || 0;
+                    const wsProgress = document.getElementById('client-ws-progress');
+                    if (wsProgress) wsProgress.style.width = ((currentStep - 1) * 33.33) + '%';
+                    const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
+                    wsTexts.forEach((id, idx) => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
+                    });
+                }
+            }
+            window.lastClientSOSStatus = data.status;
+            return;
+        }
+
+        window.lastClientSOSStatus = data.status;
+    });
+}
         
 // aqui finaliza listenToMySOS //
 window.abrirChatSOS = () => {
