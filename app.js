@@ -414,6 +414,7 @@ let lastMechPos = null;              // Para calcular distancia
 let assignedMechPos = null;          // Posición al momento de asignación
 let repairProgressInterval = null;    // Para simular avance de barra
 let currentRepairPercent = 0;         // Progreso durante reparación
+
 // aqui inicia obtenerPromedioCalificacion //
 async function obtenerPromedioCalificacion(uid) {
     if (!uid) return null;
@@ -1678,15 +1679,13 @@ function listenToMySOS() {
         const stepDots = ['step-dot-1', 'step-dot-2', 'step-dot-3', 'step-dot-4'];
 
         if (!snap.exists()) {
-            // No hay SOS activo → ocultar mapa y limpiar
             if (activeCard) activeCard.classList.add('hidden');
             if (noServicesMsg) noServicesMsg?.classList.remove('hidden');
             if (survey) survey.classList.add('hidden');
-            if (mechanicMapDiv) mechanicMapDiv.classList.remove('visible');
+            if (mechanicMapDiv) mechanicMapDiv.style.opacity = '0';
             if (wsCard) wsCard.classList.add('hidden');
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (trackingUnsubscribe) trackingUnsubscribe();
-            if (repairProgressInterval) clearInterval(repairProgressInterval);
             window.lastClientSOSStatus = null;
             return;
         }
@@ -1694,43 +1693,15 @@ function listenToMySOS() {
         const data = snap.val();
         if (activeCard) activeCard.classList.remove('hidden');
         if (noServicesMsg) noServicesMsg.classList.add('hidden');
-        if (mechanicMapDiv) mechanicMapDiv.classList.add('visible'); // Mostrar mapa
+        if (mechanicMapDiv) mechanicMapDiv.style.opacity = '1'; // mostrar mapa
 
-        // ========== TEXTO DE ESTADO EN ESPAÑOL ==========
-        let estadoTexto = "Esperando confirmación";
-        let currentStep = 0;
-        let progressPercent = 0;
+        // Actualizar barra de progreso (código original)
+        let currentStep = 0, progressPercent = 0;
+        if (data.status === 'accepted') { currentStep = 1; progressPercent = 25; }
+        else if (data.status === 'repairing') { currentStep = 2; progressPercent = 50; }
+        else if (data.status === 'to_shop' || data.status === 'ready') { currentStep = 3; progressPercent = 75; }
+        else if (data.status === 'completed') { currentStep = 4; progressPercent = 100; }
 
-        switch (data.status) {
-            case 'accepted':
-                estadoTexto = "En camino";
-                currentStep = 1;
-                progressPercent = 25;
-                break;
-            case 'repairing':
-                estadoTexto = "Reparando";
-                currentStep = 2;
-                progressPercent = 50;
-                break;
-            case 'to_shop':
-            case 'ready':
-                estadoTexto = "Finalizado";
-                currentStep = 3;
-                progressPercent = 75;
-                break;
-            case 'completed':
-                estadoTexto = "Finalizado";
-                currentStep = 4;
-                progressPercent = 100;
-                break;
-            default:
-                estadoTexto = "Pendiente";
-                currentStep = 0;
-                progressPercent = 0;
-        }
-        if (statusDesc) statusDesc.innerText = estadoTexto;
-
-        // Actualizar barra de progreso y pasos visuales
         for (let i = 0; i < stepLabels.length; i++) {
             const labelEl = document.getElementById(stepLabels[i]);
             const dotEl = document.getElementById(stepDots[i]);
@@ -1745,29 +1716,37 @@ function listenToMySOS() {
             }
         }
         if (progressBar) progressBar.style.width = progressPercent + '%';
+        
+        if (statusDesc) {
+            let estadoTexto = "Esperando confirmación";
+            if (data.status === 'accepted') estadoTexto = "Mecánico en camino";
+            else if (data.status === 'repairing') estadoTexto = "Reparando";
+            else if (data.status === 'to_shop' || data.status === 'ready') estadoTexto = "Finalizado";
+            else if (data.status === 'completed') estadoTexto = "Servicio finalizado";
+            else if (data.status === 'cancelled') estadoTexto = "Cancelado";
+            statusDesc.innerText = estadoTexto;
+        }
 
-        // ========== MANEJO DEL MAPA Y ACTUALIZACIÓN DE MARCAS ==========
-        if (data.status === 'accepted' && data.mech_uid) {
-            // Guardar posición inicial del mecánico si aún no se tiene
-            if (!assignedMechPos && data.mech_lat && data.mech_lng) {
-                assignedMechPos = { lat: data.mech_lat, lng: data.mech_lng };
-            }
-
-            // Marcador del cliente (ubicación del SOS)
-            if (data.lat && data.lng && clientMapInstance) {
+        // ========== ACTUALIZACIÓN DEL MAPA ==========
+        if (clientMapInstance && (data.status === 'accepted' || data.status === 'repairing') && data.mech_uid) {
+            // Centrar el mapa en la ubicación del cliente (o del mecánico si existe)
+            let centerLat = data.lat || TALLER_LAT;
+            let centerLng = data.lng || TALLER_LNG;
+            
+            // Marcador del cliente
+            if (data.lat && data.lng) {
                 if (clientMapMarkers.client) clientMapInstance.removeLayer(clientMapMarkers.client);
                 clientMapMarkers.client = L.marker([data.lat, data.lng], {
                     icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] })
                 }).addTo(clientMapInstance).bindPopup("Tu ubicación").openPopup();
             }
-
-            // Escuchar posición del mecánico en tiempo real
+            
+            // Escuchar posición del mecánico
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
                 if (posSnap.exists() && clientMapInstance) {
                     const pos = posSnap.val();
                     if (pos.lat && pos.lng) {
-                        // Actualizar marcador del mecánico
                         if (clientMapMarkers.mech) {
                             clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
                         } else {
@@ -1775,26 +1754,13 @@ function listenToMySOS() {
                                 icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
                             }).addTo(clientMapInstance).bindPopup("Mecánico en camino");
                         }
+                        // Centrar el mapa en la posición actual del mecánico
                         clientMapInstance.setView([pos.lat, pos.lng], 14);
-
-                        // DETECCIÓN AUTOMÁTICA DE "EN CAMINO" si se movió más de 2km desde asignación
-                        if (assignedMechPos) {
-                            const dist = getDistanceKm(assignedMechPos.lat, assignedMechPos.lng, pos.lat, pos.lng);
-                            if (dist >= 2 && data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted_moving') {
-                                // Solo actualizamos la UI, no el estado en Firestore
-                                if (statusDesc) statusDesc.innerText = "En camino (moviéndose)";
-                                // Podríamos también cambiar el texto del paso 2
-                                const movingLabel = document.getElementById('step-2-label');
-                                if (movingLabel) movingLabel.innerText = "En camino";
-                                window.lastClientSOSStatus = 'accepted_moving';
-                            }
-                        }
-                        lastMechPos = pos;
                     }
                 }
             });
-
-            // Ruta (polilínea) del mecánico
+            
+            // Ruta del mecánico
             if (trackingUnsubscribe) trackingUnsubscribe();
             trackingUnsubscribe = onValue(dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`), (trackSnap) => {
                 if (trackSnap.exists() && clientMapInstance) {
@@ -1809,8 +1775,21 @@ function listenToMySOS() {
                     }
                 }
             });
+            
+            // Ajustar el zoom para que se vean ambos puntos (cliente y mecánico)
+            const bounds = [];
+            if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
+            if (clientMapMarkers.mech) {
+                const latlng = clientMapMarkers.mech.getLatLng();
+                bounds.push([latlng.lat, latlng.lng]);
+            }
+            if (bounds.length >= 2) {
+                clientMapInstance.fitBounds(bounds, { padding: [50, 50] });
+            } else if (bounds.length === 1) {
+                clientMapInstance.setView(bounds[0], 14);
+            }
         } else {
-            // No hay mecánico asignado o estado diferente → limpiar marcadores y rutas
+            // No hay mecánico asignado, limpiar marcadores
             if (clientMapMarkers.mech && clientMapInstance) clientMapInstance.removeLayer(clientMapMarkers.mech);
             if (clientMapMarkers.client && clientMapInstance) clientMapInstance.removeLayer(clientMapMarkers.client);
             if (clientMapRouteLine && clientMapInstance) clientMapInstance.removeLayer(clientMapRouteLine);
@@ -1819,29 +1798,9 @@ function listenToMySOS() {
             clientMapRouteLine = null;
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (trackingUnsubscribe) trackingUnsubscribe();
-            assignedMechPos = null;
         }
 
-        // ========== SIMULACIÓN DE PROGRESO DURANTE REPARACIÓN ==========
-        if (data.status === 'repairing' && !repairProgressInterval) {
-            currentRepairPercent = 50; // ya estamos en 50% por defecto
-            repairProgressInterval = setInterval(() => {
-                if (data.status !== 'repairing') {
-                    clearInterval(repairProgressInterval);
-                    repairProgressInterval = null;
-                    return;
-                }
-                if (currentRepairPercent < 99) {
-                    currentRepairPercent += 1;
-                    if (progressBar) progressBar.style.width = currentRepairPercent + '%';
-                }
-            }, 30000); // cada 30 segundos avanza 1% (simula tiempo en reparación)
-        } else if (data.status !== 'repairing' && repairProgressInterval) {
-            clearInterval(repairProgressInterval);
-            repairProgressInterval = null;
-        }
-
-        // ========== NOTIFICACIONES Y ENCUESTA (sin cambios) ==========
+        // Notificaciones y encuesta (código original sin cambios)
         if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
             speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
             playSound('notif');
@@ -1867,10 +1826,12 @@ function listenToMySOS() {
             if (wsCard) wsCard.classList.add('hidden');
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (trackingUnsubscribe) trackingUnsubscribe();
-            if (repairProgressInterval) clearInterval(repairProgressInterval);
-            if (clientMapInstance) clientMapInstance.remove();
-            clientMapInstance = null;
-            clientMapInitialized = false; // para que se vuelva a crear la próxima vez
+            if (clientMapInstance) {
+                clientMapInstance.remove();
+                clientMapInstance = null;
+                clientMapMarkers = { mech: null, client: null, taller: null };
+                clientMapRouteLine = null;
+            }
             if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                 if (wsCard) {
                     wsCard.classList.remove('hidden');
@@ -7806,11 +7767,18 @@ window.aplicarHorarioALunes = () => {
     }
 };
 function initClientMap() {
-    if (clientMapInitialized) return;
+    if (clientMapInstance) return; // ya existe
     const container = document.getElementById('mechanic-live-map');
-    if (!container) return;
+    if (!container) {
+        console.warn('No se encontró #mechanic-live-map');
+        return;
+    }
+    // Asegurar que el contenedor sea visible y tenga tamaño
+    container.style.display = 'block';
+    container.style.height = '250px';
+    container.style.minHeight = '250px';
     
-    clientMapInstance = L.map('mechanic-live-map', { zoomControl: true }).setView([TALLER_LAT, TALLER_LNG], 13);
+    clientMapInstance = L.map('mechanic-live-map').setView([TALLER_LAT, TALLER_LNG], 13);
     const isLight = document.body.classList.contains('light-mode');
     const layerUrl = isLight
         ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
@@ -7822,5 +7790,5 @@ function initClientMap() {
         icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] })
     }).addTo(clientMapInstance).bindPopup("Taller OBR");
     
-    clientMapInitialized = true;
+    console.log('✅ Mapa del cliente inicializado correctamente');
 }
