@@ -46,9 +46,8 @@ function escapeHtml(str) {
     });
 }
 
-// ========== CHAT IA – VERSIÓN DEFINITIVA (CON CREACIÓN AUTOMÁTICA DEL MODAL) ==========
+// ========== CHAT IA – VERSIÓN AUTOSUFICIENTE (CREA EL MODAL DESDE CERO) ==========
 (function() {
-    // Variables
     let currentGroup = null;
     let currentGroupId = null;
     let groupsUnsubscribe = null;
@@ -56,33 +55,26 @@ function escapeHtml(str) {
     let pendingImage = null;
     let modal = null;
 
-    // Referencias a elementos del modal (se inicializarán después)
-    let groupsList, messagesContainer, groupTitle, serviceIdSpan;
-    let messageInput, sendBtn, cameraBtn, galleryBtn, previewContainer, previewImg, cancelPreviewBtn;
-    let vincularBtn, renombrarBtn, eliminarBtn, exportarBtn;
+    // ========== CREAR MODAL COMPLETO ==========
+    function crearModalCompleto() {
+        if (modal) return modal;
 
-    // ========== 1. CREAR O REUTILIZAR MODAL ==========
-    function getOrCreateModal() {
-        let modalElement = document.getElementById('modal-chat-ai');
-        if (!modalElement) {
-            modalElement = document.createElement('div');
-            modalElement.id = 'modal-chat-ai';
-            modalElement.className = 'fixed inset-0 bg-black/95 z-[100000] hidden flex-col backdrop-blur-sm';
-            modalElement.style.display = 'none';
-            document.body.appendChild(modalElement);
-        }
-        return modalElement;
-    }
+        modal = document.createElement('div');
+        modal.id = 'chat-ia-modal-dinamico';
+        modal.style.cssText = `
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000000dd;
+            backdrop-filter: blur(4px);
+            z-index: 1000000;
+            flex-direction: column;
+            font-family: system-ui, sans-serif;
+        `;
 
-    // ========== 2. INYECTAR ESTRUCTURA DENTRO DEL MODAL ==========
-    function injectChatHTML() {
-        const modalElement = getOrCreateModal();
-        modal = modalElement;
-        // Limpiar contenido anterior
-        modal.innerHTML = '';
-        modal.style.display = 'none';
-        modal.style.flexDirection = 'column';
-        
         modal.innerHTML = `
             <div class="chat-ia-container" style="display:flex; flex-direction:column; width:100%; height:100%; max-width:1200px; margin:0 auto; background:var(--bg-color); color:var(--text-color);">
                 <!-- Cabecera -->
@@ -95,7 +87,7 @@ function escapeHtml(str) {
                 </div>
                 <!-- Cuerpo -->
                 <div style="display:flex; flex:1; overflow:hidden;">
-                    <!-- Panel izquierdo -->
+                    <!-- Panel izquierdo: grupos -->
                     <div class="chat-ia-groups-panel" style="width:260px; background:var(--panel-bg); border-right:1px solid var(--border-color); display:flex; flex-direction:column;">
                         <div style="padding:12px;">
                             <input type="text" id="search-group-ia" placeholder="Buscar grupo..." style="width:100%; background:var(--input-bg); border:1px solid var(--border-color); border-radius:8px; padding:8px; font-size:12px; color:var(--text-color);">
@@ -105,7 +97,7 @@ function escapeHtml(str) {
                             <button id="new-group-ia" style="width:100%; background:#22c55e; color:white; border:none; padding:8px; border-radius:12px; font-weight:900; cursor:pointer;">+ Nuevo grupo</button>
                         </div>
                     </div>
-                    <!-- Panel derecho -->
+                    <!-- Panel derecho: chat -->
                     <div class="chat-ia-chat-panel" style="flex:1; display:flex; flex-direction:column;">
                         <div class="chat-ia-chat-header" style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--header-bg); border-bottom:1px solid var(--border-color);">
                             <div>
@@ -138,56 +130,45 @@ function escapeHtml(str) {
             </div>
         `;
 
-        // Obtener referencias a los elementos
-        groupsList = document.getElementById('groups-list-ia');
-        messagesContainer = document.getElementById('messages-list-ia');
-        groupTitle = document.getElementById('chat-group-title');
-        serviceIdSpan = document.getElementById('chat-service-id');
-        messageInput = document.getElementById('message-input-ia');
-        sendBtn = document.getElementById('send-message-ia');
-        cameraBtn = document.getElementById('camera-ia');
-        galleryBtn = document.getElementById('gallery-ia');
-        previewContainer = document.getElementById('image-preview-ia');
-        previewImg = document.getElementById('preview-img-ia');
-        cancelPreviewBtn = document.getElementById('cancel-preview-ia');
-        vincularBtn = document.getElementById('link-service-ia');
-        renombrarBtn = document.getElementById('rename-group-ia');
-        eliminarBtn = document.getElementById('delete-group-ia');
-        exportarBtn = document.getElementById('export-pdf-ia');
+        document.body.appendChild(modal);
 
-        // Asignar eventos (solo si existen)
-        const closeBtn = document.getElementById('close-chat-ia');
-        if (closeBtn) closeBtn.addEventListener('click', () => {
-            if (modal) modal.style.display = 'none';
+        // Asignar eventos básicos
+        const closeBtn = modal.querySelector('#close-chat-ia');
+        if (closeBtn) closeBtn.onclick = () => {
+            modal.style.display = 'none';
             limpiarPreview();
-        });
-        if (sendBtn) sendBtn.addEventListener('click', enviarMensaje);
-        if (cameraBtn) cameraBtn.addEventListener('click', () => seleccionarImagen(true));
-        if (galleryBtn) galleryBtn.addEventListener('click', () => seleccionarImagen(false));
-        if (cancelPreviewBtn) cancelPreviewBtn.addEventListener('click', limpiarPreview);
-        if (vincularBtn) vincularBtn.addEventListener('click', vincularServicio);
-        if (renombrarBtn) renombrarBtn.addEventListener('click', renombrarGrupo);
-        if (eliminarBtn) eliminarBtn.addEventListener('click', eliminarGrupo);
-        if (exportarBtn) exportarBtn.addEventListener('click', exportarChatPDF);
-        const newGroupBtn = document.getElementById('new-group-ia');
-        if (newGroupBtn) newGroupBtn.addEventListener('click', crearNuevoGrupo);
-        const searchInput = document.getElementById('search-group-ia');
-        if (searchInput) searchInput.addEventListener('input', filtrarGrupos);
-        if (messageInput) {
-            messageInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    enviarMensaje();
-                }
-            });
-        }
+        };
 
+        // Guardar referencias a elementos necesarios
+        window._chatGroupsList = modal.querySelector('#groups-list-ia');
+        window._chatMessagesContainer = modal.querySelector('#messages-list-ia');
+        window._chatGroupTitle = modal.querySelector('#chat-group-title');
+        window._chatServiceIdSpan = modal.querySelector('#chat-service-id');
+        window._chatMessageInput = modal.querySelector('#message-input-ia');
+        window._chatSendBtn = modal.querySelector('#send-message-ia');
+        window._chatCameraBtn = modal.querySelector('#camera-ia');
+        window._chatGalleryBtn = modal.querySelector('#gallery-ia');
+        window._chatPreviewContainer = modal.querySelector('#image-preview-ia');
+        window._chatPreviewImg = modal.querySelector('#preview-img-ia');
+        window._chatCancelPreview = modal.querySelector('#cancel-preview-ia');
+        window._chatVincularBtn = modal.querySelector('#link-service-ia');
+        window._chatRenombrarBtn = modal.querySelector('#rename-group-ia');
+        window._chatEliminarBtn = modal.querySelector('#delete-group-ia');
+        window._chatExportarBtn = modal.querySelector('#export-pdf-ia');
+        window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
+        window._chatSearchInput = modal.querySelector('#search-group-ia');
+
+        // Aplicar tema dinámico
         aplicarTema();
+
+        // Observar cambios de tema
         const observer = new MutationObserver(() => aplicarTema());
         observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+        return modal;
     }
 
-    // ========== 3. FUNCIONES DE TEMA ==========
+    // ========== TEMAS ==========
     function aplicarTema() {
         if (!modal) return;
         const isLight = document.body.classList.contains('light-mode');
@@ -213,7 +194,7 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== 4. FIRESTORE: GRUPOS Y MENSAJES ==========
+    // ========== FIRESTORE: GRUPOS ==========
     async function cargarGrupos() {
         if (groupsUnsubscribe) groupsUnsubscribe();
         const q = query(collection(db, "chat_grupos"), orderBy("creado", "desc"));
@@ -230,6 +211,7 @@ function escapeHtml(str) {
     }
 
     function renderListaGrupos(grupos) {
+        const groupsList = window._chatGroupsList;
         if (!groupsList) return;
         groupsList.innerHTML = '';
         grupos.forEach(g => {
@@ -251,8 +233,8 @@ function escapeHtml(str) {
     async function seleccionarGrupo(grupo) {
         currentGroupId = grupo.idDoc;
         currentGroup = grupo;
-        if (groupTitle) groupTitle.innerText = grupo.nombre;
-        if (serviceIdSpan) serviceIdSpan.innerText = grupo.servicioId ? `Servicio: ${grupo.servicioId}` : '';
+        if (window._chatGroupTitle) window._chatGroupTitle.innerText = grupo.nombre;
+        if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = grupo.servicioId ? `Servicio: ${grupo.servicioId}` : '';
         if (messagesUnsubscribe) messagesUnsubscribe();
         const q = query(collection(db, "chat_mensajes"), where("grupoId", "==", grupo.idDoc), orderBy("timestamp", "asc"));
         messagesUnsubscribe = onSnapshot(q, (snap) => {
@@ -272,8 +254,9 @@ function escapeHtml(str) {
     }
 
     function renderMensajes(mensajes) {
-        if (!messagesContainer) return;
-        messagesContainer.innerHTML = '';
+        const container = window._chatMessagesContainer;
+        if (!container) return;
+        container.innerHTML = '';
         mensajes.forEach(m => {
             const div = document.createElement('div');
             div.className = `flex ${m.rol === 'usuario' ? 'justify-end' : 'justify-start'} mb-3`;
@@ -283,14 +266,14 @@ function escapeHtml(str) {
                 imagenesHtml = `<div class="flex gap-1 mt-2 flex-wrap">${m.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox('${img}')">`).join('')}</div>`;
             }
             div.innerHTML = `<div class="${bubbleClass} max-w-[75%] p-3 rounded-2xl text-sm"><div>${escapeHtml(m.texto)}</div>${imagenesHtml}<div class="text-[9px] opacity-60 mt-1">${new Date(m.timestamp).toLocaleTimeString()}</div></div>`;
-            messagesContainer.appendChild(div);
+            container.appendChild(div);
         });
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        container.scrollTop = container.scrollHeight;
     }
 
-    // ========== 5. ENVIAR MENSAJE ==========
+    // ========== ENVIAR MENSAJE ==========
     async function enviarMensaje() {
-        const texto = messageInput ? messageInput.value.trim() : '';
+        const texto = window._chatMessageInput ? window._chatMessageInput.value.trim() : '';
         if ((!texto && !pendingImage) || !currentGroupId) return;
 
         const mensaje = {
@@ -301,7 +284,7 @@ function escapeHtml(str) {
             imagenes: pendingImage ? [pendingImage] : []
         };
         await addDoc(collection(db, "chat_mensajes"), mensaje);
-        if (messageInput) messageInput.value = '';
+        if (window._chatMessageInput) window._chatMessageInput.value = '';
         limpiarPreview();
 
         const loadingMsg = {
@@ -356,11 +339,11 @@ function escapeHtml(str) {
         return data.choices[0].message.content;
     }
 
-    // ========== 6. PREVISUALIZACIÓN ==========
+    // ========== IMAGEN ==========
     function limpiarPreview() {
         pendingImage = null;
-        if (previewContainer) previewContainer.style.display = 'none';
-        if (previewImg) previewImg.src = '';
+        if (window._chatPreviewContainer) window._chatPreviewContainer.style.display = 'none';
+        if (window._chatPreviewImg) window._chatPreviewImg.src = '';
     }
 
     function seleccionarImagen(usarCamara) {
@@ -377,15 +360,15 @@ function escapeHtml(str) {
             const reader = new FileReader();
             reader.onload = (ev) => {
                 pendingImage = ev.target.result;
-                if (previewImg) previewImg.src = pendingImage;
-                if (previewContainer) previewContainer.style.display = 'block';
+                if (window._chatPreviewImg) window._chatPreviewImg.src = pendingImage;
+                if (window._chatPreviewContainer) window._chatPreviewContainer.style.display = 'block';
             };
             reader.readAsDataURL(compressed);
         };
         input.click();
     }
 
-    // ========== 7. ACCIONES DE GRUPO ==========
+    // ========== ACCIONES DE GRUPO ==========
     async function crearNuevoGrupo() {
         mostrarPrompt('Nombre del grupo', '', async (nombre) => {
             if (!nombre) return;
@@ -405,7 +388,7 @@ function escapeHtml(str) {
             if (nuevo && currentGroupId) {
                 await updateDoc(doc(db, "chat_grupos", currentGroupId), { nombre: nuevo });
                 currentGroup.nombre = nuevo;
-                if (groupTitle) groupTitle.innerText = nuevo;
+                if (window._chatGroupTitle) window._chatGroupTitle.innerText = nuevo;
                 cargarGrupos();
             }
         });
@@ -422,9 +405,9 @@ function escapeHtml(str) {
             await deleteDoc(doc(db, "chat_grupos", currentGroupId));
             currentGroup = null;
             currentGroupId = null;
-            if (groupTitle) groupTitle.innerText = 'Selecciona un grupo';
-            if (serviceIdSpan) serviceIdSpan.innerText = '';
-            if (messagesContainer) messagesContainer.innerHTML = '';
+            if (window._chatGroupTitle) window._chatGroupTitle.innerText = 'Selecciona un grupo';
+            if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = '';
+            if (window._chatMessagesContainer) window._chatMessagesContainer.innerHTML = '';
             cargarGrupos();
         });
     }
@@ -446,7 +429,7 @@ function escapeHtml(str) {
             }
             await updateDoc(doc(db, "chat_grupos", currentGroupId), { servicioId });
             currentGroup.servicioId = servicioId;
-            if (serviceIdSpan) serviceIdSpan.innerText = `Servicio: ${servicioId}`;
+            if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = `Servicio: ${servicioId}`;
             window.showToast("Grupo vinculado al servicio " + servicioId);
             cargarGrupos();
         });
@@ -497,7 +480,8 @@ function escapeHtml(str) {
     }
 
     function filtrarGrupos() {
-        const term = document.getElementById('search-group-ia').value.toLowerCase();
+        const term = window._chatSearchInput ? window._chatSearchInput.value.toLowerCase() : '';
+        const groupsList = window._chatGroupsList;
         if (groupsList) {
             const items = groupsList.querySelectorAll('.grupo-item');
             items.forEach(item => {
@@ -507,7 +491,7 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== 8. MODALES PERSONALIZADOS ==========
+    // ========== MODALES PERSONALIZADOS ==========
     function mostrarPrompt(titulo, valorDefault, callback) {
         const modalId = 'modal-prompt-custom';
         let modalEl = document.getElementById(modalId);
@@ -566,22 +550,43 @@ function escapeHtml(str) {
         modalEl.classList.remove('hidden');
     }
 
-    // ========== 9. INICIALIZACIÓN ==========
-    function init() {
-        injectChatHTML();
-        cargarGrupos();
+    // ========== INICIALIZACIÓN Y EVENTOS ==========
+    function asignarEventos() {
+        if (window._chatSendBtn) window._chatSendBtn.onclick = enviarMensaje;
+        if (window._chatCameraBtn) window._chatCameraBtn.onclick = () => seleccionarImagen(true);
+        if (window._chatGalleryBtn) window._chatGalleryBtn.onclick = () => seleccionarImagen(false);
+        if (window._chatCancelPreview) window._chatCancelPreview.onclick = limpiarPreview;
+        if (window._chatVincularBtn) window._chatVincularBtn.onclick = vincularServicio;
+        if (window._chatRenombrarBtn) window._chatRenombrarBtn.onclick = renombrarGrupo;
+        if (window._chatEliminarBtn) window._chatEliminarBtn.onclick = eliminarGrupo;
+        if (window._chatExportarBtn) window._chatExportarBtn.onclick = exportarChatPDF;
+        if (window._chatNewGroupBtn) window._chatNewGroupBtn.onclick = crearNuevoGrupo;
+        if (window._chatSearchInput) window._chatSearchInput.oninput = filtrarGrupos;
+        if (window._chatMessageInput) {
+            window._chatMessageInput.onkeypress = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    enviarMensaje();
+                }
+            };
+        }
     }
 
+    // Punto de entrada global
     window.abrirChatIA = () => {
         if (!modal) {
-            injectChatHTML();
+            crearModalCompleto();
+            asignarEventos();
             cargarGrupos();
         }
-        if (modal) modal.style.display = 'flex';
-        aplicarTema();
+        if (modal) {
+            aplicarTema();
+            modal.style.display = 'flex';
+        }
     };
 
-    const asignarBotones = () => {
+    // Asignar a los botones de la interfaz cuando existan
+    const conectarBotonesExternos = () => {
         const floatBtn = document.getElementById('btn-chat-ai-float');
         if (floatBtn) floatBtn.onclick = window.abrirChatIA;
         const menuBtn = document.getElementById('btn-ia-menu');
@@ -589,13 +594,9 @@ function escapeHtml(str) {
     };
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            asignarBotones();
-            init();
-        });
+        document.addEventListener('DOMContentLoaded', conectarBotonesExternos);
     } else {
-        asignarBotones();
-        init();
+        conectarBotonesExternos();
     }
 })();
 
