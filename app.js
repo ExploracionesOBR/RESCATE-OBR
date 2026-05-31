@@ -342,7 +342,7 @@ async function obtenerPromedioCalificacion(uid) {
     return { promedio: promedio.toFixed(1), total: count };
 }
 // aqui finaliza obtenerPromedioCalificacion //
-
+console.log('ANTES DE UTILIDADES');
 // === UTILIDADES ===
 window.showToast = (msg, isError = false) => {
     console.log("🔴 TOAST ERROR:", msg, isError); // <-- añade esto temporalmente
@@ -558,7 +558,7 @@ function speakTTS(message) {
 }
 // Exponer globalmente por si se llama desde window.speakTTS
 window.speakTTS = speakTTS;
-
+console.log('ANTES DEL TEMA');
 // === TEMA ===
 window.changeThemeMode = async (mode) => {
     globalSettings.themeMode = mode;
