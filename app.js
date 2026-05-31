@@ -45,170 +45,250 @@ function escapeHtml(str) {
         return m;
     });
 }
-console.log('ANTES DEL CHAT IA');
-// ========== CHAT IA - BLOQUE CORREGIDO (SIN ERRORES DE SINTAXIS) ==========
-window.gruposIA = window.gruposIA || [];
-window.grupoActivoIA = window.grupoActivoIA || null;
+
+// ========== CHAT IA - BLOQUE CORREGIDO Y ROBUSTO ==========
+// Variables globales protegidas
+if (typeof window.gruposIA === 'undefined') window.gruposIA = [];
+if (typeof window.grupoActivoIA === 'undefined') window.grupoActivoIA = null;
+window._chatIAInicializado = window._chatIAInicializado || false;
+
+// ========== 1. PROTEGER CARGA DE LOCALSTORAGE ==========
+function cargarGruposIA() {
+    console.log('IA-1 Inicio carga de grupos');
+    try {
+        const stored = localStorage.getItem('obr_chat_ia_groups');
+        if (stored) {
+            try {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed)) {
+                    window.gruposIA = parsed;
+                } else {
+                    throw new Error('No es un array');
+                }
+            } catch (e) {
+                console.error('Error al parsear grupos IA desde localStorage', e);
+                localStorage.removeItem('obr_chat_ia_groups');
+                window.gruposIA = [];
+            }
+        } else {
+            window.gruposIA = [];
+        }
+        if (!window.gruposIA.length) {
+            window.gruposIA = [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+        }
+        guardarGruposIA();
+        console.log('IA-2 LocalStorage procesado correctamente');
+        renderizarListaGruposIA();
+        if (window.gruposIA.length && !window.grupoActivoIA) {
+            seleccionarGrupoIA(window.gruposIA[0].id);
+        }
+    } catch (e) {
+        console.error('Error fatal en cargarGruposIA', e);
+        window.gruposIA = [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+        guardarGruposIA();
+    }
+}
 
 function guardarGruposIA() {
-    localStorage.setItem('obr_chat_ia_groups', JSON.stringify(window.gruposIA));
-}
-
-function cargarGruposIA() {
-    const stored = localStorage.getItem('obr_chat_ia_groups');
-    window.gruposIA = stored ? JSON.parse(stored) : [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
-    if (!window.gruposIA.length) {
-        window.gruposIA = [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+    try {
+        localStorage.setItem('obr_chat_ia_groups', JSON.stringify(window.gruposIA));
+    } catch (e) {
+        console.error('Error guardando grupos IA', e);
     }
-    guardarGruposIA();
-    renderizarListaGruposIA();
-    if (window.gruposIA.length && !window.grupoActivoIA) seleccionarGrupoIA(window.gruposIA[0].id);
 }
 
+// ========== 2. ELIMINAR OPTIONAL CHAINING ==========
 function renderizarListaGruposIA() {
     const container = document.getElementById('lista-grupos-ia');
-    if (!container) return;
-    container.innerHTML = '';
-    window.gruposIA.forEach(grupo => {
-        const div = document.createElement('div');
-        div.className = `p-2 rounded-xl cursor-pointer hover:bg-white/10 ${window.grupoActivoIA?.id === grupo.id ? 'bg-naranja/20 border-l-4 border-naranja' : 'bg-white/5'}`;
-        div.innerHTML = `<div class="flex justify-between items-center"><span class="text-sm font-bold truncate">${escapeHtml(grupo.nombre)}</span>${grupo.servicioId ? `<span class="text-[9px] text-purple-400">📎 ${grupo.servicioId.slice(-6)}</span>` : ''}</div><div class="text-[10px] text-gray-400 truncate">${grupo.mensajes.length} mensajes</div>`;
-        div.onclick = () => seleccionarGrupoIA(grupo.id);
-        container.appendChild(div);
-    });
+    if (!container) {
+        console.warn('Elemento lista-grupos-ia no encontrado');
+        return;
+    }
+    try {
+        container.innerHTML = '';
+        window.gruposIA.forEach(grupo => {
+            const div = document.createElement('div');
+            const esActivo = (window.grupoActivoIA && window.grupoActivoIA.id === grupo.id);
+            div.className = `p-2 rounded-xl cursor-pointer hover:bg-white/10 ${esActivo ? 'bg-naranja/20 border-l-4 border-naranja' : 'bg-white/5'}`;
+            div.innerHTML = `<div class="flex justify-between items-center"><span class="text-sm font-bold truncate">${escapeHtml(grupo.nombre)}</span>${grupo.servicioId ? `<span class="text-[9px] text-purple-400">📎 ${grupo.servicioId.slice(-6)}</span>` : ''}</div><div class="text-[10px] text-gray-400 truncate">${grupo.mensajes.length} mensajes</div>`;
+            div.onclick = () => seleccionarGrupoIA(grupo.id);
+            container.appendChild(div);
+        });
+        console.log('IA-3 Render lista grupos OK');
+    } catch (e) {
+        console.error('Error renderizando lista de grupos IA', e);
+    }
 }
 
 function seleccionarGrupoIA(id) {
-    window.grupoActivoIA = window.gruposIA.find(g => g.id === id);
-    if (!window.grupoActivoIA) return;
-    const titulo = document.getElementById('chat-ai-titulo');
-    if (titulo) titulo.innerText = window.grupoActivoIA.nombre;
-    const servicioSpan = document.getElementById('chat-ai-servicio-id');
-    if (servicioSpan) servicioSpan.innerText = window.grupoActivoIA.servicioId ? `Servicio: ${window.grupoActivoIA.servicioId}` : '';
-    renderizarMensajesIA();
-    renderizarListaGruposIA();
+    console.log('IA-4 Selección grupo', id);
+    try {
+        window.grupoActivoIA = window.gruposIA.find(g => g.id === id);
+        if (!window.grupoActivoIA) return;
+        const titulo = document.getElementById('chat-ai-titulo');
+        if (titulo) titulo.innerText = window.grupoActivoIA.nombre;
+        const servicioSpan = document.getElementById('chat-ai-servicio-id');
+        if (servicioSpan) servicioSpan.innerText = window.grupoActivoIA.servicioId ? `Servicio: ${window.grupoActivoIA.servicioId}` : '';
+        renderizarMensajesIA();
+        renderizarListaGruposIA();
+    } catch (e) {
+        console.error('Error seleccionando grupo IA', e);
+    }
 }
 
 function renderizarMensajesIA() {
     const contenedor = document.getElementById('chat-ai-mensajes');
-    if (!contenedor || !window.grupoActivoIA) return;
-    contenedor.innerHTML = '';
-    window.grupoActivoIA.mensajes.forEach(msg => {
-        const div = document.createElement('div');
-        div.className = `flex ${msg.rol === 'usuario' ? 'justify-end' : 'justify-start'}`;
-        div.innerHTML = `<div class="${msg.rol === 'usuario' ? 'bg-naranja' : 'bg-blue-600'} max-w-[75%] p-3 rounded-2xl text-white text-sm"><div>${escapeHtml(msg.texto)}</div>${msg.imagenes ? `<div class="flex gap-1 mt-2">${msg.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox('${img}')">`).join('')}</div>` : ''}<div class="text-[9px] opacity-60 mt-1">${new Date(msg.timestamp).toLocaleTimeString()}</div></div>`;
-        contenedor.appendChild(div);
-    });
-    contenedor.scrollTop = contenedor.scrollHeight;
+    if (!contenedor || !window.grupoActivoIA) {
+        console.warn('Contenedor de mensajes no disponible');
+        return;
+    }
+    try {
+        contenedor.innerHTML = '';
+        window.grupoActivoIA.mensajes.forEach(msg => {
+            const div = document.createElement('div');
+            div.className = `flex ${msg.rol === 'usuario' ? 'justify-end' : 'justify-start'}`;
+            div.innerHTML = `<div class="${msg.rol === 'usuario' ? 'bg-naranja' : 'bg-blue-600'} max-w-[75%] p-3 rounded-2xl text-white text-sm"><div>${escapeHtml(msg.texto)}</div>${msg.imagenes ? `<div class="flex gap-1 mt-2">${msg.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox('${img}')">`).join('')}</div>` : ''}<div class="text-[9px] opacity-60 mt-1">${new Date(msg.timestamp).toLocaleTimeString()}</div></div>`;
+            contenedor.appendChild(div);
+        });
+        contenedor.scrollTop = contenedor.scrollHeight;
+    } catch (e) {
+        console.error('Error renderizando mensajes IA', e);
+    }
 }
 
+// ========== 3. FUNCIONES DEL CHAT PROTEGIDAS ==========
 async function consultarGroq(promptUsuario) {
-    const GROQ_API_KEY = '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';
-    const contexto = window.grupoActivoIA.mensajes.slice(-5).filter(m => m.rol !== 'loading').map(m => `${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`).join('\n');
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
-        body: JSON.stringify({
-            model: 'llama3-8b-8192',
-            messages: [
-                { role: 'system', content: "Eres un mecánico especializado experto en resolver dudas analizando imágenes o preguntas que se indiquen para dar más pronto con el fallo que se tiene existente." },
-                { role: 'user', content: `Contexto: ${contexto}\nPregunta: ${promptUsuario}` }
-            ],
-            temperature: 0.7,
-            max_tokens: 1024
-        })
-    });
-    const data = await response.json();
-    if (data.error) throw new Error(data.error.message);
-    return data.choices[0].message.content;
+    try {
+        const GROQ_API_KEY = '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';
+        const contexto = (window.grupoActivoIA && window.grupoActivoIA.mensajes) 
+            ? window.grupoActivoIA.mensajes.slice(-5).filter(m => m.rol !== 'loading').map(m => `${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`).join('\n')
+            : '';
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_API_KEY}` },
+            body: JSON.stringify({
+                model: 'llama3-8b-8192',
+                messages: [
+                    { role: 'system', content: "Eres un mecánico especializado experto en resolver dudas analizando imágenes o preguntas que se indiquen para dar más pronto con el fallo que se tiene existente." },
+                    { role: 'user', content: `Contexto: ${contexto}\nPregunta: ${promptUsuario}` }
+                ],
+                temperature: 0.7,
+                max_tokens: 1024
+            })
+        });
+        const data = await response.json();
+        if (data.error) throw new Error(data.error.message);
+        return data.choices[0].message.content;
+    } catch (e) {
+        console.error('Error consultando Groq', e);
+        return 'Error al contactar con la IA. Intenta más tarde.';
+    }
 }
 
 window.enviarMensajeIA = async () => {
-    const input = document.getElementById('chat-ai-input');
-    const texto = input?.value.trim();
-    if (!texto || !window.grupoActivoIA) return;
-    window.grupoActivoIA.mensajes.push({ rol: 'usuario', texto, timestamp: Date.now() });
-    guardarGruposIA();
-    renderizarMensajesIA();
-    if (input) input.value = '';
-    window.grupoActivoIA.mensajes.push({ rol: 'asistente', texto: '...', timestamp: Date.now(), loading: true });
-    renderizarMensajesIA();
     try {
+        const input = document.getElementById('chat-ai-input');
+        const texto = input?.value.trim();
+        if (!texto || !window.grupoActivoIA) return;
+        window.grupoActivoIA.mensajes.push({ rol: 'usuario', texto, timestamp: Date.now() });
+        guardarGruposIA();
+        renderizarMensajesIA();
+        if (input) input.value = '';
+        window.grupoActivoIA.mensajes.push({ rol: 'asistente', texto: '...', timestamp: Date.now(), loading: true });
+        renderizarMensajesIA();
         const respuesta = await consultarGroq(texto);
         window.grupoActivoIA.mensajes.pop();
         window.grupoActivoIA.mensajes.push({ rol: 'asistente', texto: respuesta, timestamp: Date.now() });
         guardarGruposIA();
         renderizarMensajesIA();
     } catch (err) {
-        window.grupoActivoIA.mensajes.pop();
-        window.grupoActivoIA.mensajes.push({ rol: 'asistente', texto: 'Error al contactar con la IA. Revisa tu conexión o clave API.', timestamp: Date.now() });
-        guardarGruposIA();
-        renderizarMensajesIA();
+        console.error('Error en enviarMensajeIA', err);
+        if (window.grupoActivoIA) {
+            window.grupoActivoIA.mensajes.pop();
+            window.grupoActivoIA.mensajes.push({ rol: 'asistente', texto: 'Error al contactar con la IA. Revisa tu conexión o clave API.', timestamp: Date.now() });
+            guardarGruposIA();
+            renderizarMensajesIA();
+        }
     }
 };
 
 window.subirImagenIA = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment';
-    input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const compressed = await window.compressImage(file);
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            const imgData = ev.target.result;
-            if (!window.grupoActivoIA) return;
-            window.grupoActivoIA.mensajes.push({ rol: 'usuario', texto: '[Imagen enviada]', timestamp: Date.now(), imagenes: [imgData] });
-            guardarGruposIA();
-            renderizarMensajesIA();
+    try {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.capture = 'environment';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file || !window.grupoActivoIA) return;
+            const compressed = await window.compressImage(file);
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const imgData = ev.target.result;
+                window.grupoActivoIA.mensajes.push({ rol: 'usuario', texto: '[Imagen enviada]', timestamp: Date.now(), imagenes: [imgData] });
+                guardarGruposIA();
+                renderizarMensajesIA();
+            };
+            reader.readAsDataURL(compressed);
         };
-        reader.readAsDataURL(compressed);
-    };
-    input.click();
+        input.click();
+    } catch (e) {
+        console.error('Error en subirImagenIA', e);
+    }
 };
 
 window.crearNuevoGrupoIA = () => {
-    const nombre = prompt('Nombre del grupo (ej. "Moto Italika"):', 'Nuevo grupo');
-    if (!nombre) return;
-    window.gruposIA.push({ id: Date.now(), nombre, servicioId: null, mensajes: [] });
-    guardarGruposIA();
-    renderizarListaGruposIA();
-    seleccionarGrupoIA(window.gruposIA[window.gruposIA.length - 1].id);
+    try {
+        const nombre = prompt('Nombre del grupo (ej. "Moto Italika"):', 'Nuevo grupo');
+        if (!nombre) return;
+        window.gruposIA.push({ id: Date.now(), nombre, servicioId: null, mensajes: [] });
+        guardarGruposIA();
+        renderizarListaGruposIA();
+        seleccionarGrupoIA(window.gruposIA[window.gruposIA.length - 1].id);
+    } catch (e) {
+        console.error('Error en crearNuevoGrupoIA', e);
+    }
 };
 
 window.renombrarGrupoIA = () => {
-    if (!window.grupoActivoIA) return;
-    const nuevo = prompt('Nuevo nombre:', window.grupoActivoIA.nombre);
-    if (nuevo) {
-        window.grupoActivoIA.nombre = nuevo;
-        guardarGruposIA();
-        renderizarListaGruposIA();
-        const titulo = document.getElementById('chat-ai-titulo');
-        if (titulo) titulo.innerText = nuevo;
+    try {
+        if (!window.grupoActivoIA) return;
+        const nuevo = prompt('Nuevo nombre:', window.grupoActivoIA.nombre);
+        if (nuevo) {
+            window.grupoActivoIA.nombre = nuevo;
+            guardarGruposIA();
+            renderizarListaGruposIA();
+            const titulo = document.getElementById('chat-ai-titulo');
+            if (titulo) titulo.innerText = nuevo;
+        }
+    } catch (e) {
+        console.error('Error en renombrarGrupoIA', e);
     }
 };
 
 window.eliminarGrupoIA = () => {
-    if (!window.grupoActivoIA) return;
-    if (!confirm('¿Eliminar este grupo y todos sus mensajes?')) return;
-    const idx = window.gruposIA.findIndex(g => g.id === window.grupoActivoIA.id);
-    if (idx !== -1) window.gruposIA.splice(idx, 1);
-    guardarGruposIA();
-    if (window.gruposIA.length === 0) {
-        window.gruposIA = [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+    try {
+        if (!window.grupoActivoIA) return;
+        if (!confirm('¿Eliminar este grupo y todos sus mensajes?')) return;
+        const idx = window.gruposIA.findIndex(g => g.id === window.grupoActivoIA.id);
+        if (idx !== -1) window.gruposIA.splice(idx, 1);
         guardarGruposIA();
+        if (window.gruposIA.length === 0) {
+            window.gruposIA = [{ id: Date.now(), nombre: 'General', servicioId: null, mensajes: [] }];
+            guardarGruposIA();
+        }
+        seleccionarGrupoIA(window.gruposIA[0].id);
+        renderizarListaGruposIA();
+    } catch (e) {
+        console.error('Error en eliminarGrupoIA', e);
     }
-    seleccionarGrupoIA(window.gruposIA[0].id);
-    renderizarListaGruposIA();
 };
 
 window.vincularGrupoAServicio = async () => {
-    if (!window.grupoActivoIA) return;
-    const servicioId = prompt('ID del servicio (ej. OBR-12345):', window.grupoActivoIA.servicioId || '');
-    if (!servicioId) return;
     try {
+        if (!window.grupoActivoIA) return;
+        const servicioId = prompt('ID del servicio (ej. OBR-12345):', window.grupoActivoIA.servicioId || '');
+        if (!servicioId) return;
         const q = query(collection(db, "rescates"), where("shortId", "==", servicioId), limit(1));
         const snap = await getDocs(q);
         if (snap.empty) {
@@ -228,57 +308,68 @@ window.vincularGrupoAServicio = async () => {
         if (servicioSpan) servicioSpan.innerText = `Servicio: ${servicioId}`;
         window.showToast('Grupo vinculado al servicio');
     } catch (e) {
+        console.error('Error en vincularGrupoAServicio', e);
         window.showToast("Error al verificar servicio", true);
     }
 };
 
 window.exportarChatIA = () => {
-    if (!window.grupoActivoIA) return;
-    let content = `Chat: ${window.grupoActivoIA.nombre}\nServicio: ${window.grupoActivoIA.servicioId || 'No vinculado'}\n---\n`;
-    window.grupoActivoIA.mensajes.forEach(m => {
-        content += `${m.rol === 'usuario' ? '👤' : '🤖'} (${new Date(m.timestamp).toLocaleString()}): ${m.texto}\n`;
-    });
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `chat_${window.grupoActivoIA.nombre}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+        if (!window.grupoActivoIA) return;
+        let content = `Chat: ${window.grupoActivoIA.nombre}\nServicio: ${window.grupoActivoIA.servicioId || 'No vinculado'}\n---\n`;
+        window.grupoActivoIA.mensajes.forEach(m => {
+            content += `${m.rol === 'usuario' ? '👤' : '🤖'} (${new Date(m.timestamp).toLocaleString()}): ${m.texto}\n`;
+        });
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `chat_${window.grupoActivoIA.nombre}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (e) {
+        console.error('Error en exportarChatIA', e);
+    }
 };
 
+// ========== 4. ABRIR CHAT CON INICIALIZACIÓN SEGURA ==========
 window.abrirChatIA = function() {
+    console.log('IA-5 Abriendo chat IA');
     const modal = document.getElementById('modal-chat-ai');
     if (!modal) {
         console.error('No se encontró el modal modal-chat-ai');
         return;
     }
-    if (!window.gruposIA || window.gruposIA.length === 0) {
-        cargarGruposIA();
+    try {
+        // Inicialización diferida (solo una vez)
+        if (!window._chatIAInicializado) {
+            cargarGruposIA();
+            window._chatIAInicializado = true;
+        }
+        modal.classList.remove('hidden');
+        modal.style.display = 'flex';
+        modal.style.visibility = 'visible';
+        modal.style.opacity = '1';
+        void modal.offsetHeight;
+        if (window.grupoActivoIA) {
+            renderizarMensajesIA();
+        } else if (window.gruposIA && window.gruposIA.length) {
+            seleccionarGrupoIA(window.gruposIA[0].id);
+        }
+        const msgContainer = document.getElementById('chat-ai-mensajes');
+        if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
+        console.log('IA-6 Chat IA abierto correctamente');
+    } catch (e) {
+        console.error('Error al abrir chat IA', e);
+        window.showToast('No se pudo abrir el chat. Intenta recargar la página.', true);
     }
-    modal.classList.remove('hidden');
-    modal.style.display = 'flex';
-    modal.style.visibility = 'visible';
-    modal.style.opacity = '1';
-    void modal.offsetHeight;
-    if (window.grupoActivoIA) {
-        renderizarMensajesIA();
-    } else if (window.gruposIA.length) {
-        seleccionarGrupoIA(window.gruposIA[0].id);
-    }
-    const msgContainer = document.getElementById('chat-ai-mensajes');
-    if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
-    console.log('✅ Chat IA abierto correctamente');
 };
 
-// Inicialización única
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => cargarGruposIA());
-} else {
-    cargarGruposIA();
-}
+// ========== 5. INICIALIZACIÓN SEGURA (sin ejecución automática) ==========
+// Ya no se ejecuta automáticamente al cargar la página.
+// La inicialización ocurre solo cuando el usuario abre el chat.
+console.log('Módulo Chat IA cargado (modo seguro, inicialización diferida)');
 // ========== FIN CHAT IA ==========
-console.log('DESPUES DEL CHAT IA');
 
 // === VARIABLES GLOBALES ===
 window.userIntent = 'inicio';
