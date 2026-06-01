@@ -2120,18 +2120,21 @@ function initClientMap() {
         console.error('Contenedor #mechanic-live-map no encontrado');
         return;
     }
-    // Asegurar dimensiones
     container.style.height = '250px';
     container.style.minHeight = '250px';
     container.style.display = 'block';
     container.style.opacity = '1';
 
-    window.clientMapInstance = L.map('mechanic-live-map', { zoomControl: true }).setView([TALLER_LAT, TALLER_LNG], 13);
-    const isLight = document.body.classList.contains('light-mode');
-    const layerUrl = isLight
-        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(window.clientMapInstance);
+    window.clientMapInstance = L.map('mechanic-live-map', {
+        zoomControl: true,   // control de zoom por defecto
+        attributionControl: false  // desactivar atribución de Leaflet
+    }).setView([TALLER_LAT, TALLER_LNG], 13);
+
+    // Capa base sin atribución (quitamos texto)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> | <a href="https://carto.com/">CARTO</a>',
+        subdomains: 'abcd'
+    }).addTo(window.clientMapInstance);
 
     // Marcador fijo del taller
     window.clientMapMarkers = window.clientMapMarkers || { mech: null, client: null, taller: null };
@@ -2139,7 +2142,7 @@ function initClientMap() {
         icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] })
     }).addTo(window.clientMapInstance).bindPopup("🔧 Taller OBR");
 
-    console.log('✅ Mapa cliente inicializado');
+    console.log('✅ Mapa cliente inicializado con routing');
     setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
 }
 
@@ -2151,7 +2154,7 @@ function listenToMySOS() {
     if (!auth.currentUser) return;
 
     let mechPosUnsubscribe = null;
-    let routingControl = null;   // Para almacenar el control de ruta
+    let routingControl = null;
 
     window.mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), async (snap) => {
         const activeCard = document.getElementById('active-sos-card');
@@ -2242,7 +2245,9 @@ function listenToMySOS() {
         }
 
         // ========== MAPA CON RUTA REAL (LEAFLET ROUTING MACHINE) ==========
-        if (data.status === 'accepted' || data.status === 'repairing') {
+        const estadosConMapa = ['accepted', 'repairing'];
+        if (estadosConMapa.includes(data.status) && data.mech_uid && data.lat && data.lng) {
+            // Inicializar mapa si no existe
             const tryInitMap = () => {
                 if (!mechanicMapDiv) return;
                 const rect = mechanicMapDiv.getBoundingClientRect();
@@ -2259,8 +2264,8 @@ function listenToMySOS() {
             };
             tryInitMap();
 
-            if (window.clientMapInstance && data.lat && data.lng) {
-                // 1. Marcador del cliente (solo animado, sin popup)
+            if (window.clientMapInstance) {
+                // ---- Marcador del cliente (solo icono, sin popup) ----
                 if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
                 window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
                     icon: L.divIcon({
@@ -2271,71 +2276,74 @@ function listenToMySOS() {
                     })
                 }).addTo(window.clientMapInstance);
 
-                // 2. Marcador del mecánico (actualización en tiempo real)
+                // ---- Escuchar posición del mecánico en tiempo real ----
                 if (mechPosUnsubscribe) mechPosUnsubscribe();
-                if (data.mech_uid) {
-                    mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
-                        if (posSnap.exists() && window.clientMapInstance) {
-                            const pos = posSnap.val();
-                            if (pos.lat && pos.lng) {
-                                // Actualizar o crear marcador del mecánico
-                                if (window.clientMapMarkers.mech) {
-                                    window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
-                                } else {
-                                    window.clientMapMarkers.mech = L.marker([pos.lat, pos.lng], {
-                                        icon: L.divIcon({
-                                            className: 'mech-pulse-marker',
-                                            html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-motorcycle" style="color:white; font-size:16px;"></i></div>',
-                                            iconSize: [32, 32],
-                                            iconAnchor: [16, 32]
-                                        })
-                                    }).addTo(window.clientMapInstance).bindPopup("🏍️ Mecánico en camino");
-                                }
-                                // Centrar mapa en mecánico
-                                window.clientMapInstance.setView([pos.lat, pos.lng], 14);
+                mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
+                    if (posSnap.exists() && window.clientMapInstance) {
+                        const pos = posSnap.val();
+                        if (pos.lat && pos.lng) {
+                            // Actualizar o crear marcador del mecánico
+                            if (window.clientMapMarkers.mech) {
+                                window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
+                            } else {
+                                window.clientMapMarkers.mech = L.marker([pos.lat, pos.lng], {
+                                    icon: L.divIcon({
+                                        className: 'mech-pulse-marker',
+                                        html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-motorcycle" style="color:white; font-size:16px;"></i></div>',
+                                        iconSize: [32, 32],
+                                        iconAnchor: [16, 32]
+                                    })
+                                }).addTo(window.clientMapInstance);
+                            }
+                            // Centrar mapa en mecánico (opcional, pero permite seguir)
+                            window.clientMapInstance.setView([pos.lat, pos.lng], 14);
 
-                                // 3. ACTUALIZAR RUTA REAL (si existen ambos puntos)
-                                if (data.lat && data.lng && pos.lat && pos.lng) {
-                                    if (routingControl) {
-                                        routingControl.setWaypoints([
-                                            L.latLng(pos.lat, pos.lng),
-                                            L.latLng(data.lat, data.lng)
-                                        ]);
-                                    } else {
-                                        routingControl = L.Routing.control({
-                                            waypoints: [
-                                                L.latLng(pos.lat, pos.lng),
-                                                L.latLng(data.lat, data.lng)
-                                            ],
-                                            routeWhileDragging: false,
-                                            language: 'es',
-                                            showAlternatives: false,
-                                            lineOptions: {
-                                                styles: [{ color: '#440dfa', weight: 6, opacity: 0.9 }]
-                                            },
-                                            router: L.Routing.osrmv1({
-                                                serviceUrl: 'https://router.project-osrm.org/route/v1'
-                                            })
-                                        }).addTo(window.clientMapInstance);
-                                    }
-                                }
+                            // ----- CREAR O ACTUALIZAR RUTA REAL -----
+                            if (routingControl) {
+                                routingControl.setWaypoints([
+                                    L.latLng(pos.lat, pos.lng),
+                                    L.latLng(data.lat, data.lng)
+                                ]);
+                            } else {
+                                routingControl = L.Routing.control({
+                                    waypoints: [
+                                        L.latLng(pos.lat, pos.lng),
+                                        L.latLng(data.lat, data.lng)
+                                    ],
+                                    routeWhileDragging: false,
+                                    language: 'es',
+                                    showAlternatives: false,
+                                    lineOptions: {
+                                        styles: [{ color: '#440dfa', weight: 6, opacity: 0.9 }]
+                                    },
+                                    router: L.Routing.osrmv1({
+                                        serviceUrl: 'https://router.project-osrm.org/route/v1'
+                                    }),
+                                    createMarker: function() { return null; } // No crear marcadores adicionales
+                                }).addTo(window.clientMapInstance);
                             }
                         }
-                    });
-                }
+                    }
+                });
 
-                // Ajustar vista para mostrar cliente y mecánico (si el mecánico ya tiene posición)
-                const bounds = [];
-                if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
-                if (window.clientMapMarkers.mech) {
-                    const latlng = window.clientMapMarkers.mech.getLatLng();
-                    if (latlng) bounds.push([latlng.lat, latlng.lng]);
-                }
-                if (bounds.length >= 2) {
-                    window.clientMapInstance.fitBounds(bounds, { padding: [50, 50] });
-                } else if (bounds.length === 1) {
-                    window.clientMapInstance.setView(bounds[0], 14);
-                }
+                // ---- Auto-centrar vista para que se vean ambos puntos (cliente y mecánico) ----
+                const centrarVista = () => {
+                    const bounds = [];
+                    if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
+                    if (window.clientMapMarkers.mech) {
+                        const latlng = window.clientMapMarkers.mech.getLatLng();
+                        if (latlng) bounds.push([latlng.lat, latlng.lng]);
+                    }
+                    if (bounds.length >= 2) {
+                        window.clientMapInstance.fitBounds(bounds, { padding: [50, 50] });
+                    } else if (bounds.length === 1) {
+                        window.clientMapInstance.setView(bounds[0], 14);
+                    }
+                };
+                // Centrar inmediatamente y cada vez que se actualice el mecánico (si no hay routingControl, se centra)
+                centrarVista();
+                // También podemos centrar después de unos segundos por si el mecánico aún no ha aparecido
+                setTimeout(centrarVista, 1000);
             }
         } else {
             // Limpiar routing y marcadores si no hay estado activo
@@ -5429,36 +5437,45 @@ async function renderSOSMapa() {
         : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     const attribution = '&copy; <a href="https://carto.com/">CARTO</a>';
 
+    // Crear mapa si no existe
     if (!adminSOSGlobalMapInst) {
-        adminSOSGlobalMapInst = L.map(mapEl, { zoomControl: true, scrollWheelZoom: true }).setView([TALLER_LAT, TALLER_LNG], 11);
+        adminSOSGlobalMapInst = L.map(mapEl, {
+            zoomControl: true,
+            scrollWheelZoom: true,
+            attributionControl: false
+        }).setView([TALLER_LAT, TALLER_LNG], 11);
         L.tileLayer(layerUrl, { attribution }).addTo(adminSOSGlobalMapInst);
         L.marker([TALLER_LAT, TALLER_LNG], {
-            icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36, 36], iconAnchor: [18, 36] }),
+            icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }),
             interactive: false
         }).addTo(adminSOSGlobalMapInst);
     } else {
+        // Limpiar capas de tiles para refrescar el tema
         adminSOSGlobalMapInst.eachLayer(layer => {
             if (layer instanceof L.TileLayer) adminSOSGlobalMapInst.removeLayer(layer);
         });
         L.tileLayer(layerUrl, { attribution }).addTo(adminSOSGlobalMapInst);
     }
 
-    // Limpiar marcadores de SOS antiguos
+    // Limpiar marcadores antiguos
     Object.values(adminSOSMarkers).forEach(m => {
         if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.removeLayer(m);
     });
     adminSOSMarkers = {};
 
-    // Limpiar listeners de tracking y líneas de ruta
+    // Limpiar listeners de tracking y rutas anteriores
     if (window._adminSOSTrackingListeners) {
         Object.values(window._adminSOSTrackingListeners).forEach(unsub => unsub());
         window._adminSOSTrackingListeners = {};
     }
     if (window._adminSOSRouteLines) {
-        Object.values(window._adminSOSRouteLines).forEach(line => line.remove());
+        Object.values(window._adminSOSRouteLines).forEach(line => {
+            if (line && line.remove) line.remove();
+        });
         window._adminSOSRouteLines = {};
     }
 
+    // Obtener rescates con filtro de fechas
     let q = query(collection(db, "rescates"));
     if (sosFechaInicio && sosFechaFin) {
         const startDate = new Date(sosFechaInicio);
@@ -5483,9 +5500,12 @@ async function renderSOSMapa() {
     const allBounds = [];
     allBounds.push([TALLER_LAT, TALLER_LNG]);
 
+    // Procesar cada rescate
     filtered.forEach(r => {
         if (!r.lat || !r.lng) return;
         allBounds.push([r.lat, r.lng]);
+
+        // Marcador del cliente
         const isCompleted = r.status === 'completed';
         const markerColor = isCompleted ? '#22c55e' : '#FF6B00';
         const iconHtml = isCompleted ? '🏍️✅' : '🏍️';
@@ -5497,47 +5517,59 @@ async function renderSOSMapa() {
                 iconAnchor: [16,16]
             })
         }).addTo(adminSOSGlobalMapInst);
-
-        const telefonoCliente = r.phone || '';
-        const telefonoClean = telefonoCliente.replace('+52', '');
-        const botones = telefonoClean ? `
-            <div style="display:flex; gap:6px; margin-top:6px;">
-                <button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:12px; padding:4px 8px;">📞 Llamar</button>
-                <button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:12px; padding:4px 8px;">💬 WhatsApp</button>
-            </div>
-        ` : '';
-        marker.bindPopup(`
-            <div style="font-size:12px; min-width:150px;">
-                <b>${escapeHtml(r.phone) || ''}</b><br>
-                ${escapeHtml(r.falla || '')}<br>
-                <b>$${r.costoRescateEstimado?.toFixed(2)}</b><br>
-                Estado: ${r.status}<br>
-                ${botones}
-                <button onclick="openDetalleServicio('${r.id}')" style="background:#FF6B00; color:white; border:none; border-radius:8px; padding:4px 8px; margin-top:4px;">Ver detalles</button>
-            </div>
-        `);
         adminSOSMarkers[r.id] = marker;
 
-        // Ruta del mecánico si está aceptado
+        // Si el rescate está aceptado y tiene mecánico asignado
         if (r.status === 'accepted' && r.mech_uid) {
-            if (window._adminSOSTrackingListeners && window._adminSOSTrackingListeners[r.id]) {
-                window._adminSOSTrackingListeners[r.id]();
-                delete window._adminSOSTrackingListeners[r.id];
-            }
-            const trackingRef = dbRef(rtdb, `mecanicos_tracking/${r.mech_uid}`);
-            const listener = onValue(trackingRef, (trackSnap) => {
-                if (trackSnap.exists() && adminSOSGlobalMapInst) {
-                    const coords = [];
-                    trackSnap.forEach(child => {
-                        const p = child.val();
-                        if (p.lat && p.lng) coords.push([p.lat, p.lng]);
-                    });
-                    if (coords.length > 1) {
-                        if (window._adminSOSRouteLines && window._adminSOSRouteLines[r.id]) {
-                            window._adminSOSRouteLines[r.id].remove();
+            // Crear marcador del mecánico y ruta en tiempo real
+            const trackingRef = dbRef(rtdb, `mecanicos_activos/${r.mech_uid}`);
+            const listener = onValue(trackingRef, (posSnap) => {
+                if (posSnap.exists() && adminSOSGlobalMapInst) {
+                    const pos = posSnap.val();
+                    if (pos.lat && pos.lng) {
+                        // Marcador del mecánico
+                        let mechMarker = adminSOSMarkers[`mech_${r.id}`];
+                        if (!mechMarker) {
+                            mechMarker = L.marker([pos.lat, pos.lng], {
+                                icon: L.divIcon({
+                                    className: 'mech-pulse-marker',
+                                    html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; border:2px solid white;"><i class="fas fa-motorcycle text-white"></i></div>',
+                                    iconSize: [32,32],
+                                    iconAnchor: [16,32]
+                                })
+                            }).addTo(adminSOSGlobalMapInst);
+                            adminSOSMarkers[`mech_${r.id}`] = mechMarker;
+                        } else {
+                            mechMarker.setLatLng([pos.lat, pos.lng]);
                         }
-                        if (!window._adminSOSRouteLines) window._adminSOSRouteLines = {};
-                        window._adminSOSRouteLines[r.id] = L.polyline(coords, { color: '#22c55e', weight: 4, opacity: 0.8 }).addTo(adminSOSGlobalMapInst);
+
+                        // Routing Machine: ruta real entre mecánico y cliente
+                        let routeControl = window._adminSOSRouteLines ? window._adminSOSRouteLines[r.id] : null;
+                        if (routeControl) {
+                            routeControl.setWaypoints([
+                                L.latLng(pos.lat, pos.lng),
+                                L.latLng(r.lat, r.lng)
+                            ]);
+                        } else {
+                            routeControl = L.Routing.control({
+                                waypoints: [
+                                    L.latLng(pos.lat, pos.lng),
+                                    L.latLng(r.lat, r.lng)
+                                ],
+                                routeWhileDragging: false,
+                                language: 'es',
+                                showAlternatives: false,
+                                lineOptions: {
+                                    styles: [{ color: '#22c55e', weight: 5, opacity: 0.8 }]
+                                },
+                                router: L.Routing.osrmv1({
+                                    serviceUrl: 'https://router.project-osrm.org/route/v1'
+                                }),
+                                createMarker: () => null
+                            }).addTo(adminSOSGlobalMapInst);
+                            if (!window._adminSOSRouteLines) window._adminSOSRouteLines = {};
+                            window._adminSOSRouteLines[r.id] = routeControl;
+                        }
                     }
                 }
             });
@@ -5546,12 +5578,7 @@ async function renderSOSMapa() {
         }
     });
 
-    // Añadir puntos del personal activo a los bounds
-    Object.values(sosPersonalMarkers).forEach(marker => {
-        const latlng = marker.getLatLng();
-        if (latlng) allBounds.push([latlng.lat, latlng.lng]);
-    });
-
+    // Ajustar vista
     if (allBounds.length > 0) {
         const bounds = L.latLngBounds(allBounds);
         adminSOSGlobalMapInst.fitBounds(bounds, { padding: [50, 50] });
@@ -7057,6 +7084,9 @@ window.searchServiceStatus = async () => {
 // ======================================================
 // === ENTREGAS - VERSIÓN COMPLETA (con seguimiento mejorado y calificaciones) ===
 // ======================================================
+// ======================================================
+// === ENTREGAS - VERSIÓN COMPLETA (con rutas reales y routing machine) ===
+// ======================================================
 // Variables globales
 let entregasMapInst = null;
 let entregasMarkers = {};
@@ -7129,7 +7159,7 @@ window.cargarListadoEntregas = async () => {
     });
 };
 
-// ---------- Renderizar mapa con pedidos ----------
+// ---------- Renderizar mapa con pedidos y rutas reales (Leaflet Routing Machine) ----------
 window.renderEntregasMapa = async () => {
     const mapEl = document.getElementById('entregas-map-container');
     if (!mapEl) return;
@@ -7138,8 +7168,12 @@ window.renderEntregasMapa = async () => {
     const layerUrl = isLight ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
     if (!entregasMapInst) {
-        entregasMapInst = L.map(mapEl, { zoomControl: true, scrollWheelZoom: false }).setView([TALLER_LAT, TALLER_LNG], 11);
-        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
+        entregasMapInst = L.map(mapEl, { 
+            zoomControl: true, 
+            scrollWheelZoom: false,
+            attributionControl: false      // ocultar atribución de Leaflet
+        }).setView([TALLER_LAT, TALLER_LNG], 11);
+        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(entregasMapInst);
         L.marker([TALLER_LAT, TALLER_LNG], {
             icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }),
             interactive: false
@@ -7148,14 +7182,26 @@ window.renderEntregasMapa = async () => {
         entregasMapInst.eachLayer(layer => {
             if (layer instanceof L.TileLayer) entregasMapInst.removeLayer(layer);
         });
-        L.tileLayer(layerUrl, { attribution: '&copy; CARTO' }).addTo(entregasMapInst);
+        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(entregasMapInst);
     }
 
-    // Limpiar marcadores de pedidos
+    // Limpiar marcadores de pedidos antiguos y controles de ruta
     Object.values(entregasMarkers).forEach(m => {
         if (entregasMapInst) entregasMapInst.removeLayer(m);
     });
     entregasMarkers = {};
+
+    // Limpiar rutas anteriores
+    if (window._entregasRouteControls) {
+        Object.values(window._entregasRouteControls).forEach(ctrl => {
+            if (ctrl && ctrl.remove) ctrl.remove();
+        });
+        window._entregasRouteControls = {};
+    }
+    if (window._entregasTrackingListeners) {
+        Object.values(window._entregasTrackingListeners).forEach(unsub => unsub());
+        window._entregasTrackingListeners = {};
+    }
 
     let q = query(collection(db, "pedidos_online"));
     if (currentFechaInicio && currentFechaFin) {
@@ -7179,8 +7225,13 @@ window.renderEntregasMapa = async () => {
     else if (currentEntregaFilter === 'en_camino') filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
     else if (currentEntregaFilter === 'entregado') filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
 
+    const allBounds = [];
+    allBounds.push([TALLER_LAT, TALLER_LNG]);
+
     filtered.forEach(p => {
         if (!p.lat || !p.lng) return;
+        allBounds.push([p.lat, p.lng]);
+
         const isEntregado = p.estado_entrega === 'entregado';
         const iconHtml = isEntregado ? '📦✅' : '📦';
         const marker = L.marker([p.lat, p.lng], {
@@ -7210,15 +7261,73 @@ window.renderEntregasMapa = async () => {
             </div>
         `);
         entregasMarkers[p.id] = marker;
+
+        // Si tiene repartidor asignado y el pedido está en camino o aceptado, crear ruta real
+        if (p.repartidor_uid && (p.estado_entrega === 'en_camino' || p.status === 'aceptado')) {
+            const trackingRef = dbRef(rtdb, `mecanicos_activos/${p.repartidor_uid}`);
+            const listener = onValue(trackingRef, (posSnap) => {
+                if (posSnap.exists() && entregasMapInst) {
+                    const pos = posSnap.val();
+                    if (pos.lat && pos.lng) {
+                        // Marcador del repartidor (si no existe ya)
+                        let repartidorMarker = entregasMarkers[`repartidor_${p.id}`];
+                        if (!repartidorMarker) {
+                            repartidorMarker = L.marker([pos.lat, pos.lng], {
+                                icon: L.divIcon({
+                                    className: 'repartidor-marker',
+                                    html: '<div style="background:#3b82f6; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:14px; color:white;">🏍️</div>',
+                                    iconSize: [28,28],
+                                    iconAnchor: [14,14]
+                                })
+                            }).addTo(entregasMapInst);
+                            entregasMarkers[`repartidor_${p.id}`] = repartidorMarker;
+                        } else {
+                            repartidorMarker.setLatLng([pos.lat, pos.lng]);
+                        }
+
+                        // Ruta real (Leaflet Routing Machine)
+                        let routeControl = window._entregasRouteControls ? window._entregasRouteControls[p.id] : null;
+                        if (routeControl) {
+                            routeControl.setWaypoints([
+                                L.latLng(pos.lat, pos.lng),
+                                L.latLng(p.lat, p.lng)
+                            ]);
+                        } else {
+                            routeControl = L.Routing.control({
+                                waypoints: [
+                                    L.latLng(pos.lat, pos.lng),
+                                    L.latLng(p.lat, p.lng)
+                                ],
+                                routeWhileDragging: false,
+                                language: 'es',
+                                showAlternatives: false,
+                                lineOptions: {
+                                    styles: [{ color: '#22c55e', weight: 5, opacity: 0.8 }]
+                                },
+                                router: L.Routing.osrmv1({
+                                    serviceUrl: 'https://router.project-osrm.org/route/v1'
+                                }),
+                                createMarker: () => null   // no crear marcadores extra
+                            }).addTo(entregasMapInst);
+                            if (!window._entregasRouteControls) window._entregasRouteControls = {};
+                            window._entregasRouteControls[p.id] = routeControl;
+                        }
+                    }
+                }
+            });
+            if (!window._entregasTrackingListeners) window._entregasTrackingListeners = {};
+            window._entregasTrackingListeners[p.id] = listener;
+        }
     });
 
-    const markersArray = Object.values(entregasMarkers);
-    if (markersArray.length > 0) {
-        const group = new L.featureGroup(markersArray);
-        entregasMapInst.fitBounds(group.getBounds().pad(0.1));
+    // Ajustar vista a todos los puntos
+    if (allBounds.length > 0) {
+        const bounds = L.latLngBounds(allBounds);
+        entregasMapInst.fitBounds(bounds, { padding: [50, 50] });
     } else {
         entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
     }
+    window.fixMaps?.();
 };
 
 // ---------- Seguimiento en tiempo real de personal (repartidores/mecánicos/admins) con calificación y botón perfil ----------
@@ -7262,31 +7371,27 @@ function iniciarSeguimientoPersonal() {
                 const nombre = userData?.name || 'Personal';
                 const telefono = userData?.phone || '';
                 const telefonoClean = telefono.replace('+52', '');
-                // Obtener calificación promedio
                 const calificacion = await obtenerPromedioCalificacion(uid);
                 const stars = calificacion ? '★'.repeat(Math.round(calificacion.promedio)) + '☆'.repeat(5 - Math.round(calificacion.promedio)) : '☆☆☆☆☆';
                 const ratingText = calificacion ? `${calificacion.promedio} ⭐ (${calificacion.total} reseñas)` : 'Sin reseñas';
 
                 if (pos && pos.lat && pos.lng) {
-// Dentro de iniciarSeguimientoPersonal(), en la creación del popupContent
-const esModoClaro = document.body.classList.contains('light-mode');
-const bgColor = esModoClaro ? '#ffffff' : '#1A1A1A';
-const textColor = esModoClaro ? '#111111' : '#ffffff';
-const borderColor = esModoClaro ? '#FF6B00' : '#FF6B00'; // el naranja igual
-
-const popupContent = `
-    <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${bgColor}; color:${textColor}; border-radius:16px; padding:10px; border:1px solid ${borderColor};">
-        <b>${escapeHtml(nombre)}</b><br>
-        <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
-        ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
-        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-            ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
-            ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
-            <button onclick="window.openStaffDetail('${uid}')" style="background:#3b82f6; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">Ver perfil</button>
-        </div>
-    </div>
-`;
-
+                    const esModoClaro = document.body.classList.contains('light-mode');
+                    const bgColor = esModoClaro ? '#ffffff' : '#1A1A1A';
+                    const textColor = esModoClaro ? '#111111' : '#ffffff';
+                    const borderColor = esModoClaro ? '#FF6B00' : '#FF6B00';
+                    const popupContent = `
+                        <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${bgColor}; color:${textColor}; border-radius:16px; padding:10px; border:1px solid ${borderColor};">
+                            <b>${escapeHtml(nombre)}</b><br>
+                            <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
+                            ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+                            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                                ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+                                ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                                <button onclick="window.openStaffDetail('${uid}')" style="background:#3b82f6; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">Ver perfil</button>
+                            </div>
+                        </div>
+                    `;
                     let marker = repartidoresMarkers[uid];
                     if (marker) {
                         marker.setLatLng([pos.lat, pos.lng]);
