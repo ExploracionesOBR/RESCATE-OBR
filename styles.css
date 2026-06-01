@@ -930,3 +930,38 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
     background-color: #f0f0f0;
     color: black;
 }
+
+/* Ocultar atribuciones de Leaflet y CARTO */
+.leaflet-control-attribution {
+    display: none !important;
+}
+
+/* Ocultar paneles de instrucciones del routing machine */
+.leaflet-routing-container,
+.leaflet-routing-alt,
+.leaflet-routing-collapse-btn {
+    display: none !important;
+}
+
+/* Ocultar posibles marcadores azules de personal (si quedan) */
+.leaflet-marker-icon.sos-personal-marker {
+    display: none !important;
+}
+
+/* Estilo personalizado para el control de zoom */
+.leaflet-control-zoom {
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    border-radius: 8px;
+}
+.leaflet-control-zoom a {
+    background-color: #1A1A1A;
+    color: white;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    font-size: 18px;
+}
+.light-mode .leaflet-control-zoom a {
+    background-color: #f0f0f0;
+    color: black;
+}
