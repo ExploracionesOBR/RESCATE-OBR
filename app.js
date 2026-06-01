@@ -8421,3 +8421,110 @@ window.aplicarHorarioALunes = () => {
         if (closeEl) closeEl.value = lunesC;
     }
 };
+function backToLoginStep() {
+    var recoveryStep = document.getElementById('auth-step-recovery');
+    var loginStep = document.getElementById('auth-step-login');
+    if (recoveryStep) recoveryStep.classList.add('hidden');
+    if (loginStep) loginStep.classList.remove('hidden');
+    
+    var recoveryPhoneStep = document.getElementById('recovery-phone-step');
+    var recoveryAnswerStep = document.getElementById('recovery-answer-step');
+    if (recoveryPhoneStep) recoveryPhoneStep.style.display = 'block';
+    if (recoveryAnswerStep) recoveryAnswerStep.style.display = 'none';
+    
+    var phoneInput = document.getElementById('recovery-phone-input');
+    var answerInput = document.getElementById('recovery-answer-input');
+    if (phoneInput) phoneInput.value = '';
+    if (answerInput) answerInput.value = '';
+    
+    window._recoveryUid = null;
+}
+
+function showRecoveryFlow() {
+    var loginStep = document.getElementById('auth-step-login');
+    var recoveryStep = document.getElementById('auth-step-recovery');
+    if (loginStep) loginStep.classList.add('hidden');
+    if (recoveryStep) recoveryStep.classList.remove('hidden');
+    
+    var recoveryForm = document.getElementById('recovery-form-area');
+    if (!recoveryForm) return;
+    
+    // Verificar si ya está inyectado el contenido
+    if (!document.getElementById('recovery-phone-input')) {
+        recoveryForm.innerHTML = `
+            <div id="recovery-phone-step" class="mb-4">
+                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Número de celular (10 dígitos)</label>
+                <input id="recovery-phone-input" type="tel" maxlength="10" placeholder="Ej. 6441234567" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white mb-2">
+                <button id="recovery-get-question" class="w-full bg-naranja hover:bg-orange-600 p-2 rounded-xl font-black uppercase text-sm">Buscar pregunta secreta</button>
+            </div>
+            <div id="recovery-answer-step" style="display:none;">
+                <div class="bg-asfalto/50 p-5 rounded-xl border border-white/10 mb-6">
+                    <p id="recovery-question-display" class="font-black text-naranja text-base italic leading-tight">¿Pregunta?</p>
+                </div>
+                <input id="recovery-answer-input" type="text" placeholder="Tu respuesta secreta..." class="w-full bg-white/5 border border-white/10 p-5 mb-8 rounded-xl focus:outline-none focus:border-naranja text-lg transition-all text-white font-bold">
+                <button id="recovery-submit-answer" class="w-full bg-naranja hover:bg-orange-600 p-4 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 text-white text-lg mb-4 transition-all">Revelar Contraseña</button>
+            </div>
+        `;
+        
+        // Asignar eventos después de inyectar
+        var getQuestionBtn = document.getElementById('recovery-get-question');
+        if (getQuestionBtn) {
+            getQuestionBtn.onclick = async function() {
+                var phoneInput = document.getElementById('recovery-phone-input');
+                var phone = phoneInput ? phoneInput.value.trim() : '';
+                if (phone.length !== 10) {
+                    window.showToast("Ingrese un número de 10 dígitos", true);
+                    return;
+                }
+                var fullPhone = "+52" + phone;
+                var q = query(collection(db, "users"), where("phone", "==", fullPhone), limit(1));
+                var snap = await getDocs(q);
+                if (snap.empty) {
+                    window.showToast("No existe una cuenta con ese número", true);
+                    return;
+                }
+                var userDoc = snap.docs[0];
+                var userData = userDoc.data();
+                if (!userData.secQuestion) {
+                    window.showToast("Esta cuenta no tiene pregunta de seguridad configurada. Contacta al administrador.", true);
+                    return;
+                }
+                window._recoveryUid = userDoc.id;
+                var questionDisplay = document.getElementById('recovery-question-display');
+                if (questionDisplay) questionDisplay.innerText = userData.secQuestion;
+                var phoneStep = document.getElementById('recovery-phone-step');
+                var answerStep = document.getElementById('recovery-answer-step');
+                if (phoneStep) phoneStep.style.display = 'none';
+                if (answerStep) answerStep.style.display = 'block';
+            };
+        }
+        
+        var submitAnswerBtn = document.getElementById('recovery-submit-answer');
+        if (submitAnswerBtn) {
+            submitAnswerBtn.onclick = async function() {
+                var answerInput = document.getElementById('recovery-answer-input');
+                var answer = answerInput ? answerInput.value.trim().toLowerCase() : '';
+                if (!answer) {
+                    window.showToast("Escribe la respuesta a tu pregunta secreta", true);
+                    return;
+                }
+                if (!window._recoveryUid) return;
+                var userDoc = await getDoc(doc(db, "users", window._recoveryUid));
+                if (!userDoc.exists()) return;
+                var userData = userDoc.data();
+                if (userData.secAnswer !== answer) {
+                    window.showToast("Respuesta incorrecta", true);
+                    return;
+                }
+                var password = userData.pwd || "No disponible";
+                window.showToast("Tu contraseña es: " + password, false);
+                setTimeout(function() {
+                    backToLoginStep();
+                }, 3000);
+            };
+        }
+    } else {
+        // Si ya existe el contenido, solo aseguramos los eventos (por si se perdieron)
+        // Pero no es necesario repetir todo.
+    }
+}
