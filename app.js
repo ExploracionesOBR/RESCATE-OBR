@@ -1668,9 +1668,32 @@ window.startFlow = (intent) => {
 };
 
 window.cancelFlow = () => {
-    showView('view-landing'); window.pendingItemToBuy = null;
-    ['auth-step-1','auth-step-login','auth-step-register','auth-step-recovery'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
-    document.getElementById('auth-step-1')?.classList.remove('hidden'); document.getElementById('phone-input').value = '';
+    showView('view-landing'); 
+    window.pendingItemToBuy = null;
+    const steps = ['auth-step-1','auth-step-login','auth-step-register','auth-step-recovery'];
+    steps.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+    const step1 = document.getElementById('auth-step-1');
+    if (step1) step1.classList.remove('hidden');
+    
+    const phoneInput = document.getElementById('phone-input');
+    if (phoneInput) phoneInput.value = '';
+    
+    const loginPassword = document.getElementById('login-password');
+    if (loginPassword) loginPassword.value = '';
+    
+    const regName = document.getElementById('reg-name');
+    if (regName) regName.value = '';
+    const regPassword = document.getElementById('reg-password');
+    if (regPassword) regPassword.value = '';
+    const regQuestion = document.getElementById('reg-question');
+    if (regQuestion) regQuestion.value = '';
+    const regAnswer = document.getElementById('reg-answer');
+    if (regAnswer) regAnswer.value = '';
+    
+    window._recoveryUid = null;
 };
 
 window.resetAndGoHome = () => {
@@ -8551,3 +8574,14 @@ window.aplicarHorarioALunes = () => {
         if (closeEl) closeEl.value = lunesC;
     }
 };
+const phoneField = document.getElementById('phone-input');
+if (phoneField) {
+    phoneField.addEventListener('focus', () => {
+        const loginStep = document.getElementById('auth-step-login');
+        const registerStep = document.getElementById('auth-step-register');
+        if ((loginStep && !loginStep.classList.contains('hidden')) || 
+            (registerStep && !registerStep.classList.contains('hidden'))) {
+            cancelFlow();
+        }
+    });
+}
