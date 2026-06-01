@@ -46,7 +46,7 @@ function escapeHtml(str) {
     });
 }
 
-// ========== CHAT IA – VERSIÓN DEFINITIVA (solo taller, voz stop, PDF profesional) ==========
+// ========== CHAT IA – VERSIÓN DEFINITIVA (sin **, con emojis y formato mejorado) ==========
 (function() {
     // ========== 1. VARIABLES GLOBALES ==========
     let currentGroup = null;
@@ -62,19 +62,15 @@ function escapeHtml(str) {
     const MODEL_CACHE_KEY = 'groq_vision_model';
     const MODEL_CACHE_EXPIRY = 24 * 60 * 60 * 1000;
 
-    // ========== 2. FUNCIONES DE VOZ CON CONTROL ==========
+    // ========== 2. FUNCIONES DE VOZ Y COPIA ==========
     function detenerVoz() {
-        if (window.speechSynthesis) {
-            window.speechSynthesis.cancel();
-        }
-        if (currentUtterance) {
-            currentUtterance = null;
-        }
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        if (currentUtterance) currentUtterance = null;
     }
 
     function speakText(texto, rate = 1.0) {
         if (!window.speechSynthesis) return;
-        detenerVoz();  // detiene cualquier voz en curso
+        detenerVoz();
         const utterance = new SpeechSynthesisUtterance(texto);
         utterance.lang = 'es-MX';
         utterance.rate = rate;
@@ -90,6 +86,16 @@ function escapeHtml(str) {
         }).catch(() => {
             if (window.showToast) window.showToast("No se pudo copiar", true);
         });
+    }
+
+    // Función para limpiar el texto de markdown (eliminar **, __, etc.)
+    function limpiarMarkdown(texto) {
+        if (!texto) return '';
+        // Eliminar ** ** (negrita)
+        let limpio = texto.replace(/\*\*(.*?)\*\*/g, '$1');
+        // Eliminar __ __ (alternativa)
+        limpio = limpio.replace(/__(.*?)__/g, '$1');
+        return limpio;
     }
 
     // ========== 3. DETECCIÓN DEL MEJOR MODELO DE VISIÓN ==========
@@ -128,7 +134,7 @@ function escapeHtml(str) {
         return currentVisionModel;
     }
 
-    // ========== 4. RENDERIZADO DE MENSAJES ==========
+    // ========== 4. RENDERIZADO DE MENSAJES (con limpieza de markdown) ==========
     function renderMensajes(mensajes) {
         const container = window._chatMessagesContainer;
         if (!container) return;
@@ -137,7 +143,9 @@ function escapeHtml(str) {
             const div = document.createElement('div');
             div.className = `flex ${m.rol === 'usuario' ? 'justify-end' : 'justify-start'} mb-3`;
             const bubbleClass = m.rol === 'usuario' ? 'bg-naranja text-white' : 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white';
-            let textoFormateado = (m.texto || '').replace(/[&<>]/g, function(match) {
+            // Limpiar markdown y convertir saltos de línea
+            let textoLimpio = limpiarMarkdown(m.texto || '');
+            let textoFormateado = textoLimpio.replace(/[&<>]/g, function(match) {
                 if (match === '&') return '&amp;';
                 if (match === '<') return '&lt;';
                 if (match === '>') return '&gt;';
@@ -150,7 +158,7 @@ function escapeHtml(str) {
             }
             let botonesHtml = '';
             if (m.rol === 'asistente' && m.texto !== '...' && !m.loading && m.texto) {
-                const textoEscapado = m.texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const textoEscapado = textoLimpio.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 botonesHtml = `
                     <div class="flex gap-1 mt-1">
                         <button class="tts-normal-btn" data-text="${textoEscapado}" data-rate="1.0" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Leer normal">🔈</button>
@@ -162,7 +170,7 @@ function escapeHtml(str) {
             div.innerHTML = `<div class="${bubbleClass} max-w-[75%] p-3 rounded-2xl text-sm"><div>${textoFormateado}</div>${imagenesHtml}<div class="text-[9px] opacity-60 mt-1 flex justify-between items-center"><span>${fechaHora}</span>${botonesHtml}</div></div>`;
             container.appendChild(div);
         });
-        // Asignar eventos de voz y copia
+        // Eventos de voz y copia
         container.querySelectorAll('.tts-normal-btn, .tts-fast-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -181,13 +189,12 @@ function escapeHtml(str) {
         container.scrollTop = container.scrollHeight;
     }
 
-    // ========== 5. MODAL PARA LISTA DE SERVICIOS DE TALLER (NO SOS) ==========
+    // ========== 5. MODAL PARA LISTA DE SERVICIOS DE TALLER ==========
     async function mostrarListaServiciosParaVincular() {
         if (!currentGroup) {
             if (window.showToast) window.showToast("Primero selecciona un grupo", true);
             return;
         }
-        // Solo servicios de taller (status completed y tallerStatus no entregado/pagado)
         try {
             const q = query(collection(db, "rescates"), where("status", "==", "completed"));
             const snap = await getDocs(q);
@@ -226,17 +233,17 @@ function escapeHtml(str) {
             }
             const container = modalEl.querySelector('#lista-servicios-container');
             container.innerHTML = '';
-            const estadoMap = { 'recibida': 'Recibida', 'mecanica': 'Mecánica', 'pruebas': 'Pruebas', 'lista': 'Lista' };
+            const estadoMap = { 'recibida': '📥 Recibida', 'mecanica': '🔧 Mecánica', 'pruebas': '🧪 Pruebas', 'lista': '✅ Lista' };
             servicios.forEach(serv => {
                 const estadoTexto = estadoMap[serv.status] || serv.status;
                 const div = document.createElement('div');
                 div.className = 'bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 transition-colors';
-                div.innerHTML = `<div class="font-bold">${serv.shortId}</div><div class="text-xs text-gray-400">${serv.client} - ${estadoTexto}</div>`;
+                div.innerHTML = `<div class="font-bold">📋 ${serv.shortId}</div><div class="text-xs text-gray-400">👤 ${serv.client} - ${estadoTexto}</div>`;
                 div.onclick = async () => {
                     await updateDoc(doc(db, "chat_grupos", currentGroupId), { servicioId: serv.shortId });
                     currentGroup.servicioId = serv.shortId;
-                    if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = `Servicio: ${serv.shortId}`;
-                    if (window.showToast) window.showToast(`Grupo vinculado a ${serv.shortId}`);
+                    if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = `📎 Servicio: ${serv.shortId}`;
+                    if (window.showToast) window.showToast(`✅ Grupo vinculado a ${serv.shortId}`);
                     modalEl.classList.add('hidden');
                 };
                 container.appendChild(div);
@@ -248,7 +255,7 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== 6. CREACIÓN DEL MODAL PRINCIPAL ==========
+    // ========== 6. CREACIÓN DEL MODAL PRINCIPAL (igual que antes, sin cambios) ==========
     function crearModalChat() {
         if (modal) return modal;
         modal = document.createElement('div');
@@ -423,7 +430,7 @@ function escapeHtml(str) {
         currentGroupId = grupo.idDoc;
         currentGroup = grupo;
         if (window._chatGroupTitle) window._chatGroupTitle.innerText = grupo.nombre;
-        if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = grupo.servicioId ? `Servicio: ${grupo.servicioId}` : '';
+        if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = grupo.servicioId ? `📎 Servicio: ${grupo.servicioId}` : '';
         if (messagesUnsubscribe) messagesUnsubscribe();
         const q = query(collection(db, "chat_mensajes"), where("grupoId", "==", grupo.idDoc));
         messagesUnsubscribe = onSnapshot(q, (snap) => {
@@ -504,7 +511,9 @@ function escapeHtml(str) {
         const loadingRef = await addDoc(collection(db, "chat_mensajes"), loadingMsg);
         try {
             const respuesta = await consultarGroqVision(texto, currentGroupId, imageTemp);
-            await updateDoc(loadingRef, { texto: respuesta, loading: false });
+            // Limpiar también la respuesta de la IA antes de guardar
+            const respuestaLimpia = limpiarMarkdown(respuesta);
+            await updateDoc(loadingRef, { texto: respuestaLimpia, loading: false });
         } catch (err) {
             console.error('Error en enviarMensaje:', err);
             await updateDoc(loadingRef, { 
@@ -534,7 +543,17 @@ function escapeHtml(str) {
             }
             content.push({ type: "image_url", image_url: { url: imageUrl } });
         }
-        const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros analizando preguntas, imágenes, sonidos, videos, síntomas o códigos de error para detectar el problema de forma rápida, clara y profesional. Usa saltos de línea para separar ideas y hacer la respuesta legible. Si la consulta no está relacionada con mecánica debes responder únicamente: "No puedo ayudarte con eso ahora, solo puedo responder temas relacionados con mecánica automotriz y motocicletas."`;
+        // System prompt mejorado: sin markdown, con emojis, listas con guiones, saltos de línea
+        const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros analizando preguntas, imágenes, sonidos, videos, síntomas o códigos de error para detectar el problema de forma rápida, clara y profesional.
+
+REGLAS DE FORMATO (IMPORTANTE):
+- NO uses asteriscos dobles (**) ni ninguna otra sintaxis de markdown.
+- Usa emojis para hacer las respuestas más visuales y amigables (por ejemplo: 🔧, 🛠️, ⚠️, ✅, ❌, 📝, 🎯, etc.).
+- Para listas, usa guiones (-) o emojis al inicio de cada línea.
+- Separa las ideas con saltos de línea.
+- Sé conciso pero informativo.
+- Si la consulta no está relacionada con mecánica, responde únicamente: "❌ No puedo ayudarte con eso ahora, solo puedo responder temas relacionados con mecánica automotriz y motocicletas."`;
+
         const requestBody = {
             model: currentVisionModel,
             messages: [
@@ -654,11 +673,9 @@ function escapeHtml(str) {
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
         const pageWidth = pdf.internal.pageSize.getWidth();
-        // Cargar logo
         const logoImg = new Image();
         logoImg.src = 'logo_oscuro.png';
         await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
-        // Encabezado
         pdf.setFillColor(255, 107, 0);
         pdf.rect(0, 0, pageWidth, 20, 'F');
         if (logoImg.complete && logoImg.naturalWidth > 0) {
@@ -683,13 +700,12 @@ function escapeHtml(str) {
             y += 8;
             pdf.setFont("helvetica", "normal");
         }
-        // Tabla de mensajes
         const bodyRows = mensajes.map(m => {
-            const autor = m.rol === 'usuario' ? 'Cliente' : 'Asistente IA';
+            const autor = m.rol === 'usuario' ? '👤 Cliente' : '🤖 Asistente IA';
             const fecha = new Date(m.timestamp).toLocaleString();
-            let texto = m.texto || '';
+            let texto = limpiarMarkdown(m.texto || '');
             if (m.imagenes && m.imagenes.length) {
-                texto += `\n[Imagen adjunta: ${m.imagenes.length} foto(s)]`;
+                texto += `\n[🖼️ Imagen adjunta: ${m.imagenes.length} foto(s)]`;
             }
             return [autor, fecha, texto];
         });
@@ -703,7 +719,6 @@ function escapeHtml(str) {
             columnStyles: { 0: { cellWidth: 25 }, 1: { cellWidth: 35 }, 2: { cellWidth: 'auto' } },
             margin: { left: 10, right: 10 }
         });
-        // Pie de página
         const totalPages = pdf.internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             pdf.setPage(i);
