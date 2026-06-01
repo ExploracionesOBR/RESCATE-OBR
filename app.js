@@ -1668,9 +1668,12 @@ window.startFlow = (intent) => {
 };
 
 window.cancelFlow = () => {
-    showView('view-landing'); 
+    // Volver a la pantalla de landing (o al paso 1 si prefieres)
+    showView('view-landing');
     window.pendingItemToBuy = null;
-    const steps = ['auth-step-1','auth-step-login','auth-step-register','auth-step-recovery'];
+    
+    // Ocultar todos los pasos de autenticación y mostrar solo el paso 1
+    const steps = ['auth-step-1', 'auth-step-login', 'auth-step-register', 'auth-step-recovery'];
     steps.forEach(id => {
         const el = document.getElementById(id);
         if (el) el.classList.add('hidden');
@@ -1678,12 +1681,15 @@ window.cancelFlow = () => {
     const step1 = document.getElementById('auth-step-1');
     if (step1) step1.classList.remove('hidden');
     
+    // Limpiar campo de teléfono
     const phoneInput = document.getElementById('phone-input');
     if (phoneInput) phoneInput.value = '';
     
+    // Limpiar campos de login
     const loginPassword = document.getElementById('login-password');
     if (loginPassword) loginPassword.value = '';
     
+    // Limpiar campos de registro
     const regName = document.getElementById('reg-name');
     if (regName) regName.value = '';
     const regPassword = document.getElementById('reg-password');
@@ -1693,7 +1699,12 @@ window.cancelFlow = () => {
     const regAnswer = document.getElementById('reg-answer');
     if (regAnswer) regAnswer.value = '';
     
+    // Limpiar cualquier dato de recuperación
     window._recoveryUid = null;
+    const recoveryAnswer = document.getElementById('recovery-answer-input');
+    if (recoveryAnswer) recoveryAnswer.value = '';
+    
+    console.log('Flujo de autenticación reiniciado');
 };
 
 window.resetAndGoHome = () => {
@@ -1855,51 +1866,53 @@ window.processRegister = async () => {
         });
 
         // Crear o actualizar modal de invitación por WhatsApp
-        const modalId = 'modal-whatsapp-invite';
-        let modalEl = document.getElementById(modalId);
-        if (!modalEl) {
-            modalEl = document.createElement('div');
-            modalEl.id = modalId;
-            modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-            modalEl.innerHTML = `
-                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
-                    <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
-                    <h2 class="text-xl font-black text-white mb-2">¡Registro exitoso!</h2>
-                    <p class="text-xs text-gray-300 mb-4">¿Deseas enviar una invitación a <span id="invite-name-span" class="text-green-400 font-bold">${name}</span> por WhatsApp para que descargue la app?</p>
-                    <div class="flex flex-col space-y-2">
-                        <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar invitación</button>
-                        <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Omitir</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modalEl);
-        } else {
-            const span = modalEl.querySelector('#invite-name-span');
-            if (span) span.innerText = name;
-        }
+        // ========== MODAL DE INVITACIÓN (sin recarga) ==========
+const modalId = 'modal-whatsapp-invite';
+let modalEl = document.getElementById(modalId);
+if (!modalEl) {
+    modalEl = document.createElement('div');
+    modalEl.id = modalId;
+    modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+    modalEl.innerHTML = `
+        <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
+            <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
+            <h2 class="text-xl font-black text-white mb-2">¡Registro exitoso!</h2>
+            <p class="text-xs text-gray-300 mb-4">Comparte este enlace con tus amigos para que también se unan a OBR.</p>
+            <div class="bg-white/10 p-2 rounded-lg mb-4">
+                <p class="text-[10px] text-gray-400 break-all">https://exploracionesobr.github.io/RESCATE-OBR</p>
+            </div>
+            <div class="flex flex-col space-y-2">
+                <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar por WhatsApp</button>
+                <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Comenzar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modalEl);
+}
 
-        // Configurar eventos (solo una vez)
-        const inviteBtn = document.getElementById('whatsapp-invite-btn');
-        const skipBtn = document.getElementById('whatsapp-skip-btn');
-        if (inviteBtn && !inviteBtn._bound) {
-            inviteBtn._bound = true;
-            inviteBtn.onclick = () => {
-                const mensaje = encodeURIComponent(`🎉 ¡Hola ${name}! Te has registrado exitosamente en OBR Moto Rescate. Descarga la app aquí: https://exploracionesobr.github.io/RESCATE-OBR`);
-                window.open(`https://api.whatsapp.com/send?phone=+52${rawPhone}&text=${mensaje}`, '_blank');
-                window.toggleModal(modalId, false);
-                setTimeout(() => window.location.reload(), 500);
-            };
-        }
-        if (skipBtn && !skipBtn._bound) {
-            skipBtn._bound = true;
-            skipBtn.onclick = () => {
-                window.toggleModal(modalId, false);
-                setTimeout(() => window.location.reload(), 500);
-            };
-        }
+// Asignar eventos (solo una vez)
+const inviteBtn = document.getElementById('whatsapp-invite-btn');
+const skipBtn = document.getElementById('whatsapp-skip-btn');
+if (inviteBtn && !inviteBtn._bound) {
+    inviteBtn._bound = true;
+    inviteBtn.onclick = () => {
+        const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Auxilio mecánico rápido. Únete aquí: https://exploracionesobr.github.io/RESCATE-OBR`);
+        window.open(`https://wa.me/?text=${mensaje}`, '_blank');
+        window.toggleModal(modalId, false);
+        // NO recargar la página, solo cerrar el modal
+    };
+}
+if (skipBtn && !skipBtn._bound) {
+    skipBtn._bound = true;
+    skipBtn.onclick = () => {
+        window.toggleModal(modalId, false);
+        // NO recargar la página
+    };
+}
 
-        window.toggleModal(modalId, true);
-        showToast("Registro exitoso. Completa tu perfil.");
+// Mostrar el modal
+window.toggleModal(modalId, true);
+showToast("Registro exitoso. navega por la app.");
     } catch (e) {
         if (e.code === 'auth/email-already-in-use') {
             try {
@@ -8585,3 +8598,151 @@ if (phoneField) {
         }
     });
 }
+// ========== BOTÓN FLOTANTE DORADO DE INVITACIÓN (SOLO USUARIOS LOGUEADOS) ==========
+(function() {
+    // Función para crear el modal si no existe (versión genérica)
+    function crearModalInvitacion() {
+        const modalId = 'modal-whatsapp-invite';
+        let modalEl = document.getElementById(modalId);
+        if (modalEl) return modalEl;
+        
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.innerHTML = `
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
+                <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
+                <h2 class="text-xl font-black text-white mb-2">Comparte OBR</h2>
+                <p class="text-xs text-gray-300 mb-4">Invita a tus amigos a que se unan a nuestra comunidad de auxilio mecánico.</p>
+                <div class="bg-white/10 p-2 rounded-lg mb-4">
+                    <p class="text-[10px] text-gray-400 break-all">https://exploracionesobr.github.io/RESCATE-OBR</p>
+                </div>
+                <div class="flex flex-col space-y-2">
+                    <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar por WhatsApp</button>
+                    <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Cerrar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modalEl);
+        
+        // Eventos
+        const inviteBtn = document.getElementById('whatsapp-invite-btn');
+        const skipBtn = document.getElementById('whatsapp-skip-btn');
+        if (inviteBtn) {
+            inviteBtn.onclick = () => {
+                const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Auxilio mecánico rápido y confiable. Únete aquí: https://exploracionesobr.github.io/RESCATE-OBR`);
+                window.open(`https://wa.me/?text=${mensaje}`, '_blank');
+                window.toggleModal(modalId, false);
+            };
+        }
+        if (skipBtn) {
+            skipBtn.onclick = () => {
+                window.toggleModal(modalId, false);
+            };
+        }
+        return modalEl;
+    }
+    
+    // Función global para mostrar el modal de invitación
+    window.mostrarInvitacionWhatsApp = () => {
+        crearModalInvitacion();
+        window.toggleModal('modal-whatsapp-invite', true);
+    };
+    
+    let botonExistente = null;
+    
+    function crearBotonInvitacion() {
+        if (botonExistente) return;
+        
+        const btn = document.createElement('button');
+        btn.id = 'float-invite-btn';
+        btn.className = 'fixed bottom-24 right-4 z-50 w-14 h-14 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-transform animate-pulse-soft';
+        btn.innerHTML = '<i class="fab fa-whatsapp text-2xl text-white"></i>';
+        btn.title = 'Invitar amigos por WhatsApp';
+        btn.onclick = window.mostrarInvitacionWhatsApp;
+        
+        document.body.appendChild(btn);
+        botonExistente = btn;
+        
+        // Ajustar posición según dispositivo
+        const isMobile = window.innerWidth < 768;
+        if (isMobile) {
+            btn.style.bottom = '80px';
+            btn.style.right = '16px';
+        } else {
+            btn.style.bottom = '100px';
+            btn.style.right = '24px';
+        }
+        
+        return btn;
+    }
+    
+    function eliminarBotonInvitacion() {
+        if (botonExistente) {
+            botonExistente.remove();
+            botonExistente = null;
+        }
+    }
+    
+    function ajustarPosicionBotones() {
+        const chatBtn = document.getElementById('btn-chat-ai-float');
+        const inviteBtn = botonExistente;
+        if (chatBtn && inviteBtn) {
+            const chatRect = chatBtn.getBoundingClientRect();
+            if (window.innerWidth < 768) {
+                inviteBtn.style.bottom = chatRect.bottom + 'px';
+                inviteBtn.style.right = (window.innerWidth - chatRect.left + 16) + 'px';
+            } else {
+                inviteBtn.style.right = (window.innerWidth - chatRect.left + 20) + 'px';
+                inviteBtn.style.bottom = chatRect.bottom + 'px';
+            }
+        }
+    }
+    
+    // Observar el estado de autenticación
+    let authUnsubscribe = null;
+    function initAuthWatcher() {
+        if (authUnsubscribe) authUnsubscribe();
+        authUnsubscribe = onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // Usuario logueado: crear botón si no existe
+                if (!botonExistente) {
+                    crearBotonInvitacion();
+                    setTimeout(ajustarPosicionBotones, 500);
+                } else {
+                    botonExistente.style.display = 'flex';
+                }
+            } else {
+                // Usuario no logueado: eliminar botón si existe
+                if (botonExistente) {
+                    botonExistente.style.display = 'none';
+                }
+            }
+        });
+    }
+    
+    // Iniciar el watcher cuando la página esté lista
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            initAuthWatcher();
+            window.addEventListener('resize', ajustarPosicionBotones);
+            const originalToggleModal = window.toggleModal;
+            if (originalToggleModal) {
+                window.toggleModal = function(...args) {
+                    originalToggleModal.apply(this, args);
+                    setTimeout(ajustarPosicionBotones, 200);
+                };
+            }
+        });
+    } else {
+        initAuthWatcher();
+        window.addEventListener('resize', ajustarPosicionBotones);
+        const originalToggleModal = window.toggleModal;
+        if (originalToggleModal) {
+            window.toggleModal = function(...args) {
+                originalToggleModal.apply(this, args);
+                setTimeout(ajustarPosicionBotones, 200);
+            };
+        }
+    }
+})();
