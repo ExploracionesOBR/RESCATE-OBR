@@ -46,7 +46,7 @@ function escapeHtml(str) {
     });
 }
 
-// ========== CHAT IA – VERSIÓN DEFINITIVA CON VOZ CONTROLABLE Y PDF PROFESIONAL ==========
+// ========== CHAT IA – VERSIÓN DEFINITIVA (solo taller, voz stop, PDF profesional) ==========
 (function() {
     // ========== 1. VARIABLES GLOBALES ==========
     let currentGroup = null;
@@ -56,7 +56,7 @@ function escapeHtml(str) {
     let pendingImage = null;
     let modal = null;
     let currentVisionModel = null;
-    let currentUtterance = null;        // para control de voz
+    let currentUtterance = null;
 
     // Cache del modelo de visión
     const MODEL_CACHE_KEY = 'groq_vision_model';
@@ -128,7 +128,7 @@ function escapeHtml(str) {
         return currentVisionModel;
     }
 
-    // ========== 4. RENDERIZADO DE MENSAJES (con voz mejorada y formato) ==========
+    // ========== 4. RENDERIZADO DE MENSAJES ==========
     function renderMensajes(mensajes) {
         const container = window._chatMessagesContainer;
         if (!container) return;
@@ -162,7 +162,7 @@ function escapeHtml(str) {
             div.innerHTML = `<div class="${bubbleClass} max-w-[75%] p-3 rounded-2xl text-sm"><div>${textoFormateado}</div>${imagenesHtml}<div class="text-[9px] opacity-60 mt-1 flex justify-between items-center"><span>${fechaHora}</span>${botonesHtml}</div></div>`;
             container.appendChild(div);
         });
-        // Asignar eventos de voz
+        // Asignar eventos de voz y copia
         container.querySelectorAll('.tts-normal-btn, .tts-fast-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -181,25 +181,31 @@ function escapeHtml(str) {
         container.scrollTop = container.scrollHeight;
     }
 
-    // ========== 5. MODAL PARA LISTA DE SERVICIOS ACTIVOS ==========
+    // ========== 5. MODAL PARA LISTA DE SERVICIOS DE TALLER (NO SOS) ==========
     async function mostrarListaServiciosParaVincular() {
         if (!currentGroup) {
             if (window.showToast) window.showToast("Primero selecciona un grupo", true);
             return;
         }
-        const estadosActivos = ['pending', 'accepted', 'repairing', 'to_shop', 'ready'];
+        // Solo servicios de taller (status completed y tallerStatus no entregado/pagado)
         try {
-            const q = query(collection(db, "rescates"), where("status", "in", estadosActivos));
+            const q = query(collection(db, "rescates"), where("status", "==", "completed"));
             const snap = await getDocs(q);
             if (snap.empty) {
-                if (window.showToast) window.showToast("No hay servicios activos", true);
+                if (window.showToast) window.showToast("No hay servicios activos en el taller", true);
                 return;
             }
             const servicios = [];
             snap.forEach(doc => {
                 const data = doc.data();
-                servicios.push({ id: doc.id, shortId: data.shortId, client: data.clientName || data.phone, status: data.status });
+                if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
+                    servicios.push({ id: doc.id, shortId: data.shortId, client: data.clientName || data.phone, status: data.tallerStatus });
+                }
             });
+            if (servicios.length === 0) {
+                if (window.showToast) window.showToast("No hay servicios activos en el taller", true);
+                return;
+            }
             const modalId = 'modal-servicios-lista';
             let modalEl = document.getElementById(modalId);
             if (!modalEl) {
@@ -220,11 +226,9 @@ function escapeHtml(str) {
             }
             const container = modalEl.querySelector('#lista-servicios-container');
             container.innerHTML = '';
+            const estadoMap = { 'recibida': 'Recibida', 'mecanica': 'Mecánica', 'pruebas': 'Pruebas', 'lista': 'Lista' };
             servicios.forEach(serv => {
-                const estadoTexto = serv.status === 'pending' ? 'Pendiente' : 
-                                   (serv.status === 'accepted' ? 'Aceptado' :
-                                   (serv.status === 'repairing' ? 'Reparando' :
-                                   (serv.status === 'to_shop' ? 'En taller' : 'Listo')));
+                const estadoTexto = estadoMap[serv.status] || serv.status;
                 const div = document.createElement('div');
                 div.className = 'bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 transition-colors';
                 div.innerHTML = `<div class="font-bold">${serv.shortId}</div><div class="text-xs text-gray-400">${serv.client} - ${estadoTexto}</div>`;
@@ -325,7 +329,7 @@ function escapeHtml(str) {
         modal.querySelector('#close-chat-ia').onclick = () => {
             modal.style.display = 'none';
             limpiarPreview();
-            detenerVoz(); // detener voz al cerrar
+            detenerVoz();
         };
         if (window._chatSendBtn) window._chatSendBtn.onclick = enviarMensaje;
         if (window._chatCameraBtn) window._chatCameraBtn.onclick = () => seleccionarImagen(true);
@@ -636,7 +640,7 @@ function escapeHtml(str) {
         });
     }
 
-    // ========== 12. EXPORTAR PDF PROFESIONAL (mejorado) ==========
+    // ========== 12. EXPORTAR PDF PROFESIONAL ==========
     async function exportarChatPDF() {
         if (!currentGroupId) return;
         if (!window.jspdf) {
@@ -652,7 +656,7 @@ function escapeHtml(str) {
         const pageWidth = pdf.internal.pageSize.getWidth();
         // Cargar logo
         const logoImg = new Image();
-        logoImg.src = 'logo_oscuro.png'; // asegúrate de que la ruta sea correcta
+        logoImg.src = 'logo_oscuro.png';
         await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
         // Encabezado
         pdf.setFillColor(255, 107, 0);
@@ -699,7 +703,7 @@ function escapeHtml(str) {
             columnStyles: { 0: { cellWidth: 25 }, 1: { cellWidth: 35 }, 2: { cellWidth: 'auto' } },
             margin: { left: 10, right: 10 }
         });
-        // Pie de página (número de página)
+        // Pie de página
         const totalPages = pdf.internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
             pdf.setPage(i);
