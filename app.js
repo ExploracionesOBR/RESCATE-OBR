@@ -2120,7 +2120,6 @@ function initClientMap() {
         console.error('Contenedor #mechanic-live-map no encontrado');
         return;
     }
-    // Forzar dimensiones y visibilidad
     container.style.height = '250px';
     container.style.minHeight = '250px';
     container.style.display = 'block';
@@ -2131,13 +2130,11 @@ function initClientMap() {
         attributionControl: false
     }).setView([TALLER_LAT, TALLER_LNG], 13);
 
-    // Capa base sin atribución visible
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> | <a href="https://carto.com/">CARTO</a>',
         subdomains: 'abcd'
     }).addTo(window.clientMapInstance);
 
-    // Marcador fijo del taller
     window.clientMapMarkers = window.clientMapMarkers || { mech: null, client: null, taller: null };
     window.clientMapMarkers.taller = L.marker([TALLER_LAT, TALLER_LNG], {
         icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] })
@@ -2171,7 +2168,6 @@ function listenToMySOS() {
         const emergencyBtn = document.getElementById('emergency-client-btn');
 
         if (!snap.exists()) {
-            // Limpiar todo
             if (activeCard) activeCard.classList.add('hidden');
             if (noServicesMsg) noServicesMsg?.classList.remove('hidden');
             if (survey) survey.classList.add('hidden');
@@ -2199,14 +2195,12 @@ function listenToMySOS() {
         if (activeCard) activeCard.classList.remove('hidden');
         if (noServicesMsg) noServicesMsg.classList.add('hidden');
 
-        // Mostrar contenedor del mapa
         if (mechanicMapDiv) {
             mechanicMapDiv.classList.remove('hidden');
             mechanicMapDiv.style.display = 'block';
             mechanicMapDiv.style.opacity = '1';
         }
 
-        // ========== CONTROL BOTÓN DE EMERGENCIA ==========
         const estadosOcultar = ['accepted', 'repairing', 'to_shop', 'ready'];
         if (estadosOcultar.includes(data.status)) {
             if (emergencyBtn) emergencyBtn.style.display = 'none';
@@ -2214,7 +2208,6 @@ function listenToMySOS() {
             if (emergencyBtn) emergencyBtn.style.display = 'flex';
         }
 
-        // ========== PROGRESO ==========
         let currentStep = 0, progressPercent = 0;
         if (data.status === 'accepted') { currentStep = 1; progressPercent = 25; }
         else if (data.status === 'repairing') { currentStep = 2; progressPercent = 50; }
@@ -2236,7 +2229,6 @@ function listenToMySOS() {
         }
         if (progressBar) progressBar.style.width = progressPercent + '%';
 
-        // ========== TEXTO DE ESTADO ==========
         if (statusDesc) {
             let estadoTexto = "Esperando confirmación";
             if (data.status === 'accepted') estadoTexto = "Mecánico en camino";
@@ -2247,9 +2239,7 @@ function listenToMySOS() {
             statusDesc.innerText = estadoTexto;
         }
 
-        // ========== MAPA: INICIALIZAR Y ACTUALIZAR ==========
         if (data.status === 'accepted' || data.status === 'repairing') {
-            // Inicializar mapa con reintentos
             const tryInitMap = () => {
                 if (!mechanicMapDiv) return;
                 const rect = mechanicMapDiv.getBoundingClientRect();
@@ -2267,7 +2257,6 @@ function listenToMySOS() {
             tryInitMap();
 
             if (window.clientMapInstance && data.lat && data.lng) {
-                // ---- Marcador del cliente (solo icono animado, sin popup) ----
                 if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
                 window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
                     icon: L.divIcon({
@@ -2278,10 +2267,8 @@ function listenToMySOS() {
                     })
                 }).addTo(window.clientMapInstance);
 
-                // ---- Escuchar posición del mecánico en tiempo real ----
                 if (mechPosUnsubscribe) mechPosUnsubscribe();
                 if (data.mech_uid) {
-                    // Obtener datos del mecánico (nombre, teléfono, calificación) para el popup
                     const mechUserSnap = await getDoc(doc(db, "users", data.mech_uid));
                     const mechData = mechUserSnap.exists() ? mechUserSnap.data() : { name: 'Mecánico', phone: '' };
                     const calificacion = await obtenerPromedioCalificacion(data.mech_uid);
@@ -2290,8 +2277,6 @@ function listenToMySOS() {
                     const telefono = mechData.phone || '';
                     const telefonoClean = telefono.replace('+52', '');
                     const nombre = mechData.name || 'Mecánico';
-
-                    // Construir el contenido del popup
                     const popupContent = `
                         <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${document.body.classList.contains('light-mode') ? '#ffffff' : '#1A1A1A'}; color:${document.body.classList.contains('light-mode') ? '#111111' : '#ffffff'}; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
                             <b>${escapeHtml(nombre)}</b><br>
@@ -2300,7 +2285,6 @@ function listenToMySOS() {
                             <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
                                 ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
                                 ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
-                                <button onclick="window.openStaffDetail('${data.mech_uid}')" style="background:#3b82f6; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">Ver perfil</button>
                             </div>
                         </div>
                     `;
@@ -2309,7 +2293,6 @@ function listenToMySOS() {
                         if (posSnap.exists() && window.clientMapInstance) {
                             const pos = posSnap.val();
                             if (pos.lat && pos.lng) {
-                                // Marcador del mecánico (verde con moto)
                                 if (window.clientMapMarkers.mech) {
                                     window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
                                     window.clientMapMarkers.mech.setPopupContent(popupContent);
@@ -2323,10 +2306,8 @@ function listenToMySOS() {
                                         })
                                     }).addTo(window.clientMapInstance).bindPopup(popupContent);
                                 }
-                                // Centrar mapa en mecánico
                                 window.clientMapInstance.setView([pos.lat, pos.lng], 14);
 
-                                // ----- CREAR O ACTUALIZAR RUTA REAL (Routing Machine) -----
                                 if (routingControl) {
                                     routingControl.setWaypoints([
                                         L.latLng(pos.lat, pos.lng),
@@ -2344,12 +2325,8 @@ function listenToMySOS() {
                                             showAlternatives: false,
                                             show: false,
                                             collapsible: false,
-                                            lineOptions: {
-                                                styles: [{ color: '#440dfa', weight: 6, opacity: 0.9 }]
-                                            },
-                                            router: L.Routing.osrmv1({
-                                                serviceUrl: 'https://router.project-osrm.org/route/v1'
-                                            }),
+                                            lineOptions: { styles: [{ color: '#440dfa', weight: 6, opacity: 0.9 }] },
+                                            router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
                                             createMarker: () => null
                                         }).addTo(window.clientMapInstance);
                                     } catch (e) {
@@ -2361,7 +2338,6 @@ function listenToMySOS() {
                     });
                 }
 
-                // ---- Ajustar vista para mostrar cliente y mecánico ----
                 const bounds = [];
                 if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
                 if (window.clientMapMarkers.mech) {
@@ -2375,7 +2351,6 @@ function listenToMySOS() {
                 }
             }
         } else {
-            // Limpiar routing y marcadores
             if (routingControl) {
                 routingControl.remove();
                 routingControl = null;
@@ -2389,7 +2364,6 @@ function listenToMySOS() {
             if (mechPosUnsubscribe) mechPosUnsubscribe();
         }
 
-        // ========== NOTIFICACIONES Y ENCUESTA ==========
         if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
             speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
             playSound('notif');
@@ -2444,6 +2418,7 @@ function listenToMySOS() {
         window.lastClientSOSStatus = data.status;
     });
 }
+
 // aqui finaliza listenToMySOS //
 window.abrirChatSOS = () => {
     if (window._sosChatId) {
@@ -5396,7 +5371,6 @@ async function cargarListadoSOS() {
     if (window.currentSOSFilter === 'pending') filtered = rescates.filter(r => r.status === 'pending');
     else if (window.currentSOSFilter === 'accepted') filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
     else if (window.currentSOSFilter === 'completed') filtered = rescates.filter(r => r.status === 'completed');
-    // 'todos' no filtra
 
     listaDiv.innerHTML = '';
     if (filtered.length === 0) {
@@ -5419,25 +5393,11 @@ async function cargarListadoSOS() {
             </div>
         ` : '';
 
-        const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-1.5 py-0.5 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
-        let actions = navBtn;
-        if (r.status === 'pending') {
-            actions += `<button onclick="event.stopPropagation(); window.acceptSOS('${r.id}')" class="bg-green-500 hover:bg-green-400 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase animate-pulse">Aceptar</button>
-                       <button onclick="event.stopPropagation(); window.cancelSOS('${r.id}')" class="bg-red-500 hover:bg-red-400 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase">Cancelar</button>`;
-        } else if (r.status === 'accepted' && r.mech_uid === auth.currentUser.uid) {
-            actions += `<button onclick="event.stopPropagation(); window.changeSOSStatus('${r.id}','repairing')" class="bg-yellow-500 text-white px-2 py-0.5 rounded text-[0.6rem]">Reparando</button>
-                       <button onclick="event.stopPropagation(); window.changeSOSStatus('${r.id}','to_shop')" class="bg-blue-500 text-white px-2 py-0.5 rounded text-[0.6rem]">A taller</button>
-                       <button onclick="event.stopPropagation(); window.changeSOSStatus('${r.id}','ready')" class="bg-purple-500 text-white px-2 py-0.5 rounded text-[0.6rem]">Lista</button>
-                       <button onclick="event.stopPropagation(); window.openMechanicPOS('${r.id}')" class="bg-indigo-500 text-white px-2 py-0.5 rounded text-[0.6rem]">Cobrar</button>`;
-        } else if (r.status === 'repairing' && r.mech_uid === auth.currentUser.uid) {
-            actions += `<button onclick="event.stopPropagation(); window.changeSOSStatus('${r.id}','to_shop')" class="bg-blue-500 text-white px-2 py-0.5 rounded text-[0.6rem]">A taller</button>
-                       <button onclick="event.stopPropagation(); window.changeSOSStatus('${r.id}','ready')" class="bg-purple-500 text-white px-2 py-0.5 rounded text-[0.6rem]">Lista</button>`;
-        } else if (r.status === 'completed') {
-            actions += `<button onclick="event.stopPropagation(); window.downloadCompletedServicePDF('${r.id}')" class="bg-purple-600 text-white px-2 py-0.5 rounded text-[0.6rem] font-bold uppercase">📄 PDF</button>`;
-        }
+        const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
+        const detailBtn = `<button onclick="event.stopPropagation(); window.openDetalleServicio('${r.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">VER DETALLES</button>`;
 
         listaDiv.innerHTML += `
-            <div class="sos-card-compact" onclick="openDetalleServicio('${r.id}')">
+            <div class="sos-card-compact" onclick="window.openDetalleServicio('${r.id}')">
                 <div class="flex justify-between items-center">
                     <span class="text-[0.8rem] font-bold">${escapeHtml(r.phone) || ''}</span>
                     <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${colorClase}">${estadoTexto}</span>
@@ -5447,7 +5407,10 @@ async function cargarListadoSOS() {
                     <span class="text-naranja text-xs font-bold">$${r.costoRescateEstimado?.toFixed(2) || 0}</span>
                     <span class="text-[9px] text-gray-500">${new Date(r.timestamp).toLocaleDateString()}</span>
                 </div>
-                <div class="flex gap-1 mt-1 flex-wrap">${actions}</div>
+                <div class="flex gap-1 mt-1 flex-wrap">
+                    ${navBtn}
+                    ${detailBtn}
+                </div>
                 ${botonesContacto}
             </div>
         `;
@@ -5465,7 +5428,6 @@ async function renderSOSMapa() {
         : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     const attribution = '&copy; <a href="https://carto.com/">CARTO</a>';
 
-    // Crear mapa si no existe
     if (!adminSOSGlobalMapInst) {
         adminSOSGlobalMapInst = L.map(mapEl, {
             zoomControl: true,
@@ -5478,20 +5440,17 @@ async function renderSOSMapa() {
             interactive: false
         }).addTo(adminSOSGlobalMapInst);
     } else {
-        // Limpiar capas de tiles para refrescar el tema
         adminSOSGlobalMapInst.eachLayer(layer => {
             if (layer instanceof L.TileLayer) adminSOSGlobalMapInst.removeLayer(layer);
         });
         L.tileLayer(layerUrl, { attribution }).addTo(adminSOSGlobalMapInst);
     }
 
-    // Limpiar marcadores antiguos
     Object.values(adminSOSMarkers).forEach(m => {
         if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.removeLayer(m);
     });
     adminSOSMarkers = {};
 
-    // Limpiar listeners de tracking y rutas anteriores
     if (window._adminSOSTrackingListeners) {
         Object.values(window._adminSOSTrackingListeners).forEach(unsub => unsub());
         window._adminSOSTrackingListeners = {};
@@ -5503,7 +5462,6 @@ async function renderSOSMapa() {
         window._adminSOSRouteLines = {};
     }
 
-    // Obtener rescates con filtro de fechas
     let q = query(collection(db, "rescates"));
     if (sosFechaInicio && sosFechaFin) {
         const startDate = new Date(sosFechaInicio);
@@ -5528,12 +5486,10 @@ async function renderSOSMapa() {
     const allBounds = [];
     allBounds.push([TALLER_LAT, TALLER_LNG]);
 
-    // Procesar cada rescate
-    filtered.forEach(r => {
-        if (!r.lat || !r.lng) return;
+    for (const r of filtered) {
+        if (!r.lat || !r.lng) continue;
         allBounds.push([r.lat, r.lng]);
 
-        // Marcador del cliente
         const isCompleted = r.status === 'completed';
         const markerColor = isCompleted ? '#22c55e' : '#FF6B00';
         const iconHtml = isCompleted ? '🏍️✅' : '🏍️';
@@ -5547,31 +5503,51 @@ async function renderSOSMapa() {
         }).addTo(adminSOSGlobalMapInst);
         adminSOSMarkers[r.id] = marker;
 
-        // Si el rescate está aceptado y tiene mecánico asignado
         if (r.status === 'accepted' && r.mech_uid) {
-            // Crear marcador del mecánico y ruta en tiempo real
+            const mechUserSnap = await getDoc(doc(db, "users", r.mech_uid));
+            const mechData = mechUserSnap.exists() ? mechUserSnap.data() : { name: 'Mecánico', phone: '' };
+            const calificacion = await obtenerPromedioCalificacion(r.mech_uid);
+            const stars = calificacion ? '★'.repeat(Math.round(calificacion.promedio)) + '☆'.repeat(5 - Math.round(calificacion.promedio)) : '☆☆☆☆☆';
+            const ratingText = calificacion ? `${calificacion.promedio} ⭐ (${calificacion.total} reseñas)` : 'Sin reseñas';
+            const telefono = mechData.phone || '';
+            const telefonoClean = telefono.replace('+52', '');
+            const nombre = mechData.name || 'Mecánico';
+
+            const popupContent = `
+                <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${isLight ? '#ffffff' : '#1A1A1A'}; color:${isLight ? '#111111' : '#ffffff'}; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
+                    <b>${escapeHtml(nombre)}</b><br>
+                    <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
+                    ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+                    <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                        ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+                        ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                        <button onclick="window.openStaffDetail('${r.mech_uid}')" style="background:#3b82f6; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">Ver perfil</button>
+                    </div>
+                </div>
+            `;
+
             const trackingRef = dbRef(rtdb, `mecanicos_activos/${r.mech_uid}`);
             const listener = onValue(trackingRef, (posSnap) => {
                 if (posSnap.exists() && adminSOSGlobalMapInst) {
                     const pos = posSnap.val();
                     if (pos.lat && pos.lng) {
-                        // Marcador del mecánico
                         let mechMarker = adminSOSMarkers[`mech_${r.id}`];
                         if (!mechMarker) {
                             mechMarker = L.marker([pos.lat, pos.lng], {
                                 icon: L.divIcon({
                                     className: 'mech-pulse-marker',
-                                    html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; border:2px solid white;"><i class="fas fa-motorcycle text-white"></i></div>',
+                                    html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; border:2px solid white;"><i class="fas fa-motorcycle" style="color:white; font-size:16px;"></i></div>',
                                     iconSize: [32,32],
                                     iconAnchor: [16,32]
                                 })
-                            }).addTo(adminSOSGlobalMapInst);
+                            }).addTo(adminSOSGlobalMapInst).bindPopup(popupContent);
                             adminSOSMarkers[`mech_${r.id}`] = mechMarker;
                         } else {
                             mechMarker.setLatLng([pos.lat, pos.lng]);
+                            mechMarker.setPopupContent(popupContent);
                         }
+                        allBounds.push([pos.lat, pos.lng]);
 
-                        // Routing Machine: ruta real entre mecánico y cliente
                         let routeControl = window._adminSOSRouteLines ? window._adminSOSRouteLines[r.id] : null;
                         if (routeControl) {
                             routeControl.setWaypoints([
@@ -5580,16 +5556,19 @@ async function renderSOSMapa() {
                             ]);
                         } else {
                             routeControl = L.Routing.control({
-    waypoints: [L.latLng(pos.lat, pos.lng), L.latLng(r.lat, r.lng)],
-    routeWhileDragging: false,
-    language: 'es',
-    showAlternatives: false,
-    show: false,
-    collapsible: false,
-    lineOptions: { styles: [{ color: '#22c55e', weight: 5, opacity: 0.8 }] },
-    router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
-    createMarker: () => null
-}).addTo(adminSOSGlobalMapInst);
+                                waypoints: [
+                                    L.latLng(pos.lat, pos.lng),
+                                    L.latLng(r.lat, r.lng)
+                                ],
+                                routeWhileDragging: false,
+                                language: 'es',
+                                showAlternatives: false,
+                                show: false,
+                                collapsible: false,
+                                lineOptions: { styles: [{ color: '#22c55e', weight: 5, opacity: 0.8 }] },
+                                router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+                                createMarker: () => null
+                            }).addTo(adminSOSGlobalMapInst);
                             if (!window._adminSOSRouteLines) window._adminSOSRouteLines = {};
                             window._adminSOSRouteLines[r.id] = routeControl;
                         }
@@ -5599,9 +5578,8 @@ async function renderSOSMapa() {
             if (!window._adminSOSTrackingListeners) window._adminSOSTrackingListeners = {};
             window._adminSOSTrackingListeners[r.id] = listener;
         }
-    });
+    }
 
-    // Ajustar vista
     if (allBounds.length > 0) {
         const bounds = L.latLngBounds(allBounds);
         adminSOSGlobalMapInst.fitBounds(bounds, { padding: [50, 50] });
