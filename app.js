@@ -46,9 +46,9 @@ function escapeHtml(str) {
     });
 }
 
-// ========== CHAT IA – VERSIÓN COMPLETA CON MEJORAS (saltos línea, voz, copia, fecha, lista servicios) ==========
+// ========== CHAT IA – VERSIÓN DEFINITIVA CON VOZ CONTROLABLE Y PDF PROFESIONAL ==========
 (function() {
-    // ========== 1. VARIABLES GLOBALES DEL CHAT ==========
+    // ========== 1. VARIABLES GLOBALES ==========
     let currentGroup = null;
     let currentGroupId = null;
     let groupsUnsubscribe = null;
@@ -56,18 +56,31 @@ function escapeHtml(str) {
     let pendingImage = null;
     let modal = null;
     let currentVisionModel = null;
+    let currentUtterance = null;        // para control de voz
 
-    // Cache del modelo de visión (24 horas)
+    // Cache del modelo de visión
     const MODEL_CACHE_KEY = 'groq_vision_model';
     const MODEL_CACHE_EXPIRY = 24 * 60 * 60 * 1000;
 
-    // ========== 2. FUNCIONES TTS Y COPIA ==========
+    // ========== 2. FUNCIONES DE VOZ CON CONTROL ==========
+    function detenerVoz() {
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
+        if (currentUtterance) {
+            currentUtterance = null;
+        }
+    }
+
     function speakText(texto, rate = 1.0) {
         if (!window.speechSynthesis) return;
+        detenerVoz();  // detiene cualquier voz en curso
         const utterance = new SpeechSynthesisUtterance(texto);
         utterance.lang = 'es-MX';
         utterance.rate = rate;
-        window.speechSynthesis.cancel();
+        currentUtterance = utterance;
+        utterance.onend = () => { currentUtterance = null; };
+        utterance.onerror = () => { currentUtterance = null; };
         window.speechSynthesis.speak(utterance);
     }
 
@@ -79,7 +92,7 @@ function escapeHtml(str) {
         });
     }
 
-    // ========== 3. DETECCIÓN AUTOMÁTICA DEL MEJOR MODELO DE VISIÓN ==========
+    // ========== 3. DETECCIÓN DEL MEJOR MODELO DE VISIÓN ==========
     async function obtenerMejorModeloVision() {
         const cached = localStorage.getItem(MODEL_CACHE_KEY);
         if (cached) {
@@ -115,7 +128,7 @@ function escapeHtml(str) {
         return currentVisionModel;
     }
 
-    // ========== 4. RENDERIZADO DE MENSAJES (con saltos de línea, fecha, botones) ==========
+    // ========== 4. RENDERIZADO DE MENSAJES (con voz mejorada y formato) ==========
     function renderMensajes(mensajes) {
         const container = window._chatMessagesContainer;
         if (!container) return;
@@ -124,14 +137,12 @@ function escapeHtml(str) {
             const div = document.createElement('div');
             div.className = `flex ${m.rol === 'usuario' ? 'justify-end' : 'justify-start'} mb-3`;
             const bubbleClass = m.rol === 'usuario' ? 'bg-naranja text-white' : 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white';
-            // Convertir saltos de línea a <br>
             let textoFormateado = (m.texto || '').replace(/[&<>]/g, function(match) {
                 if (match === '&') return '&amp;';
                 if (match === '<') return '&lt;';
                 if (match === '>') return '&gt;';
                 return match;
             }).replace(/\n/g, '<br>');
-            
             const fechaHora = new Date(m.timestamp).toLocaleString();
             let imagenesHtml = '';
             if (m.imagenes && m.imagenes.length) {
@@ -139,12 +150,11 @@ function escapeHtml(str) {
             }
             let botonesHtml = '';
             if (m.rol === 'asistente' && m.texto !== '...' && !m.loading && m.texto) {
-                // Escapar el texto para los atributos data-text
                 const textoEscapado = m.texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 botonesHtml = `
                     <div class="flex gap-1 mt-1">
-                        <button class="tts-normal-btn" data-text="${textoEscapado}" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Leer normal">🔈</button>
-                        <button class="tts-fast-btn" data-text="${textoEscapado}" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Leer rápido">⚡</button>
+                        <button class="tts-normal-btn" data-text="${textoEscapado}" data-rate="1.0" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Leer normal">🔈</button>
+                        <button class="tts-fast-btn" data-text="${textoEscapado}" data-rate="1.5" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Leer rápido">⚡</button>
                         <button class="copy-btn" data-text="${textoEscapado}" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Copiar">📋</button>
                     </div>
                 `;
@@ -152,19 +162,13 @@ function escapeHtml(str) {
             div.innerHTML = `<div class="${bubbleClass} max-w-[75%] p-3 rounded-2xl text-sm"><div>${textoFormateado}</div>${imagenesHtml}<div class="text-[9px] opacity-60 mt-1 flex justify-between items-center"><span>${fechaHora}</span>${botonesHtml}</div></div>`;
             container.appendChild(div);
         });
-        // Asignar eventos a los botones después de insertarlos
-        container.querySelectorAll('.tts-normal-btn').forEach(btn => {
+        // Asignar eventos de voz
+        container.querySelectorAll('.tts-normal-btn, .tts-fast-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const text = btn.getAttribute('data-text');
-                if (text) speakText(text, 1.0);
-            });
-        });
-        container.querySelectorAll('.tts-fast-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const text = btn.getAttribute('data-text');
-                if (text) speakText(text, 1.5);
+                const rate = parseFloat(btn.getAttribute('data-rate') || '1.0');
+                if (text) speakText(text, rate);
             });
         });
         container.querySelectorAll('.copy-btn').forEach(btn => {
@@ -177,7 +181,7 @@ function escapeHtml(str) {
         container.scrollTop = container.scrollHeight;
     }
 
-    // ========== 5. MODAL PARA MOSTRAR LISTA DE SERVICIOS ACTIVOS (VINCULAR) ==========
+    // ========== 5. MODAL PARA LISTA DE SERVICIOS ACTIVOS ==========
     async function mostrarListaServiciosParaVincular() {
         if (!currentGroup) {
             if (window.showToast) window.showToast("Primero selecciona un grupo", true);
@@ -240,10 +244,9 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== 6. CREACIÓN DEL MODAL PRINCIPAL DEL CHAT ==========
+    // ========== 6. CREACIÓN DEL MODAL PRINCIPAL ==========
     function crearModalChat() {
         if (modal) return modal;
-
         modal = document.createElement('div');
         modal.id = 'chat-ia-modal-dinamico';
         modal.style.cssText = `
@@ -259,7 +262,6 @@ function escapeHtml(str) {
             flex-direction: column;
             font-family: system-ui, sans-serif;
         `;
-
         modal.innerHTML = `
             <div class="chat-ia-container" style="display:flex; flex-direction:column; width:100%; height:100%; max-width:1200px; margin:0 auto; background:var(--bg-color); color:var(--text-color);">
                 <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-color); background:var(--header-bg);">
@@ -300,10 +302,8 @@ function escapeHtml(str) {
                 </div>
             </div>
         `;
-
         document.body.appendChild(modal);
-
-        // Guardar referencias a elementos clave
+        // Guardar referencias
         window._chatGroupsList = modal.querySelector('#groups-list-ia');
         window._chatMessagesContainer = modal.querySelector('#messages-list-ia');
         window._chatGroupTitle = modal.querySelector('#chat-group-title');
@@ -321,11 +321,11 @@ function escapeHtml(str) {
         window._chatExportarBtn = modal.querySelector('#export-pdf-ia');
         window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
         window._chatSearchInput = modal.querySelector('#search-group-ia');
-
-        // Asignación de eventos
+        // Eventos
         modal.querySelector('#close-chat-ia').onclick = () => {
             modal.style.display = 'none';
             limpiarPreview();
+            detenerVoz(); // detener voz al cerrar
         };
         if (window._chatSendBtn) window._chatSendBtn.onclick = enviarMensaje;
         if (window._chatCameraBtn) window._chatCameraBtn.onclick = () => seleccionarImagen(true);
@@ -345,11 +345,9 @@ function escapeHtml(str) {
                 }
             };
         }
-
         aplicarTema();
         const observer = new MutationObserver(() => aplicarTema());
         observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-
         return modal;
     }
 
@@ -423,7 +421,6 @@ function escapeHtml(str) {
         if (window._chatGroupTitle) window._chatGroupTitle.innerText = grupo.nombre;
         if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = grupo.servicioId ? `Servicio: ${grupo.servicioId}` : '';
         if (messagesUnsubscribe) messagesUnsubscribe();
-        
         const q = query(collection(db, "chat_mensajes"), where("grupoId", "==", grupo.idDoc));
         messagesUnsubscribe = onSnapshot(q, (snap) => {
             const mensajes = [];
@@ -431,7 +428,6 @@ function escapeHtml(str) {
             mensajes.sort((a, b) => a.timestamp - b.timestamp);
             renderMensajes(mensajes);
         });
-        
         const gruposActuales = await obtenerGrupos();
         renderListaGrupos(gruposActuales);
     }
@@ -474,7 +470,6 @@ function escapeHtml(str) {
         const texto = window._chatMessageInput ? window._chatMessageInput.value.trim() : '';
         const imagen = pendingImage;
         if ((!texto && !imagen)) return;
-
         if (!currentGroupId) {
             await crearGrupoYEnviarMensaje(texto, imagen);
             return;
@@ -484,7 +479,6 @@ function escapeHtml(str) {
 
     async function enviarMensajeConTextoEImagen(texto, imagen) {
         if (!currentGroupId) return;
-
         const mensaje = {
             grupoId: currentGroupId,
             rol: 'usuario',
@@ -496,7 +490,6 @@ function escapeHtml(str) {
         if (window._chatMessageInput) window._chatMessageInput.value = '';
         const imageTemp = imagen;
         limpiarPreview();
-
         const loadingMsg = {
             grupoId: currentGroupId,
             rol: 'asistente',
@@ -505,7 +498,6 @@ function escapeHtml(str) {
             loading: true
         };
         const loadingRef = await addDoc(collection(db, "chat_mensajes"), loadingMsg);
-        
         try {
             const respuesta = await consultarGroqVision(texto, currentGroupId, imageTemp);
             await updateDoc(loadingRef, { texto: respuesta, loading: false });
@@ -521,33 +513,24 @@ function escapeHtml(str) {
     async function consultarGroqVision(prompt, grupoId, imagenBase64) {
         const key = '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';
         if (!currentVisionModel) await initVisionModel();
-
-        // Obtener historial (últimos 5 mensajes)
         const mensajesSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", grupoId)));
         let mensajes = [];
         mensajesSnap.forEach(doc => mensajes.push(doc.data()));
         mensajes.sort((a, b) => b.timestamp - a.timestamp);
         const ultimos5 = mensajes.slice(0, 5);
         const historial = ultimos5.map(m => `${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`).join('\n');
-        
         const content = [];
         let promptFinal = `Contexto:\n${historial}\n\nPregunta: ${prompt || 'Analiza la siguiente imagen'}`;
         if (historial.length > 1500) promptFinal = promptFinal.slice(0, 1500);
         content.push({ type: "text", text: promptFinal });
-        
         if (imagenBase64) {
             let imageUrl = imagenBase64;
             if (!imageUrl.startsWith('data:image')) {
                 imageUrl = `data:image/jpeg;base64,${imagenBase64}`;
             }
-            content.push({
-                type: "image_url",
-                image_url: { url: imageUrl }
-            });
+            content.push({ type: "image_url", image_url: { url: imageUrl } });
         }
-        
         const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros analizando preguntas, imágenes, sonidos, videos, síntomas o códigos de error para detectar el problema de forma rápida, clara y profesional. Usa saltos de línea para separar ideas y hacer la respuesta legible. Si la consulta no está relacionada con mecánica debes responder únicamente: "No puedo ayudarte con eso ahora, solo puedo responder temas relacionados con mecánica automotriz y motocicletas."`;
-        
         const requestBody = {
             model: currentVisionModel,
             messages: [
@@ -557,13 +540,11 @@ function escapeHtml(str) {
             temperature: 0.7,
             max_tokens: 1024
         };
-        
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
             body: JSON.stringify(requestBody)
         });
-        
         if (!response.ok) {
             const errorText = await response.text();
             if (errorText.includes('decommissioned') || errorText.includes('not found')) {
@@ -622,12 +603,7 @@ function escapeHtml(str) {
     async function crearNuevoGrupo() {
         mostrarPrompt('Nombre del grupo', '', async (nombre) => {
             if (!nombre) return;
-            const nuevoGrupo = {
-                nombre,
-                servicioId: null,
-                creado: Date.now(),
-                creadoPor: auth.currentUser?.uid
-            };
+            const nuevoGrupo = { nombre, servicioId: null, creado: Date.now(), creadoPor: auth.currentUser?.uid };
             const docRef = await addDoc(collection(db, "chat_grupos"), nuevoGrupo);
             await seleccionarGrupo({ idDoc: docRef.id, ...nuevoGrupo });
         });
@@ -650,12 +626,9 @@ function escapeHtml(str) {
         mostrarConfirm('Eliminar grupo', '¿Eliminar este grupo y todos sus mensajes?', async () => {
             if (messagesUnsubscribe) messagesUnsubscribe();
             const msgsSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", currentGroupId)));
-            for (const docMsg of msgsSnap.docs) {
-                await deleteDoc(docMsg.ref);
-            }
+            for (const docMsg of msgsSnap.docs) await deleteDoc(docMsg.ref);
             await deleteDoc(doc(db, "chat_grupos", currentGroupId));
-            currentGroup = null;
-            currentGroupId = null;
+            currentGroup = null; currentGroupId = null;
             if (window._chatGroupTitle) window._chatGroupTitle.innerText = 'Selecciona un grupo';
             if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = '';
             if (window._chatMessagesContainer) window._chatMessagesContainer.innerHTML = '';
@@ -663,362 +636,91 @@ function escapeHtml(str) {
         });
     }
 
-async function exportarChatPDF() {
-
-    if (!currentGroupId) return;
-
-    if (!window.jspdf) {
-        window.showToast("La librería PDF no está cargada", true);
-        return;
-    }
-
-    try {
-
-        const mensajesSnap = await getDocs(
-            query(
-                collection(db, "chat_mensajes"),
-                where("grupoId", "==", currentGroupId)
-            )
-        );
-
-        const mensajes = [];
-
-        mensajesSnap.forEach(doc => {
-            mensajes.push(doc.data());
-        });
-
-        mensajes.sort((a, b) => a.timestamp - b.timestamp);
-
-        const { jsPDF } = window.jspdf;
-
-        const pdf = new jsPDF({
-            orientation: "portrait",
-            unit: "mm",
-            format: "a4"
-        });
-
-        const pageWidth = pdf.internal.pageSize.getWidth();
-        const pageHeight = pdf.internal.pageSize.getHeight();
-
-        // ==========================
-        // PORTADA
-        // ==========================
-
-        const logoImg =
-            document.getElementById("logoPDF") ||
-            document.querySelector(".logo") ||
-            null;
-
-        const addFooter = window._setupProfessionalPDF(
-            pdf,
-            `Historial Chat IA`,
-            logoImg
-        );
-
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(22);
-
-        pdf.setTextColor(30, 41, 59);
-
-        pdf.text(
-            "REPORTE DE CONVERSACIÓN IA",
-            pageWidth / 2,
-            80,
-            { align: "center" }
-        );
-
-        pdf.setFontSize(14);
-
-        pdf.text(
-            currentGroup.nombre || "Sin nombre",
-            pageWidth / 2,
-            95,
-            { align: "center" }
-        );
-
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(10);
-
-        pdf.text(
-            `Generado: ${new Date().toLocaleString("es-MX")}`,
-            pageWidth / 2,
-            110,
-            { align: "center" }
-        );
-
-        pdf.addPage();
-
-        // ==========================
-        // ENCABEZADO PAGINA CHAT
-        // ==========================
-
-        window._setupProfessionalPDF(
-            pdf,
-            `Chat IA - ${currentGroup.nombre}`,
-            logoImg
-        );
-
-        let y = 40;
-
-        // ==========================
-        // FUNCION NUEVA PAGINA
-        // ==========================
-
-        const nuevaPagina = () => {
-
-            pdf.addPage();
-
-            window._setupProfessionalPDF(
-                pdf,
-                `Chat IA - ${currentGroup.nombre}`,
-                logoImg
-            );
-
-            y = 40;
-        };
-
-        // ==========================
-        // MENSAJES
-        // ==========================
-
-        for (const m of mensajes) {
-
-            const esUsuario = m.rol === "usuario";
-
-            const fecha = m.timestamp
-                ? new Date(m.timestamp).toLocaleString("es-MX")
-                : "";
-
-            const texto = m.texto || "";
-
-            const bubbleWidth = 125;
-            const padding = 4;
-
-            const textoLineas =
-                pdf.splitTextToSize(
-                    texto,
-                    bubbleWidth - 8
-                );
-
-            const bubbleHeight =
-                (textoLineas.length * 5) + 16;
-
-            const x = esUsuario
-                ? pageWidth - bubbleWidth - 12
-                : 12;
-
-            if (y + bubbleHeight > pageHeight - 25) {
-                nuevaPagina();
-            }
-
-            // Fondo burbuja
-
-            if (esUsuario) {
-                pdf.setFillColor(220, 248, 198);
-            } else {
-                pdf.setFillColor(245, 245, 245);
-            }
-
-            pdf.roundedRect(
-                x,
-                y,
-                bubbleWidth,
-                bubbleHeight,
-                3,
-                3,
-                "F"
-            );
-
-            // Nombre
-
-            pdf.setFont(
-                "helvetica",
-                "bold"
-            );
-
-            pdf.setFontSize(9);
-
-            pdf.setTextColor(0);
-
-            pdf.text(
-                esUsuario
-                    ? "👤 Usuario"
-                    : "🤖 Asistente IA",
-                x + padding,
-                y + 6
-            );
-
-            // Mensaje
-
-            pdf.setFont(
-                "helvetica",
-                "normal"
-            );
-
-            pdf.setFontSize(9);
-
-            pdf.text(
-                textoLineas,
-                x + padding,
-                y + 13
-            );
-
-            // Fecha
-
-            pdf.setFontSize(7);
-
-            pdf.setTextColor(
-                120,
-                120,
-                120
-            );
-
-            pdf.text(
-                fecha,
-                x + padding,
-                y + bubbleHeight - 3
-            );
-
-            pdf.setTextColor(0);
-
-            y += bubbleHeight + 6;
-
-            // ==========================
-            // IMAGENES DEL MENSAJE
-            // ==========================
-
-            if (
-                m.imagenes &&
-                m.imagenes.length
-            ) {
-
-                for (let img of m.imagenes) {
-
-                    try {
-
-                        if (y > pageHeight - 70) {
-                            nuevaPagina();
-                        }
-
-                        let imgData = img;
-
-                        if (
-                            !imgData.startsWith(
-                                "data:"
-                            )
-                        ) {
-
-                            const blob =
-                                await fetch(imgData)
-                                    .then(r =>
-                                        r.blob()
-                                    );
-
-                            imgData =
-                                await new Promise(
-                                    resolve => {
-
-                                        const reader =
-                                            new FileReader();
-
-                                        reader.onloadend =
-                                            () =>
-                                                resolve(
-                                                    reader.result
-                                                );
-
-                                        reader.readAsDataURL(
-                                            blob
-                                        );
-                                    }
-                                );
-                        }
-
-                        const imgWidth = 70;
-                        const imgHeight = 70;
-
-                        const imgX =
-                            esUsuario
-                                ? pageWidth -
-                                  imgWidth -
-                                  15
-                                : 15;
-
-                        pdf.setDrawColor(
-                            220,
-                            220,
-                            220
-                        );
-
-                        pdf.roundedRect(
-                            imgX - 2,
-                            y - 2,
-                            imgWidth + 4,
-                            imgHeight + 4,
-                            2,
-                            2
-                        );
-
-                        pdf.addImage(
-                            imgData,
-                            "JPEG",
-                            imgX,
-                            y,
-                            imgWidth,
-                            imgHeight
-                        );
-
-                        y += imgHeight + 8;
-
-                    } catch (err) {
-
-                        console.warn(
-                            "Error cargando imagen PDF",
-                            err
-                        );
-                    }
-                }
-            }
+    // ========== 12. EXPORTAR PDF PROFESIONAL (mejorado) ==========
+    async function exportarChatPDF() {
+        if (!currentGroupId) return;
+        if (!window.jspdf) {
+            if (window.showToast) window.showToast("La librería PDF no está cargada", true);
+            return;
         }
-
-        // ==========================
-        // FOOTER
-        // ==========================
-
-        addFooter(pdf);
-
-        pdf.save(
-            `ChatIA_${(
-                currentGroup.nombre ||
-                "reporte"
-            )
-                .replace(/[^\w\s-]/g, "")
-                .replace(/\s+/g, "_")}.pdf`
-        );
-
-    } catch (error) {
-
-        console.error(error);
-
-        window.showToast(
-            "Error al generar PDF",
-            true
-        );
+        const mensajesSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", currentGroupId)));
+        const mensajes = [];
+        mensajesSnap.forEach(doc => mensajes.push(doc.data()));
+        mensajes.sort((a, b) => a.timestamp - b.timestamp);
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        // Cargar logo
+        const logoImg = new Image();
+        logoImg.src = 'logo_oscuro.png'; // asegúrate de que la ruta sea correcta
+        await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
+        // Encabezado
+        pdf.setFillColor(255, 107, 0);
+        pdf.rect(0, 0, pageWidth, 20, 'F');
+        if (logoImg.complete && logoImg.naturalWidth > 0) {
+            pdf.addImage(logoImg, 'PNG', 10, 4, 15, 15);
+        }
+        pdf.setFontSize(14);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(255, 255, 255);
+        pdf.text("REPORTE DE CONVERSACIÓN IA", logoImg.complete ? 28 : 15, 12.5);
+        pdf.setDrawColor(255, 107, 0);
+        pdf.line(10, 20, pageWidth - 10, 20);
+        let y = 30;
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(0, 0, 0);
+        pdf.text(`Grupo: ${currentGroup.nombre}`, 10, y);
+        pdf.text(`Fecha de exportación: ${new Date().toLocaleString()}`, pageWidth - 60, y);
+        y += 10;
+        if (currentGroup.servicioId) {
+            pdf.setFont("helvetica", "bold");
+            pdf.text(`Servicio vinculado: ${currentGroup.servicioId}`, 10, y);
+            y += 8;
+            pdf.setFont("helvetica", "normal");
+        }
+        // Tabla de mensajes
+        const bodyRows = mensajes.map(m => {
+            const autor = m.rol === 'usuario' ? 'Cliente' : 'Asistente IA';
+            const fecha = new Date(m.timestamp).toLocaleString();
+            let texto = m.texto || '';
+            if (m.imagenes && m.imagenes.length) {
+                texto += `\n[Imagen adjunta: ${m.imagenes.length} foto(s)]`;
+            }
+            return [autor, fecha, texto];
+        });
+        pdf.autoTable({
+            startY: y,
+            head: [['Remitente', 'Fecha/Hora', 'Mensaje']],
+            body: bodyRows,
+            theme: 'striped',
+            styles: { fontSize: 8, cellPadding: 2.5, valign: 'top' },
+            headStyles: { fillColor: [255, 107, 0], textColor: [255, 255, 255], fontStyle: 'bold' },
+            columnStyles: { 0: { cellWidth: 25 }, 1: { cellWidth: 35 }, 2: { cellWidth: 'auto' } },
+            margin: { left: 10, right: 10 }
+        });
+        // Pie de página (número de página)
+        const totalPages = pdf.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            pdf.setPage(i);
+            pdf.setFontSize(7);
+            pdf.setTextColor(100);
+            pdf.text(`OBR Moto Rescate - Documento generado por Asistente IA`, 10, pdf.internal.pageSize.getHeight() - 8);
+            pdf.text(`Página ${i} de ${totalPages}`, pageWidth - 20, pdf.internal.pageSize.getHeight() - 8);
+        }
+        pdf.save(`chat_${currentGroup.nombre}.pdf`);
     }
-}
 
     function filtrarGrupos() {
         const term = window._chatSearchInput ? window._chatSearchInput.value.toLowerCase() : '';
         const groupsList = window._chatGroupsList;
         if (groupsList) {
             const items = groupsList.querySelectorAll('.grupo-item');
-            items.forEach(item => {
-                item.style.display = item.innerText.toLowerCase().includes(term) ? 'flex' : 'none';
-            });
+            items.forEach(item => { item.style.display = item.innerText.toLowerCase().includes(term) ? 'flex' : 'none'; });
         }
     }
 
-    // ========== 12. MODALES PERSONALIZADOS ==========
+    // ========== 13. MODALES PERSONALIZADOS ==========
     function mostrarPrompt(titulo, valorDefault, callback) {
         const modalId = 'modal-prompt-custom';
         let modalEl = document.getElementById(modalId);
@@ -1077,7 +779,7 @@ async function exportarChatPDF() {
         modalEl.classList.remove('hidden');
     }
 
-    // ========== 13. INICIALIZACIÓN Y PUNTO DE ENTRADA ==========
+    // ========== 14. INICIALIZACIÓN ==========
     window.abrirChatIA = async () => {
         if (!modal) {
             crearModalChat();
@@ -1089,7 +791,6 @@ async function exportarChatPDF() {
             modal.style.display = 'flex';
         }
     };
-
     const conectarBotonesExternos = () => {
         const floatBtn = document.getElementById('btn-chat-ai-float');
         if (floatBtn) floatBtn.onclick = window.abrirChatIA;
