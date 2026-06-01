@@ -46,7 +46,7 @@ function escapeHtml(str) {
     });
 }
 
-// ========== CHAT IA – VERSIÓN CON DETECCIÓN AUTOMÁTICA DE MODELO DE VISIÓN ==========
+// ========== CHAT IA – VERSIÓN FINAL CON MEJORAS (saltos línea, voz, copia, fecha, lista servicios) ==========
 (function() {
     // Variables
     let currentGroup = null;
@@ -55,70 +55,206 @@ function escapeHtml(str) {
     let messagesUnsubscribe = null;
     let pendingImage = null;
     let modal = null;
-    let currentVisionModel = null;  // se llenará dinámicamente
+    let currentVisionModel = null;
 
-    // ========== 1. DETECTAR EL MEJOR MODELO DE VISIÓN DISPONIBLE EN GROQ ==========
+    // Cache del modelo de visión
     const MODEL_CACHE_KEY = 'groq_vision_model';
-    const MODEL_CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 horas
+    const MODEL_CACHE_EXPIRY = 24 * 60 * 60 * 1000;
 
+    // Velocidad TTS (opcional)
+    let ttsRate = 1.0;
+
+    // ========== 1. DETECTAR MEJOR MODELO DE VISIÓN ==========
     async function obtenerMejorModeloVision() {
-        // Revisar caché
         const cached = localStorage.getItem(MODEL_CACHE_KEY);
         if (cached) {
             try {
                 const { model, timestamp } = JSON.parse(cached);
-                if (Date.now() - timestamp < MODEL_CACHE_EXPIRY) {
-                    console.log('Usando modelo de visión cacheado:', model);
-                    return model;
-                }
+                if (Date.now() - timestamp < MODEL_CACHE_EXPIRY) return model;
             } catch(e) {}
         }
-
         const API_KEY = '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';
         try {
             const response = await fetch('https://api.groq.com/openai/v1/models', {
                 headers: { 'Authorization': `Bearer ${API_KEY}` }
             });
-            if (!response.ok) throw new Error('No se pudo obtener la lista de modelos');
+            if (!response.ok) throw new Error();
             const data = await response.json();
-            // Buscar modelos que sean de visión (multimodales)
-            // Normalmente contienen "vision" en el ID o son como "llama-3.2-11b-vision-preview", "llama-4-scout-17b-16e-instruct"
             const visionModels = data.data.filter(m => 
                 m.id.includes('vision') || 
                 m.id.includes('llama-4-scout') || 
                 (m.id.includes('llama') && m.id.includes('instruct'))
             );
-            if (visionModels.length === 0) {
-                // Fallback conocido
-                const fallback = 'llama-3.2-11b-vision-preview';
-                console.warn('No se detectaron modelos de visión, usando fallback:', fallback);
-                return fallback;
-            }
-            // Ordenar por fecha de creación (más reciente primero) si existe el campo created
+            if (visionModels.length === 0) return 'llama-3.2-11b-vision-preview';
             visionModels.sort((a, b) => (b.created || 0) - (a.created || 0));
             const selected = visionModels[0].id;
-            console.log('Modelo de visión seleccionado:', selected);
-            // Guardar en caché
             localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ model: selected, timestamp: Date.now() }));
             return selected;
         } catch (error) {
-            console.error('Error obteniendo modelos de Groq:', error);
-            return 'llama-3.2-11b-vision-preview'; // fallback
+            return 'llama-3.2-11b-vision-preview';
         }
     }
 
-    // Inicializar el modelo al cargar el chat (se llamará en abrirChatIA)
     async function initVisionModel() {
-        if (!currentVisionModel) {
-            currentVisionModel = await obtenerMejorModeloVision();
-        }
+        if (!currentVisionModel) currentVisionModel = await obtenerMejorModeloVision();
         return currentVisionModel;
     }
 
-    // ========== 2. CREAR MODAL DEL CHAT ==========
+    // ========== 2. FUNCIONES TTS Y COPIA ==========
+    function speakText(texto, rate = 1.0) {
+        if (!window.speechSynthesis) return;
+        const utterance = new SpeechSynthesisUtterance(texto);
+        utterance.lang = 'es-MX';
+        utterance.rate = rate;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+    }
+
+    function copyToClipboard(texto) {
+        navigator.clipboard.writeText(texto).then(() => {
+            window.showToast("Mensaje copiado al portapapeles");
+        }).catch(() => {
+            window.showToast("No se pudo copiar", true);
+        });
+    }
+
+    // ========== 3. RENDERIZADO DE MENSAJES CON FORMATO, FECHA, BOTONES ==========
+    function renderMensajes(mensajes) {
+        const container = window._chatMessagesContainer;
+        if (!container) return;
+        container.innerHTML = '';
+        mensajes.forEach(m => {
+            const div = document.createElement('div');
+            div.className = `flex ${m.rol === 'usuario' ? 'justify-end' : 'justify-start'} mb-3`;
+            const bubbleClass = m.rol === 'usuario' ? 'bg-naranja text-white' : 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white';
+            
+            // Convertir saltos de línea a <br>
+            let textoFormateado = escapeHtml(m.texto).replace(/\n/g, '<br>');
+            
+            // Fecha y hora
+            const fechaHora = new Date(m.timestamp).toLocaleString();
+            
+            let imagenesHtml = '';
+            if (m.imagenes && m.imagenes.length) {
+                imagenesHtml = `<div class="flex gap-1 mt-2 flex-wrap">${m.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox('${img}')">`).join('')}</div>`;
+            }
+            
+            // Botones solo para mensajes del asistente (IA) - voz y copiar
+            let botonesHtml = '';
+            if (m.rol === 'asistente' && m.texto !== '...' && !m.loading) {
+                botonesHtml = `
+                    <div class="flex gap-1 mt-1">
+                        <button class="tts-normal-btn" data-text="${escapeHtml(m.texto)}" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Leer normal">🔈</button>
+                        <button class="tts-fast-btn" data-text="${escapeHtml(m.texto)}" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Leer rápido">⚡</button>
+                        <button class="copy-btn" data-text="${escapeHtml(m.texto)}" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Copiar">📋</button>
+                    </div>
+                `;
+            }
+            
+            div.innerHTML = `
+                <div class="${bubbleClass} max-w-[75%] p-3 rounded-2xl text-sm">
+                    <div>${textoFormateado}</div>
+                    ${imagenesHtml}
+                    <div class="text-[9px] opacity-60 mt-1 flex justify-between items-center">
+                        <span>${fechaHora}</span>
+                        ${botonesHtml}
+                    </div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+        
+        // Asignar eventos a los botones después de insertarlos
+        container.querySelectorAll('.tts-normal-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const text = btn.getAttribute('data-text');
+                if (text) speakText(text, 1.0);
+            });
+        });
+        container.querySelectorAll('.tts-fast-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const text = btn.getAttribute('data-text');
+                if (text) speakText(text, 1.5);
+            });
+        });
+        container.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const text = btn.getAttribute('data-text');
+                if (text) copyToClipboard(text);
+            });
+        });
+        
+        container.scrollTop = container.scrollHeight;
+    }
+
+    // ========== 4. MOSTRAR LISTA DE SERVICIOS PARA VINCULAR ==========
+    async function mostrarListaServiciosParaVincular() {
+        if (!currentGroup) {
+            window.showToast("Primero selecciona un grupo", true);
+            return;
+        }
+        // Obtener servicios activos
+        const estadosActivos = ['pending', 'accepted', 'repairing', 'to_shop', 'ready'];
+        const q = query(collection(db, "rescates"), where("status", "in", estadosActivos));
+        const snap = await getDocs(q);
+        if (snap.empty) {
+            window.showToast("No hay servicios activos", true);
+            return;
+        }
+        const servicios = [];
+        snap.forEach(doc => {
+            const data = doc.data();
+            servicios.push({ id: doc.id, shortId: data.shortId, client: data.clientName || data.phone, status: data.status });
+        });
+        
+        // Crear modal para mostrar lista
+        const modalId = 'modal-servicios-lista';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[1000010] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `
+                <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 border border-blue-500/30">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-black text-white">Selecciona un servicio</h3>
+                        <button id="close-servicios-modal" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div id="lista-servicios-container" class="max-h-96 overflow-y-auto space-y-2"></div>
+                </div>
+            `;
+            document.body.appendChild(modalEl);
+            document.getElementById('close-servicios-modal').onclick = () => modalEl.classList.add('hidden');
+        }
+        
+        const container = modalEl.querySelector('#lista-servicios-container');
+        container.innerHTML = '';
+        servicios.forEach(serv => {
+            const estadoTexto = serv.status === 'pending' ? 'Pendiente' : 
+                               (serv.status === 'accepted' ? 'Aceptado' :
+                               (serv.status === 'repairing' ? 'Reparando' :
+                               (serv.status === 'to_shop' ? 'En taller' : 'Listo')));
+            const div = document.createElement('div');
+            div.className = 'bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 transition-colors';
+            div.innerHTML = `<div class="font-bold">${serv.shortId}</div><div class="text-xs text-gray-400">${serv.client} - ${estadoTexto}</div>`;
+            div.onclick = async () => {
+                await updateDoc(doc(db, "chat_grupos", currentGroupId), { servicioId: serv.shortId });
+                currentGroup.servicioId = serv.shortId;
+                if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = `Servicio: ${serv.shortId}`;
+                window.showToast(`Grupo vinculado a ${serv.shortId}`);
+                modalEl.classList.add('hidden');
+            };
+            container.appendChild(div);
+        });
+        modalEl.classList.remove('hidden');
+    }
+
+    // ========== 5. CREAR MODAL DEL CHAT (Estructura visual) ==========
     function crearModalChat() {
         if (modal) return modal;
-
         modal = document.createElement('div');
         modal.id = 'chat-ia-modal-dinamico';
         modal.style.cssText = `
@@ -134,14 +270,10 @@ function escapeHtml(str) {
             flex-direction: column;
             font-family: system-ui, sans-serif;
         `;
-
         modal.innerHTML = `
             <div class="chat-ia-container" style="display:flex; flex-direction:column; width:100%; height:100%; max-width:1200px; margin:0 auto; background:var(--bg-color); color:var(--text-color);">
                 <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-color); background:var(--header-bg);">
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <i class="fas fa-robot" style="color:#FF6B00; font-size:28px;"></i>
-                        <h2 style="font-size:1.5rem; font-weight:900;">Asistente IA</h2>
-                    </div>
+                    <div style="display:flex; align-items:center; gap:12px;"><i class="fas fa-robot" style="color:#FF6B00; font-size:28px;"></i><h2 style="font-size:1.5rem; font-weight:900;">Asistente IA</h2></div>
                     <button id="close-chat-ia" style="background:rgba(0,0,0,0.2); border:none; width:40px; height:40px; border-radius:50%; cursor:pointer;"><i class="fas fa-times"></i></button>
                 </div>
                 <div style="display:flex; flex:1; overflow:hidden;">
@@ -154,10 +286,10 @@ function escapeHtml(str) {
                         <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--header-bg); border-bottom:1px solid var(--border-color);">
                             <div><span id="chat-group-title" style="font-weight:bold; font-size:1.1rem;">Selecciona un grupo</span><span id="chat-service-id" style="font-size:0.7rem; color:var(--text-muted); margin-left:8px;"></span></div>
                             <div style="display:flex; gap:8px;">
-                                <button id="link-service-ia" style="background:rgba(147,51,234,0.2); color:#a78bfa; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Vincular</button>
-                                <button id="rename-group-ia" style="background:rgba(234,179,8,0.2); color:#facc15; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Renombrar</button>
-                                <button id="delete-group-ia" style="background:rgba(239,68,68,0.2); color:#f87171; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Eliminar</button>
-                                <button id="export-pdf-ia" style="background:rgba(59,130,246,0.2); color:#60a5fa; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">PDF</button>
+                                <button id="link-service-ia" class="group-action-btn" style="background:rgba(147,51,234,0.2); color:#a78bfa; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Vincular</button>
+                                <button id="rename-group-ia" class="group-action-btn" style="background:rgba(234,179,8,0.2); color:#facc15; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Renombrar</button>
+                                <button id="delete-group-ia" class="group-action-btn" style="background:rgba(239,68,68,0.2); color:#f87171; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Eliminar</button>
+                                <button id="export-pdf-ia" class="group-action-btn" style="background:rgba(59,130,246,0.2); color:#60a5fa; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">PDF</button>
                             </div>
                         </div>
                         <div id="messages-list-ia" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:16px;"></div>
@@ -172,15 +304,13 @@ function escapeHtml(str) {
                                 <img id="preview-img-ia" style="max-width:100px; max-height:100px; border-radius:8px;">
                                 <button id="cancel-preview-ia" style="position:absolute; top:0; right:0; background:red; color:white; border:none; border-radius:50%; width:20px; height:20px; cursor:pointer;">✕</button>
                             </div>
-                            <p style="font-size:9px; color:var(--text-muted); margin-top:8px;">Adjunta una foto (se previsualizará) y escribe tu consulta. Solo responderé temas de mecánica.</p>
+                            <p style="font-size:9px; color:var(--text-muted); margin-top:8px;">Adjunta foto, escribe tu consulta. Botones: 🔊 (voz normal), ⚡ (voz rápida), 📋 (copiar). Las respuestas respetan saltos de línea y muestran fecha.</p>
                         </div>
                     </div>
                 </div>
             </div>
         `;
-
         document.body.appendChild(modal);
-
         // Guardar referencias
         window._chatGroupsList = modal.querySelector('#groups-list-ia');
         window._chatMessagesContainer = modal.querySelector('#messages-list-ia');
@@ -199,38 +329,27 @@ function escapeHtml(str) {
         window._chatExportarBtn = modal.querySelector('#export-pdf-ia');
         window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
         window._chatSearchInput = modal.querySelector('#search-group-ia');
-
-        // Asignar eventos
-        modal.querySelector('#close-chat-ia').onclick = () => {
-            modal.style.display = 'none';
-            limpiarPreview();
-        };
+        
+        // Eventos
+        modal.querySelector('#close-chat-ia').onclick = () => { modal.style.display = 'none'; limpiarPreview(); };
         if (window._chatSendBtn) window._chatSendBtn.onclick = enviarMensaje;
         if (window._chatCameraBtn) window._chatCameraBtn.onclick = () => seleccionarImagen(true);
         if (window._chatGalleryBtn) window._chatGalleryBtn.onclick = () => seleccionarImagen(false);
         if (window._chatCancelPreview) window._chatCancelPreview.onclick = limpiarPreview;
-        if (window._chatVincularBtn) window._chatVincularBtn.onclick = vincularServicio;
+        if (window._chatVincularBtn) window._chatVincularBtn.onclick = mostrarListaServiciosParaVincular; // Ahora muestra la lista
         if (window._chatRenombrarBtn) window._chatRenombrarBtn.onclick = renombrarGrupo;
         if (window._chatEliminarBtn) window._chatEliminarBtn.onclick = eliminarGrupo;
         if (window._chatExportarBtn) window._chatExportarBtn.onclick = exportarChatPDF;
         if (window._chatNewGroupBtn) window._chatNewGroupBtn.onclick = crearNuevoGrupo;
         if (window._chatSearchInput) window._chatSearchInput.oninput = filtrarGrupos;
         if (window._chatMessageInput) {
-            window._chatMessageInput.onkeypress = (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    enviarMensaje();
-                }
-            };
+            window._chatMessageInput.onkeypress = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensaje(); } };
         }
-
         aplicarTema();
         const observer = new MutationObserver(() => aplicarTema());
         observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-
         return modal;
     }
-
     // ========== 3. TEMAS ==========
     function aplicarTema() {
         if (!modal) return;
