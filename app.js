@@ -2156,7 +2156,7 @@ function listenToMySOS() {
     if (!auth.currentUser) return;
 
     let mechPosUnsubscribe = null;
-    let routingControl = null;   // control de ruta real
+    let routingControl = null;
 
     window.mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), async (snap) => {
         const activeCard = document.getElementById('active-sos-card');
@@ -2171,7 +2171,7 @@ function listenToMySOS() {
         const emergencyBtn = document.getElementById('emergency-client-btn');
 
         if (!snap.exists()) {
-            // --- Limpiar todo ---
+            // Limpiar todo
             if (activeCard) activeCard.classList.add('hidden');
             if (noServicesMsg) noServicesMsg?.classList.remove('hidden');
             if (survey) survey.classList.add('hidden');
@@ -2199,7 +2199,7 @@ function listenToMySOS() {
         if (activeCard) activeCard.classList.remove('hidden');
         if (noServicesMsg) noServicesMsg.classList.add('hidden');
 
-        // Mostrar contenedor del mapa (forzar visibilidad)
+        // Mostrar contenedor del mapa
         if (mechanicMapDiv) {
             mechanicMapDiv.classList.remove('hidden');
             mechanicMapDiv.style.display = 'block';
@@ -2247,9 +2247,9 @@ function listenToMySOS() {
             statusDesc.innerText = estadoTexto;
         }
 
-        // ========== MAPA CON RUTA REAL (usando la misma estructura que la versión funcional) ==========
+        // ========== MAPA: INICIALIZAR Y ACTUALIZAR ==========
         if (data.status === 'accepted' || data.status === 'repairing') {
-            // Inicializar mapa con reintentos (igual que antes)
+            // Inicializar mapa con reintentos
             const tryInitMap = () => {
                 if (!mechanicMapDiv) return;
                 const rect = mechanicMapDiv.getBoundingClientRect();
@@ -2281,13 +2281,38 @@ function listenToMySOS() {
                 // ---- Escuchar posición del mecánico en tiempo real ----
                 if (mechPosUnsubscribe) mechPosUnsubscribe();
                 if (data.mech_uid) {
+                    // Obtener datos del mecánico (nombre, teléfono, calificación) para el popup
+                    const mechUserSnap = await getDoc(doc(db, "users", data.mech_uid));
+                    const mechData = mechUserSnap.exists() ? mechUserSnap.data() : { name: 'Mecánico', phone: '' };
+                    const calificacion = await obtenerPromedioCalificacion(data.mech_uid);
+                    const stars = calificacion ? '★'.repeat(Math.round(calificacion.promedio)) + '☆'.repeat(5 - Math.round(calificacion.promedio)) : '☆☆☆☆☆';
+                    const ratingText = calificacion ? `${calificacion.promedio} ⭐ (${calificacion.total} reseñas)` : 'Sin reseñas';
+                    const telefono = mechData.phone || '';
+                    const telefonoClean = telefono.replace('+52', '');
+                    const nombre = mechData.name || 'Mecánico';
+
+                    // Construir el contenido del popup
+                    const popupContent = `
+                        <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${document.body.classList.contains('light-mode') ? '#ffffff' : '#1A1A1A'}; color:${document.body.classList.contains('light-mode') ? '#111111' : '#ffffff'}; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
+                            <b>${escapeHtml(nombre)}</b><br>
+                            <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
+                            ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+                            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                                ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+                                ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                                <button onclick="window.openStaffDetail('${data.mech_uid}')" style="background:#3b82f6; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">Ver perfil</button>
+                            </div>
+                        </div>
+                    `;
+
                     mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
                         if (posSnap.exists() && window.clientMapInstance) {
                             const pos = posSnap.val();
                             if (pos.lat && pos.lng) {
-                                // Marcador del mecánico
+                                // Marcador del mecánico (verde con moto)
                                 if (window.clientMapMarkers.mech) {
                                     window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
+                                    window.clientMapMarkers.mech.setPopupContent(popupContent);
                                 } else {
                                     window.clientMapMarkers.mech = L.marker([pos.lat, pos.lng], {
                                         icon: L.divIcon({
@@ -2296,12 +2321,12 @@ function listenToMySOS() {
                                             iconSize: [32, 32],
                                             iconAnchor: [16, 32]
                                         })
-                                    }).addTo(window.clientMapInstance);
+                                    }).addTo(window.clientMapInstance).bindPopup(popupContent);
                                 }
                                 // Centrar mapa en mecánico
                                 window.clientMapInstance.setView([pos.lat, pos.lng], 14);
 
-                                // ----- CREAR O ACTUALIZAR RUTA REAL (Leaflet Routing Machine) -----
+                                // ----- CREAR O ACTUALIZAR RUTA REAL (Routing Machine) -----
                                 if (routingControl) {
                                     routingControl.setWaypoints([
                                         L.latLng(pos.lat, pos.lng),
@@ -2317,7 +2342,7 @@ function listenToMySOS() {
                                             routeWhileDragging: false,
                                             language: 'es',
                                             showAlternatives: false,
-                                            show: false,          // oculta el panel de instrucciones
+                                            show: false,
                                             collapsible: false,
                                             lineOptions: {
                                                 styles: [{ color: '#440dfa', weight: 6, opacity: 0.9 }]
@@ -2336,7 +2361,7 @@ function listenToMySOS() {
                     });
                 }
 
-                // ---- Ajustar vista para mostrar cliente y mecánico (si ambos existen) ----
+                // ---- Ajustar vista para mostrar cliente y mecánico ----
                 const bounds = [];
                 if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
                 if (window.clientMapMarkers.mech) {
@@ -2350,7 +2375,7 @@ function listenToMySOS() {
                 }
             }
         } else {
-            // No hay estado activo, limpiar routing y marcadores
+            // Limpiar routing y marcadores
             if (routingControl) {
                 routingControl.remove();
                 routingControl = null;
@@ -2419,7 +2444,6 @@ function listenToMySOS() {
         window.lastClientSOSStatus = data.status;
     });
 }
-
 // aqui finaliza listenToMySOS //
 window.abrirChatSOS = () => {
     if (window._sosChatId) {
