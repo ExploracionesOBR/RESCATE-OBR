@@ -8421,3 +8421,112 @@ window.aplicarHorarioALunes = () => {
         if (closeEl) closeEl.value = lunesC;
     }
 };
+// ========== RECUPERACIÓN DE CONTRASEÑA ==========
+function showRecoveryFlow() {
+    // Ocultar step de login y mostrar step de recuperación
+    document.getElementById('auth-step-login')?.classList.add('hidden');
+    document.getElementById('auth-step-recovery')?.classList.remove('hidden');
+    
+    // Limpiar campos anteriores
+    document.getElementById('recovery-answer-input').value = '';
+    document.getElementById('recovery-question-display').innerText = '';
+    
+    // No cargar la pregunta hasta que se introduzca el número
+    // Por ahora solo mostramos el panel, pero la pregunta se cargará al siguiente paso.
+    // Necesitamos el número de teléfono para buscar la pregunta secreta.
+    // Por ello, modificamos el flujo: primero pedimos el número, luego mostramos la pregunta.
+    // Como el HTML actual solo muestra directamente el campo de respuesta, debemos ajustar.
+    // Voy a reestructurar el flujo para que sea más lógico.
+    
+    // Ocultar el área de respuesta y mostrar un input para el teléfono primero
+    const recoveryForm = document.getElementById('recovery-form-area');
+    if (recoveryForm) {
+        // Verificar si ya existe el campo de teléfono dentro del recovery; si no, lo añadimos
+        let phoneInput = document.getElementById('recovery-phone-input');
+        if (!phoneInput) {
+            const phoneHtml = `
+                <div id="recovery-phone-step" class="mb-4">
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Número de celular (10 dígitos)</label>
+                    <input id="recovery-phone-input" type="tel" maxlength="10" placeholder="Ej. 6441234567" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white mb-2">
+                    <button id="recovery-get-question" class="w-full bg-naranja hover:bg-orange-600 p-2 rounded-xl font-black uppercase text-sm">Buscar pregunta secreta</button>
+                </div>
+                <div id="recovery-answer-step" style="display:none;">
+                    <div class="bg-asfalto/50 p-5 rounded-xl border border-white/10 mb-6">
+                        <p id="recovery-question-display" class="font-black text-naranja text-base italic leading-tight">¿Pregunta?</p>
+                    </div>
+                    <input id="recovery-answer-input" type="text" placeholder="Tu respuesta secreta..." class="w-full bg-white/5 border border-white/10 p-5 mb-8 rounded-xl focus:outline-none focus:border-naranja text-lg transition-all text-white font-bold">
+                    <button id="recovery-submit-answer" class="w-full bg-naranja hover:bg-orange-600 p-4 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 text-white text-lg mb-4 transition-all">Revelar Contraseña</button>
+                </div>
+            `;
+            recoveryForm.innerHTML = phoneHtml;
+            
+            // Eventos
+            document.getElementById('recovery-get-question').onclick = async () => {
+                const phone = document.getElementById('recovery-phone-input').value.trim();
+                if (phone.length !== 10) {
+                    window.showToast("Ingrese un número de 10 dígitos", true);
+                    return;
+                }
+                const fullPhone = "+52" + phone;
+                const q = query(collection(db, "users"), where("phone", "==", fullPhone), limit(1));
+                const snap = await getDocs(q);
+                if (snap.empty) {
+                    window.showToast("No existe una cuenta con ese número", true);
+                    return;
+                }
+                const userDoc = snap.docs[0];
+                const userData = userDoc.data();
+                if (!userData.secQuestion) {
+                    window.showToast("Esta cuenta no tiene pregunta de seguridad configurada. Contacta al administrador.", true);
+                    return;
+                }
+                // Guardar el uid temporalmente para usarlo al verificar respuesta
+                window._recoveryUid = userDoc.id;
+                document.getElementById('recovery-question-display').innerText = userData.secQuestion;
+                document.getElementById('recovery-phone-step').style.display = 'none';
+                document.getElementById('recovery-answer-step').style.display = 'block';
+            };
+            
+            document.getElementById('recovery-submit-answer').onclick = async () => {
+                const answer = document.getElementById('recovery-answer-input').value.trim().toLowerCase();
+                if (!answer) {
+                    window.showToast("Escribe la respuesta a tu pregunta secreta", true);
+                    return;
+                }
+                if (!window._recoveryUid) return;
+                const userDoc = await getDoc(doc(db, "users", window._recoveryUid));
+                if (!userDoc.exists()) return;
+                const userData = userDoc.data();
+                if (userData.secAnswer !== answer) {
+                    window.showToast("Respuesta incorrecta", true);
+                    return;
+                }
+                // Mostrar la contraseña (almacenada en texto plano en el campo pwd)
+                const password = userData.pwd || "No disponible";
+                window.showToast(`Tu contraseña es: ${password}`, false);
+                // Opcional: mostrar en un modal o directamente
+                // También se podría permitir cambiar la contraseña, pero por ahora mostramos la actual.
+                // Regresar al login después de unos segundos
+                setTimeout(() => {
+                    backToLoginStep();
+                }, 3000);
+            };
+        }
+    }
+}
+
+function backToLoginStep() {
+    // Ocultar step de recuperación y mostrar step de login
+    document.getElementById('auth-step-recovery')?.classList.add('hidden');
+    document.getElementById('auth-step-login')?.classList.remove('hidden');
+    // Limpiar campos de recuperación si existen
+    const recoveryPhoneStep = document.getElementById('recovery-phone-step');
+    const recoveryAnswerStep = document.getElementById('recovery-answer-step');
+    if (recoveryPhoneStep) recoveryPhoneStep.style.display = 'block';
+    if (recoveryAnswerStep) recoveryAnswerStep.style.display = 'none';
+    document.getElementById('recovery-phone-input')?.value = '';
+    document.getElementById('recovery-answer-input')?.value = '';
+    window._recoveryUid = null;
+}
+
+// Nota: Asegúrate de que en el HTML el botón "Volver al login" tenga onclick="backToLoginStep()"
