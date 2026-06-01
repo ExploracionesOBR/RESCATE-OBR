@@ -8600,11 +8600,14 @@ if (phoneField) {
 }
 // ========== BOTÓN FLOTANTE DORADO DE INVITACIÓN (SOLO USUARIOS LOGUEADOS) ==========
 (function() {
-    // Función para crear el modal si no existe (versión genérica)
+    let boton = null;
+    let modalCreado = false;
+
     function crearModalInvitacion() {
+        if (modalCreado) return;
         const modalId = 'modal-whatsapp-invite';
         let modalEl = document.getElementById(modalId);
-        if (modalEl) return modalEl;
+        if (modalEl) return;
         
         modalEl = document.createElement('div');
         modalEl.id = modalId;
@@ -8625,7 +8628,6 @@ if (phoneField) {
         `;
         document.body.appendChild(modalEl);
         
-        // Eventos
         const inviteBtn = document.getElementById('whatsapp-invite-btn');
         const skipBtn = document.getElementById('whatsapp-skip-btn');
         if (inviteBtn) {
@@ -8640,109 +8642,99 @@ if (phoneField) {
                 window.toggleModal(modalId, false);
             };
         }
-        return modalEl;
+        modalCreado = true;
     }
-    
-    // Función global para mostrar el modal de invitación
+
     window.mostrarInvitacionWhatsApp = () => {
         crearModalInvitacion();
         window.toggleModal('modal-whatsapp-invite', true);
     };
-    
-    let botonExistente = null;
-    
-    function crearBotonInvitacion() {
-        if (botonExistente) return;
-        
+
+    function crearBoton() {
+        if (boton) return;
         const btn = document.createElement('button');
         btn.id = 'float-invite-btn';
-        btn.className = 'fixed bottom-24 right-4 z-50 w-14 h-14 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-transform animate-pulse-soft';
+        btn.className = 'fixed z-50 w-14 h-14 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-transform animate-pulse-soft';
         btn.innerHTML = '<i class="fab fa-whatsapp text-2xl text-white"></i>';
         btn.title = 'Invitar amigos por WhatsApp';
         btn.onclick = window.mostrarInvitacionWhatsApp;
-        
+        btn.style.display = 'none'; // oculto por defecto
         document.body.appendChild(btn);
-        botonExistente = btn;
-        
-        // Ajustar posición según dispositivo
+        boton = btn;
+        ajustarPosicion();
+    }
+
+    function mostrarBoton() {
+        if (boton) boton.style.display = 'flex';
+    }
+
+    function ocultarBoton() {
+        if (boton) boton.style.display = 'none';
+    }
+
+    function ajustarPosicion() {
+        if (!boton) return;
+        const chatBtn = document.getElementById('btn-chat-ai-float');
         const isMobile = window.innerWidth < 768;
         if (isMobile) {
-            btn.style.bottom = '80px';
-            btn.style.right = '16px';
+            boton.style.bottom = '80px';
+            boton.style.right = '16px';
         } else {
-            btn.style.bottom = '100px';
-            btn.style.right = '24px';
+            boton.style.bottom = '100px';
+            boton.style.right = '24px';
         }
-        
-        return btn;
-    }
-    
-    function eliminarBotonInvitacion() {
-        if (botonExistente) {
-            botonExistente.remove();
-            botonExistente = null;
-        }
-    }
-    
-    function ajustarPosicionBotones() {
-        const chatBtn = document.getElementById('btn-chat-ai-float');
-        const inviteBtn = botonExistente;
-        if (chatBtn && inviteBtn) {
+        // Si el botón del chat IA está visible, mover el nuestro para que no lo tape
+        if (chatBtn && chatBtn.style.display !== 'none') {
             const chatRect = chatBtn.getBoundingClientRect();
-            if (window.innerWidth < 768) {
-                inviteBtn.style.bottom = chatRect.bottom + 'px';
-                inviteBtn.style.right = (window.innerWidth - chatRect.left + 16) + 'px';
-            } else {
-                inviteBtn.style.right = (window.innerWidth - chatRect.left + 20) + 'px';
-                inviteBtn.style.bottom = chatRect.bottom + 'px';
+            const btnRect = boton.getBoundingClientRect();
+            if (chatRect.left < btnRect.right && !isMobile) {
+                boton.style.right = (window.innerWidth - chatRect.left + 15) + 'px';
             }
         }
     }
-    
-    // Observar el estado de autenticación
-    let authUnsubscribe = null;
-    function initAuthWatcher() {
-        if (authUnsubscribe) authUnsubscribe();
-        authUnsubscribe = onAuthStateChanged(auth, (user) => {
+
+    // Observar autenticación
+    let authUnsub = null;
+    function initWatcher() {
+        if (authUnsub) authUnsub();
+        authUnsub = onAuthStateChanged(auth, (user) => {
             if (user) {
-                // Usuario logueado: crear botón si no existe
-                if (!botonExistente) {
-                    crearBotonInvitacion();
-                    setTimeout(ajustarPosicionBotones, 500);
-                } else {
-                    botonExistente.style.display = 'flex';
-                }
+                mostrarBoton();
+                setTimeout(ajustarPosicion, 200);
             } else {
-                // Usuario no logueado: eliminar botón si existe
-                if (botonExistente) {
-                    botonExistente.style.display = 'none';
-                }
+                ocultarBoton();
             }
         });
     }
-    
-    // Iniciar el watcher cuando la página esté lista
+
+    // Interceptar showView para forzar visibilidad después de cambio de vista
+    const originalShowView = window.showView;
+    if (originalShowView) {
+        window.showView = function(...args) {
+            originalShowView.apply(this, args);
+            if (auth.currentUser) {
+                mostrarBoton();
+                setTimeout(ajustarPosicion, 300);
+            } else {
+                ocultarBoton();
+            }
+        };
+    }
+
+    // Crear botón al cargar la página
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            initAuthWatcher();
-            window.addEventListener('resize', ajustarPosicionBotones);
-            const originalToggleModal = window.toggleModal;
-            if (originalToggleModal) {
-                window.toggleModal = function(...args) {
-                    originalToggleModal.apply(this, args);
-                    setTimeout(ajustarPosicionBotones, 200);
-                };
-            }
+            crearBoton();
+            initWatcher();
+            window.addEventListener('resize', ajustarPosicion);
+            // Observar cambios en el botón de chat (por si aparece/desaparece)
+            const observer = new MutationObserver(() => ajustarPosicion());
+            const chatBtn = document.getElementById('btn-chat-ai-float');
+            if (chatBtn) observer.observe(chatBtn, { attributes: true, attributeFilter: ['style'] });
         });
     } else {
-        initAuthWatcher();
-        window.addEventListener('resize', ajustarPosicionBotones);
-        const originalToggleModal = window.toggleModal;
-        if (originalToggleModal) {
-            window.toggleModal = function(...args) {
-                originalToggleModal.apply(this, args);
-                setTimeout(ajustarPosicionBotones, 200);
-            };
-        }
+        crearBoton();
+        initWatcher();
+        window.addEventListener('resize', ajustarPosicion);
     }
 })();
