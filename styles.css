@@ -908,3 +908,25 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 #c-view-rescate {
     padding-bottom: 80px;
 }
+/* Ocultar atribuciones de Leaflet y CARTO */
+.leaflet-control-attribution {
+    display: none !important;
+}
+
+/* Estilo personalizado para el control de zoom */
+.leaflet-control-zoom {
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    border-radius: 8px;
+}
+.leaflet-control-zoom a {
+    background-color: #1A1A1A;
+    color: white;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    font-size: 18px;
+}
+.light-mode .leaflet-control-zoom a {
+    background-color: #f0f0f0;
+    color: black;
+}
