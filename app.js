@@ -2143,7 +2143,6 @@ function initClientMap() {
     setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
 }
 
-// ========== LISTEN TO MY SOS – VERSIÓN CORREGIDA (MAPA VISIBLE) ==========
 function listenToMySOS() {
     if (window.mySOSListener && typeof window.mySOSListener === 'function') {
         window.mySOSListener();
@@ -2152,7 +2151,7 @@ function listenToMySOS() {
     if (!auth.currentUser) return;
 
     let mechPosUnsubscribe = null;
-    let trackingUnsubscribe = null;
+    let routingControl = null;   // Para almacenar el control de ruta
 
     window.mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), async (snap) => {
         const activeCard = document.getElementById('active-sos-card');
@@ -2167,6 +2166,7 @@ function listenToMySOS() {
         const emergencyBtn = document.getElementById('emergency-client-btn');
 
         if (!snap.exists()) {
+            // Limpiar todo
             if (activeCard) activeCard.classList.add('hidden');
             if (noServicesMsg) noServicesMsg?.classList.remove('hidden');
             if (survey) survey.classList.add('hidden');
@@ -2177,12 +2177,14 @@ function listenToMySOS() {
             if (wsCard) wsCard.classList.add('hidden');
             if (emergencyBtn) emergencyBtn.style.display = 'flex';
             if (mechPosUnsubscribe) mechPosUnsubscribe();
-            if (trackingUnsubscribe) trackingUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
             if (window.clientMapInstance) {
                 window.clientMapInstance.remove();
                 window.clientMapInstance = null;
                 window.clientMapMarkers = { mech: null, client: null, taller: null };
-                window.clientMapRouteLine = null;
             }
             window.lastClientSOSStatus = null;
             return;
@@ -2192,14 +2194,13 @@ function listenToMySOS() {
         if (activeCard) activeCard.classList.remove('hidden');
         if (noServicesMsg) noServicesMsg.classList.add('hidden');
 
-        // Mostrar contenedor del mapa
         if (mechanicMapDiv) {
             mechanicMapDiv.classList.remove('hidden');
             mechanicMapDiv.style.display = 'block';
             mechanicMapDiv.style.opacity = '1';
         }
 
-        // ========== CONTROL DEL BOTÓN DE EMERGENCIA ==========
+        // Control botón de emergencia
         const estadosOcultar = ['accepted', 'repairing', 'to_shop', 'ready'];
         if (estadosOcultar.includes(data.status)) {
             if (emergencyBtn) emergencyBtn.style.display = 'none';
@@ -2207,7 +2208,7 @@ function listenToMySOS() {
             if (emergencyBtn) emergencyBtn.style.display = 'flex';
         }
 
-        // ========== PROGRESO Y PASOS ==========
+        // Progreso
         let currentStep = 0, progressPercent = 0;
         if (data.status === 'accepted') { currentStep = 1; progressPercent = 25; }
         else if (data.status === 'repairing') { currentStep = 2; progressPercent = 50; }
@@ -2229,7 +2230,7 @@ function listenToMySOS() {
         }
         if (progressBar) progressBar.style.width = progressPercent + '%';
 
-        // ========== TEXTO DE ESTADO EN ESPAÑOL ==========
+        // Texto de estado
         if (statusDesc) {
             let estadoTexto = "Esperando confirmación";
             if (data.status === 'accepted') estadoTexto = "Mecánico en camino";
@@ -2240,9 +2241,8 @@ function listenToMySOS() {
             statusDesc.innerText = estadoTexto;
         }
 
-        // ========== MAPA: INICIALIZAR Y ACTUALIZAR ==========
+        // ========== MAPA CON RUTA REAL (LEAFLET ROUTING MACHINE) ==========
         if (data.status === 'accepted' || data.status === 'repairing') {
-            // Función para inicializar el mapa con reintentos hasta que el contenedor tenga tamaño
             const tryInitMap = () => {
                 if (!mechanicMapDiv) return;
                 const rect = mechanicMapDiv.getBoundingClientRect();
@@ -2259,54 +2259,72 @@ function listenToMySOS() {
             };
             tryInitMap();
 
-            if (window.clientMapInstance) {
-                // Marcador del cliente
-                if (data.lat && data.lng) {
-                    if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                    window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
-                        icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-map-marker-alt text-white"></i></div>', iconSize: [28,28], iconAnchor: [14,28] })
-                    }).addTo(window.clientMapInstance).bindPopup("📍 Tu ubicación").openPopup();
-                }
+            if (window.clientMapInstance && data.lat && data.lng) {
+                // 1. Marcador del cliente (solo animado, sin popup)
+                if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
+                    icon: L.divIcon({
+                        className: 'gps-pulse-marker',
+                        html: '<div class="pulse-inner" style="background:#FF6B00; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-map-marker-alt" style="color:white; font-size:14px;"></i></div>',
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 28]
+                    })
+                }).addTo(window.clientMapInstance);
 
-                // Escuchar posición del mecánico
+                // 2. Marcador del mecánico (actualización en tiempo real)
                 if (mechPosUnsubscribe) mechPosUnsubscribe();
                 if (data.mech_uid) {
                     mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
                         if (posSnap.exists() && window.clientMapInstance) {
                             const pos = posSnap.val();
                             if (pos.lat && pos.lng) {
+                                // Actualizar o crear marcador del mecánico
                                 if (window.clientMapMarkers.mech) {
                                     window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
                                 } else {
                                     window.clientMapMarkers.mech = L.marker([pos.lat, pos.lng], {
-                                        icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-motorcycle text-white"></i></div>', iconSize: [32,32], iconAnchor: [16,32] })
+                                        icon: L.divIcon({
+                                            className: 'mech-pulse-marker',
+                                            html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-motorcycle" style="color:white; font-size:16px;"></i></div>',
+                                            iconSize: [32, 32],
+                                            iconAnchor: [16, 32]
+                                        })
                                     }).addTo(window.clientMapInstance).bindPopup("🏍️ Mecánico en camino");
                                 }
+                                // Centrar mapa en mecánico
                                 window.clientMapInstance.setView([pos.lat, pos.lng], 14);
+
+                                // 3. ACTUALIZAR RUTA REAL (si existen ambos puntos)
+                                if (data.lat && data.lng && pos.lat && pos.lng) {
+                                    if (routingControl) {
+                                        routingControl.setWaypoints([
+                                            L.latLng(pos.lat, pos.lng),
+                                            L.latLng(data.lat, data.lng)
+                                        ]);
+                                    } else {
+                                        routingControl = L.Routing.control({
+                                            waypoints: [
+                                                L.latLng(pos.lat, pos.lng),
+                                                L.latLng(data.lat, data.lng)
+                                            ],
+                                            routeWhileDragging: false,
+                                            language: 'es',
+                                            showAlternatives: false,
+                                            lineOptions: {
+                                                styles: [{ color: '#440dfa', weight: 6, opacity: 0.9 }]
+                                            },
+                                            router: L.Routing.osrmv1({
+                                                serviceUrl: 'https://router.project-osrm.org/route/v1'
+                                            })
+                                        }).addTo(window.clientMapInstance);
+                                    }
+                                }
                             }
                         }
                     });
                 }
 
-                // Ruta del mecánico (polilínea)
-                if (trackingUnsubscribe) trackingUnsubscribe();
-                if (data.mech_uid) {
-                    trackingUnsubscribe = onValue(dbRef(rtdb, `mecanicos_tracking/${data.mech_uid}`), (trackSnap) => {
-                        if (trackSnap.exists() && window.clientMapInstance) {
-                            const coords = [];
-                            trackSnap.forEach(child => {
-                                const p = child.val();
-                                if (p.lat && p.lng) coords.push([p.lat, p.lng]);
-                            });
-                            if (coords.length > 1) {
-                                if (window.clientMapRouteLine) window.clientMapInstance.removeLayer(window.clientMapRouteLine);
-                                window.clientMapRouteLine = L.polyline(coords, { color: '#440dfa', weight: 5, opacity: 0.9 }).addTo(window.clientMapInstance);
-                            }
-                        }
-                    });
-                }
-
-                // Ajustar vista para mostrar cliente y mecánico
+                // Ajustar vista para mostrar cliente y mecánico (si el mecánico ya tiene posición)
                 const bounds = [];
                 if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
                 if (window.clientMapMarkers.mech) {
@@ -2320,20 +2338,21 @@ function listenToMySOS() {
                 }
             }
         } else {
-            // No hay estado activo, limpiar marcadores
+            // Limpiar routing y marcadores si no hay estado activo
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
             if (window.clientMapInstance) {
                 if (window.clientMapMarkers.mech) window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
                 if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                if (window.clientMapRouteLine) window.clientMapInstance.removeLayer(window.clientMapRouteLine);
                 window.clientMapMarkers.mech = null;
                 window.clientMapMarkers.client = null;
-                window.clientMapRouteLine = null;
             }
             if (mechPosUnsubscribe) mechPosUnsubscribe();
-            if (trackingUnsubscribe) trackingUnsubscribe();
         }
 
-        // ========== NOTIFICACIONES ==========
+        // ========== NOTIFICACIONES Y ENCUESTA (sin cambios) ==========
         if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
             speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
             playSound('notif');
@@ -2358,12 +2377,14 @@ function listenToMySOS() {
             window.loadClientHistory();
             if (wsCard) wsCard.classList.add('hidden');
             if (mechPosUnsubscribe) mechPosUnsubscribe();
-            if (trackingUnsubscribe) trackingUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
             if (window.clientMapInstance) {
                 window.clientMapInstance.remove();
                 window.clientMapInstance = null;
                 window.clientMapMarkers = { mech: null, client: null, taller: null };
-                window.clientMapRouteLine = null;
             }
             if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                 if (wsCard) {
