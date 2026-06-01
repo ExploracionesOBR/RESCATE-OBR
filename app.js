@@ -46,20 +46,76 @@ function escapeHtml(str) {
     });
 }
 
-// ========== CHAT IA – VERSIÓN FINAL CON GROQ VISION (LLAMA 4) ==========
+// ========== CHAT IA – VERSIÓN CON DETECCIÓN AUTOMÁTICA DE MODELO DE VISIÓN ==========
 (function() {
     // Variables
     let currentGroup = null;
     let currentGroupId = null;
     let groupsUnsubscribe = null;
     let messagesUnsubscribe = null;
-    let pendingImage = null;      // imagen base64 para previsualizar y enviar
+    let pendingImage = null;
     let modal = null;
+    let currentVisionModel = null;  // se llenará dinámicamente
 
-    // ✅ MODELO DE VISIÓN CORREGIDO (reemplazo del descontinuado)
-    const VISION_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+    // ========== 1. DETECTAR EL MEJOR MODELO DE VISIÓN DISPONIBLE EN GROQ ==========
+    const MODEL_CACHE_KEY = 'groq_vision_model';
+    const MODEL_CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24 horas
 
-    // ========== CREAR MODAL DEL CHAT ==========
+    async function obtenerMejorModeloVision() {
+        // Revisar caché
+        const cached = localStorage.getItem(MODEL_CACHE_KEY);
+        if (cached) {
+            try {
+                const { model, timestamp } = JSON.parse(cached);
+                if (Date.now() - timestamp < MODEL_CACHE_EXPIRY) {
+                    console.log('Usando modelo de visión cacheado:', model);
+                    return model;
+                }
+            } catch(e) {}
+        }
+
+        const API_KEY = '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';
+        try {
+            const response = await fetch('https://api.groq.com/openai/v1/models', {
+                headers: { 'Authorization': `Bearer ${API_KEY}` }
+            });
+            if (!response.ok) throw new Error('No se pudo obtener la lista de modelos');
+            const data = await response.json();
+            // Buscar modelos que sean de visión (multimodales)
+            // Normalmente contienen "vision" en el ID o son como "llama-3.2-11b-vision-preview", "llama-4-scout-17b-16e-instruct"
+            const visionModels = data.data.filter(m => 
+                m.id.includes('vision') || 
+                m.id.includes('llama-4-scout') || 
+                (m.id.includes('llama') && m.id.includes('instruct'))
+            );
+            if (visionModels.length === 0) {
+                // Fallback conocido
+                const fallback = 'llama-3.2-11b-vision-preview';
+                console.warn('No se detectaron modelos de visión, usando fallback:', fallback);
+                return fallback;
+            }
+            // Ordenar por fecha de creación (más reciente primero) si existe el campo created
+            visionModels.sort((a, b) => (b.created || 0) - (a.created || 0));
+            const selected = visionModels[0].id;
+            console.log('Modelo de visión seleccionado:', selected);
+            // Guardar en caché
+            localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ model: selected, timestamp: Date.now() }));
+            return selected;
+        } catch (error) {
+            console.error('Error obteniendo modelos de Groq:', error);
+            return 'llama-3.2-11b-vision-preview'; // fallback
+        }
+    }
+
+    // Inicializar el modelo al cargar el chat (se llamará en abrirChatIA)
+    async function initVisionModel() {
+        if (!currentVisionModel) {
+            currentVisionModel = await obtenerMejorModeloVision();
+        }
+        return currentVisionModel;
+    }
+
+    // ========== 2. CREAR MODAL DEL CHAT ==========
     function crearModalChat() {
         if (modal) return modal;
 
@@ -175,7 +231,7 @@ function escapeHtml(str) {
         return modal;
     }
 
-    // ========== TEMAS ==========
+    // ========== 3. TEMAS ==========
     function aplicarTema() {
         if (!modal) return;
         const isLight = document.body.classList.contains('light-mode');
@@ -200,7 +256,7 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== FIRESTORE: GRUPOS ==========
+    // ========== 4. FIRESTORE: GRUPOS ==========
     async function cargarGrupos() {
         if (groupsUnsubscribe) groupsUnsubscribe();
         const q = query(collection(db, "chat_grupos"), orderBy("creado", "desc"));
@@ -210,10 +266,38 @@ function escapeHtml(str) {
                 grupos.push({ idDoc: doc.id, ...doc.data() });
             });
             renderListaGrupos(grupos);
-            if (!currentGroupId && grupos.length) {
+            if (grupos.length === 0) {
+                crearGrupoPorDefecto();
+            } else if (!currentGroupId && grupos.length) {
                 seleccionarGrupo(grupos[0]);
             }
         });
+    }
+
+    async function crearGrupoPorDefecto() {
+        const nombre = `General ${new Date().toLocaleDateString()}`;
+        const nuevoGrupo = {
+            nombre: nombre,
+            servicioId: null,
+            creado: Date.now(),
+            creadoPor: auth.currentUser?.uid || 'unknown'
+        };
+        const docRef = await addDoc(collection(db, "chat_grupos"), nuevoGrupo);
+        seleccionarGrupo({ idDoc: docRef.id, ...nuevoGrupo });
+    }
+
+    async function crearGrupoYEnviarMensaje(texto, imagen) {
+        const nombre = `Consulta ${new Date().toLocaleString()}`;
+        const nuevoGrupo = {
+            nombre: nombre,
+            servicioId: null,
+            creado: Date.now(),
+            creadoPor: auth.currentUser?.uid || 'unknown'
+        };
+        const docRef = await addDoc(collection(db, "chat_grupos"), nuevoGrupo);
+        const grupo = { idDoc: docRef.id, ...nuevoGrupo };
+        await seleccionarGrupo(grupo);
+        await enviarMensajeConTextoEImagen(texto, imagen);
     }
 
     function renderListaGrupos(grupos) {
@@ -237,6 +321,7 @@ function escapeHtml(str) {
     }
 
     async function seleccionarGrupo(grupo) {
+        if (!grupo || !grupo.idDoc) return;
         currentGroupId = grupo.idDoc;
         currentGroup = grupo;
         if (window._chatGroupTitle) window._chatGroupTitle.innerText = grupo.nombre;
@@ -280,25 +365,35 @@ function escapeHtml(str) {
         container.scrollTop = container.scrollHeight;
     }
 
-    // ========== ENVIAR MENSAJE CON GROQ VISION ==========
+    // ========== 5. ENVIAR MENSAJE ==========
     async function enviarMensaje() {
         const texto = window._chatMessageInput ? window._chatMessageInput.value.trim() : '';
-        if ((!texto && !pendingImage) || !currentGroupId) return;
+        const imagen = pendingImage;
+        if ((!texto && !imagen)) return;
 
-        // Guardar mensaje del usuario
+        if (!currentGroupId) {
+            await crearGrupoYEnviarMensaje(texto, imagen);
+            return;
+        }
+
+        await enviarMensajeConTextoEImagen(texto, imagen);
+    }
+
+    async function enviarMensajeConTextoEImagen(texto, imagen) {
+        if (!currentGroupId) return;
+
         const mensaje = {
             grupoId: currentGroupId,
             rol: 'usuario',
-            texto: texto || (pendingImage ? '[Imagen adjunta]' : ''),
+            texto: texto || (imagen ? '[Imagen adjunta]' : ''),
             timestamp: Date.now(),
-            imagenes: pendingImage ? [pendingImage] : []
+            imagenes: imagen ? [imagen] : []
         };
         await addDoc(collection(db, "chat_mensajes"), mensaje);
         if (window._chatMessageInput) window._chatMessageInput.value = '';
-        const imageTemp = pendingImage;
+        const imageTemp = imagen;
         limpiarPreview();
 
-        // Mensaje de carga
         const loadingMsg = {
             grupoId: currentGroupId,
             rol: 'asistente',
@@ -320,10 +415,16 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== CONSULTA A GROQ CON VISIÓN ==========
+    // ========== 6. CONSULTA A GROQ CON VISIÓN (URL CORREGIDA Y MODELO DINÁMICO) ==========
     async function consultarGroqVision(prompt, grupoId, imagenBase64) {
         const key = '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';
         
+        // Asegurar que tenemos un modelo de visión válido
+        if (!currentVisionModel) {
+            currentVisionModel = await initVisionModel();
+        }
+
+        // Obtener historial (últimos 5 mensajes)
         const mensajesSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", grupoId)));
         let mensajes = [];
         mensajesSnap.forEach(doc => mensajes.push(doc.data()));
@@ -350,7 +451,7 @@ function escapeHtml(str) {
         const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros analizando preguntas, imágenes, sonidos, videos, síntomas o códigos de error para detectar el problema de forma rápida, clara y profesional. Si la consulta no está relacionada con mecánica debes responder únicamente: "No puedo ayudarte con eso ahora, solo puedo responder temas relacionados con mecánica automotriz y motocicletas."`;
         
         const requestBody = {
-            model: VISION_MODEL,
+            model: currentVisionModel,
             messages: [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: content }
@@ -359,9 +460,9 @@ function escapeHtml(str) {
             max_tokens: 1024
         };
         
-        console.log('Enviando solicitud a Groq Vision con modelo:', VISION_MODEL);
-        
-        const response = await fetch('https://api.groq.com/openapi/v1/chat/completions', {
+        console.log('Enviando solicitud a Groq con modelo:', currentVisionModel);
+        // URL CORREGIDA (openai, NO openapi)
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
             body: JSON.stringify(requestBody)
@@ -370,6 +471,22 @@ function escapeHtml(str) {
         if (!response.ok) {
             const errorText = await response.text();
             console.error('Error de Groq API:', response.status, errorText);
+            // Si el error es porque el modelo está descontinuado, forzar reinicio del modelo
+            if (errorText.includes('decommissioned') || errorText.includes('not found')) {
+                localStorage.removeItem(MODEL_CACHE_KEY);
+                currentVisionModel = null;
+                const nuevoModelo = await initVisionModel();
+                // Reintentar con el nuevo modelo
+                const retryBody = { ...requestBody, model: nuevoModelo };
+                const retryResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                    body: JSON.stringify(retryBody)
+                });
+                if (!retryResponse.ok) throw new Error(`Error después de reintentar: ${await retryResponse.text()}`);
+                const retryData = await retryResponse.json();
+                return retryData.choices[0].message.content;
+            }
             throw new Error(`Error ${response.status}: ${errorText}`);
         }
         
@@ -377,7 +494,7 @@ function escapeHtml(str) {
         return data.choices[0].message.content;
     }
 
-    // ========== MANEJO DE IMÁGENES ==========
+    // ========== 7. MANEJO DE IMÁGENES ==========
     function limpiarPreview() {
         pendingImage = null;
         if (window._chatPreviewContainer) window._chatPreviewContainer.style.display = 'none';
@@ -394,12 +511,10 @@ function escapeHtml(str) {
         input.onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            
             let compressed = file;
             if (file.size > 3 * 1024 * 1024) {
                 compressed = await window.compressImage(file);
             }
-            
             const reader = new FileReader();
             reader.onload = (ev) => {
                 pendingImage = ev.target.result;
@@ -411,17 +526,18 @@ function escapeHtml(str) {
         input.click();
     }
 
-    // ========== ACCIONES DE GRUPO ==========
+    // ========== 8. ACCIONES DE GRUPO ==========
     async function crearNuevoGrupo() {
         mostrarPrompt('Nombre del grupo', '', async (nombre) => {
             if (!nombre) return;
-            await addDoc(collection(db, "chat_grupos"), {
+            const nuevoGrupo = {
                 nombre,
                 servicioId: null,
                 creado: Date.now(),
                 creadoPor: auth.currentUser?.uid
-            });
-            cargarGrupos();
+            };
+            const docRef = await addDoc(collection(db, "chat_grupos"), nuevoGrupo);
+            await seleccionarGrupo({ idDoc: docRef.id, ...nuevoGrupo });
         });
     }
 
@@ -538,7 +654,7 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== MODALES PERSONALIZADOS ==========
+    // ========== 9. MODALES PERSONALIZADOS ==========
     function mostrarPrompt(titulo, valorDefault, callback) {
         const modalId = 'modal-prompt-custom';
         let modalEl = document.getElementById(modalId);
@@ -597,10 +713,11 @@ function escapeHtml(str) {
         modalEl.classList.remove('hidden');
     }
 
-    // ========== INICIALIZACIÓN ==========
-    window.abrirChatIA = () => {
+    // ========== 10. INICIALIZACIÓN ==========
+    window.abrirChatIA = async () => {
         if (!modal) {
             crearModalChat();
+            await initVisionModel();     // obtiene el modelo de visión antes de que se use
             cargarGrupos();
         }
         if (modal) {
