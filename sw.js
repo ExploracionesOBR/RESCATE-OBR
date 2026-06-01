@@ -1,4 +1,4 @@
-const CACHE_NAME = 'obr-cache-v11';
+const CACHE_NAME = 'obr-cache-v15';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
