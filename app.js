@@ -46,9 +46,9 @@ function escapeHtml(str) {
     });
 }
 
-// ========== CHAT IA – VERSIÓN FINAL CON MEJORAS (saltos línea, voz, copia, fecha, lista servicios) ==========
+// ========== CHAT IA – VERSIÓN COMPLETA CON MEJORAS (saltos línea, voz, copia, fecha, lista servicios) ==========
 (function() {
-    // Variables
+    // ========== 1. VARIABLES GLOBALES DEL CHAT ==========
     let currentGroup = null;
     let currentGroupId = null;
     let groupsUnsubscribe = null;
@@ -57,14 +57,29 @@ function escapeHtml(str) {
     let modal = null;
     let currentVisionModel = null;
 
-    // Cache del modelo de visión
+    // Cache del modelo de visión (24 horas)
     const MODEL_CACHE_KEY = 'groq_vision_model';
     const MODEL_CACHE_EXPIRY = 24 * 60 * 60 * 1000;
 
-    // Velocidad TTS (opcional)
-    let ttsRate = 1.0;
+    // ========== 2. FUNCIONES TTS Y COPIA ==========
+    function speakText(texto, rate = 1.0) {
+        if (!window.speechSynthesis) return;
+        const utterance = new SpeechSynthesisUtterance(texto);
+        utterance.lang = 'es-MX';
+        utterance.rate = rate;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+    }
 
-    // ========== 1. DETECTAR MEJOR MODELO DE VISIÓN ==========
+    function copyToClipboard(texto) {
+        navigator.clipboard.writeText(texto).then(() => {
+            if (window.showToast) window.showToast("Mensaje copiado al portapapeles");
+        }).catch(() => {
+            if (window.showToast) window.showToast("No se pudo copiar", true);
+        });
+    }
+
+    // ========== 3. DETECCIÓN AUTOMÁTICA DEL MEJOR MODELO DE VISIÓN ==========
     async function obtenerMejorModeloVision() {
         const cached = localStorage.getItem(MODEL_CACHE_KEY);
         if (cached) {
@@ -100,25 +115,7 @@ function escapeHtml(str) {
         return currentVisionModel;
     }
 
-    // ========== 2. FUNCIONES TTS Y COPIA ==========
-    function speakText(texto, rate = 1.0) {
-        if (!window.speechSynthesis) return;
-        const utterance = new SpeechSynthesisUtterance(texto);
-        utterance.lang = 'es-MX';
-        utterance.rate = rate;
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utterance);
-    }
-
-    function copyToClipboard(texto) {
-        navigator.clipboard.writeText(texto).then(() => {
-            window.showToast("Mensaje copiado al portapapeles");
-        }).catch(() => {
-            window.showToast("No se pudo copiar", true);
-        });
-    }
-
-    // ========== 3. RENDERIZADO DE MENSAJES CON FORMATO, FECHA, BOTONES ==========
+    // ========== 4. RENDERIZADO DE MENSAJES (con saltos de línea, fecha, botones) ==========
     function renderMensajes(mensajes) {
         const container = window._chatMessagesContainer;
         if (!container) return;
@@ -127,43 +124,34 @@ function escapeHtml(str) {
             const div = document.createElement('div');
             div.className = `flex ${m.rol === 'usuario' ? 'justify-end' : 'justify-start'} mb-3`;
             const bubbleClass = m.rol === 'usuario' ? 'bg-naranja text-white' : 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white';
-            
             // Convertir saltos de línea a <br>
-            let textoFormateado = escapeHtml(m.texto).replace(/\n/g, '<br>');
+            let textoFormateado = (m.texto || '').replace(/[&<>]/g, function(match) {
+                if (match === '&') return '&amp;';
+                if (match === '<') return '&lt;';
+                if (match === '>') return '&gt;';
+                return match;
+            }).replace(/\n/g, '<br>');
             
-            // Fecha y hora
             const fechaHora = new Date(m.timestamp).toLocaleString();
-            
             let imagenesHtml = '';
             if (m.imagenes && m.imagenes.length) {
-                imagenesHtml = `<div class="flex gap-1 mt-2 flex-wrap">${m.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox('${img}')">`).join('')}</div>`;
+                imagenesHtml = `<div class="flex gap-1 mt-2 flex-wrap">${m.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox && window.openImageLightbox('${img}')">`).join('')}</div>`;
             }
-            
-            // Botones solo para mensajes del asistente (IA) - voz y copiar
             let botonesHtml = '';
-            if (m.rol === 'asistente' && m.texto !== '...' && !m.loading) {
+            if (m.rol === 'asistente' && m.texto !== '...' && !m.loading && m.texto) {
+                // Escapar el texto para los atributos data-text
+                const textoEscapado = m.texto.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 botonesHtml = `
                     <div class="flex gap-1 mt-1">
-                        <button class="tts-normal-btn" data-text="${escapeHtml(m.texto)}" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Leer normal">🔈</button>
-                        <button class="tts-fast-btn" data-text="${escapeHtml(m.texto)}" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Leer rápido">⚡</button>
-                        <button class="copy-btn" data-text="${escapeHtml(m.texto)}" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Copiar">📋</button>
+                        <button class="tts-normal-btn" data-text="${textoEscapado}" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Leer normal">🔈</button>
+                        <button class="tts-fast-btn" data-text="${textoEscapado}" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Leer rápido">⚡</button>
+                        <button class="copy-btn" data-text="${textoEscapado}" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Copiar">📋</button>
                     </div>
                 `;
             }
-            
-            div.innerHTML = `
-                <div class="${bubbleClass} max-w-[75%] p-3 rounded-2xl text-sm">
-                    <div>${textoFormateado}</div>
-                    ${imagenesHtml}
-                    <div class="text-[9px] opacity-60 mt-1 flex justify-between items-center">
-                        <span>${fechaHora}</span>
-                        ${botonesHtml}
-                    </div>
-                </div>
-            `;
+            div.innerHTML = `<div class="${bubbleClass} max-w-[75%] p-3 rounded-2xl text-sm"><div>${textoFormateado}</div>${imagenesHtml}<div class="text-[9px] opacity-60 mt-1 flex justify-between items-center"><span>${fechaHora}</span>${botonesHtml}</div></div>`;
             container.appendChild(div);
         });
-        
         // Asignar eventos a los botones después de insertarlos
         container.querySelectorAll('.tts-normal-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -186,75 +174,76 @@ function escapeHtml(str) {
                 if (text) copyToClipboard(text);
             });
         });
-        
         container.scrollTop = container.scrollHeight;
     }
 
-    // ========== 4. MOSTRAR LISTA DE SERVICIOS PARA VINCULAR ==========
+    // ========== 5. MODAL PARA MOSTRAR LISTA DE SERVICIOS ACTIVOS (VINCULAR) ==========
     async function mostrarListaServiciosParaVincular() {
         if (!currentGroup) {
-            window.showToast("Primero selecciona un grupo", true);
+            if (window.showToast) window.showToast("Primero selecciona un grupo", true);
             return;
         }
-        // Obtener servicios activos
         const estadosActivos = ['pending', 'accepted', 'repairing', 'to_shop', 'ready'];
-        const q = query(collection(db, "rescates"), where("status", "in", estadosActivos));
-        const snap = await getDocs(q);
-        if (snap.empty) {
-            window.showToast("No hay servicios activos", true);
-            return;
-        }
-        const servicios = [];
-        snap.forEach(doc => {
-            const data = doc.data();
-            servicios.push({ id: doc.id, shortId: data.shortId, client: data.clientName || data.phone, status: data.status });
-        });
-        
-        // Crear modal para mostrar lista
-        const modalId = 'modal-servicios-lista';
-        let modalEl = document.getElementById(modalId);
-        if (!modalEl) {
-            modalEl = document.createElement('div');
-            modalEl.id = modalId;
-            modalEl.className = 'fixed inset-0 bg-black/95 z-[1000010] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-            modalEl.innerHTML = `
-                <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 border border-blue-500/30">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-black text-white">Selecciona un servicio</h3>
-                        <button id="close-servicios-modal" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        try {
+            const q = query(collection(db, "rescates"), where("status", "in", estadosActivos));
+            const snap = await getDocs(q);
+            if (snap.empty) {
+                if (window.showToast) window.showToast("No hay servicios activos", true);
+                return;
+            }
+            const servicios = [];
+            snap.forEach(doc => {
+                const data = doc.data();
+                servicios.push({ id: doc.id, shortId: data.shortId, client: data.clientName || data.phone, status: data.status });
+            });
+            const modalId = 'modal-servicios-lista';
+            let modalEl = document.getElementById(modalId);
+            if (!modalEl) {
+                modalEl = document.createElement('div');
+                modalEl.id = modalId;
+                modalEl.className = 'fixed inset-0 bg-black/95 z-[1000010] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+                modalEl.innerHTML = `
+                    <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 border border-blue-500/30">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-black text-white">Selecciona un servicio</h3>
+                            <button id="close-servicios-modal" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div id="lista-servicios-container" class="max-h-96 overflow-y-auto space-y-2"></div>
                     </div>
-                    <div id="lista-servicios-container" class="max-h-96 overflow-y-auto space-y-2"></div>
-                </div>
-            `;
-            document.body.appendChild(modalEl);
-            document.getElementById('close-servicios-modal').onclick = () => modalEl.classList.add('hidden');
+                `;
+                document.body.appendChild(modalEl);
+                document.getElementById('close-servicios-modal').onclick = () => modalEl.classList.add('hidden');
+            }
+            const container = modalEl.querySelector('#lista-servicios-container');
+            container.innerHTML = '';
+            servicios.forEach(serv => {
+                const estadoTexto = serv.status === 'pending' ? 'Pendiente' : 
+                                   (serv.status === 'accepted' ? 'Aceptado' :
+                                   (serv.status === 'repairing' ? 'Reparando' :
+                                   (serv.status === 'to_shop' ? 'En taller' : 'Listo')));
+                const div = document.createElement('div');
+                div.className = 'bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 transition-colors';
+                div.innerHTML = `<div class="font-bold">${serv.shortId}</div><div class="text-xs text-gray-400">${serv.client} - ${estadoTexto}</div>`;
+                div.onclick = async () => {
+                    await updateDoc(doc(db, "chat_grupos", currentGroupId), { servicioId: serv.shortId });
+                    currentGroup.servicioId = serv.shortId;
+                    if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = `Servicio: ${serv.shortId}`;
+                    if (window.showToast) window.showToast(`Grupo vinculado a ${serv.shortId}`);
+                    modalEl.classList.add('hidden');
+                };
+                container.appendChild(div);
+            });
+            modalEl.classList.remove('hidden');
+        } catch (error) {
+            console.error('Error al cargar servicios:', error);
+            if (window.showToast) window.showToast("Error al cargar servicios", true);
         }
-        
-        const container = modalEl.querySelector('#lista-servicios-container');
-        container.innerHTML = '';
-        servicios.forEach(serv => {
-            const estadoTexto = serv.status === 'pending' ? 'Pendiente' : 
-                               (serv.status === 'accepted' ? 'Aceptado' :
-                               (serv.status === 'repairing' ? 'Reparando' :
-                               (serv.status === 'to_shop' ? 'En taller' : 'Listo')));
-            const div = document.createElement('div');
-            div.className = 'bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 transition-colors';
-            div.innerHTML = `<div class="font-bold">${serv.shortId}</div><div class="text-xs text-gray-400">${serv.client} - ${estadoTexto}</div>`;
-            div.onclick = async () => {
-                await updateDoc(doc(db, "chat_grupos", currentGroupId), { servicioId: serv.shortId });
-                currentGroup.servicioId = serv.shortId;
-                if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = `Servicio: ${serv.shortId}`;
-                window.showToast(`Grupo vinculado a ${serv.shortId}`);
-                modalEl.classList.add('hidden');
-            };
-            container.appendChild(div);
-        });
-        modalEl.classList.remove('hidden');
     }
 
-    // ========== 5. CREAR MODAL DEL CHAT (Estructura visual) ==========
+    // ========== 6. CREACIÓN DEL MODAL PRINCIPAL DEL CHAT ==========
     function crearModalChat() {
         if (modal) return modal;
+
         modal = document.createElement('div');
         modal.id = 'chat-ia-modal-dinamico';
         modal.style.cssText = `
@@ -270,6 +259,7 @@ function escapeHtml(str) {
             flex-direction: column;
             font-family: system-ui, sans-serif;
         `;
+
         modal.innerHTML = `
             <div class="chat-ia-container" style="display:flex; flex-direction:column; width:100%; height:100%; max-width:1200px; margin:0 auto; background:var(--bg-color); color:var(--text-color);">
                 <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-color); background:var(--header-bg);">
@@ -310,8 +300,10 @@ function escapeHtml(str) {
                 </div>
             </div>
         `;
+
         document.body.appendChild(modal);
-        // Guardar referencias
+
+        // Guardar referencias a elementos clave
         window._chatGroupsList = modal.querySelector('#groups-list-ia');
         window._chatMessagesContainer = modal.querySelector('#messages-list-ia');
         window._chatGroupTitle = modal.querySelector('#chat-group-title');
@@ -329,28 +321,39 @@ function escapeHtml(str) {
         window._chatExportarBtn = modal.querySelector('#export-pdf-ia');
         window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
         window._chatSearchInput = modal.querySelector('#search-group-ia');
-        
-        // Eventos
-        modal.querySelector('#close-chat-ia').onclick = () => { modal.style.display = 'none'; limpiarPreview(); };
+
+        // Asignación de eventos
+        modal.querySelector('#close-chat-ia').onclick = () => {
+            modal.style.display = 'none';
+            limpiarPreview();
+        };
         if (window._chatSendBtn) window._chatSendBtn.onclick = enviarMensaje;
         if (window._chatCameraBtn) window._chatCameraBtn.onclick = () => seleccionarImagen(true);
         if (window._chatGalleryBtn) window._chatGalleryBtn.onclick = () => seleccionarImagen(false);
         if (window._chatCancelPreview) window._chatCancelPreview.onclick = limpiarPreview;
-        if (window._chatVincularBtn) window._chatVincularBtn.onclick = mostrarListaServiciosParaVincular; // Ahora muestra la lista
+        if (window._chatVincularBtn) window._chatVincularBtn.onclick = mostrarListaServiciosParaVincular;
         if (window._chatRenombrarBtn) window._chatRenombrarBtn.onclick = renombrarGrupo;
         if (window._chatEliminarBtn) window._chatEliminarBtn.onclick = eliminarGrupo;
         if (window._chatExportarBtn) window._chatExportarBtn.onclick = exportarChatPDF;
         if (window._chatNewGroupBtn) window._chatNewGroupBtn.onclick = crearNuevoGrupo;
         if (window._chatSearchInput) window._chatSearchInput.oninput = filtrarGrupos;
         if (window._chatMessageInput) {
-            window._chatMessageInput.onkeypress = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensaje(); } };
+            window._chatMessageInput.onkeypress = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    enviarMensaje();
+                }
+            };
         }
+
         aplicarTema();
         const observer = new MutationObserver(() => aplicarTema());
         observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
         return modal;
     }
-    // ========== 3. TEMAS ==========
+
+    // ========== 7. TEMAS (claro/oscuro) ==========
     function aplicarTema() {
         if (!modal) return;
         const isLight = document.body.classList.contains('light-mode');
@@ -375,7 +378,7 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== 4. FIRESTORE: GRUPOS ==========
+    // ========== 8. FIRESTORE: GRUPOS Y MENSAJES ==========
     async function cargarGrupos() {
         if (groupsUnsubscribe) groupsUnsubscribe();
         const q = query(collection(db, "chat_grupos"), orderBy("creado", "desc"));
@@ -391,32 +394,6 @@ function escapeHtml(str) {
                 seleccionarGrupo(grupos[0]);
             }
         });
-    }
-
-    async function crearGrupoPorDefecto() {
-        const nombre = `General ${new Date().toLocaleDateString()}`;
-        const nuevoGrupo = {
-            nombre: nombre,
-            servicioId: null,
-            creado: Date.now(),
-            creadoPor: auth.currentUser?.uid || 'unknown'
-        };
-        const docRef = await addDoc(collection(db, "chat_grupos"), nuevoGrupo);
-        seleccionarGrupo({ idDoc: docRef.id, ...nuevoGrupo });
-    }
-
-    async function crearGrupoYEnviarMensaje(texto, imagen) {
-        const nombre = `Consulta ${new Date().toLocaleString()}`;
-        const nuevoGrupo = {
-            nombre: nombre,
-            servicioId: null,
-            creado: Date.now(),
-            creadoPor: auth.currentUser?.uid || 'unknown'
-        };
-        const docRef = await addDoc(collection(db, "chat_grupos"), nuevoGrupo);
-        const grupo = { idDoc: docRef.id, ...nuevoGrupo };
-        await seleccionarGrupo(grupo);
-        await enviarMensajeConTextoEImagen(texto, imagen);
     }
 
     function renderListaGrupos(grupos) {
@@ -466,25 +443,33 @@ function escapeHtml(str) {
         return grupos;
     }
 
-    function renderMensajes(mensajes) {
-        const container = window._chatMessagesContainer;
-        if (!container) return;
-        container.innerHTML = '';
-        mensajes.forEach(m => {
-            const div = document.createElement('div');
-            div.className = `flex ${m.rol === 'usuario' ? 'justify-end' : 'justify-start'} mb-3`;
-            const bubbleClass = m.rol === 'usuario' ? 'bg-naranja text-white' : 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white';
-            let imagenesHtml = '';
-            if (m.imagenes && m.imagenes.length) {
-                imagenesHtml = `<div class="flex gap-1 mt-2 flex-wrap">${m.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox('${img}')">`).join('')}</div>`;
-            }
-            div.innerHTML = `<div class="${bubbleClass} max-w-[75%] p-3 rounded-2xl text-sm"><div>${escapeHtml(m.texto)}</div>${imagenesHtml}<div class="text-[9px] opacity-60 mt-1">${new Date(m.timestamp).toLocaleTimeString()}</div></div>`;
-            container.appendChild(div);
-        });
-        container.scrollTop = container.scrollHeight;
+    async function crearGrupoPorDefecto() {
+        const nombre = `General ${new Date().toLocaleDateString()}`;
+        const nuevoGrupo = {
+            nombre: nombre,
+            servicioId: null,
+            creado: Date.now(),
+            creadoPor: auth.currentUser?.uid || 'unknown'
+        };
+        const docRef = await addDoc(collection(db, "chat_grupos"), nuevoGrupo);
+        seleccionarGrupo({ idDoc: docRef.id, ...nuevoGrupo });
     }
 
-    // ========== 5. ENVIAR MENSAJE ==========
+    async function crearGrupoYEnviarMensaje(texto, imagen) {
+        const nombre = `Consulta ${new Date().toLocaleString()}`;
+        const nuevoGrupo = {
+            nombre: nombre,
+            servicioId: null,
+            creado: Date.now(),
+            creadoPor: auth.currentUser?.uid || 'unknown'
+        };
+        const docRef = await addDoc(collection(db, "chat_grupos"), nuevoGrupo);
+        const grupo = { idDoc: docRef.id, ...nuevoGrupo };
+        await seleccionarGrupo(grupo);
+        await enviarMensajeConTextoEImagen(texto, imagen);
+    }
+
+    // ========== 9. ENVÍO DE MENSAJES Y CONSULTA A GROQ ==========
     async function enviarMensaje() {
         const texto = window._chatMessageInput ? window._chatMessageInput.value.trim() : '';
         const imagen = pendingImage;
@@ -494,7 +479,6 @@ function escapeHtml(str) {
             await crearGrupoYEnviarMensaje(texto, imagen);
             return;
         }
-
         await enviarMensajeConTextoEImagen(texto, imagen);
     }
 
@@ -534,14 +518,9 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== 6. CONSULTA A GROQ CON VISIÓN (URL CORREGIDA Y MODELO DINÁMICO) ==========
     async function consultarGroqVision(prompt, grupoId, imagenBase64) {
         const key = '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';
-        
-        // Asegurar que tenemos un modelo de visión válido
-        if (!currentVisionModel) {
-            currentVisionModel = await initVisionModel();
-        }
+        if (!currentVisionModel) await initVisionModel();
 
         // Obtener historial (últimos 5 mensajes)
         const mensajesSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", grupoId)));
@@ -567,7 +546,7 @@ function escapeHtml(str) {
             });
         }
         
-        const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros analizando preguntas, imágenes, sonidos, videos, síntomas o códigos de error para detectar el problema de forma rápida, clara y profesional. Si la consulta no está relacionada con mecánica debes responder únicamente: "No puedo ayudarte con eso ahora, solo puedo responder temas relacionados con mecánica automotriz y motocicletas."`;
+        const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros analizando preguntas, imágenes, sonidos, videos, síntomas o códigos de error para detectar el problema de forma rápida, clara y profesional. Usa saltos de línea para separar ideas y hacer la respuesta legible. Si la consulta no está relacionada con mecánica debes responder únicamente: "No puedo ayudarte con eso ahora, solo puedo responder temas relacionados con mecánica automotriz y motocicletas."`;
         
         const requestBody = {
             model: currentVisionModel,
@@ -579,8 +558,6 @@ function escapeHtml(str) {
             max_tokens: 1024
         };
         
-        console.log('Enviando solicitud a Groq con modelo:', currentVisionModel);
-        // URL CORREGIDA (openai, NO openapi)
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
@@ -589,13 +566,10 @@ function escapeHtml(str) {
         
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('Error de Groq API:', response.status, errorText);
-            // Si el error es porque el modelo está descontinuado, forzar reinicio del modelo
             if (errorText.includes('decommissioned') || errorText.includes('not found')) {
                 localStorage.removeItem(MODEL_CACHE_KEY);
                 currentVisionModel = null;
                 const nuevoModelo = await initVisionModel();
-                // Reintentar con el nuevo modelo
                 const retryBody = { ...requestBody, model: nuevoModelo };
                 const retryResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
                     method: 'POST',
@@ -608,12 +582,11 @@ function escapeHtml(str) {
             }
             throw new Error(`Error ${response.status}: ${errorText}`);
         }
-        
         const data = await response.json();
         return data.choices[0].message.content;
     }
 
-    // ========== 7. MANEJO DE IMÁGENES ==========
+    // ========== 10. MANEJO DE IMÁGENES ==========
     function limpiarPreview() {
         pendingImage = null;
         if (window._chatPreviewContainer) window._chatPreviewContainer.style.display = 'none';
@@ -631,7 +604,7 @@ function escapeHtml(str) {
             const file = e.target.files[0];
             if (!file) return;
             let compressed = file;
-            if (file.size > 3 * 1024 * 1024) {
+            if (file.size > 3 * 1024 * 1024 && typeof window.compressImage === 'function') {
                 compressed = await window.compressImage(file);
             }
             const reader = new FileReader();
@@ -645,7 +618,7 @@ function escapeHtml(str) {
         input.click();
     }
 
-    // ========== 8. ACCIONES DE GRUPO ==========
+    // ========== 11. ACCIONES DE GRUPO ==========
     async function crearNuevoGrupo() {
         mostrarPrompt('Nombre del grupo', '', async (nombre) => {
             if (!nombre) return;
@@ -690,77 +663,349 @@ function escapeHtml(str) {
         });
     }
 
-    async function vincularServicio() {
-        if (!currentGroup) return;
-        mostrarPrompt('ID del servicio (ej. OBR-12345)', '', async (servicioId) => {
-            if (!servicioId) return;
-            const q = query(collection(db, "rescates"), where("shortId", "==", servicioId), limit(1));
-            const snap = await getDocs(q);
-            if (snap.empty) {
-                window.showToast("Servicio no encontrado", true);
-                return;
-            }
-            const servicio = snap.docs[0].data();
-            if (!['pending','accepted','repairing','to_shop','ready'].includes(servicio.status)) {
-                window.showToast("Solo puedes vincular servicios activos", true);
-                return;
-            }
-            await updateDoc(doc(db, "chat_grupos", currentGroupId), { servicioId });
-            currentGroup.servicioId = servicioId;
-            if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = `Servicio: ${servicioId}`;
-            window.showToast("Grupo vinculado al servicio " + servicioId);
-            cargarGrupos();
-        });
+async function exportarChatPDF() {
+
+    if (!currentGroupId) return;
+
+    if (!window.jspdf) {
+        window.showToast("La librería PDF no está cargada", true);
+        return;
     }
 
-    async function exportarChatPDF() {
-        if (!currentGroupId) return;
-        if (!window.jspdf) {
-            window.showToast("La librería PDF no está cargada", true);
-            return;
-        }
-        const mensajesSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", currentGroupId)));
+    try {
+
+        const mensajesSnap = await getDocs(
+            query(
+                collection(db, "chat_mensajes"),
+                where("grupoId", "==", currentGroupId)
+            )
+        );
+
         const mensajes = [];
-        mensajesSnap.forEach(doc => mensajes.push(doc.data()));
+
+        mensajesSnap.forEach(doc => {
+            mensajes.push(doc.data());
+        });
+
         mensajes.sort((a, b) => a.timestamp - b.timestamp);
-        
+
         const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF();
-        let y = 20;
-        pdf.setFontSize(16);
-        pdf.text(`Chat: ${currentGroup.nombre}`, 10, y);
-        y += 10;
+
+        const pdf = new jsPDF({
+            orientation: "portrait",
+            unit: "mm",
+            format: "a4"
+        });
+
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+
+        // ==========================
+        // PORTADA
+        // ==========================
+
+        const logoImg =
+            document.getElementById("logoPDF") ||
+            document.querySelector(".logo") ||
+            null;
+
+        const addFooter = window._setupProfessionalPDF(
+            pdf,
+            `Historial Chat IA`,
+            logoImg
+        );
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(22);
+
+        pdf.setTextColor(30, 41, 59);
+
+        pdf.text(
+            "REPORTE DE CONVERSACIÓN IA",
+            pageWidth / 2,
+            80,
+            { align: "center" }
+        );
+
+        pdf.setFontSize(14);
+
+        pdf.text(
+            currentGroup.nombre || "Sin nombre",
+            pageWidth / 2,
+            95,
+            { align: "center" }
+        );
+
+        pdf.setFont("helvetica", "normal");
         pdf.setFontSize(10);
+
+        pdf.text(
+            `Generado: ${new Date().toLocaleString("es-MX")}`,
+            pageWidth / 2,
+            110,
+            { align: "center" }
+        );
+
+        pdf.addPage();
+
+        // ==========================
+        // ENCABEZADO PAGINA CHAT
+        // ==========================
+
+        window._setupProfessionalPDF(
+            pdf,
+            `Chat IA - ${currentGroup.nombre}`,
+            logoImg
+        );
+
+        let y = 40;
+
+        // ==========================
+        // FUNCION NUEVA PAGINA
+        // ==========================
+
+        const nuevaPagina = () => {
+
+            pdf.addPage();
+
+            window._setupProfessionalPDF(
+                pdf,
+                `Chat IA - ${currentGroup.nombre}`,
+                logoImg
+            );
+
+            y = 40;
+        };
+
+        // ==========================
+        // MENSAJES
+        // ==========================
+
         for (const m of mensajes) {
-            if (y > 270) { pdf.addPage(); y = 20; }
-            const autor = m.rol === 'usuario' ? '👤 Usuario' : '🤖 Asistente';
-            const fecha = new Date(m.timestamp).toLocaleString();
-            pdf.text(`${autor} (${fecha}):`, 10, y);
-            y += 5;
-            const lines = pdf.splitTextToSize(m.texto, 180);
-            pdf.text(lines, 15, y);
-            y += lines.length * 5 + 5;
-            if (m.imagenes && m.imagenes.length) {
+
+            const esUsuario = m.rol === "usuario";
+
+            const fecha = m.timestamp
+                ? new Date(m.timestamp).toLocaleString("es-MX")
+                : "";
+
+            const texto = m.texto || "";
+
+            const bubbleWidth = 125;
+            const padding = 4;
+
+            const textoLineas =
+                pdf.splitTextToSize(
+                    texto,
+                    bubbleWidth - 8
+                );
+
+            const bubbleHeight =
+                (textoLineas.length * 5) + 16;
+
+            const x = esUsuario
+                ? pageWidth - bubbleWidth - 12
+                : 12;
+
+            if (y + bubbleHeight > pageHeight - 25) {
+                nuevaPagina();
+            }
+
+            // Fondo burbuja
+
+            if (esUsuario) {
+                pdf.setFillColor(220, 248, 198);
+            } else {
+                pdf.setFillColor(245, 245, 245);
+            }
+
+            pdf.roundedRect(
+                x,
+                y,
+                bubbleWidth,
+                bubbleHeight,
+                3,
+                3,
+                "F"
+            );
+
+            // Nombre
+
+            pdf.setFont(
+                "helvetica",
+                "bold"
+            );
+
+            pdf.setFontSize(9);
+
+            pdf.setTextColor(0);
+
+            pdf.text(
+                esUsuario
+                    ? "👤 Usuario"
+                    : "🤖 Asistente IA",
+                x + padding,
+                y + 6
+            );
+
+            // Mensaje
+
+            pdf.setFont(
+                "helvetica",
+                "normal"
+            );
+
+            pdf.setFontSize(9);
+
+            pdf.text(
+                textoLineas,
+                x + padding,
+                y + 13
+            );
+
+            // Fecha
+
+            pdf.setFontSize(7);
+
+            pdf.setTextColor(
+                120,
+                120,
+                120
+            );
+
+            pdf.text(
+                fecha,
+                x + padding,
+                y + bubbleHeight - 3
+            );
+
+            pdf.setTextColor(0);
+
+            y += bubbleHeight + 6;
+
+            // ==========================
+            // IMAGENES DEL MENSAJE
+            // ==========================
+
+            if (
+                m.imagenes &&
+                m.imagenes.length
+            ) {
+
                 for (let img of m.imagenes) {
-                    if (y > 270) { pdf.addPage(); y = 20; }
+
                     try {
-                        let imgData = img;
-                        if (!imgData.startsWith('data:')) {
-                            const blob = await fetch(imgData).then(r => r.blob());
-                            imgData = await new Promise(resolve => {
-                                const reader = new FileReader();
-                                reader.onloadend = () => resolve(reader.result);
-                                reader.readAsDataURL(blob);
-                            });
+
+                        if (y > pageHeight - 70) {
+                            nuevaPagina();
                         }
-                        pdf.addImage(imgData, 'JPEG', 15, y, 50, 50);
-                        y += 55;
-                    } catch(e) { console.warn('Error añadiendo imagen al PDF:', e); }
+
+                        let imgData = img;
+
+                        if (
+                            !imgData.startsWith(
+                                "data:"
+                            )
+                        ) {
+
+                            const blob =
+                                await fetch(imgData)
+                                    .then(r =>
+                                        r.blob()
+                                    );
+
+                            imgData =
+                                await new Promise(
+                                    resolve => {
+
+                                        const reader =
+                                            new FileReader();
+
+                                        reader.onloadend =
+                                            () =>
+                                                resolve(
+                                                    reader.result
+                                                );
+
+                                        reader.readAsDataURL(
+                                            blob
+                                        );
+                                    }
+                                );
+                        }
+
+                        const imgWidth = 70;
+                        const imgHeight = 70;
+
+                        const imgX =
+                            esUsuario
+                                ? pageWidth -
+                                  imgWidth -
+                                  15
+                                : 15;
+
+                        pdf.setDrawColor(
+                            220,
+                            220,
+                            220
+                        );
+
+                        pdf.roundedRect(
+                            imgX - 2,
+                            y - 2,
+                            imgWidth + 4,
+                            imgHeight + 4,
+                            2,
+                            2
+                        );
+
+                        pdf.addImage(
+                            imgData,
+                            "JPEG",
+                            imgX,
+                            y,
+                            imgWidth,
+                            imgHeight
+                        );
+
+                        y += imgHeight + 8;
+
+                    } catch (err) {
+
+                        console.warn(
+                            "Error cargando imagen PDF",
+                            err
+                        );
+                    }
                 }
             }
         }
-        pdf.save(`chat_${currentGroup.nombre}.pdf`);
+
+        // ==========================
+        // FOOTER
+        // ==========================
+
+        addFooter(pdf);
+
+        pdf.save(
+            `ChatIA_${(
+                currentGroup.nombre ||
+                "reporte"
+            )
+                .replace(/[^\w\s-]/g, "")
+                .replace(/\s+/g, "_")}.pdf`
+        );
+
+    } catch (error) {
+
+        console.error(error);
+
+        window.showToast(
+            "Error al generar PDF",
+            true
+        );
     }
+}
 
     function filtrarGrupos() {
         const term = window._chatSearchInput ? window._chatSearchInput.value.toLowerCase() : '';
@@ -773,7 +1018,7 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== 9. MODALES PERSONALIZADOS ==========
+    // ========== 12. MODALES PERSONALIZADOS ==========
     function mostrarPrompt(titulo, valorDefault, callback) {
         const modalId = 'modal-prompt-custom';
         let modalEl = document.getElementById(modalId);
@@ -832,11 +1077,11 @@ function escapeHtml(str) {
         modalEl.classList.remove('hidden');
     }
 
-    // ========== 10. INICIALIZACIÓN ==========
+    // ========== 13. INICIALIZACIÓN Y PUNTO DE ENTRADA ==========
     window.abrirChatIA = async () => {
         if (!modal) {
             crearModalChat();
-            await initVisionModel();     // obtiene el modelo de visión antes de que se use
+            await initVisionModel();
             cargarGrupos();
         }
         if (modal) {
