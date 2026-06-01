@@ -190,6 +190,7 @@
             <input id="login-password" type="password" placeholder="********" class="w-full bg-white/5 border border-white/10 p-4 mt-1 mb-6 rounded-xl focus:outline-none focus:border-naranja text-xl lg:text-2xl tracking-widest transition-all text-white">
             <button id="btn-login" class="w-full bg-naranja hover:bg-orange-600 p-4 lg:p-5 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 text-white text-lg lg:text-xl mb-4 transition-all">Entrar</button>
             <button onclick="showRecoveryFlow()" class="w-full text-center text-[11px] lg:text-sm text-naranja font-black tracking-widest hover:text-white transition-colors underline underline-offset-4 py-2">¿Olvidaste tu contraseña?</button>
+       <button onclick="cancelFlow()" class="w-full text-center text-[10px] lg:text-xs text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white transition-colors p-2">Cancelar y Volver</button>
         </div>
         <div id="auth-step-register" class="hidden glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-white/5">
             <p class="text-naranja font-black uppercase tracking-widest text-sm lg:text-base mb-6 border-b border-white/10 pb-3"><i class="fas fa-user-plus mr-1"></i> Completar Registro</p>
@@ -207,6 +208,7 @@
                 </div>
             </div>
             <button onclick="processRegister()" class="w-full bg-green-600 hover:bg-green-500 p-4 lg:p-5 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 text-white text-lg lg:text-xl mt-8 transition-all">Registrarme y Entrar</button>
+            <button onclick="cancelFlow()" class="w-full text-center text-[10px] lg:text-xs text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white transition-colors p-2">Cancelar y Volver</button>
         </div>
         <div id="auth-step-recovery" class="hidden glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-naranja/50">
             <p class="text-naranja font-black uppercase tracking-widest text-sm lg:text-base mb-6 border-b border-white/10 pb-3"><i class="fas fa-unlock-alt mr-1"></i> Recuperar Acceso</p>
