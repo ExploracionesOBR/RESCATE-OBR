@@ -972,8 +972,46 @@ window.showRecoveryFlow = function() {
                 return;
             }
             const password = userData.pwd || "No disponible";
-            window.showToast(`Tu contraseña es: ${password}`, false);
-            setTimeout(() => window.backToLoginStep(), 3000);
+            
+            // ----- MOSTRAR LA CONTRASEÑA EN UN MODAL (no solo notificación) -----
+            const modalId = 'modal-show-password';
+            let modalEl = document.getElementById(modalId);
+            if (!modalEl) {
+                modalEl = document.createElement('div');
+                modalEl.id = modalId;
+                modalEl.className = 'fixed inset-0 bg-black/95 z-[1000010] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+                modalEl.innerHTML = `
+                    <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
+                        <i class="fas fa-lock-open text-4xl text-green-400 mb-4"></i>
+                        <h3 class="text-xl font-black text-white mb-4">Tu contraseña</h3>
+                        <div class="bg-white/10 p-3 rounded-xl mb-4 flex items-center justify-between">
+                            <input type="text" id="password-display" value="${password}" readonly class="bg-transparent text-white text-lg font-bold text-center w-full outline-none">
+                            <button id="copy-password-btn" class="ml-2 bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-black uppercase">Copiar</button>
+                        </div>
+                        <button id="close-password-modal" class="w-full bg-green-600 hover:bg-green-500 text-white p-3 rounded-xl font-black uppercase">Entendido, volver al inicio</button>
+                    </div>
+                `;
+                document.body.appendChild(modalEl);
+                
+                // Copiar al portapapeles
+                document.getElementById('copy-password-btn').addEventListener('click', () => {
+                    const passInput = document.getElementById('password-display');
+                    passInput.select();
+                    document.execCommand('copy');
+                    window.showToast("Contraseña copiada", false);
+                });
+                
+                // Cerrar modal y volver al login
+                document.getElementById('close-password-modal').addEventListener('click', () => {
+                    modalEl.classList.add('hidden');
+                    window.backToLoginStep();
+                });
+            } else {
+                // Actualizar el valor del campo si ya existe el modal
+                const passInput = document.getElementById('password-display');
+                if (passInput) passInput.value = password;
+            }
+            modalEl.classList.remove('hidden');
         };
     }
 };
