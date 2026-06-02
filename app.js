@@ -8685,13 +8685,14 @@ if (phoneField) {
         if (!boton) return;
         const chatBtn = document.getElementById('btn-chat-ai-float');
         const isMobile = window.innerWidth < 768;
-        if (isMobile) {
-            boton.style.bottom = '80px';
-            boton.style.right = '16px';
-        } else {
-            boton.style.bottom = '100px';
-            boton.style.right = '24px';
-        }
+// Para móvil
+if (isMobile) {
+    btn.style.bottom = '120px';   // antes 80px
+    btn.style.right = '16px';
+} else {
+    btn.style.bottom = '140px';   // antes 100px
+    btn.style.right = '24px';
+}
         if (chatBtn && chatBtn.style.display !== 'none') {
             const chatRect = chatBtn.getBoundingClientRect();
             if (chatRect.left < boton.getBoundingClientRect().right && !isMobile) {
