@@ -1551,11 +1551,16 @@ onAuthStateChanged(auth, async user => {
         if (mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
         loadGlobalSettings();
         // Ocultar vistas de admin y cliente
-        document.getElementById('app-admin')?.classList.add('hidden');
-        document.getElementById('app-client')?.classList.add('hidden');
+        const adminDiv = document.getElementById('app-admin');
+        const clientDiv = document.getElementById('app-client');
+        if (adminDiv) adminDiv.classList.add('hidden');
+        if (clientDiv) clientDiv.classList.add('hidden');
         // Mostrar landing
-        document.getElementById('view-landing').classList.remove('hidden');
-        document.getElementById('view-landing').classList.add('flex');
+        const landingDiv = document.getElementById('view-landing');
+        if (landingDiv) {
+            landingDiv.classList.remove('hidden');
+            landingDiv.classList.add('flex');
+        }
         return;
     }
     document.getElementById('view-landing').classList.add('hidden');
@@ -1621,7 +1626,6 @@ onAuthStateChanged(auth, async user => {
         }
     });
 });
-
 function showView(targetId) {
     // Modo Próximamente: redirigir a 'view-proximamente' excepto landing, login y force-setup
     if (globalSettings.modoProximamente && !['view-landing','view-login','view-force-setup'].includes(targetId)) {
