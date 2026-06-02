@@ -1542,7 +1542,7 @@ async function loadServicesCatalog() {
 }
 
 
-// === FLUJO DE VISTAS Y AUTENTICACIÓN ===
+// === FLUJO DE VISTAS Y AUTENTICACIÓN (CORREGIDO) ===
 onAuthStateChanged(auth, async user => {
     document.getElementById('loading-screen').classList.add('hidden');
     if (window._adminCreatingUser) return;
@@ -1556,6 +1556,10 @@ onAuthStateChanged(auth, async user => {
         // Mostrar landing
         document.getElementById('view-landing').classList.remove('hidden');
         document.getElementById('view-landing').classList.add('flex');
+        
+        // Ocultar botón flotante de Chat IA cuando no hay usuario
+        const floatBtn = document.getElementById('btn-chat-ai-float');
+        if (floatBtn) floatBtn.style.display = 'none';
         return;
     }
     document.getElementById('view-landing').classList.add('hidden');
@@ -1579,6 +1583,16 @@ onAuthStateChanged(auth, async user => {
     if (window.currentUserDoc.firstLogin && !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
         showView('view-force-setup');
         return;
+    }
+
+    // Roles permitidos para el Chat IA (personal OBR)
+    const rolesConChat = ['admin', 'mecanico', 'taller', 'socio', 'repartidor'];
+    const tieneChat = rolesConChat.includes(window.currentUserDoc.role);
+    
+    // Mostrar/ocultar botón flotante según el rol
+    const floatBtn = document.getElementById('btn-chat-ai-float');
+    if (floatBtn) {
+        floatBtn.style.display = tieneChat ? 'flex' : 'none';
     }
 
     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
