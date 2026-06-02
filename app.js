@@ -8649,7 +8649,6 @@ if (phoneField) {
 
     window.mostrarInvitacionWhatsApp = async () => {
         if (!auth.currentUser) return;
-        // Obtener código de referido del usuario
         const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
         const codigo = userSnap.data()?.codigoReferido || '';
         const enlace = `https://exploracionesobr.github.io/RESCATE-OBR/?ref=${codigo}`;
@@ -8661,15 +8660,15 @@ if (phoneField) {
 
     function crearBoton() {
         if (boton) return;
-        const btn = document.createElement('button');
-        btn.id = 'float-invite-btn';
-        btn.className = 'fixed z-50 w-14 h-14 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-transform animate-pulse-soft';
-        btn.innerHTML = '<i class="fab fa-whatsapp text-2xl text-white"></i>';
-        btn.title = 'Invitar amigos por WhatsApp';
-        btn.onclick = window.mostrarInvitacionWhatsApp;
-        btn.style.display = 'none';
-        document.body.appendChild(btn);
-        boton = btn;
+        const nuevoBoton = document.createElement('button');
+        nuevoBoton.id = 'float-invite-btn';
+        nuevoBoton.className = 'fixed z-50 w-14 h-14 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-transform animate-pulse-soft';
+        nuevoBoton.innerHTML = '<i class="fab fa-whatsapp text-2xl text-white"></i>';
+        nuevoBoton.title = 'Invitar amigos por WhatsApp';
+        nuevoBoton.onclick = window.mostrarInvitacionWhatsApp;
+        nuevoBoton.style.display = 'none';
+        document.body.appendChild(nuevoBoton);
+        boton = nuevoBoton;
         ajustarPosicion();
     }
 
@@ -8685,28 +8684,26 @@ if (phoneField) {
         if (!boton) return;
         const chatBtn = document.getElementById('btn-chat-ai-float');
         const isMobile = window.innerWidth < 768;
-// Para móvil
-if (isMobile) {
-    btn.style.bottom = '120px';   // antes 80px
-    btn.style.right = '16px';
-} else {
-    btn.style.bottom = '140px';   // antes 100px
-    btn.style.right = '24px';
-}
+        if (isMobile) {
+            boton.style.bottom = '140px';
+            boton.style.right = '16px';
+        } else {
+            boton.style.bottom = '160px';
+            boton.style.right = '24px';
+        }
         if (chatBtn && chatBtn.style.display !== 'none') {
             const chatRect = chatBtn.getBoundingClientRect();
-            if (chatRect.left < boton.getBoundingClientRect().right && !isMobile) {
+            const btnRect = boton.getBoundingClientRect();
+            if (chatRect.left < btnRect.right && !isMobile) {
                 boton.style.right = (window.innerWidth - chatRect.left + 15) + 'px';
             }
         }
     }
 
-    // Verificar si el usuario tiene rol permitido (cliente o membresia)
     function usuarioPuedeInvitar(userData) {
         return userData && (userData.role === 'cliente' || userData.role === 'membresia');
     }
 
-    // Observar autenticación y rol
     let authUnsub = null;
     function initWatcher() {
         if (authUnsub) authUnsub();
@@ -8715,6 +8712,7 @@ if (isMobile) {
                 const userSnap = await getDoc(doc(db, "users", user.uid));
                 const userData = userSnap.data();
                 if (usuarioPuedeInvitar(userData)) {
+                    if (!boton) crearBoton();
                     mostrarBoton();
                     setTimeout(ajustarPosicion, 200);
                 } else {
@@ -8726,7 +8724,7 @@ if (isMobile) {
         });
     }
 
-    // Interceptar showView para verificar después de cambio de vista
+    // Interceptar showView
     const originalShowView = window.showView;
     if (originalShowView) {
         window.showView = async function(...args) {
@@ -8735,6 +8733,7 @@ if (isMobile) {
                 const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
                 const userData = userSnap.data();
                 if (usuarioPuedeInvitar(userData)) {
+                    if (!boton) crearBoton();
                     mostrarBoton();
                     setTimeout(ajustarPosicion, 300);
                 } else {
@@ -8746,10 +8745,8 @@ if (isMobile) {
         };
     }
 
-    // Crear botón al cargar la página
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-            crearBoton();
             initWatcher();
             window.addEventListener('resize', ajustarPosicion);
             const observer = new MutationObserver(() => ajustarPosicion());
@@ -8757,7 +8754,6 @@ if (isMobile) {
             if (chatBtn) observer.observe(chatBtn, { attributes: true, attributeFilter: ['style'] });
         });
     } else {
-        crearBoton();
         initWatcher();
         window.addEventListener('resize', ajustarPosicion);
     }
