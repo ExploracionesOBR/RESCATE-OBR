@@ -40,53 +40,80 @@ input, textarea, [contenteditable] {
     user-select: text;
 }
 
-/* ---------- TEMA CLARO (light-mode) ---------- */
+/* ---------- TEMA CLARO (light-mode) – CORREGIDO PARA LEGIBILIDAD ---------- */
 body.light-mode {
     --bg: #f0f2f5;
     --text: #111111;
     --glass-bg: rgba(255, 255, 255, 0.9);
     --border: rgba(0, 0, 0, 0.1);
+    background-color: var(--bg);
+    color: var(--text);
 }
-.light-mode .bg-asfalto,
-.light-mode nav.bg-asfalto {
-    background-color: #ffffff !important;
+/* Forzar colores de texto oscuros sobre fondos claros */
+body.light-mode,
+body.light-mode .text-white,
+body.light-mode .text-gray-100,
+body.light-mode .text-gray-200,
+body.light-mode .text-gray-300,
+body.light-mode .text-gray-400,
+body.light-mode .text-black {
     color: #111111 !important;
 }
-.light-mode .bg-asfalto\/90,
-.light-mode nav.bg-asfalto\/90 {
+body.light-mode .text-naranja {
+    color: #FF6B00 !important;
+}
+/* Mantener blanco en elementos con fondo oscuro */
+body.light-mode .bg-naranja,
+body.light-mode .bg-naranja .text-white,
+body.light-mode .bg-green-600,
+body.light-mode .bg-green-600 .text-white,
+body.light-mode .bg-blue-600,
+body.light-mode .bg-blue-600 .text-white,
+body.light-mode .bg-red-600,
+body.light-mode .bg-red-600 .text-white,
+body.light-mode .bg-purple-600,
+body.light-mode .bg-purple-600 .text-white,
+body.light-mode .bg-yellow-600,
+body.light-mode .bg-yellow-600 .text-white,
+body.light-mode [class*="bg-gradient"] .text-white {
+    color: #ffffff !important;
+}
+body.light-mode .bg-asfalto,
+body.light-mode nav.bg-asfalto {
+    background-color: #ffffff !important;
+}
+body.light-mode .bg-asfalto\/90,
+body.light-mode nav.bg-asfalto\/90 {
     background-color: rgba(255,255,255,0.95) !important;
 }
-.light-mode .text-white { color: #111111 !important; }
-.light-mode .text-gray-400 { color: #555555 !important; }
-.light-mode .text-gray-300 { color: #333333 !important; }
-.light-mode .border-white\/10,
-.light-mode .border-white\/5,
-.light-mode .border-white\/20 {
+body.light-mode .border-white\/10,
+body.light-mode .border-white\/5,
+body.light-mode .border-white\/20 {
     border-color: rgba(0,0,0,0.1) !important;
 }
-.light-mode .bg-white\/5,
-.light-mode .bg-white\/10 {
+body.light-mode .bg-white\/5,
+body.light-mode .bg-white\/10 {
     background-color: rgba(0,0,0,0.05) !important;
 }
-.light-mode .bg-black\/40,
-.light-mode .bg-black\/50,
-.light-mode .bg-black\/30,
-.light-mode .bg-black\/20 {
+body.light-mode .bg-black\/40,
+body.light-mode .bg-black\/50,
+body.light-mode .bg-black\/30,
+body.light-mode .bg-black\/20 {
     background-color: rgba(255,255,255,0.9) !important;
     box-shadow: 0 4px 6px rgba(0,0,0,0.05);
 }
-.light-mode .bg-gradient-to-b {
+body.light-mode .bg-gradient-to-b {
     background-image: linear-gradient(to bottom, #ffffff, #f0f2f5) !important;
 }
-.light-mode .bg-gradient-to-br {
+body.light-mode .bg-gradient-to-br {
     background-image: linear-gradient(to bottom right, #ffffff, #f0f2f5) !important;
 }
-.light-mode input.text-white,
-.light-mode textarea.text-white,
-.light-mode select.text-white {
+body.light-mode input.text-white,
+body.light-mode textarea.text-white,
+body.light-mode select.text-white {
     color: #111111 !important;
 }
-.light-mode input.color-scheme-dark {
+body.light-mode input.color-scheme-dark {
     color-scheme: light;
 }
 
