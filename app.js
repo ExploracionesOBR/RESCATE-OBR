@@ -3142,6 +3142,41 @@ window.cambiarEstadoServicio = async (nuevoEstado) => {
     if(!docSnap.exists()) return;
     const actual = docSnap.data().tallerStatus;
     if(actual === 'lista' || actual === 'pagado') return showToast("No se puede cambiar, ya finalizó", true);
+    // Si el nuevo estado es 'completed', verificar referido
+if (nuevoEstado === 'completed') {
+    const rescateData = docSnap.data();
+    const uidCliente = rescateData.uid;
+    if (uidCliente) {
+        try {
+            const userSnap = await getDoc(doc(db, "users", uidCliente));
+            const userData = userSnap.data();
+            if (userData && userData.referidoPor) {
+                const qRef = query(collection(db, "referidos"), where("referidoId", "==", uidCliente), where("estado", "==", "pendiente"), limit(1));
+                const snapRef = await getDocs(qRef);
+                if (!snapRef.empty) {
+                    const refDoc = snapRef.docs[0];
+                    await updateDoc(refDoc.ref, { 
+                        estado: 'completado', 
+                        servicioCompletado: true, 
+                        fechaCompletado: Date.now() 
+                    });
+                    console.log(`✅ Referido ${uidCliente} completó su primer servicio`);
+                    // Opcional: notificar al referente
+                    const referenteId = refDoc.data().referenteId;
+                    if (referenteId) {
+                        await setDoc(doc(db, "notificaciones", referenteId), {
+                            msg: `🎉 ¡Tu referido ha completado su primer servicio!`,
+                            timestamp: Date.now(),
+                            leida: false
+                        });
+                    }
+                }
+            }
+        } catch (err) {
+            console.error("Error al marcar referido completado:", err);
+        }
+    }
+}
 
     // Si intenta pasar a "lista", verificar que ya se haya cobrado
     if (nuevoEstado === 'lista') {
@@ -4816,6 +4851,129 @@ window.deletePromo = async (promoId) => {
     });
 };
 
+// ========== REFERIDOS - ADMIN (Punto 3.2) ==========
+async function cargarConfigReferidos() {
+    const docSnap = await getDoc(doc(db, "config", "referidos"));
+    if (docSnap.exists()) {
+        const data = docSnap.data();
+        const refPorcentaje = document.getElementById('referido-desc-porcentaje');
+        const refMonto = document.getElementById('referido-desc-monto');
+        const refePorcentaje = document.getElementById('referente-desc-porcentaje');
+        const refeMonto = document.getElementById('referente-desc-monto');
+        if (refPorcentaje) refPorcentaje.value = data.referidoPorcentaje || '';
+        if (refMonto) refMonto.value = data.referidoMonto || '';
+        if (refePorcentaje) refePorcentaje.value = data.referentePorcentaje || '';
+        if (refeMonto) refeMonto.value = data.referenteMonto || '';
+    }
+}
+
+async function guardarConfigReferidos() {
+    const data = {
+        referidoPorcentaje: document.getElementById('referido-desc-porcentaje')?.value || null,
+        referidoMonto: document.getElementById('referido-desc-monto')?.value || null,
+        referentePorcentaje: document.getElementById('referente-desc-porcentaje')?.value || null,
+        referenteMonto: document.getElementById('referente-desc-monto')?.value || null,
+        actualizado: Date.now()
+    };
+    await setDoc(doc(db, "config", "referidos"), data);
+    window.showToast("Configuración de referidos guardada");
+}
+
+async function cargarListaReferidos() {
+    const container = document.getElementById('admin-referidos-list');
+    if (!container) return;
+    container.innerHTML = '<p class="text-xs text-gray-400">Cargando...</p>';
+    try {
+        const referidosSnap = await getDocs(query(collection(db, "referidos"), orderBy("fechaRegistro", "desc")));
+        if (referidosSnap.empty) {
+            container.innerHTML = '<p class="text-xs text-gray-400">No hay referidos registrados.</p>';
+            return;
+        }
+        const usersCache = new Map();
+        let html = '';
+        for (const docRef of referidosSnap.docs) {
+            const ref = docRef.data();
+            let referenteName = '...', referidoName = '...';
+            if (!usersCache.has(ref.referenteId)) {
+                const userSnap = await getDoc(doc(db, "users", ref.referenteId));
+                usersCache.set(ref.referenteId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
+            }
+            referenteName = usersCache.get(ref.referenteId);
+            if (!usersCache.has(ref.referidoId)) {
+                const userSnap = await getDoc(doc(db, "users", ref.referidoId));
+                usersCache.set(ref.referidoId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
+            }
+            referidoName = usersCache.get(ref.referidoId);
+            const estadoClase = ref.estado === 'completado' ? 'text-green-400' : 'text-yellow-400';
+            html += `
+                <div class="bg-white/5 p-3 rounded-xl flex justify-between items-center text-xs">
+                    <div>
+                        <p><span class="font-bold">${escapeHtml(referenteName)}</span> → <span class="font-bold">${escapeHtml(referidoName)}</span></p>
+                        <p class="text-gray-400">${new Date(ref.fechaRegistro).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                        <span class="${estadoClase} uppercase">${ref.estado}</span>
+                        ${ref.estado === 'pendiente' ? `<button onclick="marcarReferidoCompletado('${docRef.id}')" class="ml-2 bg-blue-600 text-white px-2 py-1 rounded text-[9px]">Marcar completado</button>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+    } catch (error) {
+        console.error("Error cargando referidos:", error);
+        container.innerHTML = '<p class="text-xs text-red-400">Error al cargar referidos</p>';
+    }
+}
+
+window.marcarReferidoCompletado = async (referidoId) => {
+    try {
+        await updateDoc(doc(db, "referidos", referidoId), { estado: 'completado', servicioCompletado: true, fechaCompletado: Date.now() });
+        window.showToast("Referido marcado como completado");
+        cargarListaReferidos();
+    } catch (error) {
+        console.error(error);
+        window.showToast("Error al actualizar", true);
+    }
+};
+
+// Función para integrar la carga de referidos cuando se muestra la vista de promos
+function initReferidosAdmin() {
+    if (document.getElementById('a-view-promos') && !document.getElementById('a-view-promos').classList.contains('hidden')) {
+        cargarConfigReferidos();
+        cargarListaReferidos();
+        const guardarBtn = document.getElementById('guardar-config-referidos');
+        if (guardarBtn && !guardarBtn._listenerAdded) {
+            guardarBtn.addEventListener('click', guardarConfigReferidos);
+            guardarBtn._listenerAdded = true;
+        }
+    }
+}
+
+// Llamar a initReferidosAdmin al cambiar a la vista de promos
+if (typeof window.switchAdminView === 'function') {
+    const originalSwitchAdminView = window.switchAdminView;
+    window.switchAdminView = function(viewId) {
+        originalSwitchAdminView.call(this, viewId);
+        if (viewId === 'a-view-promos') {
+            setTimeout(initReferidosAdmin, 200);
+        }
+    };
+} else {
+    // Fallback: observar cambios en la clase hidden del elemento
+    const promosView = document.getElementById('a-view-promos');
+    if (promosView) {
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class') {
+                    if (!promosView.classList.contains('hidden')) {
+                        initReferidosAdmin();
+                    }
+                }
+            });
+        });
+        observer.observe(promosView, { attributes: true });
+    }
+}
 // ======================================================
 // === VIDEO BANNER (con previsualización) ===
 // ======================================================
