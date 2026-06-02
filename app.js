@@ -1545,34 +1545,26 @@ async function loadServicesCatalog() {
 // === FLUJO DE VISTAS Y AUTENTICACIÓN ===
 onAuthStateChanged(auth, async user => {
     document.getElementById('loading-screen').classList.add('hidden');
-    if (window._adminCreatingUser) return;
+    if (window._adminCreatingUser) return;  // <-- nueva línea
 
     if (!user) {
-        if (mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
-        loadGlobalSettings();
-        // Ocultar vistas de admin y cliente
-        const adminDiv = document.getElementById('app-admin');
-        const clientDiv = document.getElementById('app-client');
-        if (adminDiv) adminDiv.classList.add('hidden');
-        if (clientDiv) clientDiv.classList.add('hidden');
-        // Mostrar landing
-        const landingDiv = document.getElementById('view-landing');
-        if (landingDiv) {
-            landingDiv.classList.remove('hidden');
-            landingDiv.classList.add('flex');
-        }
+        if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
+        loadGlobalSettings(); 
+        document.getElementById('view-landing').classList.remove('hidden'); 
+        document.getElementById('view-landing').classList.add('flex'); 
         return;
     }
     document.getElementById('view-landing').classList.add('hidden');
 
     const userSnap = await getDoc(doc(db, 'users', user.uid));
-    if (userSnap.exists()) {
-        window.currentUserDoc = userSnap.data();
-        window.currentUserDoc.id = user.uid;
-    } else {
-        window.currentUserDoc = { phone: '', role: 'cliente', name: '' };
+    if (userSnap.exists()) { 
+        window.currentUserDoc = userSnap.data(); 
+        window.currentUserDoc.id = user.uid; 
+    } else { 
+        window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; 
     }
 
+    // Verificar bloqueo/pausa
     if (window.currentUserDoc.bloqueado) {
         signOut(auth).then(() => {
             document.getElementById('out-of-zone-modal').classList.remove('hidden');
@@ -1587,6 +1579,7 @@ onAuthStateChanged(auth, async user => {
     }
 
     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
+                // Recargar ajustes desde Firestore (para que el radio y otros valores se actualicen)
         const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
         startMechanicTracking();
         if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
@@ -1608,14 +1601,16 @@ onAuthStateChanged(auth, async user => {
     } else {
         showView('app-client');
         document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
-        window.loadClientHistory();
-        listenToMySOS();
-        window.loadClientCitas();
+        // Resto de lógica de cliente...
+        window.loadClientHistory(); 
+        listenToMySOS(); 
+        window.loadClientCitas(); 
         loadPublicStore();
         window.loadMyOrders();
         updateLandingStatus();
     }
 
+    // Listener de notificaciones RTDB
     onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
         if (snap.exists()) {
             const notif = snap.val();
@@ -1626,6 +1621,7 @@ onAuthStateChanged(auth, async user => {
         }
     });
 });
+
 function showView(targetId) {
     // Modo Próximamente: redirigir a 'view-proximamente' excepto landing, login y force-setup
     if (globalSettings.modoProximamente && !['view-landing','view-login','view-force-setup'].includes(targetId)) {
@@ -3140,48 +3136,47 @@ window.addServicioComentario = async () => {
 };
 
 window.cambiarEstadoServicio = async (nuevoEstado) => {
-    if (!currentDetalleServicioId) return;
+    if(!currentDetalleServicioId) return;
     const docRef = doc(db, "rescates", currentDetalleServicioId);
     const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) return;
+    if(!docSnap.exists()) return;
     const actual = docSnap.data().tallerStatus;
-    if (actual === 'lista' || actual === 'pagado') return showToast("No se puede cambiar, ya finalizó", true);
-
-    // ---- REFERIDOS: si el nuevo estado es 'completed', marcar el referido ----
-    if (nuevoEstado === 'completed') {
-        const rescateData = docSnap.data();
-        const uidCliente = rescateData.uid;
-        if (uidCliente) {
-            try {
-                const userSnap = await getDoc(doc(db, "users", uidCliente));
-                const userData = userSnap.data();
-                if (userData && userData.referidoPor) {
-                    const qRef = query(collection(db, "referidos"), where("referidoId", "==", uidCliente), where("estado", "==", "pendiente"), limit(1));
-                    const snapRef = await getDocs(qRef);
-                    if (!snapRef.empty) {
-                        const refDoc = snapRef.docs[0];
-                        await updateDoc(refDoc.ref, { 
-                            estado: 'completado', 
-                            servicioCompletado: true, 
-                            fechaCompletado: Date.now() 
+    if(actual === 'lista' || actual === 'pagado') return showToast("No se puede cambiar, ya finalizó", true);
+    // Si el nuevo estado es 'completed', verificar referido
+if (nuevoEstado === 'completed') {
+    const rescateData = docSnap.data();
+    const uidCliente = rescateData.uid;
+    if (uidCliente) {
+        try {
+            const userSnap = await getDoc(doc(db, "users", uidCliente));
+            const userData = userSnap.data();
+            if (userData && userData.referidoPor) {
+                const qRef = query(collection(db, "referidos"), where("referidoId", "==", uidCliente), where("estado", "==", "pendiente"), limit(1));
+                const snapRef = await getDocs(qRef);
+                if (!snapRef.empty) {
+                    const refDoc = snapRef.docs[0];
+                    await updateDoc(refDoc.ref, { 
+                        estado: 'completado', 
+                        servicioCompletado: true, 
+                        fechaCompletado: Date.now() 
+                    });
+                    console.log(`✅ Referido ${uidCliente} completó su primer servicio`);
+                    // Opcional: notificar al referente
+                    const referenteId = refDoc.data().referenteId;
+                    if (referenteId) {
+                        await setDoc(doc(db, "notificaciones", referenteId), {
+                            msg: `🎉 ¡Tu referido ha completado su primer servicio!`,
+                            timestamp: Date.now(),
+                            leida: false
                         });
-                        console.log(`✅ Referido ${uidCliente} completó su primer servicio`);
-                        const referenteId = refDoc.data().referenteId;
-                        if (referenteId) {
-                            await setDoc(doc(db, "notificaciones", referenteId), {
-                                msg: `🎉 ¡Tu referido ha completado su primer servicio!`,
-                                timestamp: Date.now(),
-                                leida: false
-                            });
-                        }
                     }
                 }
-            } catch (err) {
-                console.error("Error al marcar referido completado:", err);
             }
+        } catch (err) {
+            console.error("Error al marcar referido completado:", err);
         }
     }
-    // ----------------------------------------------------------------
+}
 
     // Si intenta pasar a "lista", verificar que ya se haya cobrado
     if (nuevoEstado === 'lista') {
@@ -3192,16 +3187,15 @@ window.cambiarEstadoServicio = async (nuevoEstado) => {
         }
     }
 
-    // Actualizar estado del servicio
     await updateDoc(docRef, { tallerStatus: nuevoEstado });
+    if (data && data.uid) {
+            await verificarYCompletarReferido(data.uid);
 
-    // Notificar al cliente (si existe)
-    if (docSnap.data().uid) {
-        push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), {
-            msg: nuevoEstado === 'pruebas' ? 'CONTINUAMOS TRABAJANDO EN TU MOTO' :
-                 (nuevoEstado === 'lista' ? 'TU MOTO YA ESTÁ LISTA, ESPERA AL MECÁNICO' : 'MOTO EN MECÁNICA')
-        });
-    }
+    if(docSnap.data().uid) push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), {
+        msg: nuevoEstado === 'pruebas' ? 'CONTINUAMOS TRABAJANDO EN TU MOTO' :
+             (nuevoEstado === 'lista' ? 'TU MOTO YA ESTÁ LISTA, ESPERA AL MECÁNICO' :
+              'MOTO EN MECÁNICA')
+    });
 
     playSound('notif');
     showToast(`Estado cambiado a ${nuevoEstado}`);
