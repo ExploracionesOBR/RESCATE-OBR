@@ -517,39 +517,46 @@ input:focus, select:focus, textarea:focus {
 /* ---------- VIDEO BANNER (sticky y ancho completo) ---------- */
 #video-banner-container,
 #video-banner-container-client {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 100 !important;
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
-    border-radius: 0 !important;
-    overflow: hidden;
     background-color: #000;
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 100 !important;
+    overflow: hidden;
 }
 #video-banner-container video,
 #video-banner-container-client video {
     width: 100% !important;
     height: auto !important;
-    object-fit: cover !important;
+    min-height: 180px; /* altura mínima, se puede ajustar */
+    object-fit: cover !important; /* recorta el video para llenar el contenedor sin deformarlo */
     display: block;
     pointer-events: none;
-    user-select: none;
 }
+
 @media (max-width: 768px) {
     #video-banner-container,
     #video-banner-container-client {
-        height: 170px;
+        height: 170px; /* altura fija para móvil */
+    }
+    #video-banner-container video,
+    #video-banner-container-client video {
+        min-height: 170px;
     }
 }
 @media (min-width: 769px) {
     #video-banner-container,
     #video-banner-container-client {
-        height: 200px;
+        height: 200px; /* altura fija para escritorio */
+    }
+    #video-banner-container video,
+    #video-banner-container-client video {
+        min-height: 200px;
     }
 }
-
 /* ---------- BOTONES FLOTANTES (Chat IA e invitación) – SUBIDOS 20px ---------- */
 #btn-chat-ai-float,
 #float-invite-btn {
@@ -800,4 +807,37 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
     font-size: 0.6rem;
     font-weight: 800;
     text-transform: uppercase;
+}
+/* ===== CORRECCIONES DE LEGIBILIDAD EN MODO CLARO ===== */
+body.light-mode a:not([class*="bg-"]):not([class*="text-naranja"]),
+body.light-mode .text-white:not(.bg-naranja):not(.bg-green-600):not(.bg-blue-600):not(.bg-red-600) {
+    color: #111111 !important;
+}
+
+/* Mejorar contraste de los números de teléfono (naranja sobre fondo claro) */
+body.light-mode .text-naranja,
+body.light-mode a.text-naranja,
+body.light-mode span.text-naranja {
+    color: #c2410c !important;  /* naranja más oscuro, buen contraste */
+    text-shadow: 0 0 1px rgba(0,0,0,0.1);
+}
+
+/* Opcional: si el enlace "CÓMO LLEGAR AL TALLER" está dentro de un botón o div sin clase específica */
+body.light-mode .mt-4 a,
+body.light-mode button:not(.bg-naranja):not(.bg-green-600) {
+    color: #111111 !important;
+}
+
+/* Fuerza el color oscuro para textos dentro de contenedores principales en modo claro */
+body.light-mode .app-view,
+body.light-mode .glass,
+body.light-mode .bg-white\/5,
+body.light-mode .bg-white\/10 {
+    color: #111111 !important;
+}
+
+/* Para el footer o áreas de contacto, mejorar legibilidad de números */
+body.light-mode .text-naranja.font-black {
+    color: #c2410c !important;
+    font-weight: 900;
 }
