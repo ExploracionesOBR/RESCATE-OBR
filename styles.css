@@ -1,3 +1,7 @@
+/* ============================
+   styles.css - VERSIÓN CORREGIDA (sin sticky en video, sin padding extra)
+   ============================ */
+
 /* ---------- VARIABLES GLOBALES ---------- */
 :root {
     --bg: #1A1A1A;
@@ -29,8 +33,8 @@ body {
     user-select: none;
     max-width: 100vw;
     overflow-x: hidden;
-    /* Safe area */
-    padding-top: var(--safe-area-top);
+    /* Safe area: aplicamos solo en laterales, eliminamos padding superior innecesario */
+    padding-top: 0;
     padding-bottom: var(--safe-area-bottom);
     padding-left: var(--safe-area-left);
     padding-right: var(--safe-area-right);
@@ -76,6 +80,23 @@ body.light-mode .bg-purple-600 .text-white,
 body.light-mode .bg-yellow-600,
 body.light-mode .bg-yellow-600 .text-white,
 body.light-mode [class*="bg-gradient"] .text-white {
+    color: #ffffff !important;
+}
+/* Iconos en modo claro (FontAwesome) */
+body.light-mode .fas,
+body.light-mode .far,
+body.light-mode .fab {
+    color: #111111 !important;
+}
+body.light-mode .text-naranja .fas,
+body.light-mode .text-naranja .far,
+body.light-mode .text-naranja .fab {
+    color: #c2410c !important;
+}
+body.light-mode .bg-naranja .fas,
+body.light-mode .bg-naranja .far,
+body.light-mode .bg-naranja .fab,
+body.light-mode button.bg-naranja .fas {
     color: #ffffff !important;
 }
 body.light-mode .bg-asfalto,
@@ -514,49 +535,32 @@ input:focus, select:focus, textarea:focus {
     filter: grayscale(10%);
 }
 
-/* ---------- VIDEO BANNER (sticky y ancho completo) ---------- */
+/* ---------- VIDEO BANNER (sin sticky, altura fija) ---------- */
 #video-banner-container,
 #video-banner-container-client {
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 100 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
     background-color: #000;
     overflow: hidden;
+    height: 180px; /* altura fija para todos */
 }
 #video-banner-container video,
 #video-banner-container-client video {
-    width: 100% !important;
-    height: auto !important;
-    min-height: 180px; /* altura mínima, se puede ajustar */
-    object-fit: cover !important; /* recorta el video para llenar el contenedor sin deformarlo */
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
     display: block;
     pointer-events: none;
 }
-
 @media (max-width: 768px) {
     #video-banner-container,
     #video-banner-container-client {
-        height: 170px; /* altura fija para móvil */
-    }
-    #video-banner-container video,
-    #video-banner-container-client video {
-        min-height: 170px;
+        height: 150px;
     }
 }
-@media (min-width: 769px) {
-    #video-banner-container,
-    #video-banner-container-client {
-        height: 200px; /* altura fija para escritorio */
-    }
-    #video-banner-container video,
-    #video-banner-container-client video {
-        min-height: 200px;
-    }
-}
+
 /* ---------- BOTONES FLOTANTES (Chat IA e invitación) – SUBIDOS 20px ---------- */
 #btn-chat-ai-float,
 #float-invite-btn {
@@ -692,10 +696,6 @@ header.sticky,
     .text-xl { font-size: 1.3rem !important; }
     .text-2xl { font-size: 1.5rem !important; }
     .text-3xl { font-size: 1.7rem !important; }
-    #video-banner-container video,
-    #video-banner-container-client video {
-        max-height: 150px !important;
-    }
 }
 
 @media (min-width: 1024px) {
@@ -818,17 +818,15 @@ body.light-mode .text-white:not(.bg-naranja):not(.bg-green-600):not(.bg-blue-600
 body.light-mode .text-naranja,
 body.light-mode a.text-naranja,
 body.light-mode span.text-naranja {
-    color: #c2410c !important;  /* naranja más oscuro, buen contraste */
+    color: #c2410c !important;
     text-shadow: 0 0 1px rgba(0,0,0,0.1);
 }
 
-/* Opcional: si el enlace "CÓMO LLEGAR AL TALLER" está dentro de un botón o div sin clase específica */
 body.light-mode .mt-4 a,
 body.light-mode button:not(.bg-naranja):not(.bg-green-600) {
     color: #111111 !important;
 }
 
-/* Fuerza el color oscuro para textos dentro de contenedores principales en modo claro */
 body.light-mode .app-view,
 body.light-mode .glass,
 body.light-mode .bg-white\/5,
@@ -836,7 +834,6 @@ body.light-mode .bg-white\/10 {
     color: #111111 !important;
 }
 
-/* Para el footer o áreas de contacto, mejorar legibilidad de números */
 body.light-mode .text-naranja.font-black {
     color: #c2410c !important;
     font-weight: 900;
