@@ -8598,7 +8598,7 @@ if (phoneField) {
         }
     });
 }
-// ========== BOTÓN FLOTANTE DORADO DE INVITACIÓN (SOLO USUARIOS LOGUEADOS) ==========
+// ========== BOTÓN FLOTANTE DORADO DE INVITACIÓN (SOLO CLIENTES Y VIP) ==========
 (function() {
     let boton = null;
     let modalCreado = false;
@@ -8618,7 +8618,7 @@ if (phoneField) {
                 <h2 class="text-xl font-black text-white mb-2">Comparte OBR</h2>
                 <p class="text-xs text-gray-300 mb-4">Invita a tus amigos a que se unan a nuestra comunidad de auxilio mecánico.</p>
                 <div class="bg-white/10 p-2 rounded-lg mb-4">
-                    <p class="text-[10px] text-gray-400 break-all">https://exploracionesobr.github.io/RESCATE-OBR</p>
+                    <p class="text-[10px] text-gray-400 break-all" id="invite-link-display">https://exploracionesobr.github.io/RESCATE-OBR</p>
                 </div>
                 <div class="flex flex-col space-y-2">
                     <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar por WhatsApp</button>
@@ -8632,7 +8632,9 @@ if (phoneField) {
         const skipBtn = document.getElementById('whatsapp-skip-btn');
         if (inviteBtn) {
             inviteBtn.onclick = () => {
-                const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Auxilio mecánico rápido y confiable. Únete aquí: https://exploracionesobr.github.io/RESCATE-OBR`);
+                const linkSpan = document.getElementById('invite-link-display');
+                const enlace = linkSpan ? linkSpan.innerText : 'https://exploracionesobr.github.io/RESCATE-OBR';
+                const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Auxilio mecánico rápido y confiable. Únete aquí: ${enlace}`);
                 window.open(`https://wa.me/?text=${mensaje}`, '_blank');
                 window.toggleModal(modalId, false);
             };
@@ -8645,8 +8647,15 @@ if (phoneField) {
         modalCreado = true;
     }
 
-    window.mostrarInvitacionWhatsApp = () => {
+    window.mostrarInvitacionWhatsApp = async () => {
+        if (!auth.currentUser) return;
+        // Obtener código de referido del usuario
+        const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+        const codigo = userSnap.data()?.codigoReferido || '';
+        const enlace = `https://exploracionesobr.github.io/RESCATE-OBR/?ref=${codigo}`;
         crearModalInvitacion();
+        const linkSpan = document.getElementById('invite-link-display');
+        if (linkSpan) linkSpan.innerText = enlace;
         window.toggleModal('modal-whatsapp-invite', true);
     };
 
@@ -8658,7 +8667,7 @@ if (phoneField) {
         btn.innerHTML = '<i class="fab fa-whatsapp text-2xl text-white"></i>';
         btn.title = 'Invitar amigos por WhatsApp';
         btn.onclick = window.mostrarInvitacionWhatsApp;
-        btn.style.display = 'none'; // oculto por defecto
+        btn.style.display = 'none';
         document.body.appendChild(btn);
         boton = btn;
         ajustarPosicion();
@@ -8683,38 +8692,53 @@ if (phoneField) {
             boton.style.bottom = '100px';
             boton.style.right = '24px';
         }
-        // Si el botón del chat IA está visible, mover el nuestro para que no lo tape
         if (chatBtn && chatBtn.style.display !== 'none') {
             const chatRect = chatBtn.getBoundingClientRect();
-            const btnRect = boton.getBoundingClientRect();
-            if (chatRect.left < btnRect.right && !isMobile) {
+            if (chatRect.left < boton.getBoundingClientRect().right && !isMobile) {
                 boton.style.right = (window.innerWidth - chatRect.left + 15) + 'px';
             }
         }
     }
 
-    // Observar autenticación
+    // Verificar si el usuario tiene rol permitido (cliente o membresia)
+    function usuarioPuedeInvitar(userData) {
+        return userData && (userData.role === 'cliente' || userData.role === 'membresia');
+    }
+
+    // Observar autenticación y rol
     let authUnsub = null;
     function initWatcher() {
         if (authUnsub) authUnsub();
-        authUnsub = onAuthStateChanged(auth, (user) => {
+        authUnsub = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                mostrarBoton();
-                setTimeout(ajustarPosicion, 200);
+                const userSnap = await getDoc(doc(db, "users", user.uid));
+                const userData = userSnap.data();
+                if (usuarioPuedeInvitar(userData)) {
+                    mostrarBoton();
+                    setTimeout(ajustarPosicion, 200);
+                } else {
+                    ocultarBoton();
+                }
             } else {
                 ocultarBoton();
             }
         });
     }
 
-    // Interceptar showView para forzar visibilidad después de cambio de vista
+    // Interceptar showView para verificar después de cambio de vista
     const originalShowView = window.showView;
     if (originalShowView) {
-        window.showView = function(...args) {
+        window.showView = async function(...args) {
             originalShowView.apply(this, args);
             if (auth.currentUser) {
-                mostrarBoton();
-                setTimeout(ajustarPosicion, 300);
+                const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+                const userData = userSnap.data();
+                if (usuarioPuedeInvitar(userData)) {
+                    mostrarBoton();
+                    setTimeout(ajustarPosicion, 300);
+                } else {
+                    ocultarBoton();
+                }
             } else {
                 ocultarBoton();
             }
@@ -8727,7 +8751,6 @@ if (phoneField) {
             crearBoton();
             initWatcher();
             window.addEventListener('resize', ajustarPosicion);
-            // Observar cambios en el botón de chat (por si aparece/desaparece)
             const observer = new MutationObserver(() => ajustarPosicion());
             const chatBtn = document.getElementById('btn-chat-ai-float');
             if (chatBtn) observer.observe(chatBtn, { attributes: true, attributeFilter: ['style'] });
