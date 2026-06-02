@@ -3136,47 +3136,48 @@ window.addServicioComentario = async () => {
 };
 
 window.cambiarEstadoServicio = async (nuevoEstado) => {
-    if(!currentDetalleServicioId) return;
+    if (!currentDetalleServicioId) return;
     const docRef = doc(db, "rescates", currentDetalleServicioId);
     const docSnap = await getDoc(docRef);
-    if(!docSnap.exists()) return;
+    if (!docSnap.exists()) return;
     const actual = docSnap.data().tallerStatus;
-    if(actual === 'lista' || actual === 'pagado') return showToast("No se puede cambiar, ya finalizó", true);
-    // Si el nuevo estado es 'completed', verificar referido
-if (nuevoEstado === 'completed') {
-    const rescateData = docSnap.data();
-    const uidCliente = rescateData.uid;
-    if (uidCliente) {
-        try {
-            const userSnap = await getDoc(doc(db, "users", uidCliente));
-            const userData = userSnap.data();
-            if (userData && userData.referidoPor) {
-                const qRef = query(collection(db, "referidos"), where("referidoId", "==", uidCliente), where("estado", "==", "pendiente"), limit(1));
-                const snapRef = await getDocs(qRef);
-                if (!snapRef.empty) {
-                    const refDoc = snapRef.docs[0];
-                    await updateDoc(refDoc.ref, { 
-                        estado: 'completado', 
-                        servicioCompletado: true, 
-                        fechaCompletado: Date.now() 
-                    });
-                    console.log(`✅ Referido ${uidCliente} completó su primer servicio`);
-                    // Opcional: notificar al referente
-                    const referenteId = refDoc.data().referenteId;
-                    if (referenteId) {
-                        await setDoc(doc(db, "notificaciones", referenteId), {
-                            msg: `🎉 ¡Tu referido ha completado su primer servicio!`,
-                            timestamp: Date.now(),
-                            leida: false
+    if (actual === 'lista' || actual === 'pagado') return showToast("No se puede cambiar, ya finalizó", true);
+
+    // ---- REFERIDOS: si el nuevo estado es 'completed', marcar el referido ----
+    if (nuevoEstado === 'completed') {
+        const rescateData = docSnap.data();
+        const uidCliente = rescateData.uid;
+        if (uidCliente) {
+            try {
+                const userSnap = await getDoc(doc(db, "users", uidCliente));
+                const userData = userSnap.data();
+                if (userData && userData.referidoPor) {
+                    const qRef = query(collection(db, "referidos"), where("referidoId", "==", uidCliente), where("estado", "==", "pendiente"), limit(1));
+                    const snapRef = await getDocs(qRef);
+                    if (!snapRef.empty) {
+                        const refDoc = snapRef.docs[0];
+                        await updateDoc(refDoc.ref, { 
+                            estado: 'completado', 
+                            servicioCompletado: true, 
+                            fechaCompletado: Date.now() 
                         });
+                        console.log(`✅ Referido ${uidCliente} completó su primer servicio`);
+                        const referenteId = refDoc.data().referenteId;
+                        if (referenteId) {
+                            await setDoc(doc(db, "notificaciones", referenteId), {
+                                msg: `🎉 ¡Tu referido ha completado su primer servicio!`,
+                                timestamp: Date.now(),
+                                leida: false
+                            });
+                        }
                     }
                 }
+            } catch (err) {
+                console.error("Error al marcar referido completado:", err);
             }
-        } catch (err) {
-            console.error("Error al marcar referido completado:", err);
         }
     }
-}
+    // ----------------------------------------------------------------
 
     // Si intenta pasar a "lista", verificar que ya se haya cobrado
     if (nuevoEstado === 'lista') {
@@ -3187,15 +3188,16 @@ if (nuevoEstado === 'completed') {
         }
     }
 
+    // Actualizar estado del servicio
     await updateDoc(docRef, { tallerStatus: nuevoEstado });
-    if (data && data.uid) {
-            await verificarYCompletarReferido(data.uid);
 
-    if(docSnap.data().uid) push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), {
-        msg: nuevoEstado === 'pruebas' ? 'CONTINUAMOS TRABAJANDO EN TU MOTO' :
-             (nuevoEstado === 'lista' ? 'TU MOTO YA ESTÁ LISTA, ESPERA AL MECÁNICO' :
-              'MOTO EN MECÁNICA')
-    });
+    // Notificar al cliente (si existe)
+    if (docSnap.data().uid) {
+        push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), {
+            msg: nuevoEstado === 'pruebas' ? 'CONTINUAMOS TRABAJANDO EN TU MOTO' :
+                 (nuevoEstado === 'lista' ? 'TU MOTO YA ESTÁ LISTA, ESPERA AL MECÁNICO' : 'MOTO EN MECÁNICA')
+        });
+    }
 
     playSound('notif');
     showToast(`Estado cambiado a ${nuevoEstado}`);
