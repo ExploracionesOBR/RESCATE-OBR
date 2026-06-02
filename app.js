@@ -1843,127 +1843,86 @@ window.processLogin = async () => {
         else showToast("Error al iniciar sesión", true);
     }
 };
+
 window.processRegister = async () => {
     const rawPhone = document.getElementById('phone-input').value.trim();
     const name = document.getElementById('reg-name').value.trim();
     const password = document.getElementById('reg-password').value.trim();
     const question = document.getElementById('reg-question').value;
     const answer = document.getElementById('reg-answer').value.trim();
-    
-    if (!name || password.length < 6 || !question || !answer) {
-        return showToast("Completa datos (Pass min 6)", true);
-    }
-    
+    if (!name || password.length < 6 || !question || !answer) return showToast("Completa datos (Pass min 6)", true);
     const fakeEmail = `${rawPhone}@motorescateobr.com`;
-    
     try {
-        // 1. Crear usuario en Authentication
         const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
-        const uid = userCredential.user.uid;
-        
-        // 2. Generar código de referido único (6 caracteres)
-        const codigoReferido = Math.random().toString(36).substring(2, 8).toUpperCase();
-        
-        // 3. Leer parámetro 'ref' de la URL (si existe)
-        const urlParams = new URLSearchParams(window.location.search);
-        const codigoReferente = urlParams.get('ref');
-        
-        // 4. Guardar datos del usuario en Firestore (incluyendo referidos)
-        await setDoc(doc(db, "users", uid), {
+        await setDoc(doc(db, "users", userCredential.user.uid), {
             phone: "+52" + rawPhone,
-            name: name,
+            name,
             role: 'cliente',
             secQuestion: question,
             secAnswer: answer.toLowerCase(),
             pwd: password,
             firstLogin: true,
-            created: Date.now(),
-            codigoReferido: codigoReferido,      // ← código propio
-            referidoPor: codigoReferente || null  // ← quien lo invitó (si aplica)
+            created: new Date().toISOString()
         });
-        
-        // 5. Si viene de un referido, registrar la relación en colección "referidos"
-        if (codigoReferente) {
-            const qReferente = query(collection(db, "users"), where("codigoReferido", "==", codigoReferente), limit(1));
-            const snapReferente = await getDocs(qReferente);
-            if (!snapReferente.empty) {
-                const referenteDoc = snapReferente.docs[0];
-                const referenteId = referenteDoc.id;
-                await addDoc(collection(db, "referidos"), {
-                    referenteId: referenteId,
-                    referidoId: uid,
-                    codigoReferente: codigoReferente,
-                    fechaRegistro: Date.now(),
-                    estado: 'pendiente',        // pendiente, completado, canjeado
-                    servicioCompletado: false
-                });
-                // Notificación al referente (opcional)
-                await setDoc(doc(db, "notificaciones", referenteId), {
-                    msg: `🎉 ¡${name} se registró usando tu código de referido!`,
-                    timestamp: Date.now(),
-                    leida: false
-                });
+
+        // Crear o actualizar modal de invitación por WhatsApp
+        // ========== MODAL DE INVITACIÓN (sin recarga) ==========
+const modalId = 'modal-whatsapp-invite';
+let modalEl = document.getElementById(modalId);
+if (!modalEl) {
+    modalEl = document.createElement('div');
+    modalEl.id = modalId;
+    modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+    modalEl.innerHTML = `
+        <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
+            <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
+            <h2 class="text-xl font-black text-white mb-2">¡Registro exitoso!</h2>
+            <p class="text-xs text-gray-300 mb-4">Comparte este enlace con tus amigos para que también se unan a OBR.</p>
+            <div class="bg-white/10 p-2 rounded-lg mb-4">
+                <p class="text-[10px] text-gray-400 break-all">https://exploracionesobr.github.io/RESCATE-OBR</p>
+            </div>
+            <div class="flex flex-col space-y-2">
+                <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar por WhatsApp</button>
+                <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Comenzar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modalEl);
+}
+
+// Asignar eventos (solo una vez)
+const inviteBtn = document.getElementById('whatsapp-invite-btn');
+const skipBtn = document.getElementById('whatsapp-skip-btn');
+if (inviteBtn && !inviteBtn._bound) {
+    inviteBtn._bound = true;
+    inviteBtn.onclick = () => {
+        const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Auxilio mecánico rápido. Únete aquí: https://exploracionesobr.github.io/RESCATE-OBR`);
+        window.open(`https://wa.me/?text=${mensaje}`, '_blank');
+        window.toggleModal(modalId, false);
+        // NO recargar la página, solo cerrar el modal
+    };
+}
+if (skipBtn && !skipBtn._bound) {
+    skipBtn._bound = true;
+    skipBtn.onclick = () => {
+        window.toggleModal(modalId, false);
+        // NO recargar la página
+    };
+}
+
+// Mostrar el modal
+window.toggleModal(modalId, true);
+showToast("Registro exitoso. navega por la app.");
+    } catch (e) {
+        if (e.code === 'auth/email-already-in-use') {
+            try {
+                await signInWithEmailAndPassword(auth, fakeEmail, password);
+            } catch(loginErr) {
+                showToast("Ya existe. Inicia sesión con tu contraseña.", true);
+                document.getElementById('auth-step-register').classList.add('hidden');
+                document.getElementById('auth-step-login').classList.remove('hidden');
             }
-        }
-        
-        // 6. Crear o actualizar modal de invitación (para compartir enlace)
-        const modalId = 'modal-whatsapp-invite';
-        let modalEl = document.getElementById(modalId);
-        if (!modalEl) {
-            modalEl = document.createElement('div');
-            modalEl.id = modalId;
-            modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-            modalEl.innerHTML = `
-                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
-                    <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
-                    <h2 class="text-xl font-black text-white mb-2">¡Registro exitoso!</h2>
-                    <p class="text-xs text-gray-300 mb-4">Comparte este enlace con tus amigos para que también se unan a OBR.</p>
-                    <div class="bg-white/10 p-2 rounded-lg mb-4">
-                        <p class="text-[10px] text-gray-400 break-all" id="invite-link-display">https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}</p>
-                    </div>
-                    <div class="flex flex-col space-y-2">
-                        <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar por WhatsApp</button>
-                        <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Comenzar</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modalEl);
-            
-            // Eventos del modal
-            const inviteBtn = document.getElementById('whatsapp-invite-btn');
-            const skipBtn = document.getElementById('whatsapp-skip-btn');
-            if (inviteBtn) {
-                inviteBtn.onclick = () => {
-                    const link = document.getElementById('invite-link-display').innerText;
-                    const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Auxilio mecánico rápido. Únete aquí: ${link}`);
-                    window.open(`https://wa.me/?text=${mensaje}`, '_blank');
-                    window.toggleModal(modalId, false);
-                };
-            }
-            if (skipBtn) {
-                skipBtn.onclick = () => {
-                    window.toggleModal(modalId, false);
-                };
-            }
-        } else {
-            // Actualizar el enlace del modal si ya existía
-            const linkSpan = document.getElementById('invite-link-display');
-            if (linkSpan) linkSpan.innerText = `https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}`;
-        }
-        
-        // 7. Mostrar modal y toast
-        window.toggleModal(modalId, true);
-        showToast("Registro exitoso. Completa tu perfil.");
-        
-    } catch (error) {
-        console.error("Error en registro:", error);
-        if (error.code === 'auth/email-already-in-use') {
-            showToast("Ya existe una cuenta con ese número. Inicia sesión.", true);
-            document.getElementById('auth-step-register').classList.add('hidden');
-            document.getElementById('auth-step-login').classList.remove('hidden');
-        } else {
-            showToast("Error en registro: " + (error.message || "Intenta de nuevo"), true);
-        }
+        } else showToast("Error en registro", true);
     }
 };
 window.toggleSession = () => {
@@ -3142,41 +3101,6 @@ window.cambiarEstadoServicio = async (nuevoEstado) => {
     if(!docSnap.exists()) return;
     const actual = docSnap.data().tallerStatus;
     if(actual === 'lista' || actual === 'pagado') return showToast("No se puede cambiar, ya finalizó", true);
-    // Si el nuevo estado es 'completed', verificar referido
-if (nuevoEstado === 'completed') {
-    const rescateData = docSnap.data();
-    const uidCliente = rescateData.uid;
-    if (uidCliente) {
-        try {
-            const userSnap = await getDoc(doc(db, "users", uidCliente));
-            const userData = userSnap.data();
-            if (userData && userData.referidoPor) {
-                const qRef = query(collection(db, "referidos"), where("referidoId", "==", uidCliente), where("estado", "==", "pendiente"), limit(1));
-                const snapRef = await getDocs(qRef);
-                if (!snapRef.empty) {
-                    const refDoc = snapRef.docs[0];
-                    await updateDoc(refDoc.ref, { 
-                        estado: 'completado', 
-                        servicioCompletado: true, 
-                        fechaCompletado: Date.now() 
-                    });
-                    console.log(`✅ Referido ${uidCliente} completó su primer servicio`);
-                    // Opcional: notificar al referente
-                    const referenteId = refDoc.data().referenteId;
-                    if (referenteId) {
-                        await setDoc(doc(db, "notificaciones", referenteId), {
-                            msg: `🎉 ¡Tu referido ha completado su primer servicio!`,
-                            timestamp: Date.now(),
-                            leida: false
-                        });
-                    }
-                }
-            }
-        } catch (err) {
-            console.error("Error al marcar referido completado:", err);
-        }
-    }
-}
 
     // Si intenta pasar a "lista", verificar que ya se haya cobrado
     if (nuevoEstado === 'lista') {
@@ -3188,8 +3112,6 @@ if (nuevoEstado === 'completed') {
     }
 
     await updateDoc(docRef, { tallerStatus: nuevoEstado });
-    if (data && data.uid) {
-            await verificarYCompletarReferido(data.uid);
 
     if(docSnap.data().uid) push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), {
         msg: nuevoEstado === 'pruebas' ? 'CONTINUAMOS TRABAJANDO EN TU MOTO' :
@@ -4853,203 +4775,6 @@ window.deletePromo = async (promoId) => {
     });
 };
 
-// ========== REFERIDOS - ADMIN (Punto 3.2) ==========
-async function cargarConfigReferidos() {
-    const docSnap = await getDoc(doc(db, "config", "referidos"));
-    if (docSnap.exists()) {
-        const data = docSnap.data();
-        const refPorcentaje = document.getElementById('referido-desc-porcentaje');
-        const refMonto = document.getElementById('referido-desc-monto');
-        const refePorcentaje = document.getElementById('referente-desc-porcentaje');
-        const refeMonto = document.getElementById('referente-desc-monto');
-        if (refPorcentaje) refPorcentaje.value = data.referidoPorcentaje || '';
-        if (refMonto) refMonto.value = data.referidoMonto || '';
-        if (refePorcentaje) refePorcentaje.value = data.referentePorcentaje || '';
-        if (refeMonto) refeMonto.value = data.referenteMonto || '';
-    }
-}
-
-async function guardarConfigReferidos() {
-    const data = {
-        referidoPorcentaje: document.getElementById('referido-desc-porcentaje')?.value || null,
-        referidoMonto: document.getElementById('referido-desc-monto')?.value || null,
-        referentePorcentaje: document.getElementById('referente-desc-porcentaje')?.value || null,
-        referenteMonto: document.getElementById('referente-desc-monto')?.value || null,
-        actualizado: Date.now()
-    };
-    await setDoc(doc(db, "config", "referidos"), data);
-    window.showToast("Configuración de referidos guardada");
-}
-
-async function cargarListaReferidos() {
-    const container = document.getElementById('admin-referidos-list');
-    if (!container) return;
-    container.innerHTML = '<p class="text-xs text-gray-400">Cargando...</p>';
-    try {
-        const referidosSnap = await getDocs(query(collection(db, "referidos"), orderBy("fechaRegistro", "desc")));
-        if (referidosSnap.empty) {
-            container.innerHTML = '<p class="text-xs text-gray-400">No hay referidos registrados.</p>';
-            return;
-        }
-        const usersCache = new Map();
-        let html = '';
-        for (const docRef of referidosSnap.docs) {
-            const ref = docRef.data();
-            let referenteName = '...', referidoName = '...';
-            if (!usersCache.has(ref.referenteId)) {
-                const userSnap = await getDoc(doc(db, "users", ref.referenteId));
-                usersCache.set(ref.referenteId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
-            }
-            referenteName = usersCache.get(ref.referenteId);
-            if (!usersCache.has(ref.referidoId)) {
-                const userSnap = await getDoc(doc(db, "users", ref.referidoId));
-                usersCache.set(ref.referidoId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
-            }
-            referidoName = usersCache.get(ref.referidoId);
-            const estadoClase = ref.estado === 'completado' ? 'text-green-400' : 'text-yellow-400';
-            html += `
-                <div class="bg-white/5 p-3 rounded-xl flex justify-between items-center text-xs">
-                    <div>
-                        <p><span class="font-bold">${escapeHtml(referenteName)}</span> → <span class="font-bold">${escapeHtml(referidoName)}</span></p>
-                        <p class="text-gray-400">${new Date(ref.fechaRegistro).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                        <span class="${estadoClase} uppercase">${ref.estado}</span>
-                        ${ref.estado === 'pendiente' ? `<button onclick="marcarReferidoCompletado('${docRef.id}')" class="ml-2 bg-blue-600 text-white px-2 py-1 rounded text-[9px]">Marcar completado</button>` : ''}
-                    </div>
-                </div>
-            `;
-        }
-        container.innerHTML = html;
-    } catch (error) {
-        console.error("Error cargando referidos:", error);
-        container.innerHTML = '<p class="text-xs text-red-400">Error al cargar referidos</p>';
-    }
-}
-
-window.marcarReferidoCompletado = async (referidoId) => {
-    try {
-        await updateDoc(doc(db, "referidos", referidoId), { estado: 'completado', servicioCompletado: true, fechaCompletado: Date.now() });
-        window.showToast("Referido marcado como completado");
-        cargarListaReferidos();
-    } catch (error) {
-        console.error(error);
-        window.showToast("Error al actualizar", true);
-    }
-};
-
-// ========== MIGRACIÓN DE USUARIOS EXISTENTES ==========
-async function generarCodigosParaUsuariosExistentes() {
-    // Verificar que el usuario sea administrador
-    if (!auth.currentUser || window.currentUserDoc?.role !== 'admin') {
-        window.showToast("Solo administradores pueden ejecutar esta acción", true);
-        return;
-    }
-    
-    const confirmar = confirm("⚠️ Esta acción asignará un código de referido a TODOS los usuarios que no tengan uno. ¿Deseas continuar?");
-    if (!confirmar) return;
-    
-    window.showToast("Migrando códigos... puede tardar unos segundos", false);
-    
-    try {
-        const usersSnap = await getDocs(collection(db, "users"));
-        let count = 0;
-        for (const docSnap of usersSnap.docs) {
-            const user = docSnap.data();
-            if (!user.codigoReferido) {
-                const codigo = Math.random().toString(36).substring(2, 8).toUpperCase();
-                await updateDoc(docSnap.ref, { codigoReferido: codigo });
-                count++;
-            }
-        }
-        window.showToast(`✅ Migración completada. Se generaron ${count} códigos.`);
-        console.log(`Migración completada. Se generaron ${count} códigos.`);
-        // Recargar lista de referidos por si acaso
-        cargarListaReferidos();
-    } catch (error) {
-        console.error("Error en migración:", error);
-        window.showToast("Error durante la migración. Revisa la consola.", true);
-    }
-}
-
-// ========== AUTOMATIZAR COMPLETADO DEL PRIMER SERVICIO ==========
-// Esta función debe ser llamada cuando un servicio se marca como 'completed'
-async function verificarYCompletarReferido(uid) {
-    if (!uid) return;
-    try {
-        const userSnap = await getDoc(doc(db, "users", uid));
-        const userData = userSnap.data();
-        if (userData && userData.referidoPor) {
-            const qRef = query(collection(db, "referidos"), where("referidoId", "==", uid), where("estado", "==", "pendiente"), limit(1));
-            const snapRef = await getDocs(qRef);
-            if (!snapRef.empty) {
-                const refDoc = snapRef.docs[0];
-                await updateDoc(refDoc.ref, { 
-                    estado: 'completado', 
-                    servicioCompletado: true, 
-                    fechaCompletado: Date.now() 
-                });
-                console.log(`✅ Referido ${uid} completó su primer servicio`);
-                
-                // Opcional: Aplicar descuentos (leer configuración)
-                const configSnap = await getDoc(doc(db, "config", "referidos"));
-                if (configSnap.exists()) {
-                    const config = configSnap.data();
-                    // Aquí puedes crear cupones para referente y referido
-                    // (opcional, por ahora solo mostramos un toast)
-                    window.showToast(`🎉 ¡Referido completado! Se aplicarán descuentos según configuración.`);
-                }
-            }
-        }
-    } catch (err) {
-        console.error("Error al verificar referido:", err);
-    }
-}
-
-// Función para integrar la carga de referidos cuando se muestra la vista de promos
-function initReferidosAdmin() {
-    if (document.getElementById('a-view-promos') && !document.getElementById('a-view-promos').classList.contains('hidden')) {
-        cargarConfigReferidos();
-        cargarListaReferidos();
-        const guardarBtn = document.getElementById('guardar-config-referidos');
-        if (guardarBtn && !guardarBtn._listenerAdded) {
-            guardarBtn.addEventListener('click', guardarConfigReferidos);
-            guardarBtn._listenerAdded = true;
-        }
-           // 👇 AÑADE ESTAS LÍNEAS
-        const migrarBtn = document.getElementById('migrar-codigos-btn');
-        if (migrarBtn && !migrarBtn._listenerAdded) {
-            migrarBtn.addEventListener('click', generarCodigosParaUsuariosExistentes);
-            migrarBtn._listenerAdded = true;
-        }
-    }
-}
-
-// Llamar a initReferidosAdmin al cambiar a la vista de promos
-if (typeof window.switchAdminView === 'function') {
-    const originalSwitchAdminView = window.switchAdminView;
-    window.switchAdminView = function(viewId) {
-        originalSwitchAdminView.call(this, viewId);
-        if (viewId === 'a-view-promos') {
-            setTimeout(initReferidosAdmin, 200);
-        }
-    };
-} else {
-    // Fallback: observar cambios en la clase hidden del elemento
-    const promosView = document.getElementById('a-view-promos');
-    if (promosView) {
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.attributeName === 'class') {
-                    if (!promosView.classList.contains('hidden')) {
-                        initReferidosAdmin();
-                    }
-                }
-            });
-        });
-        observer.observe(promosView, { attributes: true });
-    }
-}
 // ======================================================
 // === VIDEO BANNER (con previsualización) ===
 // ======================================================
@@ -6318,12 +6043,6 @@ window.changeSOSStatus = async (id, newStatus) => {
 
     const snap = await getDoc(docRef);
     if (snap.exists() && snap.data().uid) {
-        // ========== REFERIDOS: Marcar como completado si es el primer servicio ==========
-        if (newStatus === 'ready') {
-            await verificarYCompletarReferido(snap.data().uid);
-        }
-        // ========== FIN REFERIDOS ==========
-        
         rtdbSet(dbRef(rtdb, 'sos_alerts/' + snap.data().uid), { ...snap.data(), ...updates });
         if (notifMsg) push(dbRef(rtdb, 'sos_alerts/' + snap.data().uid + '/notifs'), { msg: notifMsg });
     }
@@ -8929,62 +8648,28 @@ if (phoneField) {
     }
 
     window.mostrarInvitacionWhatsApp = async () => {
-    if (!auth.currentUser) {
-        window.showToast("Inicia sesión para invitar amigos", true);
-        return;
-    }
-    const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
-    const codigo = userSnap.data()?.codigoReferido || '';
-    const enlace = `https://exploracionesobr.github.io/RESCATE-OBR/?ref=${codigo}`;
-    
-    let modalEl = document.getElementById('modal-whatsapp-invite');
-    if (!modalEl) {
-        modalEl = document.createElement('div');
-        modalEl.id = 'modal-whatsapp-invite';
-        modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-        modalEl.innerHTML = `
-            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
-                <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
-                <h2 class="text-xl font-black text-white mb-2">Invita a tus amigos</h2>
-                <p class="text-xs text-gray-300 mb-4">Comparte este enlace y gana descuentos cuando se unan.</p>
-                <div class="bg-white/10 p-2 rounded-lg mb-4">
-                    <p class="text-[10px] text-gray-400 break-all" id="invite-link-display">${enlace}</p>
-                </div>
-                <div class="flex flex-col space-y-2">
-                    <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar por WhatsApp</button>
-                    <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Cerrar</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modalEl);
-        
-        document.getElementById('whatsapp-invite-btn').onclick = () => {
-            const link = document.getElementById('invite-link-display').innerText;
-            const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Usa mi enlace: ${link}`);
-            window.open(`https://wa.me/?text=${mensaje}`, '_blank');
-            window.toggleModal('modal-whatsapp-invite', false);
-        };
-        document.getElementById('whatsapp-skip-btn').onclick = () => {
-            window.toggleModal('modal-whatsapp-invite', false);
-        };
-    } else {
+        if (!auth.currentUser) return;
+        // Obtener código de referido del usuario
+        const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+        const codigo = userSnap.data()?.codigoReferido || '';
+        const enlace = `https://exploracionesobr.github.io/RESCATE-OBR/?ref=${codigo}`;
+        crearModalInvitacion();
         const linkSpan = document.getElementById('invite-link-display');
         if (linkSpan) linkSpan.innerText = enlace;
-    }
-    window.toggleModal('modal-whatsapp-invite', true);
-};
+        window.toggleModal('modal-whatsapp-invite', true);
+    };
 
     function crearBoton() {
         if (boton) return;
-        const nuevoBoton = document.createElement('button');
-        nuevoBoton.id = 'float-invite-btn';
-        nuevoBoton.className = 'fixed z-50 w-14 h-14 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-transform animate-pulse-soft';
-        nuevoBoton.innerHTML = '<i class="fab fa-whatsapp text-2xl text-white"></i>';
-        nuevoBoton.title = 'Invitar amigos por WhatsApp';
-        nuevoBoton.onclick = window.mostrarInvitacionWhatsApp;
-        nuevoBoton.style.display = 'none';
-        document.body.appendChild(nuevoBoton);
-        boton = nuevoBoton;
+        const btn = document.createElement('button');
+        btn.id = 'float-invite-btn';
+        btn.className = 'fixed z-50 w-14 h-14 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-transform animate-pulse-soft';
+        btn.innerHTML = '<i class="fab fa-whatsapp text-2xl text-white"></i>';
+        btn.title = 'Invitar amigos por WhatsApp';
+        btn.onclick = window.mostrarInvitacionWhatsApp;
+        btn.style.display = 'none';
+        document.body.appendChild(btn);
+        boton = btn;
         ajustarPosicion();
     }
 
@@ -9000,26 +8685,28 @@ if (phoneField) {
         if (!boton) return;
         const chatBtn = document.getElementById('btn-chat-ai-float');
         const isMobile = window.innerWidth < 768;
-        if (isMobile) {
-            boton.style.bottom = '140px';
-            boton.style.right = '16px';
-        } else {
-            boton.style.bottom = '160px';
-            boton.style.right = '24px';
-        }
+// Para móvil
+if (isMobile) {
+    btn.style.bottom = '120px';   // antes 80px
+    btn.style.right = '16px';
+} else {
+    btn.style.bottom = '140px';   // antes 100px
+    btn.style.right = '24px';
+}
         if (chatBtn && chatBtn.style.display !== 'none') {
             const chatRect = chatBtn.getBoundingClientRect();
-            const btnRect = boton.getBoundingClientRect();
-            if (chatRect.left < btnRect.right && !isMobile) {
+            if (chatRect.left < boton.getBoundingClientRect().right && !isMobile) {
                 boton.style.right = (window.innerWidth - chatRect.left + 15) + 'px';
             }
         }
     }
 
+    // Verificar si el usuario tiene rol permitido (cliente o membresia)
     function usuarioPuedeInvitar(userData) {
         return userData && (userData.role === 'cliente' || userData.role === 'membresia');
     }
 
+    // Observar autenticación y rol
     let authUnsub = null;
     function initWatcher() {
         if (authUnsub) authUnsub();
@@ -9028,7 +8715,6 @@ if (phoneField) {
                 const userSnap = await getDoc(doc(db, "users", user.uid));
                 const userData = userSnap.data();
                 if (usuarioPuedeInvitar(userData)) {
-                    if (!boton) crearBoton();
                     mostrarBoton();
                     setTimeout(ajustarPosicion, 200);
                 } else {
@@ -9040,7 +8726,7 @@ if (phoneField) {
         });
     }
 
-    // Interceptar showView
+    // Interceptar showView para verificar después de cambio de vista
     const originalShowView = window.showView;
     if (originalShowView) {
         window.showView = async function(...args) {
@@ -9049,7 +8735,6 @@ if (phoneField) {
                 const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
                 const userData = userSnap.data();
                 if (usuarioPuedeInvitar(userData)) {
-                    if (!boton) crearBoton();
                     mostrarBoton();
                     setTimeout(ajustarPosicion, 300);
                 } else {
@@ -9061,8 +8746,10 @@ if (phoneField) {
         };
     }
 
+    // Crear botón al cargar la página
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
+            crearBoton();
             initWatcher();
             window.addEventListener('resize', ajustarPosicion);
             const observer = new MutationObserver(() => ajustarPosicion());
@@ -9070,6 +8757,7 @@ if (phoneField) {
             if (chatBtn) observer.observe(chatBtn, { attributes: true, attributeFilter: ['style'] });
         });
     } else {
+        crearBoton();
         initWatcher();
         window.addEventListener('resize', ajustarPosicion);
     }
