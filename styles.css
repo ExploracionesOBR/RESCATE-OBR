@@ -838,3 +838,50 @@ body.light-mode .text-naranja.font-black {
     color: #c2410c !important;
     font-weight: 900;
 }
+/* ===== FORZAR OCULTAMIENTO DE LAS BARRAS SIN LOGIN ===== */
+#app-admin.hidden,
+#app-client.hidden {
+    display: none !important;
+}
+
+/* ===== ELIMINAR MÁRGENES DEL BANNER DE VIDEO ===== */
+#video-banner-container,
+#video-banner-container-client {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* ===== ASEGURAR QUE EL VIDEO LLENE EL CONTENEDOR ===== */
+#video-banner-container video,
+#video-banner-container-client video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+}
+
+/* ===== REFORZAR COLORES EN MODO CLARO (ICONOS Y TEXTOS) ===== */
+body.light-mode .fas,
+body.light-mode .far,
+body.light-mode .fab,
+body.light-mode i:not([class*="bg-"]) {
+    color: #111111 !important;
+}
+body.light-mode .bg-naranja .fas,
+body.light-mode .bg-green-600 .fas,
+body.light-mode .bg-blue-600 .fas,
+body.light-mode button.bg-naranja .fas,
+body.light-mode .bg-naranja i,
+body.light-mode .bg-green-600 i,
+body.light-mode .bg-blue-600 i {
+    color: #ffffff !important;
+}
+body.light-mode .text-white:not(.bg-naranja):not(.bg-green-600) {
+    color: #111111 !important;
+}
+body.light-mode .text-gray-400,
+body.light-mode .text-gray-500,
+body.light-mode .text-gray-600 {
+    color: #555555 !important;
+}
