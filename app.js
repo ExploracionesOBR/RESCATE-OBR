@@ -3188,6 +3188,8 @@ if (nuevoEstado === 'completed') {
     }
 
     await updateDoc(docRef, { tallerStatus: nuevoEstado });
+    if (data && data.uid) {
+            await verificarYCompletarReferido(data.uid);
 
     if(docSnap.data().uid) push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), {
         msg: nuevoEstado === 'pruebas' ? 'CONTINUAMOS TRABAJANDO EN TU MOTO' :
@@ -4936,6 +4938,74 @@ window.marcarReferidoCompletado = async (referidoId) => {
     }
 };
 
+// ========== MIGRACIÓN DE USUARIOS EXISTENTES ==========
+async function generarCodigosParaUsuariosExistentes() {
+    // Verificar que el usuario sea administrador
+    if (!auth.currentUser || window.currentUserDoc?.role !== 'admin') {
+        window.showToast("Solo administradores pueden ejecutar esta acción", true);
+        return;
+    }
+    
+    const confirmar = confirm("⚠️ Esta acción asignará un código de referido a TODOS los usuarios que no tengan uno. ¿Deseas continuar?");
+    if (!confirmar) return;
+    
+    window.showToast("Migrando códigos... puede tardar unos segundos", false);
+    
+    try {
+        const usersSnap = await getDocs(collection(db, "users"));
+        let count = 0;
+        for (const docSnap of usersSnap.docs) {
+            const user = docSnap.data();
+            if (!user.codigoReferido) {
+                const codigo = Math.random().toString(36).substring(2, 8).toUpperCase();
+                await updateDoc(docSnap.ref, { codigoReferido: codigo });
+                count++;
+            }
+        }
+        window.showToast(`✅ Migración completada. Se generaron ${count} códigos.`);
+        console.log(`Migración completada. Se generaron ${count} códigos.`);
+        // Recargar lista de referidos por si acaso
+        cargarListaReferidos();
+    } catch (error) {
+        console.error("Error en migración:", error);
+        window.showToast("Error durante la migración. Revisa la consola.", true);
+    }
+}
+
+// ========== AUTOMATIZAR COMPLETADO DEL PRIMER SERVICIO ==========
+// Esta función debe ser llamada cuando un servicio se marca como 'completed'
+async function verificarYCompletarReferido(uid) {
+    if (!uid) return;
+    try {
+        const userSnap = await getDoc(doc(db, "users", uid));
+        const userData = userSnap.data();
+        if (userData && userData.referidoPor) {
+            const qRef = query(collection(db, "referidos"), where("referidoId", "==", uid), where("estado", "==", "pendiente"), limit(1));
+            const snapRef = await getDocs(qRef);
+            if (!snapRef.empty) {
+                const refDoc = snapRef.docs[0];
+                await updateDoc(refDoc.ref, { 
+                    estado: 'completado', 
+                    servicioCompletado: true, 
+                    fechaCompletado: Date.now() 
+                });
+                console.log(`✅ Referido ${uid} completó su primer servicio`);
+                
+                // Opcional: Aplicar descuentos (leer configuración)
+                const configSnap = await getDoc(doc(db, "config", "referidos"));
+                if (configSnap.exists()) {
+                    const config = configSnap.data();
+                    // Aquí puedes crear cupones para referente y referido
+                    // (opcional, por ahora solo mostramos un toast)
+                    window.showToast(`🎉 ¡Referido completado! Se aplicarán descuentos según configuración.`);
+                }
+            }
+        }
+    } catch (err) {
+        console.error("Error al verificar referido:", err);
+    }
+}
+
 // Función para integrar la carga de referidos cuando se muestra la vista de promos
 function initReferidosAdmin() {
     if (document.getElementById('a-view-promos') && !document.getElementById('a-view-promos').classList.contains('hidden')) {
@@ -4945,6 +5015,12 @@ function initReferidosAdmin() {
         if (guardarBtn && !guardarBtn._listenerAdded) {
             guardarBtn.addEventListener('click', guardarConfigReferidos);
             guardarBtn._listenerAdded = true;
+        }
+           // 👇 AÑADE ESTAS LÍNEAS
+        const migrarBtn = document.getElementById('migrar-codigos-btn');
+        if (migrarBtn && !migrarBtn._listenerAdded) {
+            migrarBtn.addEventListener('click', generarCodigosParaUsuariosExistentes);
+            migrarBtn._listenerAdded = true;
         }
     }
 }
@@ -6242,6 +6318,12 @@ window.changeSOSStatus = async (id, newStatus) => {
 
     const snap = await getDoc(docRef);
     if (snap.exists() && snap.data().uid) {
+        // ========== REFERIDOS: Marcar como completado si es el primer servicio ==========
+        if (newStatus === 'ready') {
+            await verificarYCompletarReferido(snap.data().uid);
+        }
+        // ========== FIN REFERIDOS ==========
+        
         rtdbSet(dbRef(rtdb, 'sos_alerts/' + snap.data().uid), { ...snap.data(), ...updates });
         if (notifMsg) push(dbRef(rtdb, 'sos_alerts/' + snap.data().uid + '/notifs'), { msg: notifMsg });
     }
