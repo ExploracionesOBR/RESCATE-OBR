@@ -1,5 +1,6 @@
 /* ============================
-   styles.css - VERSIÓN CORREGIDA (sin sticky en video, sin padding extra)
+   styles.css - VERSIÓN DEFINITIVA
+   Modo claro: solo invierte textos blancos → negros
    ============================ */
 
 /* ---------- VARIABLES GLOBALES ---------- */
@@ -33,8 +34,8 @@ body {
     user-select: none;
     max-width: 100vw;
     overflow-x: hidden;
-    /* Safe area: aplicamos solo en laterales, eliminamos padding superior innecesario */
-    padding-top: 0;
+    /* Safe area */
+    padding-top: var(--safe-area-top);
     padding-bottom: var(--safe-area-bottom);
     padding-left: var(--safe-area-left);
     padding-right: var(--safe-area-right);
@@ -44,7 +45,7 @@ input, textarea, [contenteditable] {
     user-select: text;
 }
 
-/* ---------- TEMA CLARO (light-mode) – CORREGIDO PARA LEGIBILIDAD ---------- */
+/* ---------- TEMA CLARO (light-mode) – SOLO INVERTIR TEXTOS BLANCOS ---------- */
 body.light-mode {
     --bg: #f0f2f5;
     --text: #111111;
@@ -80,23 +81,6 @@ body.light-mode .bg-purple-600 .text-white,
 body.light-mode .bg-yellow-600,
 body.light-mode .bg-yellow-600 .text-white,
 body.light-mode [class*="bg-gradient"] .text-white {
-    color: #ffffff !important;
-}
-/* Iconos en modo claro (FontAwesome) */
-body.light-mode .fas,
-body.light-mode .far,
-body.light-mode .fab {
-    color: #111111 !important;
-}
-body.light-mode .text-naranja .fas,
-body.light-mode .text-naranja .far,
-body.light-mode .text-naranja .fab {
-    color: #c2410c !important;
-}
-body.light-mode .bg-naranja .fas,
-body.light-mode .bg-naranja .far,
-body.light-mode .bg-naranja .fab,
-body.light-mode button.bg-naranja .fas {
     color: #ffffff !important;
 }
 body.light-mode .bg-asfalto,
@@ -535,29 +519,39 @@ input:focus, select:focus, textarea:focus {
     filter: grayscale(10%);
 }
 
-/* ---------- VIDEO BANNER (sin sticky, altura fija) ---------- */
+/* ---------- VIDEO BANNER (sticky y ancho completo) ---------- */
 #video-banner-container,
 #video-banner-container-client {
-    width: 100%;
-    max-width: 100%;
-    margin: 0;
-    padding: 0;
-    background-color: #000;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
     overflow: hidden;
-    height: 180px; /* altura fija para todos */
+    background-color: #000;
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 100 !important;
 }
 #video-banner-container video,
 #video-banner-container-client video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+    width: 100% !important;
+    height: auto !important;
+    object-fit: cover !important;
     display: block;
     pointer-events: none;
+    user-select: none;
 }
 @media (max-width: 768px) {
     #video-banner-container,
     #video-banner-container-client {
-        height: 150px;
+        height: 170px;
+    }
+}
+@media (min-width: 769px) {
+    #video-banner-container,
+    #video-banner-container-client {
+        height: 200px;
     }
 }
 
@@ -696,6 +690,10 @@ header.sticky,
     .text-xl { font-size: 1.3rem !important; }
     .text-2xl { font-size: 1.5rem !important; }
     .text-3xl { font-size: 1.7rem !important; }
+    #video-banner-container video,
+    #video-banner-container-client video {
+        max-height: 150px !important;
+    }
 }
 
 @media (min-width: 1024px) {
@@ -807,81 +805,4 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
     font-size: 0.6rem;
     font-weight: 800;
     text-transform: uppercase;
-}
-/* ===== CORRECCIONES DE LEGIBILIDAD EN MODO CLARO ===== */
-body.light-mode a:not([class*="bg-"]):not([class*="text-naranja"]),
-body.light-mode .text-white:not(.bg-naranja):not(.bg-green-600):not(.bg-blue-600):not(.bg-red-600) {
-    color: #111111 !important;
-}
-
-/* Mejorar contraste de los números de teléfono (naranja sobre fondo claro) */
-body.light-mode .text-naranja,
-body.light-mode a.text-naranja,
-body.light-mode span.text-naranja {
-    color: #c2410c !important;
-    text-shadow: 0 0 1px rgba(0,0,0,0.1);
-}
-
-body.light-mode .mt-4 a,
-body.light-mode button:not(.bg-naranja):not(.bg-green-600) {
-    color: #111111 !important;
-}
-
-body.light-mode .app-view,
-body.light-mode .glass,
-body.light-mode .bg-white\/5,
-body.light-mode .bg-white\/10 {
-    color: #111111 !important;
-}
-
-body.light-mode .text-naranja.font-black {
-    color: #c2410c !important;
-    font-weight: 900;
-}
-/* ===== FORZAR OCULTAMIENTO DE LAS BARRAS SIN LOGIN ===== */
-#app-admin.hidden,
-#app-client.hidden {
-    display: none !important;
-}
-
-/* ===== ELIMINAR MÁRGENES DEL BANNER DE VIDEO ===== */
-#video-banner-container,
-#video-banner-container-client {
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-    padding-top: 0 !important;
-    padding-bottom: 0 !important;
-}
-
-/* ===== ASEGURAR QUE EL VIDEO LLENE EL CONTENEDOR ===== */
-#video-banner-container video,
-#video-banner-container-client video {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: cover !important;
-}
-
-/* ===== REFORZAR COLORES EN MODO CLARO (ICONOS Y TEXTOS) ===== */
-body.light-mode .fas,
-body.light-mode .far,
-body.light-mode .fab,
-body.light-mode i:not([class*="bg-"]) {
-    color: #111111 !important;
-}
-body.light-mode .bg-naranja .fas,
-body.light-mode .bg-green-600 .fas,
-body.light-mode .bg-blue-600 .fas,
-body.light-mode button.bg-naranja .fas,
-body.light-mode .bg-naranja i,
-body.light-mode .bg-green-600 i,
-body.light-mode .bg-blue-600 i {
-    color: #ffffff !important;
-}
-body.light-mode .text-white:not(.bg-naranja):not(.bg-green-600) {
-    color: #111111 !important;
-}
-body.light-mode .text-gray-400,
-body.light-mode .text-gray-500,
-body.light-mode .text-gray-600 {
-    color: #555555 !important;
 }
