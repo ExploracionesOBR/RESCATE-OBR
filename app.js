@@ -1843,86 +1843,127 @@ window.processLogin = async () => {
         else showToast("Error al iniciar sesión", true);
     }
 };
-
 window.processRegister = async () => {
     const rawPhone = document.getElementById('phone-input').value.trim();
     const name = document.getElementById('reg-name').value.trim();
     const password = document.getElementById('reg-password').value.trim();
     const question = document.getElementById('reg-question').value;
     const answer = document.getElementById('reg-answer').value.trim();
-    if (!name || password.length < 6 || !question || !answer) return showToast("Completa datos (Pass min 6)", true);
+    
+    if (!name || password.length < 6 || !question || !answer) {
+        return showToast("Completa datos (Pass min 6)", true);
+    }
+    
     const fakeEmail = `${rawPhone}@motorescateobr.com`;
+    
     try {
+        // 1. Crear usuario en Authentication
         const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
-        await setDoc(doc(db, "users", userCredential.user.uid), {
+        const uid = userCredential.user.uid;
+        
+        // 2. Generar código de referido único (6 caracteres)
+        const codigoReferido = Math.random().toString(36).substring(2, 8).toUpperCase();
+        
+        // 3. Leer parámetro 'ref' de la URL (si existe)
+        const urlParams = new URLSearchParams(window.location.search);
+        const codigoReferente = urlParams.get('ref');
+        
+        // 4. Guardar datos del usuario en Firestore (incluyendo referidos)
+        await setDoc(doc(db, "users", uid), {
             phone: "+52" + rawPhone,
-            name,
+            name: name,
             role: 'cliente',
             secQuestion: question,
             secAnswer: answer.toLowerCase(),
             pwd: password,
             firstLogin: true,
-            created: new Date().toISOString()
+            created: Date.now(),
+            codigoReferido: codigoReferido,      // ← código propio
+            referidoPor: codigoReferente || null  // ← quien lo invitó (si aplica)
         });
-
-        // Crear o actualizar modal de invitación por WhatsApp
-        // ========== MODAL DE INVITACIÓN (sin recarga) ==========
-const modalId = 'modal-whatsapp-invite';
-let modalEl = document.getElementById(modalId);
-if (!modalEl) {
-    modalEl = document.createElement('div');
-    modalEl.id = modalId;
-    modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-    modalEl.innerHTML = `
-        <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
-            <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
-            <h2 class="text-xl font-black text-white mb-2">¡Registro exitoso!</h2>
-            <p class="text-xs text-gray-300 mb-4">Comparte este enlace con tus amigos para que también se unan a OBR.</p>
-            <div class="bg-white/10 p-2 rounded-lg mb-4">
-                <p class="text-[10px] text-gray-400 break-all">https://exploracionesobr.github.io/RESCATE-OBR</p>
-            </div>
-            <div class="flex flex-col space-y-2">
-                <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar por WhatsApp</button>
-                <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Comenzar</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modalEl);
-}
-
-// Asignar eventos (solo una vez)
-const inviteBtn = document.getElementById('whatsapp-invite-btn');
-const skipBtn = document.getElementById('whatsapp-skip-btn');
-if (inviteBtn && !inviteBtn._bound) {
-    inviteBtn._bound = true;
-    inviteBtn.onclick = () => {
-        const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Auxilio mecánico rápido. Únete aquí: https://exploracionesobr.github.io/RESCATE-OBR`);
-        window.open(`https://wa.me/?text=${mensaje}`, '_blank');
-        window.toggleModal(modalId, false);
-        // NO recargar la página, solo cerrar el modal
-    };
-}
-if (skipBtn && !skipBtn._bound) {
-    skipBtn._bound = true;
-    skipBtn.onclick = () => {
-        window.toggleModal(modalId, false);
-        // NO recargar la página
-    };
-}
-
-// Mostrar el modal
-window.toggleModal(modalId, true);
-showToast("Registro exitoso. navega por la app.");
-    } catch (e) {
-        if (e.code === 'auth/email-already-in-use') {
-            try {
-                await signInWithEmailAndPassword(auth, fakeEmail, password);
-            } catch(loginErr) {
-                showToast("Ya existe. Inicia sesión con tu contraseña.", true);
-                document.getElementById('auth-step-register').classList.add('hidden');
-                document.getElementById('auth-step-login').classList.remove('hidden');
+        
+        // 5. Si viene de un referido, registrar la relación en colección "referidos"
+        if (codigoReferente) {
+            const qReferente = query(collection(db, "users"), where("codigoReferido", "==", codigoReferente), limit(1));
+            const snapReferente = await getDocs(qReferente);
+            if (!snapReferente.empty) {
+                const referenteDoc = snapReferente.docs[0];
+                const referenteId = referenteDoc.id;
+                await addDoc(collection(db, "referidos"), {
+                    referenteId: referenteId,
+                    referidoId: uid,
+                    codigoReferente: codigoReferente,
+                    fechaRegistro: Date.now(),
+                    estado: 'pendiente',        // pendiente, completado, canjeado
+                    servicioCompletado: false
+                });
+                // Notificación al referente (opcional)
+                await setDoc(doc(db, "notificaciones", referenteId), {
+                    msg: `🎉 ¡${name} se registró usando tu código de referido!`,
+                    timestamp: Date.now(),
+                    leida: false
+                });
             }
-        } else showToast("Error en registro", true);
+        }
+        
+        // 6. Crear o actualizar modal de invitación (para compartir enlace)
+        const modalId = 'modal-whatsapp-invite';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `
+                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
+                    <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
+                    <h2 class="text-xl font-black text-white mb-2">¡Registro exitoso!</h2>
+                    <p class="text-xs text-gray-300 mb-4">Comparte este enlace con tus amigos para que también se unan a OBR.</p>
+                    <div class="bg-white/10 p-2 rounded-lg mb-4">
+                        <p class="text-[10px] text-gray-400 break-all" id="invite-link-display">https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}</p>
+                    </div>
+                    <div class="flex flex-col space-y-2">
+                        <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar por WhatsApp</button>
+                        <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Comenzar</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalEl);
+            
+            // Eventos del modal
+            const inviteBtn = document.getElementById('whatsapp-invite-btn');
+            const skipBtn = document.getElementById('whatsapp-skip-btn');
+            if (inviteBtn) {
+                inviteBtn.onclick = () => {
+                    const link = document.getElementById('invite-link-display').innerText;
+                    const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Auxilio mecánico rápido. Únete aquí: ${link}`);
+                    window.open(`https://wa.me/?text=${mensaje}`, '_blank');
+                    window.toggleModal(modalId, false);
+                };
+            }
+            if (skipBtn) {
+                skipBtn.onclick = () => {
+                    window.toggleModal(modalId, false);
+                };
+            }
+        } else {
+            // Actualizar el enlace del modal si ya existía
+            const linkSpan = document.getElementById('invite-link-display');
+            if (linkSpan) linkSpan.innerText = `https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}`;
+        }
+        
+        // 7. Mostrar modal y toast
+        window.toggleModal(modalId, true);
+        showToast("Registro exitoso. Completa tu perfil.");
+        
+    } catch (error) {
+        console.error("Error en registro:", error);
+        if (error.code === 'auth/email-already-in-use') {
+            showToast("Ya existe una cuenta con ese número. Inicia sesión.", true);
+            document.getElementById('auth-step-register').classList.add('hidden');
+            document.getElementById('auth-step-login').classList.remove('hidden');
+        } else {
+            showToast("Error en registro: " + (error.message || "Intenta de nuevo"), true);
+        }
     }
 };
 window.toggleSession = () => {
@@ -8648,15 +8689,50 @@ if (phoneField) {
     }
 
     window.mostrarInvitacionWhatsApp = async () => {
-        if (!auth.currentUser) return;
-        const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
-        const codigo = userSnap.data()?.codigoReferido || '';
-        const enlace = `https://exploracionesobr.github.io/RESCATE-OBR/?ref=${codigo}`;
-        crearModalInvitacion();
+    if (!auth.currentUser) {
+        window.showToast("Inicia sesión para invitar amigos", true);
+        return;
+    }
+    const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+    const codigo = userSnap.data()?.codigoReferido || '';
+    const enlace = `https://exploracionesobr.github.io/RESCATE-OBR/?ref=${codigo}`;
+    
+    let modalEl = document.getElementById('modal-whatsapp-invite');
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = 'modal-whatsapp-invite';
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.innerHTML = `
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
+                <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
+                <h2 class="text-xl font-black text-white mb-2">Invita a tus amigos</h2>
+                <p class="text-xs text-gray-300 mb-4">Comparte este enlace y gana descuentos cuando se unan.</p>
+                <div class="bg-white/10 p-2 rounded-lg mb-4">
+                    <p class="text-[10px] text-gray-400 break-all" id="invite-link-display">${enlace}</p>
+                </div>
+                <div class="flex flex-col space-y-2">
+                    <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar por WhatsApp</button>
+                    <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Cerrar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modalEl);
+        
+        document.getElementById('whatsapp-invite-btn').onclick = () => {
+            const link = document.getElementById('invite-link-display').innerText;
+            const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Usa mi enlace: ${link}`);
+            window.open(`https://wa.me/?text=${mensaje}`, '_blank');
+            window.toggleModal('modal-whatsapp-invite', false);
+        };
+        document.getElementById('whatsapp-skip-btn').onclick = () => {
+            window.toggleModal('modal-whatsapp-invite', false);
+        };
+    } else {
         const linkSpan = document.getElementById('invite-link-display');
         if (linkSpan) linkSpan.innerText = enlace;
-        window.toggleModal('modal-whatsapp-invite', true);
-    };
+    }
+    window.toggleModal('modal-whatsapp-invite', true);
+};
 
     function crearBoton() {
         if (boton) return;
