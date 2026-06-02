@@ -1545,26 +1545,29 @@ async function loadServicesCatalog() {
 // === FLUJO DE VISTAS Y AUTENTICACIÓN ===
 onAuthStateChanged(auth, async user => {
     document.getElementById('loading-screen').classList.add('hidden');
-    if (window._adminCreatingUser) return;  // <-- nueva línea
+    if (window._adminCreatingUser) return;
 
     if (!user) {
-        if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
-        loadGlobalSettings(); 
-        document.getElementById('view-landing').classList.remove('hidden'); 
-        document.getElementById('view-landing').classList.add('flex'); 
+        if (mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
+        loadGlobalSettings();
+        // Ocultar vistas de admin y cliente
+        document.getElementById('app-admin')?.classList.add('hidden');
+        document.getElementById('app-client')?.classList.add('hidden');
+        // Mostrar landing
+        document.getElementById('view-landing').classList.remove('hidden');
+        document.getElementById('view-landing').classList.add('flex');
         return;
     }
     document.getElementById('view-landing').classList.add('hidden');
 
     const userSnap = await getDoc(doc(db, 'users', user.uid));
-    if (userSnap.exists()) { 
-        window.currentUserDoc = userSnap.data(); 
-        window.currentUserDoc.id = user.uid; 
-    } else { 
-        window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; 
+    if (userSnap.exists()) {
+        window.currentUserDoc = userSnap.data();
+        window.currentUserDoc.id = user.uid;
+    } else {
+        window.currentUserDoc = { phone: '', role: 'cliente', name: '' };
     }
 
-    // Verificar bloqueo/pausa
     if (window.currentUserDoc.bloqueado) {
         signOut(auth).then(() => {
             document.getElementById('out-of-zone-modal').classList.remove('hidden');
@@ -1579,7 +1582,6 @@ onAuthStateChanged(auth, async user => {
     }
 
     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
-                // Recargar ajustes desde Firestore (para que el radio y otros valores se actualicen)
         const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
         startMechanicTracking();
         if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
@@ -1601,16 +1603,14 @@ onAuthStateChanged(auth, async user => {
     } else {
         showView('app-client');
         document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
-        // Resto de lógica de cliente...
-        window.loadClientHistory(); 
-        listenToMySOS(); 
-        window.loadClientCitas(); 
+        window.loadClientHistory();
+        listenToMySOS();
+        window.loadClientCitas();
         loadPublicStore();
         window.loadMyOrders();
         updateLandingStatus();
     }
 
-    // Listener de notificaciones RTDB
     onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
         if (snap.exists()) {
             const notif = snap.val();
