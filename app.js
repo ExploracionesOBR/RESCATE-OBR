@@ -4864,173 +4864,60 @@ window.deletePromo = async (promoId) => {
 };
 
 // ================== REFERIDOS - CONFIGURACIÓN Y ADMINISTRACIÓN ==================
-// Cargar configuración general desde Firestore
+// ========== REFERIDOS - CONFIGURACIÓN SIMPLIFICADA ==========
 async function cargarConfigReferidos() {
     const docSnap = await getDoc(doc(db, "config_referidos", "general"));
     if (docSnap.exists()) return docSnap.data();
-    return null;
+    // Configuración por defecto
+    return {
+        activo: true,
+        modalidad: 'recomienda_y_gana', // o 'ganamos_juntos'
+        tipoDescuento: 'porcentaje',    // 'porcentaje' o 'monto_fijo'
+        valorDescuento: 10,             // 10% o $10 según el tipo
+        notificaciones: {
+            servicioCompletado: true,
+            recompensaGenerada: true
+        }
+    };
 }
 
-// Guardar configuración general
 async function guardarConfigReferidos(config) {
-    await setDoc(doc(db, "config_referidos", "general"), config, { merge: true });
-    window.showToast("Configuración guardada");
+    try {
+        await setDoc(doc(db, "config_referidos", "general"), config, { merge: true });
+        window.showToast("✅ Configuración de referidos guardada");
+        return true;
+    } catch (error) {
+        console.error("Error guardando configuración:", error);
+        window.showToast("❌ Error al guardar configuración", true);
+        return false;
+    }
 }
 
-// Función para validar automáticamente si un referido es válido (antes de otorgar recompensa)
-async function validarReferido(referidoId, referenteId) {
+// Cargar configuración en el formulario del panel
+async function cargarConfigForm() {
     const config = await cargarConfigReferidos();
-    if (!config || !config.validaciones) return true; // si no hay validaciones, todo válido
-
-    const userRef = doc(db, "users", referidoId);
-    const userSnap = await getDoc(userRef);
-    if (!userSnap.exists()) return false;
-    const user = userSnap.data();
-    const referenteSnap = await getDoc(doc(db, "users", referenteId));
-    const referente = referenteSnap.data();
-
-    // Validaciones básicas
-    if (config.validaciones.cuentaBloqueada && user.bloqueado) return false;
-    if (config.validaciones.cuentaEliminada && user.eliminado) return false;
-    if (config.validaciones.mismoTelefono && user.phone === referente.phone) return false;
-    // Coincidencia de nombre (simplificado)
-    if (config.validaciones.coincidenciaNombre && user.name === referente.name) return false;
-    // Teléfono previamente registrado (ya existe en la BD, pero eso ya lo cubre el registro)
-    // Servicios cancelados o no pagados: se verificará al completar servicios
-    return true;
+    document.getElementById('ref-activo').value = config.activo ? 'true' : 'false';
+    document.getElementById('ref-modalidad').value = config.modalidad;
+    document.getElementById('ref-tipo-descuento').value = config.tipoDescuento;
+    document.getElementById('ref-valor-descuento').value = config.valorDescuento;
+    document.getElementById('ref-notif-servicio').checked = config.notificaciones?.servicioCompletado || false;
+    document.getElementById('ref-notif-recompensa').checked = config.notificaciones?.recompensaGenerada || false;
 }
 
-// Actualizar el contador de servicios de un referido y verificar condiciones
-async function actualizarServiciosReferido(referidoId) {
-    // Buscar el documento de referido donde referidoId = referidoId
-    const q = query(collection(db, "referidos"), where("referidoId", "==", referidoId));
-    const snap = await getDocs(q);
-    if (snap.empty) return;
-    const refDoc = snap.docs[0];
-    const data = refDoc.data();
-    const serviciosCompletados = data.serviciosCompletados + 1;
-    await updateDoc(refDoc.ref, { serviciosCompletados, ultimoServicio: Date.now() });
-    
-    const config = await cargarConfigReferidos();
-    if (!config || !config.activo) return;
-
-    // Después de const config = await cargarConfigReferidos();
-if (config && config.notificaciones && config.notificaciones.servicioCompletado) {
-    // Obtener el referenteId (ya lo tienes en data.referenteId)
-    await set(dbRef(rtdb, 'notificaciones/' + data.referenteId), {
-        msg: `🎉 Tu referido ha completado un servicio.`,
-        timestamp: Date.now(),
-        leida: false
-    });
-}
-
-    const modalidad = config.modalidad;
-    let recompensaOtorgada = false;
-
-    // Evaluar condiciones según modalidad
-    if (modalidad === 'recomienda_y_gana') {
-        // Solo beneficia al referente
-        if (config.condiciones.primerServicio.activo && serviciosCompletados === 1) {
-            await otorgarRecompensa(data.referenteId, null, config.condiciones.primerServicio);
-            recompensaOtorgada = true;
-        } else if (config.condiciones.servicios && serviciosCompletados === 3) {
-            const cond = config.condiciones.servicios.find(s => s.cantidad === 3);
-            if (cond) await otorgarRecompensa(data.referenteId, null, cond);
-            recompensaOtorgada = true;
-        } else if (config.condiciones.servicios && serviciosCompletados === 5) {
-            const cond = config.condiciones.servicios.find(s => s.cantidad === 5);
-            if (cond) await otorgarRecompensa(data.referenteId, null, cond);
-            recompensaOtorgada = true;
+// Guardar configuración desde el formulario
+async function guardarConfigForm() {
+    const config = {
+        activo: document.getElementById('ref-activo').value === 'true',
+        modalidad: document.getElementById('ref-modalidad').value,
+        tipoDescuento: document.getElementById('ref-tipo-descuento').value,
+        valorDescuento: parseFloat(document.getElementById('ref-valor-descuento').value) || 0,
+        notificaciones: {
+            servicioCompletado: document.getElementById('ref-notif-servicio').checked,
+            recompensaGenerada: document.getElementById('ref-notif-recompensa').checked
         }
-    } else if (modalidad === 'ganamos_juntos') {
-        // Ambos obtienen recompensa
-        if (config.condiciones.primerServicio.activo && serviciosCompletados === 1) {
-            await otorgarRecompensa(data.referenteId, data.referidoId, config.condiciones.primerServicio);
-            recompensaOtorgada = true;
-        } else if (config.condiciones.servicios && serviciosCompletados === 3) {
-            const cond = config.condiciones.servicios.find(s => s.cantidad === 3);
-            if (cond) await otorgarRecompensa(data.referenteId, data.referidoId, cond);
-            recompensaOtorgada = true;
-        } else if (config.condiciones.servicios && serviciosCompletados === 5) {
-            const cond = config.condiciones.servicios.find(s => s.cantidad === 5);
-            if (cond) await otorgarRecompensa(data.referenteId, data.referidoId, cond);
-            recompensaOtorgada = true;
-        }
-    } else if (modalidad === 'referido_progresivo') {
-        // Progresivo: cada hito configurado
-        if (config.condiciones.servicios && config.condiciones.servicios.length) {
-            for (let cond of config.condiciones.servicios) {
-                if (serviciosCompletados === cond.cantidad) {
-                    await otorgarRecompensa(data.referenteId, data.referidoId, cond);
-                    recompensaOtorgada = true;
-                }
-            }
-        }
-    }
-
-    if (recompensaOtorgada) {
-        await updateDoc(refDoc.ref, { estado: 'recompensa_generada', recompensaGenerada: true, fechaRecompensa: Date.now() });
-        // Notificar al usuario
-        if (config.notificaciones.recompensaGenerada) {
-            await set(dbRef(rtdb, 'notificaciones/' + data.referenteId), { msg: `🎉 ¡Tu referido ha alcanzado un hito! Has recibido un descuento.`, timestamp: Date.now() });
-            if (data.referidoId && modalidad !== 'recomienda_y_gana') {
-                await set(dbRef(rtdb, 'notificaciones/' + data.referidoId), { msg: `🎉 ¡Has alcanzado un hito! Recibiste un descuento.`, timestamp: Date.now() });
-            }
-        }
-    }
+    };
+    await guardarConfigReferidos(config);
 }
-
-// Otorgar recompensa (descuento)
-async function otorgarRecompensa(referenteId, referidoId, condicion) {
-    const config = await cargarConfigReferidos();
-    const vigencia = config.vigenciaDias || 30;
-    const fechaExpiracion = Date.now() + vigencia * 24 * 60 * 60 * 1000;
-    const montoMax = config.montoMaxDescuento || 0;
-
-    // Crear recompensa para referente
-    let valorReferente = condicion.descuentoReferente;
-    if (condicion.tipo === 'porcentaje' && montoMax) {
-        // No se puede limitar aquí porque depende del monto de la compra, se aplicará al momento de usar
-    }
-    await addDoc(collection(db, "recompensas"), {
-        uid: referenteId,
-        tipo: condicion.tipo,
-        valor: valorReferente,
-        origen: 'referido',
-        referidoId: referidoId,
-        generada: Date.now(),
-        expira: fechaExpiracion,
-        utilizada: false,
-        concepto: `Recompensa por referido (${condicion.cantidad ? condicion.cantidad + ' servicios' : 'primer servicio'})`
-    });
-
-    if (referidoId && condicion.descuentoReferido) {
-        await addDoc(collection(db, "recompensas"), {
-            uid: referidoId,
-            tipo: condicion.tipo,
-            valor: condicion.descuentoReferido,
-            origen: 'referido',
-            referenteId: referenteId,
-            generada: Date.now(),
-            expira: fechaExpiracion,
-            utilizada: false,
-            concepto: `Bienvenido, has sido referido por otro usuario`
-        });
-    }
-}
-
-// Función para invalidar una referencia manualmente (admin)
-async function invalidarReferido(referidoId, motivo) {
-    const q = query(collection(db, "referidos"), where("referidoId", "==", referidoId));
-    const snap = await getDocs(q);
-    if (snap.empty) return;
-    const refDoc = snap.docs[0];
-    await updateDoc(refDoc.ref, { estado: 'invalidada', motivoInvalidacion: motivo });
-    // Notificar al referente
-    const data = refDoc.data();
-    await set(dbRef(rtdb, 'notificaciones/' + data.referenteId), { msg: `⚠️ Tu referido ha sido invalidado por: ${motivo}`, timestamp: Date.now() });
-}
-
 // ======================================================
 // === VIDEO BANNER (con previsualización) ===
 // ======================================================
