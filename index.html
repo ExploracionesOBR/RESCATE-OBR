@@ -738,39 +738,50 @@
 </section>
         <!-- PROMOS Y LEALTAD -->
         <section id="a-view-promos" class="a-view hidden space-y-6">
-            <h3 class="text-2xl font-black italic uppercase text-white">Panel de <span class="text-purple-400">Promociones</span></h3>
-            <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl lg:grid lg:grid-cols-2 lg:gap-8 space-y-6 lg:space-y-0">
-                <div>
-                    <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-percent mr-1"></i> Aplicar Descuento a Producto</p>
-                    <select id="promo-product-select" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white font-bold mb-4 focus:border-naranja transition-colors">
-                        <option value="">Selecciona del almacén...</option>
-                    </select>
-                    <div class="flex space-x-3">
-                        <div class="w-1/3"><label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Tipo</label><select id="promo-type" class="w-full bg-asfalto p-3 rounded-xl border border-purple-500/50 text-sm text-white focus:border-purple-400"><option value="percent">% Desc.</option><option value="fixed">Precio Fijo $</option></select></div>
-                        <div class="w-1/3"><label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Valor</label><input id="promo-discount" type="number" placeholder="Ej. 15" class="w-full bg-asfalto p-3 rounded-xl border border-purple-500/50 text-sm text-purple-400 font-bold text-center"></div>
-                        <button onclick="window.adminApplyPromo?.()" class="w-1/3 bg-purple-600 hover:bg-purple-500 p-3 rounded-xl font-black uppercase tracking-widest text-white mt-auto active:scale-95 transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)]">Aplicar</button>
-                    </div>
-                    <div class="mt-4 border-t border-white/10 pt-3">
-                        <p class="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-2"><i class="fas fa-tags mr-1"></i> Descuentos Activos</p>
-                        <div id="discounted-products-list" class="space-y-1 max-h-40 overflow-y-auto hide-scroll"></div>
-                    </div>
+    <h3 class="text-2xl font-black italic uppercase text-white">Panel de <span class="text-purple-400">Promociones</span></h3>
+
+    <!-- Grid principal de 2 columnas en escritorio -->
+    <div class="lg:grid lg:grid-cols-2 lg:gap-8 space-y-6 lg:space-y-0">
+        
+        <!-- COLUMNA IZQUIERDA -->
+        <div class="space-y-6">
+            <!-- Bloque: Aplicar Descuento a Producto -->
+            <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl">
+                <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-percent mr-1"></i> Aplicar Descuento a Producto</p>
+                <select id="promo-product-select" class="w-full bg-asfalto p-4 rounded-xl border border-white/10 text-white font-bold mb-4 focus:border-naranja transition-colors">
+                    <option value="">Selecciona del almacén...</option>
+                </select>
+                <div class="flex space-x-3">
+                    <div class="w-1/3"><label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Tipo</label><select id="promo-type" class="w-full bg-asfalto p-3 rounded-xl border border-purple-500/50 text-sm text-white focus:border-purple-400"><option value="percent">% Desc.</option><option value="fixed">Precio Fijo $</option></select></div>
+                    <div class="w-1/3"><label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Valor</label><input id="promo-discount" type="number" placeholder="Ej. 15" class="w-full bg-asfalto p-3 rounded-xl border border-purple-500/50 text-sm text-purple-400 font-bold text-center"></div>
+                    <button onclick="window.adminApplyPromo?.()" class="w-1/3 bg-purple-600 hover:bg-purple-500 p-3 rounded-xl font-black uppercase tracking-widest text-white mt-auto active:scale-95 transition-all shadow-[0_0_15px_rgba(147,51,234,0.3)]">Aplicar</button>
                 </div>
-                <div>
-                    <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-video mr-1"></i> Video Banner Semanal</p>
-                    <button onclick="toggleModal('modal-video-schedule', true)" class="w-full bg-purple-600 hover:bg-purple-500 p-3 rounded-xl font-black uppercase tracking-widest text-white border border-white/10 transition-all">Programar Videos Semanales</button>
-                    <!-- Previsualización del video de hoy -->
-<div id="promo-video-preview" class="mt-4 hidden">
-    <p class="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-2"><i class="fas fa-play-circle mr-1"></i> Video promocional de hoy</p>
-    <div class="bg-asfalto rounded-xl overflow-hidden">
-        <video id="promo-video-player" controls autoplay muted loop class="w-full max-h-[250px] object-contain"></video>
-    </div>
-    <p id="promo-video-name" class="text-[10px] text-gray-400 mt-1"></p>
-</div>
+                <div class="mt-4 border-t border-white/10 pt-3">
+                    <p class="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-2"><i class="fas fa-tags mr-1"></i> Descuentos Activos</p>
+                    <div id="discounted-products-list" class="space-y-1 max-h-40 overflow-y-auto hide-scroll"></div>
                 </div>
             </div>
-            <div class="bg-gradient-to-r from-blue-900/40 to-asfalto border border-blue-500/30 p-6 rounded-3xl shadow-xl mt-4">
+        </div>
+
+        <!-- COLUMNA DERECHA -->
+        <div class="space-y-6">
+            <!-- Bloque: Video Banner Semanal -->
+            <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl">
+                <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-video mr-1"></i> Video Banner Semanal</p>
+                <button onclick="toggleModal('modal-video-schedule', true)" class="w-full bg-purple-600 hover:bg-purple-500 p-3 rounded-xl font-black uppercase tracking-widest text-white border border-white/10 transition-all">Programar Videos Semanales</button>
+                <div id="promo-video-preview" class="mt-4 hidden">
+                    <p class="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-2"><i class="fas fa-play-circle mr-1"></i> Video promocional de hoy</p>
+                    <div class="bg-asfalto rounded-xl overflow-hidden">
+                        <video id="promo-video-player" controls autoplay muted loop class="w-full max-h-[250px] object-contain"></video>
+                    </div>
+                    <p id="promo-video-name" class="text-[10px] text-gray-400 mt-1"></p>
+                </div>
+            </div>
+
+            <!-- Bloque: Programa de Lealtad y Códigos -->
+            <div class="bg-gradient-to-r from-blue-900/40 to-asfalto border border-blue-500/30 p-6 rounded-3xl shadow-xl">
                 <h4 class="text-blue-400 font-black text-xs uppercase tracking-widest mb-4"><i class="fas fa-handshake mr-2"></i>Programa de Lealtad y Códigos</h4>
-                <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                         <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Código Corto</label>
                         <div class="flex">
@@ -814,8 +825,9 @@
                 <button onclick="window.adminSaveLoyalty?.()" class="w-full bg-blue-600 hover:bg-blue-500 p-3 rounded-xl font-black uppercase text-xs tracking-widest text-white transition-all shadow-lg active:scale-95 mt-2"><i class="fas fa-plus mr-1"></i> Activar Promo</button>
                 <div id="admin-loyalty-list" class="space-y-2 max-h-40 overflow-y-auto hide-scroll pt-4 border-t border-white/10 mt-4"></div>
             </div>
-        </section>
-
+        </div>
+    </div>
+</section>
         <!-- GESTIÓN DE USUARIOS Y EQUIPO -->
         <section id="a-view-usuarios" class="a-view hidden space-y-6">
             <h3 class="text-2xl font-black italic uppercase text-white">Usuarios y <span class="text-yellow-400">Equipo</span></h3>
