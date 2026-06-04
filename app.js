@@ -1721,6 +1721,9 @@ window.switchClientView = (id) => {
     toggleModal('modal-user-detail', false);
     document.querySelectorAll('.c-view').forEach(v => v.classList.add('hidden'));
     document.getElementById(id).classList.remove('hidden');
+    if (id === 'c-view-referidos') {
+    setTimeout(() => initReferidosUsuario(), 100);
+}
     document.querySelectorAll('.c-nav-btn').forEach(b => b.classList.remove('tab-active'));
     const btn = Array.from(document.querySelectorAll('.c-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
     if (btn) btn.classList.add('tab-active');
@@ -3190,6 +3193,13 @@ if (nuevoEstado === 'completed') {
     }
 
     await updateDoc(docRef, { tallerStatus: nuevoEstado });
+    // ===== REFERIDOS: si se marcó como 'lista', actualizar servicios del cliente =====
+if (nuevoEstado === 'lista') {
+    const uidCliente = docSnap.data().uid;
+    if (uidCliente && typeof actualizarServiciosReferido === 'function') {
+        await actualizarServiciosReferido(uidCliente);
+    }
+}
 
     if(docSnap.data().uid) push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), {
         msg: nuevoEstado === 'pruebas' ? 'CONTINUAMOS TRABAJANDO EN TU MOTO' :
@@ -4900,9 +4910,19 @@ async function actualizarServiciosReferido(referidoId) {
     const data = refDoc.data();
     const serviciosCompletados = data.serviciosCompletados + 1;
     await updateDoc(refDoc.ref, { serviciosCompletados, ultimoServicio: Date.now() });
-
+    
     const config = await cargarConfigReferidos();
     if (!config || !config.activo) return;
+
+    // Después de const config = await cargarConfigReferidos();
+if (config && config.notificaciones && config.notificaciones.servicioCompletado) {
+    // Obtener el referenteId (ya lo tienes en data.referenteId)
+    await set(dbRef(rtdb, 'notificaciones/' + data.referenteId), {
+        msg: `🎉 Tu referido ha completado un servicio.`,
+        timestamp: Date.now(),
+        leida: false
+    });
+}
 
     const modalidad = config.modalidad;
     let recompensaOtorgada = false;
@@ -6257,6 +6277,14 @@ window.changeSOSStatus = async (id, newStatus) => {
         case 'cancelled': updates.status = 'cancelled'; notifMsg = 'El taller ha cancelado el servicio.'; finalizar = true; break;
     }
     await updateDoc(docRef, updates);
+    // ===== REFERIDOS: si se completó el rescate, actualizar servicios del cliente =====
+if (newStatus === 'ready') {
+    const snapDoc = await getDoc(docRef); // leer el documento actualizado
+    const uidCliente = snapDoc.data().uid;
+    if (uidCliente && typeof actualizarServiciosReferido === 'function') {
+        await actualizarServiciosReferido(uidCliente);
+    }
+}
 
     if (finalizar && window.activeMechanicSOSId === id) {
         const trackingRef = dbRef(rtdb, `sos_tracking/${id}/${auth.currentUser.uid}/points`);
@@ -9032,3 +9060,83 @@ if (phoneField) {
         window.addEventListener('resize', ajustarPosicion);
     }
 })();
+// ========== PANEL DE USUARIO: MIS REFERIDOS ==========
+async function cargarMisReferidos() {
+    if (!auth.currentUser) return;
+    const uid = auth.currentUser.uid;
+    const userSnap = await getDoc(doc(db, "users", uid));
+    const codigo = userSnap.data()?.codigoReferido || '';
+    document.getElementById('mi-codigo-referido').value = codigo;
+    const enlace = `https://exploracionesobr.github.io/RESCATE-OBR/?ref=${codigo}`;
+    document.getElementById('mi-enlace-referido').value = enlace;
+
+    const q = query(collection(db, "referidos"), where("referenteId", "==", uid));
+    const snap = await getDocs(q);
+    const container = document.getElementById('mis-referidos-list');
+    container.innerHTML = '';
+    if (snap.empty) {
+        container.innerHTML = '<p class="text-xs text-gray-400">Aún no has referido a nadie.</p>';
+        return;
+    }
+    for (const docRef of snap.docs) {
+        const ref = docRef.data();
+        const userRef = await getDoc(doc(db, "users", ref.referidoId));
+        const nombre = userRef.exists() ? userRef.data().name : 'Usuario';
+        let estadoTexto = '';
+        let estadoColor = '';
+        switch (ref.estado) {
+            case 'recompensa_generada':
+                estadoTexto = '✅ Recompensa obtenida';
+                estadoColor = 'text-green-400';
+                break;
+            case 'condicion_cumplida':
+                estadoTexto = '🎯 Condición cumplida';
+                estadoColor = 'text-yellow-400';
+                break;
+            default:
+                estadoTexto = '⏳ En progreso';
+                estadoColor = 'text-gray-400';
+        }
+        container.innerHTML += `
+            <div class="bg-white/5 p-3 rounded-xl text-sm">
+                <div class="flex justify-between">
+                    <span class="font-bold">${escapeHtml(nombre)}</span>
+                    <span class="text-xs ${estadoColor}">${estadoTexto}</span>
+                </div>
+                <p class="text-xs text-gray-400">Servicios completados: ${ref.serviciosCompletados || 0}</p>
+                <p class="text-xs text-gray-400">Registro: ${new Date(ref.fechaRegistro).toLocaleDateString()}</p>
+            </div>
+        `;
+    }
+}
+
+function initReferidosUsuario() {
+    const codigoBtn = document.getElementById('copiar-codigo');
+    if (codigoBtn && !codigoBtn._listenerAdded) {
+        codigoBtn.addEventListener('click', () => {
+            const codigo = document.getElementById('mi-codigo-referido').value;
+            navigator.clipboard.writeText(codigo);
+            window.showToast("Código copiado");
+        });
+        codigoBtn._listenerAdded = true;
+    }
+    const enlaceBtn = document.getElementById('copiar-enlace');
+    if (enlaceBtn && !enlaceBtn._listenerAdded) {
+        enlaceBtn.addEventListener('click', () => {
+            const enlace = document.getElementById('mi-enlace-referido').value;
+            navigator.clipboard.writeText(enlace);
+            window.showToast("Enlace copiado");
+        });
+        enlaceBtn._listenerAdded = true;
+    }
+    const whatsappBtn = document.getElementById('compartir-whatsapp');
+    if (whatsappBtn && !whatsappBtn._listenerAdded) {
+        whatsappBtn.addEventListener('click', () => {
+            const enlace = document.getElementById('mi-enlace-referido').value;
+            const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Usa mi enlace: ${enlace}`);
+            window.open(`https://wa.me/?text=${mensaje}`, '_blank');
+        });
+        whatsappBtn._listenerAdded = true;
+    }
+    cargarMisReferidos();
+}
