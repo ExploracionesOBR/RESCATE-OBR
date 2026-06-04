@@ -481,6 +481,26 @@
                 <p class="text-xs text-center text-gray-600 italic">No tienes servicios registrados.</p>
             </div>
         </section>
+        <section id="c-view-referidos" class="c-view hidden space-y-6">
+    <h2 class="text-2xl font-black italic uppercase text-center">Mis Referidos</h2>
+    <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
+        <p class="text-sm font-bold">Tu código de referido:</p>
+        <div class="flex items-center space-x-2 mt-1">
+            <input type="text" id="mi-codigo-referido" readonly class="bg-asfalto p-2 rounded-lg text-sm font-mono flex-1">
+            <button id="copiar-codigo" class="bg-naranja px-3 py-2 rounded-lg text-xs font-black uppercase">Copiar</button>
+        </div>
+        <p class="text-sm font-bold mt-3">Tu enlace de invitación:</p>
+        <div class="flex items-center space-x-2 mt-1">
+            <input type="text" id="mi-enlace-referido" readonly class="bg-asfalto p-2 rounded-lg text-sm flex-1">
+            <button id="copiar-enlace" class="bg-naranja px-3 py-2 rounded-lg text-xs font-black uppercase">Copiar</button>
+            <button id="compartir-whatsapp" class="bg-green-600 px-3 py-2 rounded-lg text-xs font-black uppercase"><i class="fab fa-whatsapp"></i> Compartir</button>
+        </div>
+    </div>
+    <div>
+        <h3 class="text-lg font-black">Historial de referidos</h3>
+        <div id="mis-referidos-list" class="space-y-2 mt-2 max-h-60 overflow-y-auto hide-scroll"></div>
+    </div>
+</section>
     </main>
 
     <!-- Barra de navegación inferior con el orden solicitado -->
@@ -501,6 +521,10 @@
             <i class="fas fa-history text-2xl mb-1"></i>
             <span class="text-[10px] font-black uppercase tracking-widest mt-1">HISTORIAL</span>
         </button>
+        <button onclick="window.switchClientView?.('c-view-referidos')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
+    <i class="fas fa-handshake text-2xl mb-1"></i>
+    <span class="text-[10px] font-black uppercase tracking-widest mt-1">REFERIR</span>
+</button>
     </nav>
 </div>
     
