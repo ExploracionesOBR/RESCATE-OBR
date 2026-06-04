@@ -1580,18 +1580,6 @@ onAuthStateChanged(auth, async user => {
 
     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
                 // Recargar ajustes desde Firestore (para que el radio y otros valores se actualicen)
-        // ✅ Solo para administradores: si no tienen vistasPermitidas, asignar todas (sin afectar a otros roles)
-if (window.currentUserDoc.role === 'admin') {
-    if (!window.currentUserDoc.vistasPermitidas || window.currentUserDoc.vistasPermitidas.length === 0) {
-        const todasLasVistas = [
-            'a-view-pos', 'a-view-servicios', 'a-view-alertas', 'a-view-inventario',
-            'a-view-promos', 'a-view-usuarios', 'a-view-config', 'a-view-stats',
-            'a-view-citas', 'a-view-entregas'
-        ];
-        await setDoc(doc(db, "users", user.uid), { vistasPermitidas: todasLasVistas }, { merge: true });
-        window.currentUserDoc.vistasPermitidas = todasLasVistas;
-    }
-}
         const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
         startMechanicTracking();
         if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
@@ -1733,9 +1721,6 @@ window.switchClientView = (id) => {
     toggleModal('modal-user-detail', false);
     document.querySelectorAll('.c-view').forEach(v => v.classList.add('hidden'));
     document.getElementById(id).classList.remove('hidden');
-    if (id === 'c-view-referidos') {
-    setTimeout(() => initReferidosUsuario(), 100);
-}
     document.querySelectorAll('.c-nav-btn').forEach(b => b.classList.remove('tab-active'));
     const btn = Array.from(document.querySelectorAll('.c-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
     if (btn) btn.classList.add('tab-active');
@@ -1798,43 +1783,29 @@ window.switchAdminView = (id) => {
     window.fixMaps?.();
 };
 window.applyViewPermissions = () => {
-    let vistas = window.currentUserDoc?.vistasPermitidas;
-    const role = window.currentUserDoc?.role;
+    const vistas = window.currentUserDoc?.vistasPermitidas;
+    if (!vistas || !Array.isArray(vistas)) return;
 
-    // ✅ Solo para administradores: si no tienen el campo, asignar todas las vistas (compatibilidad)
-    if (role === 'admin' && (!vistas || !Array.isArray(vistas) || vistas.length === 0)) {
-        vistas = [
-            'a-view-pos', 'a-view-servicios', 'a-view-alertas', 'a-view-inventario',
-            'a-view-promos', 'a-view-usuarios', 'a-view-config', 'a-view-stats',
-            'a-view-citas', 'a-view-entregas'
-        ];
-        // Opcional: guardar en Firestore para futuros inicios de sesión
-        if (window.currentUserDoc?.id) {
-            setDoc(doc(db, "users", window.currentUserDoc.id), { vistasPermitidas: vistas }, { merge: true })
-                .catch(console.error);
-        }
-    }
-
-    // ✅ Para otros roles sin campo definido: no aplicar restricciones (mostrar todo)
-    if (!vistas || !Array.isArray(vistas) || vistas.length === 0) {
-        // No ocultar nada, salir sin cambios
-        return;
-    }
-
-    // Aplicar restricciones solo si tenemos el array de vistas permitidas
+    // Ocultar/mostrar botones en la barra de navegación
     document.querySelectorAll('.a-nav-btn').forEach(btn => {
         const onclick = btn.getAttribute('onclick') || '';
         const match = onclick.match(/'([^']+)'/);
         if (match) {
             const vistaId = match[1];
-            btn.style.display = vistas.includes(vistaId) ? '' : 'none';
+            if (!vistas.includes(vistaId)) {
+                btn.style.display = 'none';
+            } else {
+                btn.style.display = ''; // restablecer
+            }
         }
     });
 
+    // Si la vista activa actual no está permitida, redirigir a la primera disponible
     const currentActive = document.querySelector('.a-view:not(.hidden)');
     if (currentActive) {
         const currentId = currentActive.getAttribute('id');
         if (!vistas.includes(currentId)) {
+            // Buscar la primera vista permitida
             const primera = vistas[0];
             if (primera) window.switchAdminView(primera);
         }
@@ -1907,8 +1878,8 @@ window.processRegister = async () => {
             pwd: password,
             firstLogin: true,
             created: Date.now(),
-            codigoReferido: codigoReferido,
-            referidoPor: codigoReferente || null
+            codigoReferido: codigoReferido,      // ← código propio
+            referidoPor: codigoReferente || null  // ← quien lo invitó (si aplica)
         });
         
         // 5. Si viene de un referido, registrar la relación en colección "referidos"
@@ -1923,11 +1894,11 @@ window.processRegister = async () => {
                     referidoId: uid,
                     codigoReferente: codigoReferente,
                     fechaRegistro: Date.now(),
-                    estado: 'pendiente',
+                    estado: 'pendiente',        // pendiente, completado, canjeado
                     servicioCompletado: false
                 });
                 // Notificación al referente (opcional)
-                await set(dbRef(rtdb, 'notificaciones/' + referenteId), {
+                await setDoc(doc(db, "notificaciones", referenteId), {
                     msg: `🎉 ¡${name} se registró usando tu código de referido!`,
                     timestamp: Date.now(),
                     leida: false
@@ -1935,7 +1906,7 @@ window.processRegister = async () => {
             }
         }
         
-        // 6. Modal de invitación (solo para compartir, sin recargas ni reset)
+        // 6. Crear o actualizar modal de invitación (para compartir enlace)
         const modalId = 'modal-whatsapp-invite';
         let modalEl = document.getElementById(modalId);
         if (!modalEl) {
@@ -1958,7 +1929,7 @@ window.processRegister = async () => {
             `;
             document.body.appendChild(modalEl);
             
-            // Configurar eventos (solo una vez)
+            // Eventos del modal
             const inviteBtn = document.getElementById('whatsapp-invite-btn');
             const skipBtn = document.getElementById('whatsapp-skip-btn');
             if (inviteBtn) {
@@ -1967,22 +1938,20 @@ window.processRegister = async () => {
                     const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Auxilio mecánico rápido. Únete aquí: ${link}`);
                     window.open(`https://wa.me/?text=${mensaje}`, '_blank');
                     window.toggleModal(modalId, false);
-                    // NO recargar, NO cancelar flujo
                 };
             }
             if (skipBtn) {
                 skipBtn.onclick = () => {
                     window.toggleModal(modalId, false);
-                    // NO recargar, NO cancelar flujo
                 };
             }
         } else {
-            // Si ya existe el modal, solo actualizar el enlace
+            // Actualizar el enlace del modal si ya existía
             const linkSpan = document.getElementById('invite-link-display');
             if (linkSpan) linkSpan.innerText = `https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}`;
         }
         
-        // 7. Mostrar modal y toast (sin interrumpir el flujo)
+        // 7. Mostrar modal y toast
         window.toggleModal(modalId, true);
         showToast("Registro exitoso. Completa tu perfil.");
         
@@ -3219,13 +3188,6 @@ if (nuevoEstado === 'completed') {
     }
 
     await updateDoc(docRef, { tallerStatus: nuevoEstado });
-    // ===== REFERIDOS: si se marcó como 'lista', actualizar servicios del cliente =====
-if (nuevoEstado === 'lista') {
-    const uidCliente = docSnap.data().uid;
-    if (uidCliente && typeof actualizarServiciosReferido === 'function') {
-        await actualizarServiciosReferido(uidCliente);
-    }
-}
 
     if(docSnap.data().uid) push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), {
         msg: nuevoEstado === 'pruebas' ? 'CONTINUAMOS TRABAJANDO EN TU MOTO' :
@@ -4889,60 +4851,128 @@ window.deletePromo = async (promoId) => {
     });
 };
 
-// ================== REFERIDOS - CONFIGURACIÓN Y ADMINISTRACIÓN ==================
-// ========== REFERIDOS - CONFIGURACIÓN SIMPLIFICADA ==========
+// ========== REFERIDOS - ADMIN (Punto 3.2) ==========
 async function cargarConfigReferidos() {
-    const docSnap = await getDoc(doc(db, "config_referidos", "general"));
-    if (docSnap.exists()) return docSnap.data();
-    // Configuración por defecto
-    return {
-        activo: true,
-        modalidad: 'recomienda_y_gana', // o 'ganamos_juntos'
-        tipoDescuento: 'porcentaje',    // 'porcentaje' o 'monto_fijo'
-        valorDescuento: 10,             // 10% o $10 según el tipo
-        notificaciones: {
-            servicioCompletado: true,
-            recompensaGenerada: true
-        }
-    };
-}
-
-async function guardarConfigReferidos(config) {
-    try {
-        await setDoc(doc(db, "config_referidos", "general"), config, { merge: true });
-        window.showToast("✅ Configuración de referidos guardada");
-        return true;
-    } catch (error) {
-        console.error("Error guardando configuración:", error);
-        window.showToast("❌ Error al guardar configuración", true);
-        return false;
+    const docSnap = await getDoc(doc(db, "config", "referidos"));
+    if (docSnap.exists()) {
+        const data = docSnap.data();
+        const refPorcentaje = document.getElementById('referido-desc-porcentaje');
+        const refMonto = document.getElementById('referido-desc-monto');
+        const refePorcentaje = document.getElementById('referente-desc-porcentaje');
+        const refeMonto = document.getElementById('referente-desc-monto');
+        if (refPorcentaje) refPorcentaje.value = data.referidoPorcentaje || '';
+        if (refMonto) refMonto.value = data.referidoMonto || '';
+        if (refePorcentaje) refePorcentaje.value = data.referentePorcentaje || '';
+        if (refeMonto) refeMonto.value = data.referenteMonto || '';
     }
 }
 
-// Cargar configuración en el formulario del panel
-async function cargarConfigForm() {
-    const config = await cargarConfigReferidos();
-    document.getElementById('ref-activo').value = config.activo ? 'true' : 'false';
-    document.getElementById('ref-modalidad').value = config.modalidad;
-    document.getElementById('ref-tipo-descuento').value = config.tipoDescuento;
-    document.getElementById('ref-valor-descuento').value = config.valorDescuento;
-    document.getElementById('ref-notif-servicio').checked = config.notificaciones?.servicioCompletado || false;
-    document.getElementById('ref-notif-recompensa').checked = config.notificaciones?.recompensaGenerada || false;
+async function guardarConfigReferidos() {
+    const data = {
+        referidoPorcentaje: document.getElementById('referido-desc-porcentaje')?.value || null,
+        referidoMonto: document.getElementById('referido-desc-monto')?.value || null,
+        referentePorcentaje: document.getElementById('referente-desc-porcentaje')?.value || null,
+        referenteMonto: document.getElementById('referente-desc-monto')?.value || null,
+        actualizado: Date.now()
+    };
+    await setDoc(doc(db, "config", "referidos"), data);
+    window.showToast("Configuración de referidos guardada");
 }
 
-// Guardar configuración desde el formulario
-async function guardarConfigForm() {
-    const config = {
-        activo: document.getElementById('ref-activo').value === 'true',
-        modalidad: document.getElementById('ref-modalidad').value,
-        tipoDescuento: document.getElementById('ref-tipo-descuento').value,
-        valorDescuento: parseFloat(document.getElementById('ref-valor-descuento').value) || 0,
-        notificaciones: {
-            servicioCompletado: document.getElementById('ref-notif-servicio').checked,
-            recompensaGenerada: document.getElementById('ref-notif-recompensa').checked
+async function cargarListaReferidos() {
+    const container = document.getElementById('admin-referidos-list');
+    if (!container) return;
+    container.innerHTML = '<p class="text-xs text-gray-400">Cargando...</p>';
+    try {
+        const referidosSnap = await getDocs(query(collection(db, "referidos"), orderBy("fechaRegistro", "desc")));
+        if (referidosSnap.empty) {
+            container.innerHTML = '<p class="text-xs text-gray-400">No hay referidos registrados.</p>';
+            return;
+        }
+        const usersCache = new Map();
+        let html = '';
+        for (const docRef of referidosSnap.docs) {
+            const ref = docRef.data();
+            let referenteName = '...', referidoName = '...';
+            if (!usersCache.has(ref.referenteId)) {
+                const userSnap = await getDoc(doc(db, "users", ref.referenteId));
+                usersCache.set(ref.referenteId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
+            }
+            referenteName = usersCache.get(ref.referenteId);
+            if (!usersCache.has(ref.referidoId)) {
+                const userSnap = await getDoc(doc(db, "users", ref.referidoId));
+                usersCache.set(ref.referidoId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
+            }
+            referidoName = usersCache.get(ref.referidoId);
+            const estadoClase = ref.estado === 'completado' ? 'text-green-400' : 'text-yellow-400';
+            html += `
+                <div class="bg-white/5 p-3 rounded-xl flex justify-between items-center text-xs">
+                    <div>
+                        <p><span class="font-bold">${escapeHtml(referenteName)}</span> → <span class="font-bold">${escapeHtml(referidoName)}</span></p>
+                        <p class="text-gray-400">${new Date(ref.fechaRegistro).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                        <span class="${estadoClase} uppercase">${ref.estado}</span>
+                        ${ref.estado === 'pendiente' ? `<button onclick="marcarReferidoCompletado('${docRef.id}')" class="ml-2 bg-blue-600 text-white px-2 py-1 rounded text-[9px]">Marcar completado</button>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+    } catch (error) {
+        console.error("Error cargando referidos:", error);
+        container.innerHTML = '<p class="text-xs text-red-400">Error al cargar referidos</p>';
+    }
+}
+
+window.marcarReferidoCompletado = async (referidoId) => {
+    try {
+        await updateDoc(doc(db, "referidos", referidoId), { estado: 'completado', servicioCompletado: true, fechaCompletado: Date.now() });
+        window.showToast("Referido marcado como completado");
+        cargarListaReferidos();
+    } catch (error) {
+        console.error(error);
+        window.showToast("Error al actualizar", true);
+    }
+};
+
+// Función para integrar la carga de referidos cuando se muestra la vista de promos
+function initReferidosAdmin() {
+    if (document.getElementById('a-view-promos') && !document.getElementById('a-view-promos').classList.contains('hidden')) {
+        cargarConfigReferidos();
+        cargarListaReferidos();
+        const guardarBtn = document.getElementById('guardar-config-referidos');
+        if (guardarBtn && !guardarBtn._listenerAdded) {
+            guardarBtn.addEventListener('click', guardarConfigReferidos);
+            guardarBtn._listenerAdded = true;
+        }
+    }
+}
+
+// Llamar a initReferidosAdmin al cambiar a la vista de promos
+if (typeof window.switchAdminView === 'function') {
+    const originalSwitchAdminView = window.switchAdminView;
+    window.switchAdminView = function(viewId) {
+        originalSwitchAdminView.call(this, viewId);
+        if (viewId === 'a-view-promos') {
+            setTimeout(initReferidosAdmin, 200);
         }
     };
-    await guardarConfigReferidos(config);
+} else {
+    // Fallback: observar cambios en la clase hidden del elemento
+    const promosView = document.getElementById('a-view-promos');
+    if (promosView) {
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class') {
+                    if (!promosView.classList.contains('hidden')) {
+                        initReferidosAdmin();
+                    }
+                }
+            });
+        });
+        observer.observe(promosView, { attributes: true });
+    }
 }
 // ======================================================
 // === VIDEO BANNER (con previsualización) ===
@@ -6190,14 +6220,6 @@ window.changeSOSStatus = async (id, newStatus) => {
         case 'cancelled': updates.status = 'cancelled'; notifMsg = 'El taller ha cancelado el servicio.'; finalizar = true; break;
     }
     await updateDoc(docRef, updates);
-    // ===== REFERIDOS: si se completó el rescate, actualizar servicios del cliente =====
-if (newStatus === 'ready') {
-    const snapDoc = await getDoc(docRef); // leer el documento actualizado
-    const uidCliente = snapDoc.data().uid;
-    if (uidCliente && typeof actualizarServiciosReferido === 'function') {
-        await actualizarServiciosReferido(uidCliente);
-    }
-}
 
     if (finalizar && window.activeMechanicSOSId === id) {
         const trackingRef = dbRef(rtdb, `sos_tracking/${id}/${auth.currentUser.uid}/points`);
@@ -8830,23 +8852,19 @@ if (phoneField) {
         return;
     }
     const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
-    const codigo = userSnap.data()?.codigoReferido;
-    if (!codigo) {
-        window.showToast("Tu código de referido aún no está disponible. Contacta al administrador.", true);
-        return;
-    }
+    const codigo = userSnap.data()?.codigoReferido || '';
     const enlace = `https://exploracionesobr.github.io/RESCATE-OBR/?ref=${codigo}`;
-
+    
     let modalEl = document.getElementById('modal-whatsapp-invite');
     if (!modalEl) {
         modalEl = document.createElement('div');
         modalEl.id = 'modal-whatsapp-invite';
         modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
         modalEl.innerHTML = `
-            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 text-center">
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
                 <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
-                <h2 class="text-xl font-black text-white mb-2">Comparte OBR</h2>
-                <p class="text-xs text-gray-300 mb-4">Invita a tus amigos con tu enlace personal.</p>
+                <h2 class="text-xl font-black text-white mb-2">Invita a tus amigos</h2>
+                <p class="text-xs text-gray-300 mb-4">Comparte este enlace y gana descuentos cuando se unan.</p>
                 <div class="bg-white/10 p-2 rounded-lg mb-4">
                     <p class="text-[10px] text-gray-400 break-all" id="invite-link-display">${enlace}</p>
                 </div>
@@ -8857,6 +8875,7 @@ if (phoneField) {
             </div>
         `;
         document.body.appendChild(modalEl);
+        
         document.getElementById('whatsapp-invite-btn').onclick = () => {
             const link = document.getElementById('invite-link-display').innerText;
             const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Usa mi enlace: ${link}`);
@@ -8973,83 +8992,3 @@ if (phoneField) {
         window.addEventListener('resize', ajustarPosicion);
     }
 })();
-// ========== PANEL DE USUARIO: MIS REFERIDOS ==========
-async function cargarMisReferidos() {
-    if (!auth.currentUser) return;
-    const uid = auth.currentUser.uid;
-    const userSnap = await getDoc(doc(db, "users", uid));
-    const codigo = userSnap.data()?.codigoReferido || '';
-    document.getElementById('mi-codigo-referido').value = codigo;
-    const enlace = `https://exploracionesobr.github.io/RESCATE-OBR/?ref=${codigo}`;
-    document.getElementById('mi-enlace-referido').value = enlace;
-
-    const q = query(collection(db, "referidos"), where("referenteId", "==", uid));
-    const snap = await getDocs(q);
-    const container = document.getElementById('mis-referidos-list');
-    container.innerHTML = '';
-    if (snap.empty) {
-        container.innerHTML = '<p class="text-xs text-gray-400">Aún no has referido a nadie.</p>';
-        return;
-    }
-    for (const docRef of snap.docs) {
-        const ref = docRef.data();
-        const userRef = await getDoc(doc(db, "users", ref.referidoId));
-        const nombre = userRef.exists() ? userRef.data().name : 'Usuario';
-        let estadoTexto = '';
-        let estadoColor = '';
-        switch (ref.estado) {
-            case 'recompensa_generada':
-                estadoTexto = '✅ Recompensa obtenida';
-                estadoColor = 'text-green-400';
-                break;
-            case 'condicion_cumplida':
-                estadoTexto = '🎯 Condición cumplida';
-                estadoColor = 'text-yellow-400';
-                break;
-            default:
-                estadoTexto = '⏳ En progreso';
-                estadoColor = 'text-gray-400';
-        }
-        container.innerHTML += `
-            <div class="bg-white/5 p-3 rounded-xl text-sm">
-                <div class="flex justify-between">
-                    <span class="font-bold">${escapeHtml(nombre)}</span>
-                    <span class="text-xs ${estadoColor}">${estadoTexto}</span>
-                </div>
-                <p class="text-xs text-gray-400">Servicios completados: ${ref.serviciosCompletados || 0}</p>
-                <p class="text-xs text-gray-400">Registro: ${new Date(ref.fechaRegistro).toLocaleDateString()}</p>
-            </div>
-        `;
-    }
-}
-
-function initReferidosUsuario() {
-    const codigoBtn = document.getElementById('copiar-codigo');
-    if (codigoBtn && !codigoBtn._listenerAdded) {
-        codigoBtn.addEventListener('click', () => {
-            const codigo = document.getElementById('mi-codigo-referido').value;
-            navigator.clipboard.writeText(codigo);
-            window.showToast("Código copiado");
-        });
-        codigoBtn._listenerAdded = true;
-    }
-    const enlaceBtn = document.getElementById('copiar-enlace');
-    if (enlaceBtn && !enlaceBtn._listenerAdded) {
-        enlaceBtn.addEventListener('click', () => {
-            const enlace = document.getElementById('mi-enlace-referido').value;
-            navigator.clipboard.writeText(enlace);
-            window.showToast("Enlace copiado");
-        });
-        enlaceBtn._listenerAdded = true;
-    }
-    const whatsappBtn = document.getElementById('compartir-whatsapp');
-    if (whatsappBtn && !whatsappBtn._listenerAdded) {
-        whatsappBtn.addEventListener('click', () => {
-            const enlace = document.getElementById('mi-enlace-referido').value;
-            const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Usa mi enlace: ${enlace}`);
-            window.open(`https://wa.me/?text=${mensaje}`, '_blank');
-        });
-        whatsappBtn._listenerAdded = true;
-    }
-    cargarMisReferidos();
-}
