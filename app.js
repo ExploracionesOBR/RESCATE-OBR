@@ -1580,6 +1580,18 @@ onAuthStateChanged(auth, async user => {
 
     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
                 // Recargar ajustes desde Firestore (para que el radio y otros valores se actualicen)
+        // ✅ Solo para administradores: si no tienen vistasPermitidas, asignar todas (sin afectar a otros roles)
+if (window.currentUserDoc.role === 'admin') {
+    if (!window.currentUserDoc.vistasPermitidas || window.currentUserDoc.vistasPermitidas.length === 0) {
+        const todasLasVistas = [
+            'a-view-pos', 'a-view-servicios', 'a-view-alertas', 'a-view-inventario',
+            'a-view-promos', 'a-view-usuarios', 'a-view-config', 'a-view-stats',
+            'a-view-citas', 'a-view-entregas'
+        ];
+        await setDoc(doc(db, "users", user.uid), { vistasPermitidas: todasLasVistas }, { merge: true });
+        window.currentUserDoc.vistasPermitidas = todasLasVistas;
+    }
+}
         const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
         startMechanicTracking();
         if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
@@ -1786,29 +1798,43 @@ window.switchAdminView = (id) => {
     window.fixMaps?.();
 };
 window.applyViewPermissions = () => {
-    const vistas = window.currentUserDoc?.vistasPermitidas;
-    if (!vistas || !Array.isArray(vistas)) return;
+    let vistas = window.currentUserDoc?.vistasPermitidas;
+    const role = window.currentUserDoc?.role;
 
-    // Ocultar/mostrar botones en la barra de navegación
+    // ✅ Solo para administradores: si no tienen el campo, asignar todas las vistas (compatibilidad)
+    if (role === 'admin' && (!vistas || !Array.isArray(vistas) || vistas.length === 0)) {
+        vistas = [
+            'a-view-pos', 'a-view-servicios', 'a-view-alertas', 'a-view-inventario',
+            'a-view-promos', 'a-view-usuarios', 'a-view-config', 'a-view-stats',
+            'a-view-citas', 'a-view-entregas'
+        ];
+        // Opcional: guardar en Firestore para futuros inicios de sesión
+        if (window.currentUserDoc?.id) {
+            setDoc(doc(db, "users", window.currentUserDoc.id), { vistasPermitidas: vistas }, { merge: true })
+                .catch(console.error);
+        }
+    }
+
+    // ✅ Para otros roles sin campo definido: no aplicar restricciones (mostrar todo)
+    if (!vistas || !Array.isArray(vistas) || vistas.length === 0) {
+        // No ocultar nada, salir sin cambios
+        return;
+    }
+
+    // Aplicar restricciones solo si tenemos el array de vistas permitidas
     document.querySelectorAll('.a-nav-btn').forEach(btn => {
         const onclick = btn.getAttribute('onclick') || '';
         const match = onclick.match(/'([^']+)'/);
         if (match) {
             const vistaId = match[1];
-            if (!vistas.includes(vistaId)) {
-                btn.style.display = 'none';
-            } else {
-                btn.style.display = ''; // restablecer
-            }
+            btn.style.display = vistas.includes(vistaId) ? '' : 'none';
         }
     });
 
-    // Si la vista activa actual no está permitida, redirigir a la primera disponible
     const currentActive = document.querySelector('.a-view:not(.hidden)');
     if (currentActive) {
         const currentId = currentActive.getAttribute('id');
         if (!vistas.includes(currentId)) {
-            // Buscar la primera vista permitida
             const primera = vistas[0];
             if (primera) window.switchAdminView(primera);
         }
