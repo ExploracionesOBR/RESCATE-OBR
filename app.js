@@ -1849,55 +1849,63 @@ window.processRegister = async () => {
     const password = document.getElementById('reg-password').value.trim();
     const question = document.getElementById('reg-question').value;
     const answer = document.getElementById('reg-answer').value.trim();
-    if (!name || password.length < 6 || !question || !answer) return showToast("Completa datos (Pass min 6)", true);
+    
+    if (!name || password.length < 6 || !question || !answer) {
+        return showToast("Completa datos (Pass min 6)", true);
+    }
+    
     const fakeEmail = `${rawPhone}@motorescateobr.com`;
+    
     try {
+        // 1. Crear usuario en Authentication
         const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
         const uid = userCredential.user.uid;
         
-        // ========== REFERIDOS: generar código y leer parámetro ==========
+        // 2. Generar código de referido único (6 caracteres)
         const codigoReferido = Math.random().toString(36).substring(2, 8).toUpperCase();
+        
+        // 3. Leer parámetro 'ref' de la URL (si existe)
         const urlParams = new URLSearchParams(window.location.search);
         const codigoReferente = urlParams.get('ref');
-        // ================================================================
         
+        // 4. Guardar datos del usuario en Firestore (incluyendo referidos)
         await setDoc(doc(db, "users", uid), {
             phone: "+52" + rawPhone,
-            name,
+            name: name,
             role: 'cliente',
             secQuestion: question,
             secAnswer: answer.toLowerCase(),
             pwd: password,
             firstLogin: true,
             created: Date.now(),
-            // ========== REFERIDOS: añadir campos ==========
-            codigoReferido: codigoReferido,
-            referidoPor: codigoReferente || null
-            // ==============================================
+            codigoReferido: codigoReferido,      // ← código propio
+            referidoPor: codigoReferente || null  // ← quien lo invitó (si aplica)
         });
         
-        // ========== REFERIDOS: si hay referente, crear registro ==========
+        // 5. Si viene de un referido, registrar la relación en colección "referidos"
         if (codigoReferente) {
             const qReferente = query(collection(db, "users"), where("codigoReferido", "==", codigoReferente), limit(1));
             const snapReferente = await getDocs(qReferente);
             if (!snapReferente.empty) {
                 const referenteDoc = snapReferente.docs[0];
+                const referenteId = referenteDoc.id;
                 await addDoc(collection(db, "referidos"), {
-                    referenteId: referenteDoc.id,
+                    referenteId: referenteId,
                     referidoId: uid,
                     codigoReferente: codigoReferente,
                     fechaRegistro: Date.now(),
-                    estado: 'pendiente',
+                    estado: 'pendiente',        // pendiente, completado, canjeado
                     servicioCompletado: false
                 });
                 // Notificación al referente (opcional)
-                await set(dbRef(rtdb, 'notificaciones/' + referenteDoc.id), {
+                await setDoc(doc(db, "notificaciones", referenteId), {
                     msg: `🎉 ¡${name} se registró usando tu código de referido!`,
                     timestamp: Date.now(),
                     leida: false
                 });
             }
-        }     
+        }
+        
         // 6. Crear o actualizar modal de invitación (para compartir enlace)
         const modalId = 'modal-whatsapp-invite';
         let modalEl = document.getElementById(modalId);
@@ -8844,23 +8852,19 @@ if (phoneField) {
         return;
     }
     const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
-    const codigo = userSnap.data()?.codigoReferido;
-    if (!codigo) {
-        window.showToast("Tu código de referido aún no está disponible. Contacta al administrador.", true);
-        return;
-    }
+    const codigo = userSnap.data()?.codigoReferido || '';
     const enlace = `https://exploracionesobr.github.io/RESCATE-OBR/?ref=${codigo}`;
-
+    
     let modalEl = document.getElementById('modal-whatsapp-invite');
     if (!modalEl) {
         modalEl = document.createElement('div');
         modalEl.id = 'modal-whatsapp-invite';
         modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
         modalEl.innerHTML = `
-            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 text-center">
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
                 <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
-                <h2 class="text-xl font-black text-white mb-2">Comparte OBR</h2>
-                <p class="text-xs text-gray-300 mb-4">Invita a tus amigos con tu enlace personal.</p>
+                <h2 class="text-xl font-black text-white mb-2">Invita a tus amigos</h2>
+                <p class="text-xs text-gray-300 mb-4">Comparte este enlace y gana descuentos cuando se unan.</p>
                 <div class="bg-white/10 p-2 rounded-lg mb-4">
                     <p class="text-[10px] text-gray-400 break-all" id="invite-link-display">${enlace}</p>
                 </div>
@@ -8871,6 +8875,7 @@ if (phoneField) {
             </div>
         `;
         document.body.appendChild(modalEl);
+        
         document.getElementById('whatsapp-invite-btn').onclick = () => {
             const link = document.getElementById('invite-link-display').innerText;
             const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Usa mi enlace: ${link}`);
