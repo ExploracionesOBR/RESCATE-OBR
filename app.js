@@ -1849,63 +1849,55 @@ window.processRegister = async () => {
     const password = document.getElementById('reg-password').value.trim();
     const question = document.getElementById('reg-question').value;
     const answer = document.getElementById('reg-answer').value.trim();
-    
-    if (!name || password.length < 6 || !question || !answer) {
-        return showToast("Completa datos (Pass min 6)", true);
-    }
-    
+    if (!name || password.length < 6 || !question || !answer) return showToast("Completa datos (Pass min 6)", true);
     const fakeEmail = `${rawPhone}@motorescateobr.com`;
-    
     try {
-        // 1. Crear usuario en Authentication
         const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
         const uid = userCredential.user.uid;
         
-        // 2. Generar código de referido único (6 caracteres)
+        // ========== REFERIDOS: generar código y leer parámetro ==========
         const codigoReferido = Math.random().toString(36).substring(2, 8).toUpperCase();
-        
-        // 3. Leer parámetro 'ref' de la URL (si existe)
         const urlParams = new URLSearchParams(window.location.search);
         const codigoReferente = urlParams.get('ref');
+        // ================================================================
         
-        // 4. Guardar datos del usuario en Firestore (incluyendo referidos)
         await setDoc(doc(db, "users", uid), {
             phone: "+52" + rawPhone,
-            name: name,
+            name,
             role: 'cliente',
             secQuestion: question,
             secAnswer: answer.toLowerCase(),
             pwd: password,
             firstLogin: true,
             created: Date.now(),
-            codigoReferido: codigoReferido,      // ← código propio
-            referidoPor: codigoReferente || null  // ← quien lo invitó (si aplica)
+            // ========== REFERIDOS: añadir campos ==========
+            codigoReferido: codigoReferido,
+            referidoPor: codigoReferente || null
+            // ==============================================
         });
         
-        // 5. Si viene de un referido, registrar la relación en colección "referidos"
+        // ========== REFERIDOS: si hay referente, crear registro ==========
         if (codigoReferente) {
             const qReferente = query(collection(db, "users"), where("codigoReferido", "==", codigoReferente), limit(1));
             const snapReferente = await getDocs(qReferente);
             if (!snapReferente.empty) {
                 const referenteDoc = snapReferente.docs[0];
-                const referenteId = referenteDoc.id;
                 await addDoc(collection(db, "referidos"), {
-                    referenteId: referenteId,
+                    referenteId: referenteDoc.id,
                     referidoId: uid,
                     codigoReferente: codigoReferente,
                     fechaRegistro: Date.now(),
-                    estado: 'pendiente',        // pendiente, completado, canjeado
+                    estado: 'pendiente',
                     servicioCompletado: false
                 });
                 // Notificación al referente (opcional)
-                await setDoc(doc(db, "notificaciones", referenteId), {
+                await set(dbRef(rtdb, 'notificaciones/' + referenteDoc.id), {
                     msg: `🎉 ¡${name} se registró usando tu código de referido!`,
                     timestamp: Date.now(),
                     leida: false
                 });
             }
-        }
-        
+        }     
         // 6. Crear o actualizar modal de invitación (para compartir enlace)
         const modalId = 'modal-whatsapp-invite';
         let modalEl = document.getElementById(modalId);
