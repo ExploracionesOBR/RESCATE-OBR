@@ -8844,19 +8844,23 @@ if (phoneField) {
         return;
     }
     const userSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
-    const codigo = userSnap.data()?.codigoReferido || '';
+    const codigo = userSnap.data()?.codigoReferido;
+    if (!codigo) {
+        window.showToast("Tu código de referido aún no está disponible. Contacta al administrador.", true);
+        return;
+    }
     const enlace = `https://exploracionesobr.github.io/RESCATE-OBR/?ref=${codigo}`;
-    
+
     let modalEl = document.getElementById('modal-whatsapp-invite');
     if (!modalEl) {
         modalEl = document.createElement('div');
         modalEl.id = 'modal-whatsapp-invite';
         modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
         modalEl.innerHTML = `
-            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 text-center">
                 <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
-                <h2 class="text-xl font-black text-white mb-2">Invita a tus amigos</h2>
-                <p class="text-xs text-gray-300 mb-4">Comparte este enlace y gana descuentos cuando se unan.</p>
+                <h2 class="text-xl font-black text-white mb-2">Comparte OBR</h2>
+                <p class="text-xs text-gray-300 mb-4">Invita a tus amigos con tu enlace personal.</p>
                 <div class="bg-white/10 p-2 rounded-lg mb-4">
                     <p class="text-[10px] text-gray-400 break-all" id="invite-link-display">${enlace}</p>
                 </div>
@@ -8867,7 +8871,6 @@ if (phoneField) {
             </div>
         `;
         document.body.appendChild(modalEl);
-        
         document.getElementById('whatsapp-invite-btn').onclick = () => {
             const link = document.getElementById('invite-link-display').innerText;
             const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Usa mi enlace: ${link}`);
