@@ -4826,30 +4826,6 @@ window.deletePromo = async (promoId) => {
         window.adminLoadLoyalty();
     });
 };
-window.marcarReferidoCompletado = async (referidoId) => {
-    try {
-        await updateDoc(doc(db, "referidos", referidoId), { estado: 'completado', servicioCompletado: true, fechaCompletado: Date.now() });
-        window.showToast("Referido marcado como completado");
-        cargarListaReferidos();
-    } catch (error) {
-        console.error(error);
-        window.showToast("Error al actualizar", true);
-    }
-};
-
-// Función para integrar la carga de referidos cuando se muestra la vista de promos
-function initReferidosAdmin() {
-    if (document.getElementById('a-view-promos') && !document.getElementById('a-view-promos').classList.contains('hidden')) {
-        cargarConfigReferidos();
-        cargarListaReferidos();
-        const guardarBtn = document.getElementById('guardar-config-referidos');
-        if (guardarBtn && !guardarBtn._listenerAdded) {
-            guardarBtn.addEventListener('click', guardarConfigReferidos);
-            guardarBtn._listenerAdded = true;
-        }
-    }
-}
-
 // Llamar a initReferidosAdmin al cambiar a la vista de promos
 if (typeof window.switchAdminView === 'function') {
     const originalSwitchAdminView = window.switchAdminView;
