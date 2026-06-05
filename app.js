@@ -4855,52 +4855,6 @@ async function guardarConfigReferidos() {
     window.showToast("Configuración de referidos guardada");
 }
 
-async function cargarListaReferidos() {
-    const container = document.getElementById('admin-referidos-list');
-    if (!container) return;
-    container.innerHTML = '<p class="text-xs text-gray-400">Cargando...</p>';
-    try {
-        const referidosSnap = await getDocs(query(collection(db, "referidos"), orderBy("fechaRegistro", "desc")));
-        if (referidosSnap.empty) {
-            container.innerHTML = '<p class="text-xs text-gray-400">No hay referidos registrados.</p>';
-            return;
-        }
-        const usersCache = new Map();
-        let html = '';
-        for (const docRef of referidosSnap.docs) {
-            const ref = docRef.data();
-            let referenteName = '...', referidoName = '...';
-            if (!usersCache.has(ref.referenteId)) {
-                const userSnap = await getDoc(doc(db, "users", ref.referenteId));
-                usersCache.set(ref.referenteId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
-            }
-            referenteName = usersCache.get(ref.referenteId);
-            if (!usersCache.has(ref.referidoId)) {
-                const userSnap = await getDoc(doc(db, "users", ref.referidoId));
-                usersCache.set(ref.referidoId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
-            }
-            referidoName = usersCache.get(ref.referidoId);
-            const estadoClase = ref.estado === 'completado' ? 'text-green-400' : 'text-yellow-400';
-            html += `
-                <div class="bg-white/5 p-3 rounded-xl flex justify-between items-center text-xs">
-                    <div>
-                        <p><span class="font-bold">${escapeHtml(referenteName)}</span> → <span class="font-bold">${escapeHtml(referidoName)}</span></p>
-                        <p class="text-gray-400">${new Date(ref.fechaRegistro).toLocaleDateString()}</p>
-                    </div>
-                    <div>
-                        <span class="${estadoClase} uppercase">${ref.estado}</span>
-                        ${ref.estado === 'pendiente' ? `<button onclick="marcarReferidoCompletado('${docRef.id}')" class="ml-2 bg-blue-600 text-white px-2 py-1 rounded text-[9px]">Marcar completado</button>` : ''}
-                    </div>
-                </div>
-            `;
-        }
-        container.innerHTML = html;
-    } catch (error) {
-        console.error("Error cargando referidos:", error);
-        container.innerHTML = '<p class="text-xs text-red-400">Error al cargar referidos</p>';
-    }
-}
-
 window.marcarReferidoCompletado = async (referidoId) => {
     try {
         await updateDoc(doc(db, "referidos", referidoId), { estado: 'completado', servicioCompletado: true, fechaCompletado: Date.now() });
