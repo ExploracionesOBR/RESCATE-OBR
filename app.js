@@ -3,7 +3,14 @@ import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, on
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, where, limit, updateDoc, deleteDoc, orderBy, onSnapshot, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getDatabase, ref as dbRef, set, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
-
+// Cargar tema guardado localmente
+function cargarTemaLocal() {
+    const saved = localStorage.getItem('obr_theme_mode');
+    if (saved) {
+        globalSettings.themeMode = saved;
+        applyTheme();
+    }
+}
 const firebaseConfig = {
     apiKey: "AIzaSyCO5ngYh7JYlMJ-PnWqXq142Kj-Umylods",
     authDomain: "motocheck-15c61.firebaseapp.com",
@@ -1236,6 +1243,7 @@ console.log('ANTES DEL TEMA');
 // === TEMA ===
 window.changeThemeMode = async (mode) => {
     globalSettings.themeMode = mode;
+    localStorage.setItem('obr_theme_mode', mode);
     applyTheme();
     if (auth.currentUser && window.currentUserDoc?.role === 'admin') {
         await setDoc(doc(db, "settings", "general"), { themeMode: mode }, { merge: true });
@@ -1253,6 +1261,8 @@ function applyTheme() {
     if (sel) sel.value = globalSettings.themeMode || 'auto';
     updateLogo();
     switchMapLayer(mode === 'light');
+    // Guardar en localStorage
+    localStorage.setItem('obr_theme_mode', mode);
 }
 
 function switchMapLayer(isLight) {
@@ -1343,24 +1353,20 @@ window.updateEmergencyButtonState = (isOpen, sched) => {
     if (!emBtn) return;
 
     if (isOpen) {
-        // Habilitar botón (estilo normal)
         emBtn.classList.remove('opacity-50', 'pointer-events-none', 'bg-gray-600');
-        emBtn.classList.add('bg-naranja'); // ya tiene bg-naranja por defecto
+        emBtn.classList.add('bg-gradient-to-r', 'from-red-600', 'to-naranja');
         if (emText) emText.classList.add('hidden');
         emBtn.onclick = () => window.startFlow('sos');
-        // Asegurar que el icono y texto sean visibles
-        emBtn.querySelectorAll('i, span').forEach(el => el.style.opacity = '1');
     } else {
-        // Deshabilitar botón
         emBtn.classList.add('opacity-50', 'pointer-events-none', 'bg-gray-600');
-        emBtn.classList.remove('bg-naranja');
+        emBtn.classList.remove('bg-gradient-to-r', 'from-red-600', 'to-naranja');
         if (emText) {
             emText.classList.remove('hidden');
             const nextOpen = window.findNextOpenDay?.();
             if (nextOpen) {
-                emText.innerText = `🔒 Abrimos el ${nextOpen.day} a las ${nextOpen.time}`;
+                emText.innerText = `Abrimos el ${nextOpen.day} a las ${nextOpen.time}`;
             } else {
-                emText.innerText = `🔒 Abrimos a las ${sched?.o || '08:00'}`;
+                emText.innerText = `Abrimos a las ${sched?.o || '08:00'}`;
             }
         }
         emBtn.onclick = () => window.showToast("Taller cerrado. Vuelve en horario laboral.", true);
@@ -1369,10 +1375,24 @@ window.updateEmergencyButtonState = (isOpen, sched) => {
 
 // === INICIO Y CONFIGURACIÓN GLOBAL ===
 async function loadGlobalSettings() {
+    // Primero aplicar tema local
+    cargarTemaLocal();
+    
     const snap = await getDoc(doc(db, 'settings', 'general'));
     if (snap.exists()) Object.assign(globalSettings, snap.data());
     globalSettings.centerLat = TALLER_LAT;
     globalSettings.centerLng = TALLER_LNG;
+    
+    // Sincronizar: si es admin, guardar en Firestore; si no, prevalece local
+    if (auth.currentUser && window.currentUserDoc?.role === 'admin') {
+        const localMode = localStorage.getItem('obr_theme_mode');
+        if (localMode && localMode !== globalSettings.themeMode) {
+            globalSettings.themeMode = localMode;
+            await setDoc(doc(db, 'settings', 'general'), { themeMode: localMode }, { merge: true });
+        }
+    } else if (!auth.currentUser) {
+        // Si no hay usuario, el tema local ya se aplicó
+    }
     applyTheme();
     updateLandingStatus();
     loadPublicStore();
@@ -1544,6 +1564,9 @@ async function loadServicesCatalog() {
 
 // === FLUJO DE VISTAS Y AUTENTICACIÓN ===
 onAuthStateChanged(auth, async user => {
+    // Asegurar tema antes de mostrar cualquier vista
+    cargarTemaLocal();
+    
     document.getElementById('loading-screen').classList.add('hidden');
     if (window._adminCreatingUser) return;
 
@@ -1601,6 +1624,20 @@ onAuthStateChanged(auth, async user => {
         if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
     } else {
         showView('app-client');
+        setTimeout(() => {
+    if (typeof window.updateEmergencyButtonState === 'function') {
+        const now = new Date();
+        const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
+        const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
+        const [hOpen, mOpen] = sched.o.split(':').map(Number);
+        const [hClose, mClose] = sched.c.split(':').map(Number);
+        const nowMins = now.getHours() * 60 + now.getMinutes();
+        const openMins = hOpen * 60 + mOpen;
+        const closeMins = hClose * 60 + mClose;
+        const isOpen = nowMins >= openMins && nowMins < closeMins;
+        window.updateEmergencyButtonState(isOpen, sched);
+    }
+}, 100);
         document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
         window.loadClientHistory(); 
         listenToMySOS(); 
