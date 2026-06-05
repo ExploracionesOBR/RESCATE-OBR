@@ -2095,7 +2095,9 @@ window.filterServiceOptions = () => {
     
     let matches = [];
     if (query.length === 0) {
-        matches = [{ id: "0", name: "SIN FALLO ESPECÍFICO (Se cotizará en el lugar)", price: 0 }];
+        // Mostrar primeros 5 servicios del catálogo + opción genérica
+        matches = shopServices.slice(0, 5);
+        matches.push({ id: "0", name: "SIN FALLO ESPECÍFICO (Se cotizará en el lugar)", price: 0 });
     } else {
         matches = shopServices.filter(s => s.name.toLowerCase().includes(query));
         if (matches.length === 0) {
@@ -2314,23 +2316,25 @@ window.submitFinalSOS = async () => {
             timeoutPromise
         ]);
 
-        document.getElementById('sos-falla').value = '';
-        document.getElementById('sos-media').value = '';
-        document.getElementById('llanta-type-container').classList.add('hidden');
-        showToast("¡Unidad notificada!");
-        showView('app-client');
-        window.switchClientView('c-view-moto');
-        listenToMySOS();
-    } catch (e) {
-        console.warn('SOS enviado con posibles demoras:', e);
-        showToast("Solicitud enviada. Te notificaremos cuando el taller confirme.");
-        document.getElementById('sos-falla').value = '';
-        document.getElementById('sos-media').value = '';
-        document.getElementById('llanta-type-container').classList.add('hidden');
-        showView('app-client');
-        window.switchClientView('c-view-moto');
-        listenToMySOS();
-    } finally {
+       try {
+    // ... código anterior ...
+    document.getElementById('sos-falla').value = '';
+    document.getElementById('sos-media').value = '';
+    document.getElementById('llanta-type-container').classList.add('hidden');
+    showToast("¡Unidad notificada!");
+    showView('app-client');
+    window.switchClientView('c-view-rescate');  // ← CORREGIDO
+    listenToMySOS();
+} catch (e) {
+    console.warn('SOS enviado con posibles demoras:', e);
+    showToast("Solicitud enviada. Te notificaremos cuando el taller confirme.");
+    document.getElementById('sos-falla').value = '';
+    document.getElementById('sos-media').value = '';
+    document.getElementById('llanta-type-container').classList.add('hidden');
+    showView('app-client');
+    window.switchClientView('c-view-rescate');  // ← CORREGIDO
+    listenToMySOS();
+} finally {
         btn.disabled = false;
         btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
     }
@@ -6417,36 +6421,68 @@ window.asignarMecanicoASOS = async (mechUid, sosId) => {
 };
 
 window.tomarCasoDirecto = async () => {
-    if (!auth.currentUser || !window.currentSOSId) return;
+    if (!auth.currentUser || !window.currentSOSId) {
+        window.showToast("No hay un servicio seleccionado", true);
+        return;
+    }
     const mech = window.currentUserDoc;
-    if (!mech || mech.role !== 'mecanico') return showToast("Solo mecánicos", true);
+    if (!mech || (mech.role !== 'mecanico' && mech.role !== 'admin')) {
+        window.showToast("Solo mecánicos o administradores pueden tomar casos", true);
+        return;
+    }
     const sosId = window.currentSOSId;
     const sosSnap = await getDoc(doc(db, "rescates", sosId));
-    if (!sosSnap.exists()) return;
+    if (!sosSnap.exists()) {
+        window.showToast("Servicio no encontrado", true);
+        return;
+    }
     const sosData = sosSnap.data();
+    
+    // No permitir si ya tiene mecánico asignado
+    if (sosData.mech_uid) {
+        window.showToast("Este servicio ya tiene un mecánico asignado", true);
+        return;
+    }
+    
     let servicioSeleccionado = sosData.falla || "servicio de auxilio";
     const match = servicioSeleccionado.match(/\[(.*?)\]/);
     if (match) servicioSeleccionado = match[1];
-
-    await updateDoc(doc(db, "rescates", sosId), { status: 'accepted', mech_uid: auth.currentUser.uid, mech_name: mech.name });
+    
+    // Actualizar el rescate
+    await updateDoc(doc(db, "rescates", sosId), { 
+        status: 'accepted', 
+        mech_uid: auth.currentUser.uid, 
+        mech_name: mech.name,
+        acceptedAt: Date.now()
+    });
     window.activeMechanicSOSId = sosId;
-    rtdbSet(dbRef(rtdb, 'notificaciones/' + auth.currentUser.uid), { msg: `🔧 Has tomado el caso: ${sosId}` });
+    
+    // Notificar al cliente via RTDB
     if (sosData.uid) {
-        rtdbSet(dbRef(rtdb, 'sos_alerts/' + sosData.uid), { ...sosData, status: 'accepted' });
-        push(dbRef(rtdb, 'sos_alerts/' + sosData.uid + '/notifs'), { msg: 'Mecánico asignado, en camino.' });
-        speakTTS("Mecánico asignado, en camino.");
+        await set(dbRef(rtdb, 'sos_alerts/' + sosData.uid), { ...sosData, status: 'accepted', mech_uid: auth.currentUser.uid });
+        await push(dbRef(rtdb, 'sos_alerts/' + sosData.uid + '/notifs'), { msg: 'Mecánico asignado, en camino.' });
+        window.speakTTS("Mecánico asignado, en camino.");
         if (sosData.phone) {
-            await enviarWhatsAppPersonalizado(
-                sosData.phone,
-                sosData.clientName || "cliente",
-                mech.name,
-                servicioSeleccionado
-            );
+            // Llamar a la función de enviar WhatsApp (si existe)
+            if (typeof enviarWhatsAppPersonalizado === 'function') {
+                await enviarWhatsAppPersonalizado(
+                    sosData.phone,
+                    sosData.clientName || "cliente",
+                    mech.name,
+                    servicioSeleccionado
+                );
+            }
         }
     }
-    showToast("Caso tomado por ti");
-    toggleModal('modal-asignar-mecanico', false);
-    window.renderSOSGlobalMap();
+    window.showToast("Caso tomado por ti");
+    window.toggleModal('modal-asignar-mecanico', false);
+    // Refrescar listado y mapa en admin
+    if (typeof window.cargarListadoSOS === 'function') window.cargarListadoSOS();
+    if (typeof window.renderSOSMapa === 'function') window.renderSOSMapa();
+    // También refrescar el detalle si está abierto
+    if (currentDetalleServicioId === sosId) {
+        window.openDetalleServicio(sosId);
+    }
 };
 
 // ---------- Iniciar notificaciones TTS ----------
