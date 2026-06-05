@@ -1869,42 +1869,44 @@ window.processRegister = async () => {
         const codigoReferente = urlParams.get('ref');
         
         // 4. Guardar datos del usuario en Firestore (incluyendo referidos)
-        await setDoc(doc(db, "users", uid), {
-            phone: "+52" + rawPhone,
-            name: name,
-            role: 'cliente',
-            secQuestion: question,
-            secAnswer: answer.toLowerCase(),
-            pwd: password,
-            firstLogin: true,
-            created: Date.now(),
-            codigoReferido: codigoReferido,      // ← código propio
-            referidoPor: codigoReferente || null  // ← quien lo invitó (si aplica)
-        });
+       await setDoc(doc(db, "users", uid), {
+    phone: "+52" + rawPhone,
+    name: name,
+    role: 'cliente',
+    secQuestion: question,
+    secAnswer: answer.toLowerCase(),
+    pwd: password,
+    firstLogin: true,
+    created: Date.now(),
+    codigoReferido: codigoReferido,
+    referidoPor: codigoReferente || null,
+    serviciosCompletados: 0
+});
         
         // 5. Si viene de un referido, registrar la relación en colección "referidos"
-        if (codigoReferente) {
-            const qReferente = query(collection(db, "users"), where("codigoReferido", "==", codigoReferente), limit(1));
-            const snapReferente = await getDocs(qReferente);
-            if (!snapReferente.empty) {
-                const referenteDoc = snapReferente.docs[0];
-                const referenteId = referenteDoc.id;
-                await addDoc(collection(db, "referidos"), {
-                    referenteId: referenteId,
-                    referidoId: uid,
-                    codigoReferente: codigoReferente,
-                    fechaRegistro: Date.now(),
-                    estado: 'pendiente',        // pendiente, completado, canjeado
-                    servicioCompletado: false
-                });
-                // Notificación al referente (opcional)
-                await setDoc(doc(db, "notificaciones", referenteId), {
-                    msg: `🎉 ¡${name} se registró usando tu código de referido!`,
-                    timestamp: Date.now(),
-                    leida: false
-                });
-            }
-        }
+       if (codigoReferente) {
+    const qReferente = query(collection(db, "users"), where("codigoReferido", "==", codigoReferente), limit(1));
+    const snapReferente = await getDocs(qReferente);
+    if (!snapReferente.empty) {
+        const referenteDoc = snapReferente.docs[0];
+        const referenteId = referenteDoc.id;
+        await addDoc(collection(db, "referidos"), {
+            referenteId: referenteId,
+            referidoId: uid,
+            codigoReferente: codigoReferente,
+            fechaRegistro: Date.now(),
+            estado: 'pendiente',
+            servicioCompletado: false,
+            serviciosCompletados: 0   // ← AÑADE ESTA LÍNEA si no existe
+        });
+        // Notificación al referente
+        await setDoc(doc(db, "notificaciones", referenteId), {
+            msg: `🎉 ¡${name} se registró usando tu código de referido!`,
+            timestamp: Date.now(),
+            leida: false
+        });
+    }
+}
         
         // 6. Crear o actualizar modal de invitación (para compartir enlace)
         const modalId = 'modal-whatsapp-invite';
@@ -3142,41 +3144,6 @@ window.cambiarEstadoServicio = async (nuevoEstado) => {
     if(!docSnap.exists()) return;
     const actual = docSnap.data().tallerStatus;
     if(actual === 'lista' || actual === 'pagado') return showToast("No se puede cambiar, ya finalizó", true);
-    // Si el nuevo estado es 'completed', verificar referido
-if (nuevoEstado === 'completed') {
-    const rescateData = docSnap.data();
-    const uidCliente = rescateData.uid;
-    if (uidCliente) {
-        try {
-            const userSnap = await getDoc(doc(db, "users", uidCliente));
-            const userData = userSnap.data();
-            if (userData && userData.referidoPor) {
-                const qRef = query(collection(db, "referidos"), where("referidoId", "==", uidCliente), where("estado", "==", "pendiente"), limit(1));
-                const snapRef = await getDocs(qRef);
-                if (!snapRef.empty) {
-                    const refDoc = snapRef.docs[0];
-                    await updateDoc(refDoc.ref, { 
-                        estado: 'completado', 
-                        servicioCompletado: true, 
-                        fechaCompletado: Date.now() 
-                    });
-                    console.log(`✅ Referido ${uidCliente} completó su primer servicio`);
-                    // Opcional: notificar al referente
-                    const referenteId = refDoc.data().referenteId;
-                    if (referenteId) {
-                        await setDoc(doc(db, "notificaciones", referenteId), {
-                            msg: `🎉 ¡Tu referido ha completado su primer servicio!`,
-                            timestamp: Date.now(),
-                            leida: false
-                        });
-                    }
-                }
-            }
-        } catch (err) {
-            console.error("Error al marcar referido completado:", err);
-        }
-    }
-}
 
     // Si intenta pasar a "lista", verificar que ya se haya cobrado
     if (nuevoEstado === 'lista') {
@@ -3188,6 +3155,15 @@ if (nuevoEstado === 'completed') {
     }
 
     await updateDoc(docRef, { tallerStatus: nuevoEstado });
+
+    // ===== REFERIDOS: si se marcó como 'lista', actualizar servicios del cliente =====
+    if (nuevoEstado === 'lista' || nuevoEstado === 'completed') {
+        const rescateData = docSnap.data();
+        const uidCliente = rescateData.uid;
+        if (uidCliente && typeof window.actualizarServiciosReferido === 'function') {
+            await window.actualizarServiciosReferido(uidCliente);
+        }
+    }
 
     if(docSnap.data().uid) push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), {
         msg: nuevoEstado === 'pruebas' ? 'CONTINUAMOS TRABAJANDO EN TU MOTO' :
@@ -8992,3 +8968,246 @@ if (phoneField) {
         window.addEventListener('resize', ajustarPosicion);
     }
 })();
+// ========== SISTEMA DE REFERIDOS (COMPACTO Y FUNCIONAL) ==========
+
+// 1. Cargar configuración desde Firestore y llenar el formulario
+async function cargarConfigReferidos() {
+    const docSnap = await getDoc(doc(db, "config_referidos", "general"));
+    if (docSnap.exists()) {
+        const config = docSnap.data();
+        document.getElementById('ref-activo').value = config.activo ? 'true' : 'false';
+        document.getElementById('ref-modalidad').value = config.modalidad || 'recomienda_y_gana';
+        document.getElementById('ref-tipo-descuento').value = config.tipoDescuento || 'porcentaje';
+        document.getElementById('ref-valor-descuento').value = config.valorDescuento || 10;
+        document.getElementById('ref-notif-servicio').checked = config.notificaciones?.servicioCompletado || false;
+        document.getElementById('ref-notif-recompensa').checked = config.notificaciones?.recompensaGenerada || false;
+    } else {
+        // valores por defecto
+        document.getElementById('ref-activo').value = 'true';
+        document.getElementById('ref-modalidad').value = 'recomienda_y_gana';
+        document.getElementById('ref-tipo-descuento').value = 'porcentaje';
+        document.getElementById('ref-valor-descuento').value = 10;
+        document.getElementById('ref-notif-servicio').checked = true;
+        document.getElementById('ref-notif-recompensa').checked = true;
+    }
+}
+
+// 2. Guardar configuración
+async function guardarConfigReferidos() {
+    const config = {
+        activo: document.getElementById('ref-activo').value === 'true',
+        modalidad: document.getElementById('ref-modalidad').value,
+        tipoDescuento: document.getElementById('ref-tipo-descuento').value,
+        valorDescuento: parseFloat(document.getElementById('ref-valor-descuento').value) || 0,
+        notificaciones: {
+            servicioCompletado: document.getElementById('ref-notif-servicio').checked,
+            recompensaGenerada: document.getElementById('ref-notif-recompensa').checked
+        },
+        actualizado: Date.now()
+    };
+    await setDoc(doc(db, "config_referidos", "general"), config, { merge: true });
+    window.showToast("✅ Configuración de referidos guardada");
+}
+
+// 3. Cargar lista de referidos (para el panel de administración)
+async function cargarListaReferidos() {
+    const container = document.getElementById('admin-referidos-list');
+    if (!container) return;
+    container.innerHTML = '<p class="text-xs text-gray-400">Cargando...</p>';
+    try {
+        const referidosSnap = await getDocs(query(collection(db, "referidos"), orderBy("fechaRegistro", "desc")));
+        if (referidosSnap.empty) {
+            container.innerHTML = '<p class="text-xs text-gray-400">No hay referidos registrados.</p>';
+            return;
+        }
+        const usersCache = new Map();
+        let html = '';
+        for (const docRef of referidosSnap.docs) {
+            const ref = docRef.data();
+            let referenteName = '...', referidoName = '...';
+            if (!usersCache.has(ref.referenteId)) {
+                const userSnap = await getDoc(doc(db, "users", ref.referenteId));
+                usersCache.set(ref.referenteId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
+            }
+            referenteName = usersCache.get(ref.referenteId);
+            if (!usersCache.has(ref.referidoId)) {
+                const userSnap = await getDoc(doc(db, "users", ref.referidoId));
+                usersCache.set(ref.referidoId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
+            }
+            referidoName = usersCache.get(ref.referidoId);
+
+            let estadoTexto = '';
+            let estadoColor = '';
+            switch (ref.estado) {
+                case 'recompensa_generada':
+                    estadoTexto = '✅ Recompensa obtenida';
+                    estadoColor = 'text-green-400';
+                    break;
+                case 'condicion_cumplida':
+                    estadoTexto = '🎯 Condición cumplida';
+                    estadoColor = 'text-yellow-400';
+                    break;
+                default:
+                    estadoTexto = '⏳ En progreso';
+                    estadoColor = 'text-gray-400';
+            }
+
+            html += `
+                <div class="bg-white/5 p-3 rounded-xl flex justify-between items-center text-xs">
+                    <div>
+                        <p><span class="font-bold">${escapeHtml(referenteName)}</span> → <span class="font-bold">${escapeHtml(referidoName)}</span></p>
+                        <p class="text-gray-400">${new Date(ref.fechaRegistro).toLocaleDateString()}</p>
+                        <p class="text-gray-400">Servicios: ${ref.serviciosCompletados || 0}</p>
+                    </div>
+                    <span class="${estadoColor} uppercase">${estadoTexto}</span>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+    } catch (error) {
+        console.error("Error cargando referidos:", error);
+        container.innerHTML = '<p class="text-xs text-red-400">Error al cargar referidos</p>';
+    }
+}
+
+// 4. Generar códigos de referido para usuarios existentes que no tengan
+async function generarCodigosParaUsuariosExistentes() {
+    if (!auth.currentUser || window.currentUserDoc?.role !== 'admin') {
+        window.showToast("Solo administradores pueden ejecutar esta acción", true);
+        return;
+    }
+    const confirmar = confirm("⚠️ Esta acción asignará un código de referido a TODOS los usuarios que no tengan uno. ¿Deseas continuar?");
+    if (!confirmar) return;
+    window.showToast("Migrando códigos... puede tardar unos segundos", false);
+    try {
+        const usersSnap = await getDocs(collection(db, "users"));
+        let count = 0;
+        for (const docSnap of usersSnap.docs) {
+            const user = docSnap.data();
+            if (!user.codigoReferido) {
+                const codigo = Math.random().toString(36).substring(2, 8).toUpperCase();
+                await updateDoc(docSnap.ref, { codigoReferido: codigo });
+                count++;
+            }
+        }
+        window.showToast(`✅ Migración completada. Se generaron ${count} códigos.`);
+        cargarListaReferidos();
+    } catch (error) {
+        console.error(error);
+        window.showToast("Error durante la migración. Revisa la consola.", true);
+    }
+}
+
+// 5. Otorgar recompensa (crear documento en colección "recompensas")
+async function otorgarRecompensa(uidReferente, uidReferido, tipo, valor) {
+    const expiracion = Date.now() + 90 * 24 * 60 * 60 * 1000; // 90 días
+    const recompensa = {
+        tipo: tipo,        // 'porcentaje' o 'monto_fijo'
+        valor: valor,
+        origen: 'referido',
+        generada: Date.now(),
+        expira: expiracion,
+        utilizada: false
+    };
+    // Para el referente
+    await addDoc(collection(db, "recompensas"), { ...recompensa, uid: uidReferente });
+    // Para el referido (si aplica, solo en modalidad 'ganamos_juntos')
+    if (uidReferido) {
+        await addDoc(collection(db, "recompensas"), { ...recompensa, uid: uidReferido });
+    }
+}
+
+// 6. Actualizar servicios completados de un referido (llamar al completar un servicio)
+async function actualizarServiciosReferido(referidoId) {
+    // Buscar relación de referido pendiente o en progreso
+    const q = query(collection(db, "referidos"), where("referidoId", "==", referidoId), where("estado", "in", ["pendiente", "condicion_cumplida"]));
+    const snap = await getDocs(q);
+    if (snap.empty) return;
+    const refDoc = snap.docs[0];
+    const data = refDoc.data();
+    const config = await getDoc(doc(db, "config_referidos", "general"));
+    const configData = config.exists() ? config.data() : null;
+    if (!configData || !configData.activo) return;
+
+    // Incrementar contador de servicios
+    const serviciosCompletados = (data.serviciosCompletados || 0) + 1;
+    await updateDoc(refDoc.ref, { serviciosCompletados, ultimoServicio: Date.now() });
+
+    // Si es el primer servicio, otorgar recompensa
+    if (serviciosCompletados === 1) {
+        const modalidad = configData.modalidad;
+        const tipo = configData.tipoDescuento;
+        const valor = configData.valorDescuento;
+
+        if (modalidad === 'recomienda_y_gana') {
+            // Solo referente
+            await otorgarRecompensa(data.referenteId, null, tipo, valor);
+        } else if (modalidad === 'ganamos_juntos') {
+            // Ambos
+            await otorgarRecompensa(data.referenteId, data.referidoId, tipo, valor);
+        }
+
+        // Marcar como recompensa generada
+        await updateDoc(refDoc.ref, { estado: 'recompensa_generada', recompensaGenerada: true, fechaRecompensa: Date.now() });
+
+        // Notificaciones (si están activas)
+        if (configData.notificaciones?.recompensaGenerada) {
+            await setDoc(doc(db, "notificaciones", data.referenteId), { msg: `🎉 ¡Tu referido ha completado su primer servicio! Recibiste un descuento.`, timestamp: Date.now(), leida: false });
+            if (modalidad === 'ganamos_juntos') {
+                await setDoc(doc(db, "notificaciones", data.referidoId), { msg: `🎉 ¡Completaste tu primer servicio! Recibiste un descuento de bienvenida.`, timestamp: Date.now(), leida: false });
+            }
+        }
+    } else {
+        // Si ya había recompensa, solo actualizar estado a "condicion_cumplida" si no lo estaba
+        if (data.estado === 'pendiente') {
+            await updateDoc(refDoc.ref, { estado: 'condicion_cumplida' });
+        }
+    }
+}
+
+// 7. Inicializar eventos y carga de datos en la vista de promos
+function initReferidosAdmin() {
+    // Cargar configuración y lista al abrir la vista
+    cargarConfigReferidos();
+    cargarListaReferidos();
+
+    // Vincular eventos solo una vez
+    const guardarBtn = document.getElementById('btn-guardar-config-referidos');
+    const migrarBtn = document.getElementById('btn-migrar-codigos');
+    if (guardarBtn && !guardarBtn._listenerAdded) {
+        guardarBtn.addEventListener('click', guardarConfigReferidos);
+        guardarBtn._listenerAdded = true;
+    }
+    if (migrarBtn && !migrarBtn._listenerAdded) {
+        migrarBtn.addEventListener('click', generarCodigosParaUsuariosExistentes);
+        migrarBtn._listenerAdded = true;
+    }
+}
+
+// 8. Integración con el cambio de vista de administrador
+if (typeof window.switchAdminView === 'function') {
+    const originalSwitchAdminView = window.switchAdminView;
+    window.switchAdminView = function(viewId) {
+        originalSwitchAdminView.call(this, viewId);
+        if (viewId === 'a-view-promos') {
+            setTimeout(initReferidosAdmin, 200);
+        }
+    };
+} else {
+    // Fallback: observar cambios en la clase hidden del elemento
+    const promosView = document.getElementById('a-view-promos');
+    if (promosView) {
+        const observer = new MutationObserver(() => {
+            if (!promosView.classList.contains('hidden')) initReferidosAdmin();
+        });
+        observer.observe(promosView, { attributes: true });
+    }
+}
+
+// 9. Exponer funciones globalmente por si se necesitan desde otros lugares
+window.cargarConfigReferidos = cargarConfigReferidos;
+window.guardarConfigReferidos = guardarConfigReferidos;
+window.cargarListaReferidos = cargarListaReferidos;
+window.generarCodigosParaUsuariosExistentes = generarCodigosParaUsuariosExistentes;
+window.actualizarServiciosReferido = actualizarServiciosReferido;
+window.initReferidosAdmin = initReferidosAdmin;
