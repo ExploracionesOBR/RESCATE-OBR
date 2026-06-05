@@ -2370,7 +2370,7 @@ function initClientMap() {
     setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
 }
 
-// ========== LISTEN TO MY SOS – VERSIÓN CORREGIDA (MAPA VISIBLE) ==========
+// ========== LISTEN TO MY SOS – VERSIÓN CON RUTA EN TIEMPO REAL ==========
 function listenToMySOS() {
     if (window.mySOSListener && typeof window.mySOSListener === 'function') {
         window.mySOSListener();
@@ -2466,6 +2466,7 @@ function listenToMySOS() {
         }
 
         if (data.status === 'accepted' || data.status === 'repairing') {
+            // Inicializar el mapa del cliente si es necesario
             const tryInitMap = () => {
                 if (!mechanicMapDiv) return;
                 const rect = mechanicMapDiv.getBoundingClientRect();
@@ -2483,6 +2484,7 @@ function listenToMySOS() {
             tryInitMap();
 
             if (window.clientMapInstance && data.lat && data.lng) {
+                // Marcador del cliente (ubicación de la avería)
                 if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
                 window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
                     icon: L.divIcon({
@@ -2495,6 +2497,7 @@ function listenToMySOS() {
 
                 if (mechPosUnsubscribe) mechPosUnsubscribe();
                 if (data.mech_uid) {
+                    // Obtener datos del mecánico para el popup
                     const mechUserSnap = await getDoc(doc(db, "users", data.mech_uid));
                     const mechData = mechUserSnap.exists() ? mechUserSnap.data() : { name: 'Mecánico', phone: '' };
                     const calificacion = await obtenerPromedioCalificacion(data.mech_uid);
@@ -2515,10 +2518,12 @@ function listenToMySOS() {
                         </div>
                     `;
 
+                    // Escuchar cambios de posición del mecánico
                     mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
                         if (posSnap.exists() && window.clientMapInstance) {
                             const pos = posSnap.val();
                             if (pos.lat && pos.lng) {
+                                // Actualizar o crear marcador del mecánico
                                 if (window.clientMapMarkers.mech) {
                                     window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
                                     window.clientMapMarkers.mech.setPopupContent(popupContent);
@@ -2532,8 +2537,11 @@ function listenToMySOS() {
                                         })
                                     }).addTo(window.clientMapInstance).bindPopup(popupContent);
                                 }
+
+                                // Centrar el mapa en la posición del mecánico (o en ambos)
                                 window.clientMapInstance.setView([pos.lat, pos.lng], 14);
 
+                                // CREAR O ACTUALIZAR LA RUTA (Leaflet Routing Machine)
                                 if (routingControl) {
                                     routingControl.setWaypoints([
                                         L.latLng(pos.lat, pos.lng),
@@ -2555,6 +2563,11 @@ function listenToMySOS() {
                                             router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
                                             createMarker: () => null
                                         }).addTo(window.clientMapInstance);
+                                        
+                                        // Forzar redibujo después de añadir la ruta
+                                        setTimeout(() => {
+                                            if (window.clientMapInstance) window.clientMapInstance.invalidateSize();
+                                        }, 200);
                                     } catch (e) {
                                         console.warn('Error al crear routing control:', e);
                                     }
@@ -2564,6 +2577,7 @@ function listenToMySOS() {
                     });
                 }
 
+                // Ajustar los límites del mapa para mostrar ambos puntos (cliente y mecánico si existe)
                 const bounds = [];
                 if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
                 if (window.clientMapMarkers.mech) {
@@ -2577,6 +2591,7 @@ function listenToMySOS() {
                 }
             }
         } else {
+            // Si el estado no es accepted/repairing, eliminar ruta y marcadores
             if (routingControl) {
                 routingControl.remove();
                 routingControl = null;
@@ -2644,7 +2659,6 @@ function listenToMySOS() {
         window.lastClientSOSStatus = data.status;
     });
 }
-
 // aqui finaliza listenToMySOS //
 window.abrirChatSOS = () => {
     if (window._sosChatId) {
