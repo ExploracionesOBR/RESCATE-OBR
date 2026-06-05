@@ -1545,17 +1545,19 @@ async function loadServicesCatalog() {
 // === FLUJO DE VISTAS Y AUTENTICACIÓN ===
 onAuthStateChanged(auth, async user => {
     document.getElementById('loading-screen').classList.add('hidden');
-    if (window._adminCreatingUser) return;  // <-- nueva línea
+    if (window._adminCreatingUser) return;
 
     if (!user) {
         if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
         loadGlobalSettings(); 
-        document.getElementById('view-landing').classList.remove('hidden'); 
-        document.getElementById('view-landing').classList.add('flex'); 
+        showView('view-landing');
         return;
     }
+    
+    // Ocultar landing inmediatamente
+    showView('view-landing', false); // ocultar sin mostrar otra (no usar showView que muestra)
     document.getElementById('view-landing').classList.add('hidden');
-
+    
     const userSnap = await getDoc(doc(db, 'users', user.uid));
     if (userSnap.exists()) { 
         window.currentUserDoc = userSnap.data(); 
@@ -1568,7 +1570,7 @@ onAuthStateChanged(auth, async user => {
     if (window.currentUserDoc.bloqueado) {
         signOut(auth).then(() => {
             document.getElementById('out-of-zone-modal').classList.remove('hidden');
-            document.getElementById('view-landing').classList.add('hidden');
+            showView('view-landing');
         });
         return;
     }
@@ -1579,7 +1581,6 @@ onAuthStateChanged(auth, async user => {
     }
 
     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
-                // Recargar ajustes desde Firestore (para que el radio y otros valores se actualicen)
         const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
         startMechanicTracking();
         if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
@@ -1601,7 +1602,6 @@ onAuthStateChanged(auth, async user => {
     } else {
         showView('app-client');
         document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
-        // Resto de lógica de cliente...
         window.loadClientHistory(); 
         listenToMySOS(); 
         window.loadClientCitas(); 
@@ -8834,6 +8834,7 @@ if (phoneField) {
         if (authUnsub) authUnsub();
         authUnsub = onAuthStateChanged(auth, async (user) => {
             if (user) {
+                let vistaRestaurada = false;
                 const userSnap = await getDoc(doc(db, "users", user.uid));
                 const userData = userSnap.data();
                 if (usuarioPuedeInvitar(userData)) {
