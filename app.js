@@ -1439,7 +1439,7 @@ async function loadGlobalSettings() {
     });
 }
 function updateLandingStatus() {
-const now = new Date();
+    const now = new Date();
     const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
     const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
     const [hOpen, mOpen] = sched.o.split(':').map(Number);
@@ -1449,7 +1449,6 @@ const now = new Date();
     const closeMins = hClose * 60 + mClose;
     const isOpen = nowMins >= openMins && nowMins < closeMins;
     window.updateEmergencyButtonState(isOpen, sched);
-}
 
     const lo = document.getElementById('landing-open');
     const lc = document.getElementById('landing-closed');
@@ -1471,9 +1470,6 @@ const now = new Date();
         else closedText.innerText = `Abrimos a las ${sched.o}`;
     }
 
-    // Llamar a la función global que actualiza el botón de emergencia
-    window.updateEmergencyButtonState(isOpen, sched);
-
     // Banners VIP
     const vipBannerShop = document.getElementById('vip-banner-shop');
     const vipBannerShopClient = document.getElementById('vip-banner-shop-client');
@@ -1487,14 +1483,12 @@ const now = new Date();
         }
     });
 
-     //Para activar el modo, un administrador puede ejecutar en la consola o desde un botón oculto:
-//await setDoc(doc(db, 'settings', 'general'), { modoProximamente: true, fechaLanzamiento: '2026-05-23' }, { merge: true });
     // Mostrar fecha de lanzamiento si existe
     if (globalSettings.fechaLanzamiento) {
         const fechaEl = document.getElementById('fecha-lanzamiento');
         if (fechaEl) fechaEl.innerText = new Date(globalSettings.fechaLanzamiento).toLocaleDateString();
     }
-const loginLandingBtn = document.getElementById('login-landing-btn');
+    const loginLandingBtn = document.getElementById('login-landing-btn');
     if (loginLandingBtn) {
         loginLandingBtn.style.display = auth.currentUser ? 'none' : 'flex';
     }
@@ -2281,7 +2275,6 @@ window.submitFinalSOS = async () => {
     const serviceId = document.getElementById('sos-service-select-value')?.value;
     const serviceInputText = document.getElementById('sos-service-input')?.value.trim();
     
-    // Validar que si el usuario escribió algo en el campo de servicio, haya seleccionado una opción válida
     if (serviceInputText !== "" && (serviceId === "0" || serviceId === "")) {
         window.showToast("Por favor, selecciona un servicio de la lista (o deja el campo vacío para tarifa base).", true);
         return;
@@ -2302,7 +2295,6 @@ window.submitFinalSOS = async () => {
     let mediaUrl = "";
     const truePhone = window.currentUserDoc?.phone || ("+52" + (auth.currentUser.email?.replace('@motorescateobr.com','') || ''));
 
-    // Determinar nombre del servicio
     let srvName = (!serviceId || serviceId === "0") ? "Auxilio" : (serviceInputText || "Servicio");
     let descFinal = `[${srvName}] ${falla}`;
     const srvDoc = shopServices.find(x => x.id === serviceId);
@@ -2346,32 +2338,28 @@ window.submitFinalSOS = async () => {
         };
 
         const addPromise = addDoc(collection(db, "rescates"), rData);
-        const rtdbPromise = rtdbSet(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), rData);
+        const rtdbPromise = set(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), rData);
+        await Promise.race([Promise.all([addPromise, rtdbPromise]), timeoutPromise]);
 
-        await Promise.race([
-            Promise.all([addPromise, rtdbPromise]),
-            timeoutPromise
-        ]);
+        // Éxito
+        document.getElementById('sos-falla').value = '';
+        document.getElementById('sos-media').value = '';
+        document.getElementById('llanta-type-container').classList.add('hidden');
+        showToast("¡Unidad notificada!");
+        showView('app-client');
+        window.switchClientView('c-view-rescate');
+        listenToMySOS();
 
-       try {
-    // ... código anterior ...
-    document.getElementById('sos-falla').value = '';
-    document.getElementById('sos-media').value = '';
-    document.getElementById('llanta-type-container').classList.add('hidden');
-    showToast("¡Unidad notificada!");
-    showView('app-client');
-    window.switchClientView('c-view-rescate');  // ← CORREGIDO
-    listenToMySOS();
-} catch (e) {
-    console.warn('SOS enviado con posibles demoras:', e);
-    showToast("Solicitud enviada. Te notificaremos cuando el taller confirme.");
-    document.getElementById('sos-falla').value = '';
-    document.getElementById('sos-media').value = '';
-    document.getElementById('llanta-type-container').classList.add('hidden');
-    showView('app-client');
-    window.switchClientView('c-view-rescate');  // ← CORREGIDO
-    listenToMySOS();
-} finally {
+    } catch (e) {
+        console.warn('SOS enviado con posibles demoras:', e);
+        showToast("Solicitud enviada. Te notificaremos cuando el taller confirme.");
+        document.getElementById('sos-falla').value = '';
+        document.getElementById('sos-media').value = '';
+        document.getElementById('llanta-type-container').classList.add('hidden');
+        showView('app-client');
+        window.switchClientView('c-view-rescate');
+        listenToMySOS();
+    } finally {
         btn.disabled = false;
         btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
     }
