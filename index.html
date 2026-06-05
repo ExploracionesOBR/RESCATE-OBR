@@ -355,13 +355,14 @@
         <section id="c-view-rescate" class="c-view space-y-6">
             <!-- Botón grande de emergencia -->
 <!-- Botón de emergencia (estilo landing, con horario) -->
-<button id="emergency-client-btn" class="btn-sos-huge w-64 h-64 lg:w-80 lg:h-80 rounded-full bg-naranja border-[12px] border-white/10 text-white flex flex-col items-center justify-center shadow-[0_0_50px_rgba(255,107,0,0.6)] transition-all active:scale-95 mb-6 lg:mb-10 mx-auto">
-    <i class="fas fa-tools text-6xl lg:text-7xl mb-2 drop-shadow-lg"></i>
-    <span class="font-black text-3xl lg:text-4xl uppercase italic leading-none drop-shadow-md">Solicitar</span>
-    <span class="font-black text-4xl lg:text-5xl uppercase italic drop-shadow-md">Auxilio</span>
-    <p id="emergency-closed-text" class="text-[10px] uppercase font-bold tracking-widest text-red-300 mt-2 hidden">Abrimos a las 08:00</p>
+<button id="emergency-client-btn" class="w-full bg-gradient-to-r from-red-600 to-naranja rounded-3xl p-6 shadow-[0_0_20px_rgba(255,107,0,0.3)] active:scale-95 transition-transform flex items-center justify-between border border-naranja/50">
+    <div class="text-left text-white">
+        <h3 class="text-2xl font-black italic uppercase">Emergencia</h3>
+        <p class="text-[10px] uppercase font-bold tracking-widest opacity-80">Solicitar rescate ahora</p>
+        <p id="emergency-closed-text" class="text-[10px] uppercase font-bold tracking-widest text-red-300 hidden">Abrimos a las 08:00 Hrs</p>
+    </div>
+    <i class="fas fa-ambulance text-5xl text-white opacity-80 animate-pulse"></i>
 </button>
-
             <!-- Mensaje cuando no hay servicio activo -->
             <div id="no-active-services-msg" class="bg-white/5 border border-white/10 p-8 rounded-3xl text-center shadow-lg flex flex-col items-center justify-center">
                 <div class="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6">
