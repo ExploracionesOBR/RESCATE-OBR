@@ -1288,14 +1288,15 @@
     </div>
 </div>
 
-<!-- Modal detalle servicio taller -->
+<!-- Modal detalle servicio taller (mejorado para pantallas grandes) -->
 <div id="modal-detalle-servicio" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-0 lg:p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full h-full lg:w-auto lg:max-w-3xl lg:h-auto lg:max-h-[90vh] rounded-none lg:rounded-[2rem] relative border-0 lg:border border-blue-500/30 flex flex-col overflow-hidden shadow-2xl">
+    <div class="bg-asfalto w-full h-full lg:w-auto lg:max-w-5xl lg:h-auto lg:max-h-[90vh] rounded-none lg:rounded-[2rem] relative border-0 lg:border border-blue-500/30 flex flex-col overflow-hidden shadow-2xl">
         <div class="bg-blue-600/20 border-b border-blue-500/30 p-4 flex justify-between items-center z-10">
-            <div><p class="text-[10px] font-black text-blue-400 uppercase">Detalle y Bitácora del Servicio</p><p id="servicio-detalle-phone" class="text-sm text-white font-bold truncate max-w-[250px]"></p></div>
+            <div><p class="text-[10px] font-black text-blue-400 uppercase">Detalle y Bitácora del Servicio</p><p id="servicio-detalle-phone" class="text-sm text-white font-bold truncate max-w-[250px] lg:max-w-md"></p></div>
             <button onclick="toggleModal('modal-detalle-servicio', false)" class="w-12 h-12 lg:w-10 lg:h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors"><i class="fas fa-times text-xl"></i></button>
         </div>
-        <div class="flex-grow p-4 overflow-y-auto hide-scroll flex flex-col lg:flex-row gap-4">
+        <div class="flex-grow p-4 overflow-y-auto hide-scroll flex flex-col lg:flex-row gap-6">
+            <!-- Columna izquierda -->
             <div class="w-full lg:w-1/2 flex flex-col space-y-4">
                 <div class="bg-asfalto/30 p-4 rounded-xl border border-white/5">
                     <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-2 border-b border-white/10 pb-1">Reporte / Falla</p>
@@ -1310,24 +1311,22 @@
                 </div>
                 <button onclick="toggleModal('modal-cambiar-cita', true)" class="bg-yellow-600/20 text-yellow-400 border border-yellow-500/50 px-4 py-2 rounded-xl text-xs font-black uppercase hidden">Solicitar cambio de cita</button>
             </div>
+            <!-- Columna derecha: bitácora -->
             <div class="w-full lg:w-1/2 flex flex-col bg-asfalto/50 rounded-xl border border-white/5 overflow-hidden">
                 <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest bg-blue-900/20 p-3 border-b border-white/10"><i class="fas fa-comment-dots mr-1"></i> Bitácora de Técnicos</p>
-                <div id="servicio-bitacora-list" class="flex-grow p-3 space-y-2 overflow-y-auto hide-scroll min-h-[150px]"></div>
+                <div id="servicio-bitacora-list" class="flex-grow p-3 space-y-2 overflow-y-auto hide-scroll min-h-[200px] max-h-[300px] lg:max-h-[400px]"></div>
                 <div class="p-3 bg-white/5 border-t border-white/10 flex space-x-2">
                     <input id="servicio-comentario" type="text" placeholder="Agregar observación..." class="flex-grow bg-asfalto p-2 rounded-xl border border-white/10 text-white text-xs focus:border-blue-400">
                     <button onclick="window.addServicioComentario?.()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 rounded-xl text-xs font-black transition-colors"><i class="fas fa-paper-plane"></i></button>
                 </div>
             </div>
         </div>
-                <div class="p-4 bg-white/5 border-t border-white/10 flex space-x-2" id="servicio-actions-container">
-            <button onclick="window.cambiarEstadoServicio?.('mecanica')" class="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Mecánica</button>
-            <button onclick="window.cambiarEstadoServicio?.('pruebas')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Pruebas</button>
-            <button onclick="window.abrirCobroDesdeDetalle?.()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Cobrar</button>
-            <button onclick="window.cambiarEstadoServicio?.('lista')" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Lista</button>
+        <!-- Contenedor de botones de acción (dinámico) -->
+        <div class="p-4 bg-white/5 border-t border-white/10" id="servicio-actions-container">
+            <!-- Los botones se llenan dinámicamente desde JS -->
         </div>
     </div>
 </div>
-
 <!-- Modal carrito -->
 <div id="modal-cart" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-md lg:max-w-xl rounded-[2rem] p-6 relative border border-naranja/30 shadow-2xl">
