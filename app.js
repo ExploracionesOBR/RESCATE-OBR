@@ -4826,18 +4826,6 @@ window.deletePromo = async (promoId) => {
         window.adminLoadLoyalty();
     });
 };
-async function guardarConfigReferidos() {
-    const data = {
-        referidoPorcentaje: document.getElementById('referido-desc-porcentaje')?.value || null,
-        referidoMonto: document.getElementById('referido-desc-monto')?.value || null,
-        referentePorcentaje: document.getElementById('referente-desc-porcentaje')?.value || null,
-        referenteMonto: document.getElementById('referente-desc-monto')?.value || null,
-        actualizado: Date.now()
-    };
-    await setDoc(doc(db, "config", "referidos"), data);
-    window.showToast("Configuración de referidos guardada");
-}
-
 window.marcarReferidoCompletado = async (referidoId) => {
     try {
         await updateDoc(doc(db, "referidos", referidoId), { estado: 'completado', servicioCompletado: true, fechaCompletado: Date.now() });
