@@ -1908,54 +1908,68 @@ window.processRegister = async () => {
     }
 }
         
-        // 6. Crear o actualizar modal de invitación (para compartir enlace)
-        const modalId = 'modal-whatsapp-invite';
-        let modalEl = document.getElementById(modalId);
-        if (!modalEl) {
-            modalEl = document.createElement('div');
-            modalEl.id = modalId;
-            modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-            modalEl.innerHTML = `
-                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
-                    <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
-                    <h2 class="text-xl font-black text-white mb-2">¡Registro exitoso!</h2>
-                    <p class="text-xs text-gray-300 mb-4">Comparte este enlace con tus amigos para que también se unan a OBR.</p>
-                    <div class="bg-white/10 p-2 rounded-lg mb-4">
-                        <p class="text-[10px] text-gray-400 break-all" id="invite-link-display">https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}</p>
-                    </div>
-                    <div class="flex flex-col space-y-2">
-                        <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar por WhatsApp</button>
-                        <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Comenzar</button>
-                    </div>
-                </div>
-            `;
-            document.body.appendChild(modalEl);
-            
-            // Eventos del modal
-            const inviteBtn = document.getElementById('whatsapp-invite-btn');
-            const skipBtn = document.getElementById('whatsapp-skip-btn');
-            if (inviteBtn) {
-                inviteBtn.onclick = () => {
-                    const link = document.getElementById('invite-link-display').innerText;
-                    const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Auxilio mecánico rápido. Únete aquí: ${link}`);
-                    window.open(`https://wa.me/?text=${mensaje}`, '_blank');
-                    window.toggleModal(modalId, false);
-                };
-            }
-            if (skipBtn) {
-                skipBtn.onclick = () => {
-                    window.toggleModal(modalId, false);
-                };
-            }
+       // 6. Crear o actualizar modal de invitación (para compartir enlace)
+const modalId = 'modal-whatsapp-invite';
+let modalEl = document.getElementById(modalId);
+if (!modalEl) {
+    modalEl = document.createElement('div');
+    modalEl.id = modalId;
+    modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+    modalEl.innerHTML = `
+        <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
+            <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
+            <h2 class="text-xl font-black text-white mb-2">¡Registro exitoso!</h2>
+            <p class="text-xs text-gray-300 mb-4">Comparte este enlace con tus amigos para que también se unan a OBR.</p>
+            <div class="bg-white/10 p-2 rounded-lg mb-4">
+                <p class="text-[10px] text-gray-400 break-all" id="invite-link-display">https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}</p>
+            </div>
+            <div class="flex flex-col space-y-2">
+                <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar por WhatsApp</button>
+                <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Comenzar</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modalEl);
+}
+// Actualizar el enlace (por si cambió)
+const linkSpan = document.getElementById('invite-link-display');
+if (linkSpan) linkSpan.innerText = `https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}`;
+
+// Función para redirigir al dashboard después de cerrar el modal
+const redirectToDashboard = () => {
+    if (auth.currentUser) {
+        const role = window.currentUserDoc?.role;
+        if (role === 'admin' || role === 'mecanico' || role === 'taller' || role === 'socio') {
+            window.showView('app-admin');
         } else {
-            // Actualizar el enlace del modal si ya existía
-            const linkSpan = document.getElementById('invite-link-display');
-            if (linkSpan) linkSpan.innerText = `https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}`;
+            window.showView('app-client');
+            window.switchClientView('c-view-rescate');
         }
-        
-        // 7. Mostrar modal y toast
-        window.toggleModal(modalId, true);
-        showToast("Registro exitoso. Completa tu perfil.");
+    }
+};
+
+// Configurar eventos (siempre se reasignan para asegurar la redirección)
+const inviteBtn = document.getElementById('whatsapp-invite-btn');
+const skipBtn = document.getElementById('whatsapp-skip-btn');
+if (inviteBtn) {
+    inviteBtn.onclick = () => {
+        const link = document.getElementById('invite-link-display').innerText;
+        const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Auxilio mecánico rápido. Únete aquí: ${link}`);
+        window.open(`https://wa.me/?text=${mensaje}`, '_blank');
+        window.toggleModal(modalId, false);
+        redirectToDashboard();
+    };
+}
+if (skipBtn) {
+    skipBtn.onclick = () => {
+        window.toggleModal(modalId, false);
+        redirectToDashboard();
+    };
+}
+
+// 7. Mostrar modal y toast
+window.toggleModal(modalId, true);
+showToast("Registro exitoso. Completa tu perfil.");
         
     } catch (error) {
         console.error("Error en registro:", error);
