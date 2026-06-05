@@ -4826,23 +4826,6 @@ window.deletePromo = async (promoId) => {
         window.adminLoadLoyalty();
     });
 };
-
-// ========== REFERIDOS - ADMIN (Punto 3.2) ==========
-async function cargarConfigReferidos() {
-    const docSnap = await getDoc(doc(db, "config", "referidos"));
-    if (docSnap.exists()) {
-        const data = docSnap.data();
-        const refPorcentaje = document.getElementById('referido-desc-porcentaje');
-        const refMonto = document.getElementById('referido-desc-monto');
-        const refePorcentaje = document.getElementById('referente-desc-porcentaje');
-        const refeMonto = document.getElementById('referente-desc-monto');
-        if (refPorcentaje) refPorcentaje.value = data.referidoPorcentaje || '';
-        if (refMonto) refMonto.value = data.referidoMonto || '';
-        if (refePorcentaje) refePorcentaje.value = data.referentePorcentaje || '';
-        if (refeMonto) refeMonto.value = data.referenteMonto || '';
-    }
-}
-
 async function guardarConfigReferidos() {
     const data = {
         referidoPorcentaje: document.getElementById('referido-desc-porcentaje')?.value || null,
