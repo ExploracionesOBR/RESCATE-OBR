@@ -1343,28 +1343,26 @@ window.updateEmergencyButtonState = (isOpen, sched) => {
     if (!emBtn) return;
 
     if (isOpen) {
-        // Habilitar botón
+        // Habilitar botón (estilo normal)
         emBtn.classList.remove('opacity-50', 'pointer-events-none', 'bg-gray-600');
-        emBtn.classList.add('bg-gradient-to-r', 'from-red-600', 'to-naranja');
+        emBtn.classList.add('bg-naranja'); // ya tiene bg-naranja por defecto
         if (emText) emText.classList.add('hidden');
-        const labels = emBtn.querySelectorAll('.emergency-label');
-        labels.forEach(lbl => lbl.classList.remove('hidden'));
         emBtn.onclick = () => window.startFlow('sos');
+        // Asegurar que el icono y texto sean visibles
+        emBtn.querySelectorAll('i, span').forEach(el => el.style.opacity = '1');
     } else {
         // Deshabilitar botón
         emBtn.classList.add('opacity-50', 'pointer-events-none', 'bg-gray-600');
-        emBtn.classList.remove('bg-gradient-to-r', 'from-red-600', 'to-naranja');
+        emBtn.classList.remove('bg-naranja');
         if (emText) {
             emText.classList.remove('hidden');
             const nextOpen = window.findNextOpenDay?.();
             if (nextOpen) {
-                emText.innerText = `Abrimos el ${nextOpen.day} a las ${nextOpen.time}`;
+                emText.innerText = `🔒 Abrimos el ${nextOpen.day} a las ${nextOpen.time}`;
             } else {
-                emText.innerText = `Abrimos a las ${sched?.o || '08:00'}`;
+                emText.innerText = `🔒 Abrimos a las ${sched?.o || '08:00'}`;
             }
         }
-        const labels = emBtn.querySelectorAll('.emergency-label');
-        labels.forEach(lbl => lbl.classList.add('hidden'));
         emBtn.onclick = () => window.showToast("Taller cerrado. Vuelve en horario laboral.", true);
     }
 };
@@ -1421,15 +1419,17 @@ async function loadGlobalSettings() {
     });
 }
 function updateLandingStatus() {
-    const now = new Date();
+const now = new Date();
     const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
-    const sched = globalSettings.schedule[dayIndex] || { o: "08:00", c: "20:00" };
+    const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
     const [hOpen, mOpen] = sched.o.split(':').map(Number);
     const [hClose, mClose] = sched.c.split(':').map(Number);
     const nowMins = now.getHours() * 60 + now.getMinutes();
     const openMins = hOpen * 60 + mOpen;
     const closeMins = hClose * 60 + mClose;
     const isOpen = nowMins >= openMins && nowMins < closeMins;
+    window.updateEmergencyButtonState(isOpen, sched);
+}
 
     const lo = document.getElementById('landing-open');
     const lc = document.getElementById('landing-closed');
