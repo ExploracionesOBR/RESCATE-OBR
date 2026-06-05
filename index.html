@@ -259,7 +259,7 @@
                             <div class="relative">
                                 <div class="flex space-x-2">
                                     <div class="relative flex-1">
-                                        <input type="text" id="sos-service-input" placeholder="Escribe para buscar servicio..." autocomplete="off" oninput="window.filterServiceOptions()" class="w-full bg-asfalto p-4 rounded-xl border border-naranja/50 text-white font-bold text-sm lg:text-base focus:border-naranja">
+                                        <input type="text" id="sos-service-input" placeholder="Escribe para buscar servicio..." autocomplete="off" oninput="window.filterServiceOptions()" onfocus="window.filterServiceOptions()" class="w-full bg-asfalto p-4 rounded-xl border border-naranja/50 text-white font-bold text-sm lg:text-base focus:border-naranja">
                                         <div id="sos-service-dropdown" class="absolute z-20 w-full bg-asfalto border border-naranja/50 rounded-xl mt-1 max-h-40 overflow-y-auto hidden shadow-lg"></div>
                                     </div>
                                     <button type="button" id="clear-service-btn" onclick="window.clearServiceSelection()" class="bg-red-600/30 hover:bg-red-600 text-white px-4 rounded-xl transition-colors" title="Limpiar selección">
