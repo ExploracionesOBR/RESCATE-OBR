@@ -6170,58 +6170,124 @@ window.addMechanicPOSItem = (id) => {
     }
 };
 
+// Finalizar cobro (guardar en cobros_pendientes, descontar stock y finalizar servicio para el cliente)
 window.finalizeMechanicCharge = async () => {
-    if (!window.posTicket.length) return showToast("Agrega productos", true);
-    const total = window.posTicket.reduce((s, i) => s + i.price, 0);
-    const sosId = window.currentSOSId;
-    const sosDocRef = doc(db, "rescates", sosId);
-    const sosSnap = await getDoc(sosDocRef);
-    if (!sosSnap.exists()) return showToast("Servicio no encontrado", true);
+    if (!currentMechanicSOSId) return window.showToast("No hay servicio activo", true);
+    
+    const total = mechanicRescueCost + mechanicTicket.reduce((s, i) => s + i.price, 0);
+    if (total === 0 && mechanicTicket.length === 0) {
+        // Sin productos y rescate sin costo: no hay nada que cobrar, finalizar directamente
+        return finalizarServicioSinCobro();
+    }
+    
+    // 1. Descontar stock de productos
+    for (let item of mechanicTicket) {
+        if (item.type === 'producto' && item.id) {
+            const prodRef = doc(db, "inventario", item.id);
+            const prodSnap = await getDoc(prodRef);
+            if (prodSnap.exists()) {
+                const newStock = (prodSnap.data().stock || 0) - 1;
+                await updateDoc(prodRef, { stock: newStock });
+            }
+        }
+    }
+    
+    // 2. Obtener datos del servicio
+    const sosSnap = await getDoc(doc(db, "rescates", currentMechanicSOSId));
+    if (!sosSnap.exists()) return window.showToast("Servicio no encontrado", true);
     const sosData = sosSnap.data();
     const clienteName = sosData.clientName || sosData.phone || "Cliente";
-
     const pendingId = generateShortId();
-
-    await addDoc(collection(db, "cobros_pendientes"), {
-        pendingId: pendingId,
-        sosId: sosId,
-        cliente: clienteName,
-        mech_uid: auth.currentUser.uid,
-        mech_name: window.currentUserDoc?.name || 'Mecánico',
-        concepto: `Servicio ${sosData.shortId || sosId}`,
-        monto: total,
-        ticket: window.posTicket,
-        estado: 'pendiente',
-        timestamp: Date.now(),
-        metodoPago: 'Pendiente'
-    });
-
-    await addDoc(collection(db, "ventas"), {
-        shortId: pendingId,
-        desc: window.posTicket.map(i => i.name).join(", "),
-        total: total,
-        costo: window.posTicket.reduce((s, i) => s + (i.cost || 0), 0),
-        metodoPago: 'Pendiente',
-        ticket: window.posTicket,
-        sosId: sosId,
-        fecha: new Date().toISOString(),
-        estado: 'pendiente'
-    });
-
-    showToast(`Cobro registrado por $${total.toFixed(2)}. Espera confirmación del administrador.`);
-    window.posTicket = [];
-    window.renderTicket();
-    const totalEl = document.getElementById('mechanic-total');
-    if (totalEl) totalEl.innerText = '0.00';
+    
+    // 3. Crear cobro pendiente (solo si total > 0)
+    if (total > 0) {
+        await addDoc(collection(db, "cobros_pendientes"), {
+            pendingId: pendingId,
+            sosId: currentMechanicSOSId,
+            cliente: clienteName,
+            mech_uid: auth.currentUser.uid,
+            mech_name: window.currentUserDoc?.name || 'Mecánico',
+            concepto: `Servicio ${sosData.shortId || currentMechanicSOSId}`,
+            monto: total,
+            ticket: mechanicTicket,
+            rescueCost: mechanicRescueCost,
+            estado: 'pendiente',
+            timestamp: Date.now(),
+            metodoPago: 'Pendiente'
+        });
+        
+        // Crear venta pendiente (para estadísticas)
+        await addDoc(collection(db, "ventas"), {
+            shortId: pendingId,
+            desc: mechanicTicket.map(i => i.name).join(", "),
+            total: total,
+            costo: mechanicTicket.reduce((s, i) => s + (i.cost || 0), 0),
+            metodoPago: 'Pendiente',
+            ticket: mechanicTicket,
+            sosId: currentMechanicSOSId,
+            rescueCost: mechanicRescueCost,
+            fecha: new Date().toISOString(),
+            estado: 'pendiente'
+        });
+        
+        // Notificar a caja
+        await set(dbRef(rtdb, 'notificaciones_caja/cobro_' + Date.now()), {
+            msg: `Nuevo cobro pendiente de ${clienteName} por $${total.toFixed(2)}`,
+            type: 'cobro_mecanico',
+            pendingId: pendingId,
+            mech_name: window.currentUserDoc?.name
+        });
+        
+        window.showToast(`Cobro registrado por $${total.toFixed(2)}. Espera confirmación del administrador.`);
+    } else {
+        // Si total es 0, no crear cobro pendiente; marcar directamente como pagado
+        await updateDoc(doc(db, "rescates", currentMechanicSOSId), { 
+            tallerStatus: 'pagado',
+            status: 'completed',
+            pagadoEn: Date.now()
+        });
+        window.showToast("Servicio finalizado sin costo adicional.");
+    }
+    
+    // 4. Finalizar servicio para el cliente (marcar como completed y eliminar alerta)
+    await finalizarServicioParaCliente(currentMechanicSOSId);
+    
+    // 5. Limpiar y cerrar modal
     toggleModal('modal-mechanic-pos', false);
-    rtdbSet(dbRef(rtdb, 'notificaciones_caja/cobro_' + Date.now()), {
-        msg: `Nuevo cobro pendiente de ${clienteName} por $${total.toFixed(2)}`,
-        type: 'cobro_mecanico',
-        pendingId: pendingId,
-        mech_name: window.currentUserDoc?.name
-    });
+    currentMechanicSOSId = null;
+    mechanicTicket = [];
+    mechanicRescueCost = 0;
 };
 
+// Función auxiliar para finalizar servicio sin cobro
+async function finalizarServicioSinCobro() {
+    await updateDoc(doc(db, "rescates", currentMechanicSOSId), { 
+        tallerStatus: 'pagado',
+        status: 'completed',
+        pagadoEn: Date.now()
+    });
+    await finalizarServicioParaCliente(currentMechanicSOSId);
+    window.showToast("Servicio finalizado sin cargos.");
+    toggleModal('modal-mechanic-pos', false);
+    currentMechanicSOSId = null;
+    mechanicTicket = [];
+    mechanicRescueCost = 0;
+}
+
+// Función auxiliar para que el cliente vea el servicio finalizado (encuesta)
+async function finalizarServicioParaCliente(sosId) {
+    // Marcar el rescate como completado (si aún no lo está)
+    await updateDoc(doc(db, "rescates", sosId), { status: 'completed' });
+    // Eliminar la alerta en tiempo real para que el cliente ya no vea el mapa
+    const sosSnap = await getDoc(doc(db, "rescates", sosId));
+    if (sosSnap.exists() && sosSnap.data().uid) {
+        await remove(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid));
+        // Opcional: enviar notificación silenciosa de que el servicio ha finalizado (sin mencionar pago)
+        await push(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid + '/notifs'), {
+            msg: '✅ Servicio finalizado. ¡Califícanos!'
+        });
+    }
+}
 // ---------- Asignar mecánico y enviar WhatsApp ----------
 async function loadMecanicosActivosParaAsignar(sosId) {
     const lista = document.getElementById('lista-mecanicos-asignar');
