@@ -1456,51 +1456,46 @@
 </div>
 
 <!-- Modal POS Mecánico (mejorado) -->
+<!-- Modal POS Mecánico (mejorado) -->
 <div id="modal-mechanic-pos" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-5xl h-[90vh] rounded-[2rem] relative border border-indigo-500/30 flex flex-col shadow-2xl overflow-hidden">
-        <button onclick="toggleModal('modal-mechanic-pos', false)" class="absolute top-4 right-4 z-20 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors"><i class="fas fa-times"></i></button>
-        
-        <div class="flex flex-col lg:flex-row h-full">
-            <!-- Panel izquierdo: productos -->
-            <div class="w-full lg:w-1/2 p-4 border-r border-white/10 flex flex-col overflow-hidden">
-                <h3 class="text-lg font-black text-white mb-3 flex items-center"><i class="fas fa-box-open mr-2 text-indigo-400"></i> Selecciona productos</h3>
-                <input type="text" id="mech-pos-search" placeholder="Buscar producto..." class="w-full bg-white/5 border border-white/10 p-2 rounded-xl text-white text-sm mb-3 focus:border-indigo-500">
-                <div id="mech-pos-products-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto hide-scroll flex-grow pb-2"></div>
+    <div class="bg-asfalto w-full max-w-5xl max-h-[90vh] rounded-[2rem] border border-indigo-500/30 shadow-2xl flex flex-col overflow-hidden">
+        <!-- Cabecera -->
+        <div class="flex justify-between items-center p-4 border-b border-white/10 bg-indigo-600/20">
+            <h2 class="text-xl font-black text-white"><i class="fas fa-tools mr-2"></i>POS Mecánico</h2>
+            <button onclick="toggleModal('modal-mechanic-pos', false)" class="text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+        </div>
+
+        <div class="flex flex-col lg:flex-row flex-1 overflow-hidden">
+            <!-- Panel izquierdo: productos del almacén -->
+            <div class="lg:w-1/2 p-4 border-r border-white/10 overflow-y-auto">
+                <div class="mb-3">
+                    <input type="text" id="mech-product-search" placeholder="Buscar producto..." class="w-full bg-white/5 border border-white/10 p-2 rounded-xl text-white text-sm focus:border-indigo-500">
+                </div>
+                <div id="mech-products-grid" class="grid grid-cols-2 gap-3 overflow-y-auto max-h-[60vh]"></div>
+                <div class="mt-4">
+                    <button onclick="addManualChargeToMechanicPOS()" class="w-full bg-yellow-600 hover:bg-yellow-500 text-white py-2 rounded-xl font-black uppercase text-xs flex items-center justify-center"><i class="fas fa-plus-circle mr-2"></i>Cargo manual</button>
+                </div>
             </div>
-            
+
             <!-- Panel derecho: ticket -->
-            <div class="w-full lg:w-1/2 p-4 flex flex-col bg-white/5">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-lg font-black text-white"><i class="fas fa-receipt mr-2 text-indigo-400"></i> Ticket de cobro</h3>
-                    <button id="mech-add-manual-btn" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1 rounded-xl text-xs font-black uppercase flex items-center"><i class="fas fa-plus-circle mr-1"></i> Cargo manual</button>
-                </div>
-                
-                <!-- Ticket -->
-                <div id="mech-ticket-items" class="flex-grow overflow-y-auto space-y-2 mb-4 bg-black/20 p-3 rounded-xl max-h-[50vh]">
-                    <div class="text-center text-gray-500 text-sm py-10">Agrega productos o cargos manuales</div>
-                </div>
-                
-                <!-- Totales -->
+            <div class="lg:w-1/2 p-4 flex flex-col bg-white/5">
+                <h3 class="text-lg font-black text-white mb-3 border-b border-white/10 pb-2">Ticket de servicio</h3>
+                <div id="mech-ticket-items" class="flex-1 overflow-y-auto space-y-2 max-h-[50vh] mb-4"></div>
                 <div class="border-t border-white/10 pt-3 space-y-2">
-                    <div class="flex justify-between text-sm text-gray-300">
-                        <span>🚑 Rescate:</span>
-                        <span id="mech-rescue-cost">$0.00</span>
+                    <div class="flex justify-between text-sm">
+                        <span>Rescate:</span>
+                        <span id="mech-rescue-cost" class="font-bold text-naranja">$0.00</span>
                     </div>
-                    <div id="mech-total-products-row" class="flex justify-between text-sm text-gray-300">
-                        <span>📦 Productos:</span>
-                        <span id="mech-total-products">$0.00</span>
+                    <div class="flex justify-between text-sm">
+                        <span>Productos / Cargos:</span>
+                        <span id="mech-items-subtotal" class="font-bold">$0.00</span>
                     </div>
-                    <div id="mech-total-manual-row" class="flex justify-between text-sm text-gray-300">
-                        <span>✏️ Cargos manuales:</span>
-                        <span id="mech-total-manual">$0.00</span>
+                    <div class="flex justify-between text-xl font-black">
+                        <span>TOTAL:</span>
+                        <span id="mech-total" class="text-naranja">$0.00</span>
                     </div>
-                    <div class="flex justify-between text-xl font-black text-indigo-400 pt-2 border-t border-white/10">
-                        <span>Total a cobrar:</span>
-                        <span id="mech-grand-total">$0.00</span>
-                    </div>
+                    <button id="btn-finalize-mechanic-charge" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase mt-4 transition-all">Cobrar y finalizar</button>
                 </div>
-                
-                <button id="mech-finalize-charge" class="mt-4 bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl font-black uppercase text-sm transition-all shadow-lg active:scale-95">Cobrar y finalizar</button>
             </div>
         </div>
     </div>
