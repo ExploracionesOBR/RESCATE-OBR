@@ -6248,34 +6248,134 @@ window.changeSOSStatus = async (id, newStatus) => {
     window.renderSOSGlobalMap();
 };
 
-// ---------- POS para mecánicos ----------
-window.openMechanicPOS = (sosId) => {
-    window.currentSOSId = sosId;
-    toggleModal('modal-mechanic-pos', true);
-    const posGrid = document.getElementById('mechanic-pos-grid');
-    if (posGrid) {
-        posGrid.innerHTML = '';
-        adminInventoryList.filter(p => p.stock > 0).forEach(p => {
-            posGrid.innerHTML += `
-            <div onclick="window.addMechanicPOSItem('${p.id}')" class="bg-black/30 p-2 rounded-2xl cursor-pointer hover:bg-white/10">
-                <p class="text-xs font-black text-white truncate">${p.name}</p>
-                <p class="text-naranja text-sm font-bold">$${p.priceTaller}</p>
-                <p class="text-[0.6rem] text-green-400">Stock: ${p.stock}</p>
-            </div>`;
-        });
+// ========== POS MECÁNICO MEJORADO ==========
+let currentMechanicSOSId = null;
+let mechanicRescueCost = 0;
+let mechanicTicket = []; // { type, id, name, price, cost, garantia? }
+
+// Abrir POS mecánico para un servicio específico
+window.openMechanicPOS = async (sosId) => {
+    currentMechanicSOSId = sosId;
+    mechanicTicket = [];
+    
+    // Obtener costo del rescate
+    const sosSnap = await getDoc(doc(db, "rescates", sosId));
+    if (sosSnap.exists()) {
+        mechanicRescueCost = sosSnap.data().costoRescateEstimado || 0;
+    } else {
+        mechanicRescueCost = 0;
     }
+    
+    // Renderizar productos y ticket
+    renderMechanicProducts();
+    renderMechanicTicket();
+    updateMechanicTotal();
+    
+    toggleModal('modal-mechanic-pos', true);
 };
 
-window.addMechanicPOSItem = (id) => {
-    const p = adminInventoryList.find(x => x.id === id);
-    if (p) {
-        window.posTicket.push({ type: 'almacen', id: p.id, name: p.name, price: p.priceTaller, cost: p.cost });
-        window.renderTicket();
-        const total = window.posTicket.reduce((s,i)=>s+i.price,0);
-        const totalEl = document.getElementById('mechanic-total');
-        if (totalEl) totalEl.innerText = total.toFixed(2);
-        showToast("Agregado");
+// Renderizar productos del almacén (con imagen, nombre, precio, stock)
+function renderMechanicProducts() {
+    const container = document.getElementById('mech-products-grid');
+    if (!container) return;
+    
+    const searchTerm = (document.getElementById('mech-product-search')?.value || '').toLowerCase();
+    const filtered = adminInventoryList.filter(p => p.stock > 0 && (p.name.toLowerCase().includes(searchTerm) || (p.id && p.id.toLowerCase().includes(searchTerm))));
+    
+    container.innerHTML = '';
+    filtered.forEach(p => {
+        const price = p.priceTaller || p.pricePublic || 0;
+        container.innerHTML += `
+            <div onclick="addToMechanicTicket({ type: 'producto', id: '${p.id}', name: '${escapeHtml(p.name)}', price: ${price}, cost: ${p.cost || 0}, stock: ${p.stock} })" 
+                 class="bg-white/5 p-3 rounded-2xl cursor-pointer hover:bg-white/10 transition-all border border-white/10">
+                <div class="w-full h-20 bg-black/30 rounded-lg flex items-center justify-center mb-2 overflow-hidden">
+                    ${p.imgUrl ? `<img src="${p.imgUrl}" class="max-h-full max-w-full object-contain">` : '<i class="fas fa-box text-3xl text-gray-500"></i>'}
+                </div>
+                <p class="text-sm font-bold text-white truncate">${escapeHtml(p.name)}</p>
+                <p class="text-naranja font-black text-lg">$${price.toFixed(2)}</p>
+                <p class="text-[10px] text-green-400">Stock: ${p.stock}</p>
+            </div>
+        `;
+    });
+    if (filtered.length === 0) container.innerHTML = '<p class="text-gray-400 text-center col-span-full">No hay productos con stock</p>';
+}
+
+// Agregar ítem al ticket
+window.addToMechanicTicket = (item) => {
+    // Validar stock si es producto
+    if (item.type === 'producto') {
+        const product = adminInventoryList.find(p => p.id === item.id);
+        if (!product || product.stock <= 0) {
+            window.showToast("Sin stock disponible", true);
+            return;
+        }
     }
+    mechanicTicket.push({
+        type: item.type,
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        cost: item.cost || 0,
+        garantia: item.garantia || null
+    });
+    renderMechanicTicket();
+    updateMechanicTotal();
+};
+
+// Eliminar ítem del ticket
+window.removeFromMechanicTicket = (index) => {
+    mechanicTicket.splice(index, 1);
+    renderMechanicTicket();
+    updateMechanicTotal();
+};
+
+// Renderizar ticket (lista de ítems)
+function renderMechanicTicket() {
+    const container = document.getElementById('mech-ticket-items');
+    if (!container) return;
+    if (mechanicTicket.length === 0) {
+        container.innerHTML = '<p class="text-gray-400 text-center text-xs">Sin productos o cargos</p>';
+        return;
+    }
+    container.innerHTML = '';
+    mechanicTicket.forEach((item, idx) => {
+        container.innerHTML += `
+            <div class="flex justify-between items-center bg-black/30 p-2 rounded-xl">
+                <div class="flex-1">
+                    <p class="text-sm font-bold text-white">${escapeHtml(item.name)}</p>
+                    <p class="text-[10px] text-gray-400">${item.type === 'producto' ? 'Producto' : 'Cargo manual'}</p>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <span class="text-naranja font-black">$${item.price.toFixed(2)}</span>
+                    <button onclick="removeFromMechanicTicket(${idx})" class="text-red-400 hover:text-red-300"><i class="fas fa-trash-alt"></i></button>
+                </div>
+            </div>
+        `;
+    });
+}
+
+// Actualizar totales (rescate + suma de ítems)
+function updateMechanicTotal() {
+    const itemsTotal = mechanicTicket.reduce((sum, i) => sum + i.price, 0);
+    const total = mechanicRescueCost + itemsTotal;
+    document.getElementById('mech-rescue-cost').innerText = `$${mechanicRescueCost.toFixed(2)}`;
+    document.getElementById('mech-items-subtotal').innerText = `$${itemsTotal.toFixed(2)}`;
+    document.getElementById('mech-total').innerText = `$${total.toFixed(2)}`;
+}
+
+// Agregar cargo manual
+window.addManualChargeToMechanicPOS = () => {
+    const concepto = prompt("Concepto del cargo:", "Mano de obra extra");
+    if (!concepto) return;
+    const monto = parseFloat(prompt("Monto ($):", "0"));
+    if (isNaN(monto) || monto <= 0) return window.showToast("Monto inválido", true);
+    addToMechanicTicket({
+        type: 'manual',
+        id: null,
+        name: concepto,
+        price: monto,
+        cost: 0
+    });
 };
 
 // Finalizar cobro (guardar en cobros_pendientes, descontar stock y finalizar servicio para el cliente)
@@ -6283,10 +6383,6 @@ window.finalizeMechanicCharge = async () => {
     if (!currentMechanicSOSId) return window.showToast("No hay servicio activo", true);
     
     const total = mechanicRescueCost + mechanicTicket.reduce((s, i) => s + i.price, 0);
-    if (total === 0 && mechanicTicket.length === 0) {
-        // Sin productos y rescate sin costo: no hay nada que cobrar, finalizar directamente
-        return finalizarServicioSinCobro();
-    }
     
     // 1. Descontar stock de productos
     for (let item of mechanicTicket) {
@@ -6307,7 +6403,7 @@ window.finalizeMechanicCharge = async () => {
     const clienteName = sosData.clientName || sosData.phone || "Cliente";
     const pendingId = generateShortId();
     
-    // 3. Crear cobro pendiente (solo si total > 0)
+    // 3. Crear cobro pendiente solo si total > 0
     if (total > 0) {
         await addDoc(collection(db, "cobros_pendientes"), {
             pendingId: pendingId,
@@ -6324,7 +6420,6 @@ window.finalizeMechanicCharge = async () => {
             metodoPago: 'Pendiente'
         });
         
-        // Crear venta pendiente (para estadísticas)
         await addDoc(collection(db, "ventas"), {
             shortId: pendingId,
             desc: mechanicTicket.map(i => i.name).join(", "),
@@ -6338,7 +6433,6 @@ window.finalizeMechanicCharge = async () => {
             estado: 'pendiente'
         });
         
-        // Notificar a caja
         await set(dbRef(rtdb, 'notificaciones_caja/cobro_' + Date.now()), {
             msg: `Nuevo cobro pendiente de ${clienteName} por $${total.toFixed(2)}`,
             type: 'cobro_mecanico',
@@ -6348,7 +6442,7 @@ window.finalizeMechanicCharge = async () => {
         
         window.showToast(`Cobro registrado por $${total.toFixed(2)}. Espera confirmación del administrador.`);
     } else {
-        // Si total es 0, no crear cobro pendiente; marcar directamente como pagado
+        // Si total es 0, marcar directamente como pagado
         await updateDoc(doc(db, "rescates", currentMechanicSOSId), { 
             tallerStatus: 'pagado',
             status: 'completed',
@@ -6367,35 +6461,26 @@ window.finalizeMechanicCharge = async () => {
     mechanicRescueCost = 0;
 };
 
-// Función auxiliar para finalizar servicio sin cobro
-async function finalizarServicioSinCobro() {
-    await updateDoc(doc(db, "rescates", currentMechanicSOSId), { 
-        tallerStatus: 'pagado',
-        status: 'completed',
-        pagadoEn: Date.now()
-    });
-    await finalizarServicioParaCliente(currentMechanicSOSId);
-    window.showToast("Servicio finalizado sin cargos.");
-    toggleModal('modal-mechanic-pos', false);
-    currentMechanicSOSId = null;
-    mechanicTicket = [];
-    mechanicRescueCost = 0;
-}
-
 // Función auxiliar para que el cliente vea el servicio finalizado (encuesta)
 async function finalizarServicioParaCliente(sosId) {
-    // Marcar el rescate como completado (si aún no lo está)
     await updateDoc(doc(db, "rescates", sosId), { status: 'completed' });
-    // Eliminar la alerta en tiempo real para que el cliente ya no vea el mapa
     const sosSnap = await getDoc(doc(db, "rescates", sosId));
     if (sosSnap.exists() && sosSnap.data().uid) {
         await remove(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid));
-        // Opcional: enviar notificación silenciosa de que el servicio ha finalizado (sin mencionar pago)
         await push(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid + '/notifs'), {
             msg: '✅ Servicio finalizado. ¡Califícanos!'
         });
     }
 }
+
+// Buscador de productos en tiempo real
+document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('mech-product-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => renderMechanicProducts());
+    }
+});
+
 // ---------- Asignar mecánico y enviar WhatsApp ----------
 async function loadMecanicosActivosParaAsignar(sosId) {
     const lista = document.getElementById('lista-mecanicos-asignar');
