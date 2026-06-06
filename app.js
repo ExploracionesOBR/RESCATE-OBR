@@ -5791,6 +5791,8 @@ if (window.sosFiltroUnicoId) {
         `;
     });
 }
+window.cargarListadoSOS = cargarListadoSOS;
+window.renderSOSMapa = renderSOSMapa;
 
 // aqui inicia renderSOSMapa (pulso naranja y zoom con personal)
 async function renderSOSMapa() {
