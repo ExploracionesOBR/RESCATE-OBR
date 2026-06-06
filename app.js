@@ -3292,6 +3292,7 @@ window.loadClientHistory = () => {
         list.innerHTML = html || '<p class="text-xs text-center text-gray-600 italic">No tienes servicios registrados.</p>';
     });
 };
+
 window.openClientServiceDetail = async (id) => {
     // Cerrar suscripción anterior si existe
     if (window._clientDetailUnsubscribe) {
@@ -6463,6 +6464,7 @@ window.finalizeMechanicCharge = async () => {
             }
         }
     }
+    
     // 2. Obtener datos del servicio
     const sosSnap = await getDoc(doc(db, "rescates", currentMechanicSOSId));
     if (!sosSnap.exists()) return window.showToast("Servicio no encontrado", true);
