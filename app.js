@@ -114,7 +114,7 @@ function escapeHtml(str) {
                 if (Date.now() - timestamp < MODEL_CACHE_EXPIRY) return model;
             } catch(e) {}
         }
-        const API_KEY = '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';
+        const API_KEY = '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';
         try {
             const response = await fetch('https://api.groq.com/openai/v1/models', {
                 headers: { 'Authorization': `Bearer ${API_KEY}` }
