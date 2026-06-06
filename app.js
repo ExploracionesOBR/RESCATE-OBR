@@ -2663,55 +2663,66 @@ function listenToMySOS() {
             if (chatBtn && data.mech_uid) chatBtn.classList.remove('hidden');
         }
 
-        if ((data.status === 'completed' || data.status === 'cancelled') &&
-            window.lastClientSOSStatus !== 'completed' &&
-            window.lastClientSOSStatus !== 'cancelled') {
-            const chatBtn = document.getElementById('btn-chat-sos');
-            if (chatBtn) chatBtn.classList.add('hidden');
-            window._sosChatId = null;
-            if (data.status === 'completed') {
-                speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
-                playSound('notif');
-                if (activeCard) activeCard.classList.add('hidden');
-                setTimeout(() => {
-                    const surveyEl = document.getElementById('satisfaction-survey');
-                    if (surveyEl) surveyEl.classList.remove('hidden');
-                }, 200);
-            } else {
-                speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
-                playSound('notif');
-                if (activeCard) activeCard.classList.add('hidden');
-            }
-            remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
-            window.loadClientHistory();
-            if (wsCard) wsCard.classList.add('hidden');
-            if (mechPosUnsubscribe) mechPosUnsubscribe();
-            if (routingControl) {
-                routingControl.remove();
-                routingControl = null;
-            }
-            if (window.clientMapInstance) {
-                window.clientMapInstance.remove();
-                window.clientMapInstance = null;
-                window.clientMapMarkers = { mech: null, client: null, taller: null };
-            }
-            if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
-                if (wsCard) {
-                    wsCard.classList.remove('hidden');
-                    const steps = { 'recibida': 1, 'mecanica': 2, 'pruebas': 3, 'lista': 4 };
-                    const currentStep = steps[data.tallerStatus] || 0;
-                    const wsProgress = document.getElementById('client-ws-progress');
-                    if (wsProgress) wsProgress.style.width = ((currentStep - 1) * 33.33) + '%';
-                    const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
-                    wsTexts.forEach((id, idx) => {
-                        const el = document.getElementById(id);
-                        if (el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
-                    });
-                }
-            }
-            window.lastClientSOSStatus = data.status;
-            return;
+        if ((data.status === 'completed' || data.status === 'cancelled') && 
+    window.lastClientSOSStatus !== 'completed' && 
+    window.lastClientSOSStatus !== 'cancelled') {
+    
+    const chatBtn = document.getElementById('btn-chat-sos');
+    if (chatBtn) chatBtn.classList.add('hidden');
+    window._sosChatId = null;
+    
+    if (data.status === 'completed') {
+        speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
+        playSound('notif');
+        if (activeCard) activeCard.classList.add('hidden');
+        setTimeout(() => {
+            const surveyEl = document.getElementById('satisfaction-survey');
+            if (surveyEl) surveyEl.classList.remove('hidden');
+        }, 200);
+    } else {
+        speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
+        playSound('notif');
+        if (activeCard) activeCard.classList.add('hidden');
+    }
+    
+    remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
+    window.loadClientHistory();
+    
+    // 👇 **AQUÍ VA EL BLOQUE QUE ME DISTE PARA LA TARJETA DEL TALLER**
+    if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
+        const wsCard = document.getElementById('active-workshop-card');
+        if (wsCard) {
+            wsCard.classList.remove('hidden');
+            const steps = { 'recibida': 1, 'mecanica': 2, 'pruebas': 3, 'lista': 4 };
+            const currentStep = steps[data.tallerStatus] || 0;
+            const wsProgress = document.getElementById('client-ws-progress');
+            if (wsProgress) wsProgress.style.width = ((currentStep - 1) * 33.33) + '%';
+            const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
+            wsTexts.forEach((id, idx) => {
+                const el = document.getElementById(id);
+                if (el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
+            });
         }
+    } else {
+        const wsCard = document.getElementById('active-workshop-card');
+        if (wsCard) wsCard.classList.add('hidden');
+    }
+    // 👆 HASTA AQUÍ
+
+    if (mechPosUnsubscribe) mechPosUnsubscribe();
+    if (routingControl) {
+        routingControl.remove();
+        routingControl = null;
+    }
+    if (window.clientMapInstance) {
+        window.clientMapInstance.remove();
+        window.clientMapInstance = null;
+        window.clientMapMarkers = { mech: null, client: null, taller: null };
+    }
+    
+    window.lastClientSOSStatus = data.status;
+    return;
+}
 
         window.lastClientSOSStatus = data.status;
     });
@@ -6594,6 +6605,16 @@ window.asignarMecanicoASOS = async (mechUid, sosId) => {
 
     await updateDoc(doc(db, "rescates", sosId), { status: 'accepted', mech_uid: mechUid, mech_name: mech.name });
     window.activeMechanicSOSId = sosId;
+    // Crear chat entre cliente y mecánico
+const chatRef = await addDoc(collection(db, "chats"), {
+    participantes: [sosData.uid, mechUid],
+    nombres: { [sosData.uid]: sosData.clientName || "Cliente", [mechUid]: mech.name },
+    titulo: `Servicio ${sosData.shortId}`,
+    estado: 'activo',
+    creado: Date.now()
+});
+window._sosChatId = chatRef.id;
+await updateDoc(doc(db, "rescates", sosId), { chatId: chatRef.id });
 
     if (sosData.uid) {
         rtdbSet(dbRef(rtdb, 'sos_alerts/' + sosData.uid), { ...sosData, status: 'accepted' });
