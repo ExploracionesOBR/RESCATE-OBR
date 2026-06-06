@@ -856,6 +856,7 @@ window.cart = []; window.cartDescuento = 0; window.retiros = []; window.cajaAbie
 let activeChatUid = null, chatUnsubscribe = null;
 window.currentRating = 0; let currentDetalleServicioId = null;
 window.currentSOSFilter = 'pending';
+window.sosFiltroUnicoId = null;   // ID del servicio a mostrar individualmente
 window.currentEntregaFilter = 'pendiente_asignar';
 let statsChartInstance = null, statsPieInstance = null;
 let adminSalesCache = {}; let lastNotifiedSOS = null; let mechWatchId = null; window.activeMechanicSOSId = null;
@@ -2711,6 +2712,8 @@ function listenToMySOS() {
 window.abrirChatSOS = () => {
     if (window._sosChatId) {
         window.openChat(window._sosChatId);
+    } else {
+        window.showToast("Aún no hay chat disponible", true);
     }
 };
 // ===== Funciones globales que estaban mal ubicadas dentro de listenToMySOS =====
@@ -3240,37 +3243,32 @@ window.cambiarEstadoServicio = async (nuevoEstado) => {
     if(!docSnap.exists()) return;
     const actual = docSnap.data().tallerStatus;
     if(actual === 'lista' || actual === 'pagado') return showToast("No se puede cambiar, ya finalizó", true);
-
-    // Si intenta pasar a "lista", verificar que ya se haya cobrado
-    if (nuevoEstado === 'lista') {
-        const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", currentDetalleServicioId), limit(1)));
-        if (ventasSnap.empty) {
-            showToast("Debes cobrar antes de marcar como Lista. Abre el cobro desde la vista SOS.", true);
-            return;
-        }
-    }
-
-    await updateDoc(docRef, { tallerStatus: nuevoEstado });
-
-    // ===== REFERIDOS: si se marcó como 'lista', actualizar servicios del cliente =====
-    if (nuevoEstado === 'lista' || nuevoEstado === 'completed') {
-        const rescateData = docSnap.data();
-        const uidCliente = rescateData.uid;
-        if (uidCliente && typeof window.actualizarServiciosReferido === 'function') {
-            await window.actualizarServiciosReferido(uidCliente);
-        }
-    }
-
-    if(docSnap.data().uid) push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), {
-        msg: nuevoEstado === 'pruebas' ? 'CONTINUAMOS TRABAJANDO EN TU MOTO' :
-             (nuevoEstado === 'lista' ? 'TU MOTO YA ESTÁ LISTA, ESPERA AL MECÁNICO' :
-              'MOTO EN MECÁNICA')
+    
+    let nuevoStatus = '';
+    if (nuevoEstado === 'mecanica') nuevoStatus = 'repairing';
+    else if (nuevoEstado === 'pruebas') nuevoStatus = 'to_shop';
+    else if (nuevoEstado === 'lista') nuevoStatus = 'completed';
+    else return;
+    
+    await updateDoc(docRef, { 
+        tallerStatus: nuevoEstado,
+        status: nuevoStatus
     });
-
-    playSound('notif');
+    
+    // Notificar al cliente via RTDB
+    if(docSnap.data().uid) {
+        const updates = { status: nuevoStatus, tallerStatus: nuevoEstado };
+        await set(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid), { ...docSnap.data(), ...updates });
+        await push(dbRef(rtdb, 'sos_alerts/' + docSnap.data().uid + '/notifs'), { 
+            msg: nuevoEstado === 'mecanica' ? 'El mecánico está reparando tu moto.' :
+                  (nuevoEstado === 'pruebas' ? 'Tu moto está en pruebas.' :
+                  'Tu moto está lista para entregar.')
+        });
+    }
     showToast(`Estado cambiado a ${nuevoEstado}`);
     toggleModal('modal-detalle-servicio', false);
 };
+
 window.abrirCobroDesdeDetalle = () => {
     if (!currentDetalleServicioId) return;
     window.openMechanicPOS(currentDetalleServicioId);
@@ -3294,33 +3292,13 @@ window.loadClientHistory = () => {
         list.innerHTML = html || '<p class="text-xs text-center text-gray-600 italic">No tienes servicios registrados.</p>';
     });
 };
+javascript
 window.openClientServiceDetail = async (id) => {
-    const docSnap = await getDoc(doc(db, "rescates", id));
-    if(!docSnap.exists()) return showToast("Servicio no encontrado", true);
-    const data = docSnap.data();
-    if(data.uid !== auth.currentUser.uid && data.phone !== window.currentUserDoc.phone) {
-        return showToast("No tienes permiso para ver este servicio", true);
+    // Cerrar suscripción anterior si existe
+    if (window._clientDetailUnsubscribe) {
+        window._clientDetailUnsubscribe();
+        window._clientDetailUnsubscribe = null;
     }
-
-    const detailHTML = `
-        <div class="text-white space-y-2">
-            <h3 class="font-black text-lg">Servicio: ${data.shortId || 'Sin ID'}</h3>
-            <p class="text-xs text-gray-400">Moto: ${data.marca || ''} ${data.modelo || ''} (${data.cc || ''})</p>
-            <p class="text-sm">${data.falla}</p>
-            <p class="text-xs">Estado: <span class="font-bold ${window.getStatusInfo(data.status).color.replace('bg-', 'text-').replace(/\/\d+/, '')}">${window.getStatusInfo(data.status).text}</span></p>
-            ${data.status === 'cancelled' 
-    ? `<div class="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
-           <p class="text-xs text-yellow-300 italic leading-relaxed">💡 Un cambio oportuno de aceite puede hacer la diferencia en la vida de tu motor.</p>
-           <button onclick="event.stopPropagation(); window.startFlow?.('tienda_publica')" class="mt-2 bg-naranja hover:bg-orange-600 text-white text-xs px-4 py-2 rounded-full font-black uppercase transition-colors w-full">
-               <i class="fas fa-shopping-bag mr-1"></i> Cotizalo ahora
-           </button>
-       </div>`
-    : (data.tallerStatus ? `<p class="text-xs">Taller: ${data.tallerStatus}</p>` : '')
-}
-            <p class="text-xs text-gray-500">${new Date(data.timestamp).toLocaleString()}</p>
-            ${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('${id}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">Descargar Ticket PDF</button>` : ''}
-        </div>
-    `;
 
     const modalId = 'modal-client-service-detail';
     let modalEl = document.getElementById(modalId);
@@ -3328,10 +3306,49 @@ window.openClientServiceDetail = async (id) => {
         modalEl = document.createElement('div');
         modalEl.id = modalId;
         modalEl.className = 'fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-        modalEl.innerHTML = `<div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl" id="${modalId}-content"><button onclick="toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button></div>`;
+        modalEl.innerHTML = `<div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl" id="${modalId}-content"></div>`;
         document.body.appendChild(modalEl);
     }
-    document.getElementById(`${modalId}-content`).innerHTML = `<button onclick="toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>${detailHTML}`;
+
+    const contentDiv = document.getElementById(`${modalId}-content`);
+    
+    // Suscribirse a cambios en tiempo real del documento
+    window._clientDetailUnsubscribe = onSnapshot(doc(db, "rescates", id), (docSnap) => {
+        if (!docSnap.exists()) {
+            contentDiv.innerHTML = '<p class="text-white">Servicio no encontrado</p>';
+            return;
+        }
+        const data = docSnap.data();
+        // Verificar permisos
+        if (data.uid !== auth.currentUser.uid && data.phone !== window.currentUserDoc.phone) {
+            contentDiv.innerHTML = '<p class="text-white">No tienes permiso para ver este servicio</p>';
+            return;
+        }
+
+        const statusInfo = window.getStatusInfo(data.status);
+        const detailHTML = `
+            <button onclick="toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+            <div class="text-white space-y-2">
+                <h3 class="font-black text-lg">Servicio: ${data.shortId || 'Sin ID'}</h3>
+                <p class="text-xs text-gray-400">Moto: ${data.marca || ''} ${data.modelo || ''} (${data.cc || ''})</p>
+                <p class="text-sm">${data.falla}</p>
+                <p class="text-xs">Estado: <span class="font-bold ${statusInfo.color.replace('bg-', 'text-').replace(/\/\d+/, '')}">${statusInfo.text}</span></p>
+                ${data.status === 'cancelled' 
+                    ? `<div class="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
+                        <p class="text-xs text-yellow-300 italic leading-relaxed">💡 Un cambio oportuno de aceite puede hacer la diferencia en la vida de tu motor.</p>
+                        <button onclick="event.stopPropagation(); window.startFlow?.('tienda_publica')" class="mt-2 bg-naranja hover:bg-orange-600 text-white text-xs px-4 py-2 rounded-full font-black uppercase transition-colors w-full">
+                            <i class="fas fa-shopping-bag mr-1"></i> Cotizalo ahora
+                        </button>
+                    </div>`
+                    : (data.tallerStatus ? `<p class="text-xs">Taller: ${data.tallerStatus}</p>` : '')
+                }
+                <p class="text-xs text-gray-500">${new Date(data.timestamp).toLocaleString()}</p>
+                ${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('${id}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">Descargar Ticket PDF</button>` : ''}
+            </div>
+        `;
+        contentDiv.innerHTML = detailHTML;
+    });
+
     toggleModal(modalId, true);
 };
 
@@ -5705,11 +5722,22 @@ async function cargarListadoSOS() {
         rescates.push(data);
     });
 
-    let filtered = rescates;
-    if (window.currentSOSFilter === 'pending') filtered = rescates.filter(r => r.status === 'pending');
-    else if (window.currentSOSFilter === 'accepted') filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
-    else if (window.currentSOSFilter === 'completed') filtered = rescates.filter(r => r.status === 'completed');
-
+    // Filtrar según filtro individual o por estatus
+let filtered = rescates;
+if (window.sosFiltroUnicoId) {
+    // Si hay un filtro individual, mostrar solo ese servicio
+    filtered = rescates.filter(r => r.id === window.sosFiltroUnicoId);
+} else {
+    // Sino, aplicar filtro por estatus
+    if (window.currentSOSFilter === 'pending') {
+        filtered = rescates.filter(r => r.status === 'pending');
+    } else if (window.currentSOSFilter === 'accepted') {
+        filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
+    } else if (window.currentSOSFilter === 'completed') {
+        filtered = rescates.filter(r => r.status === 'completed');
+    }
+}
+    
     listaDiv.innerHTML = '';
     if (filtered.length === 0) {
         listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">No hay solicitudes con los filtros seleccionados.</p>';
@@ -5816,15 +5844,23 @@ async function renderSOSMapa() {
         rescates.push(data);
     });
 
-    let filtered = rescates;
-    if (window.currentSOSFilter === 'pending') filtered = rescates.filter(r => r.status === 'pending');
-    else if (window.currentSOSFilter === 'accepted') filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
-    else if (window.currentSOSFilter === 'completed') filtered = rescates.filter(r => r.status === 'completed');
+    // Después de tener el array `rescates`
+let filtered = rescates;
+if (window.sosFiltroUnicoId) {
+    filtered = rescates.filter(r => r.id === window.sosFiltroUnicoId);
+} else {
+    // Aplicar filtro por estatus (igual que en cargarListadoSOS)
+    if (window.currentSOSFilter === 'pending') {
+        filtered = rescates.filter(r => r.status === 'pending');
+    } else if (window.currentSOSFilter === 'accepted') {
+        filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
+    } else if (window.currentSOSFilter === 'completed') {
+        filtered = rescates.filter(r => r.status === 'completed');
+    }
+}
 
-    const allBounds = [];
-    allBounds.push([TALLER_LAT, TALLER_LNG]);
-
-    for (const r of filtered) {
+// Luego iteras sobre `filtered` en lugar de `rescates`
+for (const r of filtered) {
         if (!r.lat || !r.lng) continue;
         allBounds.push([r.lat, r.lng]);
 
@@ -6024,6 +6060,7 @@ const popupContent = `
 // ---------- Funciones de filtro (respetando el nombre usado en HTML) ----------
 window.filtrarSOSPorEstatus = (estatus) => {
     window.currentSOSFilter = estatus; // 'todos', 'pending', 'accepted', 'completed'
+    window.sosFiltroUnicoId = null;   // Resetear filtro individual
     // Actualizar la UI de los botones
     document.querySelectorAll('.filter-btn-sos-estatus').forEach(btn => {
         btn.classList.remove('bg-white/20', 'border-white/30');
@@ -6365,19 +6402,51 @@ function updateMechanicTotal() {
 
 // Agregar cargo manual
 window.addManualChargeToMechanicPOS = () => {
-    const concepto = prompt("Concepto del cargo:", "Mano de obra extra");
-    if (!concepto) return;
-    const monto = parseFloat(prompt("Monto ($):", "0"));
-    if (isNaN(monto) || monto <= 0) return window.showToast("Monto inválido", true);
-    addToMechanicTicket({
-        type: 'manual',
-        id: null,
-        name: concepto,
-        price: monto,
-        cost: 0
-    });
+    // Crear modal dinámico interno
+    const modalId = 'modal-manual-charge-mechanic';
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[400] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.innerHTML = `
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-yellow-500/30 shadow-2xl">
+                <h3 class="text-xl font-black text-white mb-4 text-center">Cargo Manual</h3>
+                <input type="text" id="manual-charge-concept" placeholder="Concepto (ej. Mano de obra)" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-3 text-white">
+                <input type="number" id="manual-charge-amount" placeholder="Monto ($)" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl mb-4 text-white">
+                <div class="flex space-x-3">
+                    <button id="confirm-manual-charge" class="flex-1 bg-green-600 text-white py-2 rounded-xl font-black uppercase">Agregar</button>
+                    <button id="cancel-manual-charge" class="flex-1 bg-gray-600 text-white py-2 rounded-xl font-black uppercase">Cancelar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modalEl);
+        
+        document.getElementById('confirm-manual-charge').onclick = () => {
+            const concepto = document.getElementById('manual-charge-concept').value.trim();
+            const monto = parseFloat(document.getElementById('manual-charge-amount').value);
+            if (!concepto || isNaN(monto) || monto <= 0) {
+                window.showToast("Concepto y monto válido requeridos", true);
+                return;
+            }
+            window.addToMechanicTicket({
+                type: 'manual',
+                id: null,
+                name: concepto,
+                price: monto,
+                cost: 0
+            });
+            window.toggleModal(modalId, false);
+            // Limpiar campos
+            document.getElementById('manual-charge-concept').value = '';
+            document.getElementById('manual-charge-amount').value = '';
+        };
+        document.getElementById('cancel-manual-charge').onclick = () => {
+            window.toggleModal(modalId, false);
+        };
+    }
+    window.toggleModal(modalId, true);
 };
-
 // Finalizar cobro (guardar en cobros_pendientes, descontar stock y finalizar servicio para el cliente)
 window.finalizeMechanicCharge = async () => {
     if (!currentMechanicSOSId) return window.showToast("No hay servicio activo", true);
@@ -8710,14 +8779,12 @@ window.openChatWithTaller = async () => {
 
     // Crear nuevo chat pendiente
     const chatRef = await addDoc(collection(db, "chats"), {
-        titulo: "Soporte General",
-        participantes: [clienteUID],
-        nombres: { [clienteUID]: clienteNombre },
-        estado: "pendiente",
-        creado: Date.now()
-    });
-    window.showToast("Solicitud enviada. Un administrador te atenderá pronto.", false);
-};
+    participantes: [sosData.uid, mechUid],
+    nombres: { [sosData.uid]: sosData.clientName, [mechUid]: mech.name },
+    estado: 'activo',
+    creado: Date.now()
+});
+window._sosChatId = chatRef.id;
 
 window.cargarChatsPendientesAdmin = () => {
     const container = document.getElementById('admin-chats-pendientes-list');
@@ -9423,19 +9490,27 @@ window.actualizarServiciosReferido = actualizarServiciosReferido;
 window.initReferidosAdmin = initReferidosAdmin;
 
 window.centrarMapaEnSOS = (sosId) => {
-    const marker = adminSOSMarkers[sosId];
-    if (marker && adminSOSGlobalMapInst) {
-        const latlng = marker.getLatLng();
-        adminSOSGlobalMapInst.setView(latlng, 15);
+    // Si ya estábamos filtrando por este mismo ID, lo reseteamos
+    if (window.sosFiltroUnicoId === sosId) {
+        window.sosFiltroUnicoId = null;
     } else {
-        // Si no está en el mapa, cargar el SOS y centrar
-        getDoc(doc(db, "rescates", sosId)).then(snap => {
-            if (snap.exists()) {
-                const data = snap.data();
-                if (data.lat && data.lng) {
-                    adminSOSGlobalMapInst.setView([data.lat, data.lng], 15);
-                }
+        // Sino, asignamos el nuevo ID
+        window.sosFiltroUnicoId = sosId;
+    }
+    
+    // Refrescamos el listado y el mapa con el nuevo filtro
+    window.cargarListadoSOS();
+    window.renderSOSMapa();
+    
+    // (Opcional) Centrar el mapa en el marcador del servicio seleccionado
+    if (window.sosFiltroUnicoId) {
+        // Esperar un momento a que los marcadores se hayan recreado
+        setTimeout(() => {
+            const marker = adminSOSMarkers[sosId];
+            if (marker && adminSOSGlobalMapInst) {
+                const latlng = marker.getLatLng();
+                adminSOSGlobalMapInst.setView(latlng, 15);
             }
-        });
+        }, 300);
     }
 };
