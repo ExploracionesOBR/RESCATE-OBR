@@ -263,23 +263,24 @@ function escapeHtml(str) {
     }
 
     // ========== 6. CREACIÓN DEL MODAL PRINCIPAL (igual que antes, sin cambios) ==========
-    function crearModalChat() {
-        if (modal) return modal;
-        modal = document.createElement('div');
-        modal.id = 'chat-ia-modal-dinamico';
-        modal.style.cssText = `
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #000000dd;
-            backdrop-filter: blur(4px);
-            z-index: 1000000;
-            flex-direction: column;
-            font-family: system-ui, sans-serif;
-        `;
+function crearModalChat() {
+    if (modal) return modal;
+    modal = document.createElement('div');
+    modal.id = 'chat-ia-modal-dinamico';
+    // Asegurar display: none desde el inicio
+    modal.style.cssText = `
+        display: none !important;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #000000dd;
+        backdrop-filter: blur(4px);
+        z-index: 1000000;
+        flex-direction: column;
+        font-family: system-ui, sans-serif;
+    `;
         modal.innerHTML = `
             <div class="chat-ia-container" style="display:flex; flex-direction:column; width:100%; height:100%; max-width:1200px; margin:0 auto; background:var(--bg-color); color:var(--text-color);">
                 <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-color); background:var(--header-bg);">
@@ -321,6 +322,20 @@ function escapeHtml(str) {
             </div>
         `;
         document.body.appendChild(modal);
+    
+    // Forzar nuevamente que esté oculto (por si el CSS anterior falla)
+    modal.style.display = 'none';
+    const closeBtn = modal.querySelector('#close-chat-ia');
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            modal.style.display = 'none';
+            limpiarPreview();
+            detenerVoz();
+        };
+    }
+    
+    return modal;
+}
         // Guardar referencias
         window._chatGroupsList = modal.querySelector('#groups-list-ia');
         window._chatMessagesContainer = modal.querySelector('#messages-list-ia');
@@ -806,17 +821,18 @@ REGLAS DE FORMATO (IMPORTANTE):
     }
 
     // ========== 14. INICIALIZACIÓN ==========
-    window.abrirChatIA = async () => {
-        if (!modal) {
-            crearModalChat();
-            await initVisionModel();
-            cargarGrupos();
-        }
-        if (modal) {
-            aplicarTema();
-            modal.style.display = 'flex';
-        }
-    };
+  window.abrirChatIA = async () => {
+    if (!modal) {
+        crearModalChat();
+        await initVisionModel();
+        cargarGrupos();
+    }
+    if (modal) {
+        // Aplicar tema (ya lo hace, pero no mostrar si está oculto)
+        aplicarTema();
+        modal.style.display = 'flex';
+    }
+};
     const conectarBotonesExternos = () => {
         const floatBtn = document.getElementById('btn-chat-ai-float');
         if (floatBtn) floatBtn.onclick = window.abrirChatIA;
