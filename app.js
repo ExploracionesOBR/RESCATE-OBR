@@ -267,7 +267,6 @@ function crearModalChat() {
     if (modal) return modal;
     modal = document.createElement('div');
     modal.id = 'chat-ia-modal-dinamico';
-    // Asegurar display: none desde el inicio
     modal.style.cssText = `
         display: none !important;
         position: fixed;
@@ -281,50 +280,69 @@ function crearModalChat() {
         flex-direction: column;
         font-family: system-ui, sans-serif;
     `;
-        modal.innerHTML = `
-            <div class="chat-ia-container" style="display:flex; flex-direction:column; width:100%; height:100%; max-width:1200px; margin:0 auto; background:var(--bg-color); color:var(--text-color);">
-                <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-color); background:var(--header-bg);">
-                    <div style="display:flex; align-items:center; gap:12px;"><i class="fas fa-robot" style="color:#FF6B00; font-size:28px;"></i><h2 style="font-size:1.5rem; font-weight:900;">Asistente IA</h2></div>
-                    <button id="close-chat-ia" style="background:rgba(0,0,0,0.2); border:none; width:40px; height:40px; border-radius:50%; cursor:pointer;"><i class="fas fa-times"></i></button>
+    modal.innerHTML = `
+        <div class="chat-ia-container" style="display:flex; flex-direction:column; width:100%; height:100%; max-width:1200px; margin:0 auto; background:var(--bg-color); color:var(--text-color);">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-color); background:var(--header-bg);">
+                <div style="display:flex; align-items:center; gap:12px;"><i class="fas fa-robot" style="color:#FF6B00; font-size:28px;"></i><h2 style="font-size:1.5rem; font-weight:900;">Asistente IA</h2></div>
+                <button id="close-chat-ia" style="background:rgba(0,0,0,0.2); border:none; width:40px; height:40px; border-radius:50%; cursor:pointer;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="display:flex; flex:1; overflow:hidden;">
+                <div style="width:260px; background:var(--panel-bg); border-right:1px solid var(--border-color); display:flex; flex-direction:column;">
+                    <div style="padding:12px;"><input type="text" id="search-group-ia" placeholder="Buscar grupo..." style="width:100%; background:var(--input-bg); border:1px solid var(--border-color); border-radius:8px; padding:8px; font-size:12px; color:var(--text-color);"></div>
+                    <div id="groups-list-ia" style="flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:8px;"></div>
+                    <div style="padding:12px; border-top:1px solid var(--border-color);"><button id="new-group-ia" style="width:100%; background:#22c55e; color:white; border:none; padding:8px; border-radius:12px; font-weight:900; cursor:pointer;">+ Nuevo grupo</button></div>
                 </div>
-                <div style="display:flex; flex:1; overflow:hidden;">
-                    <div style="width:260px; background:var(--panel-bg); border-right:1px solid var(--border-color); display:flex; flex-direction:column;">
-                        <div style="padding:12px;"><input type="text" id="search-group-ia" placeholder="Buscar grupo..." style="width:100%; background:var(--input-bg); border:1px solid var(--border-color); border-radius:8px; padding:8px; font-size:12px; color:var(--text-color);"></div>
-                        <div id="groups-list-ia" style="flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:8px;"></div>
-                        <div style="padding:12px; border-top:1px solid var(--border-color);"><button id="new-group-ia" style="width:100%; background:#22c55e; color:white; border:none; padding:8px; border-radius:12px; font-weight:900; cursor:pointer;">+ Nuevo grupo</button></div>
+                <div style="flex:1; display:flex; flex-direction:column;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--header-bg); border-bottom:1px solid var(--border-color);">
+                        <div><span id="chat-group-title" style="font-weight:bold; font-size:1.1rem;">Selecciona un grupo</span><span id="chat-service-id" style="font-size:0.7rem; color:var(--text-muted); margin-left:8px;"></span></div>
+                        <div style="display:flex; gap:8px;">
+                            <button id="link-service-ia" class="group-action-btn" style="background:rgba(147,51,234,0.2); color:#a78bfa; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Vincular</button>
+                            <button id="rename-group-ia" class="group-action-btn" style="background:rgba(234,179,8,0.2); color:#facc15; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Renombrar</button>
+                            <button id="delete-group-ia" class="group-action-btn" style="background:rgba(239,68,68,0.2); color:#f87171; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Eliminar</button>
+                            <button id="export-pdf-ia" class="group-action-btn" style="background:rgba(59,130,246,0.2); color:#60a5fa; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">PDF</button>
+                        </div>
                     </div>
-                    <div style="flex:1; display:flex; flex-direction:column;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--header-bg); border-bottom:1px solid var(--border-color);">
-                            <div><span id="chat-group-title" style="font-weight:bold; font-size:1.1rem;">Selecciona un grupo</span><span id="chat-service-id" style="font-size:0.7rem; color:var(--text-muted); margin-left:8px;"></span></div>
-                            <div style="display:flex; gap:8px;">
-                                <button id="link-service-ia" class="group-action-btn" style="background:rgba(147,51,234,0.2); color:#a78bfa; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Vincular</button>
-                                <button id="rename-group-ia" class="group-action-btn" style="background:rgba(234,179,8,0.2); color:#facc15; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Renombrar</button>
-                                <button id="delete-group-ia" class="group-action-btn" style="background:rgba(239,68,68,0.2); color:#f87171; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Eliminar</button>
-                                <button id="export-pdf-ia" class="group-action-btn" style="background:rgba(59,130,246,0.2); color:#60a5fa; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">PDF</button>
-                            </div>
+                    <div id="messages-list-ia" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:16px;"></div>
+                    <div style="padding:16px; border-top:1px solid var(--border-color); background:var(--input-area-bg);">
+                        <div style="display:flex; gap:8px; margin-bottom:8px;">
+                            <textarea id="message-input-ia" rows="2" placeholder="Describe la falla o haz una pregunta..." style="flex:1; background:var(--input-bg); border:1px solid var(--border-color); border-radius:12px; padding:12px; font-size:14px; resize:none; color:var(--text-color);"></textarea>
+                            <button id="send-message-ia" style="background:#FF6B00; border:none; width:48px; border-radius:12px; color:white; cursor:pointer;"><i class="fas fa-paper-plane"></i></button>
+                            <button id="camera-ia" style="background:#2563eb; border:none; width:48px; border-radius:12px; color:white; cursor:pointer;"><i class="fas fa-camera"></i></button>
+                            <button id="gallery-ia" style="background:#16a34a; border:none; width:48px; border-radius:12px; color:white; cursor:pointer;"><i class="fas fa-image"></i></button>
                         </div>
-                        <div id="messages-list-ia" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:16px;"></div>
-                        <div style="padding:16px; border-top:1px solid var(--border-color); background:var(--input-area-bg);">
-                            <div style="display:flex; gap:8px; margin-bottom:8px;">
-                                <textarea id="message-input-ia" rows="2" placeholder="Describe la falla o haz una pregunta..." style="flex:1; background:var(--input-bg); border:1px solid var(--border-color); border-radius:12px; padding:12px; font-size:14px; resize:none; color:var(--text-color);"></textarea>
-                                <button id="send-message-ia" style="background:#FF6B00; border:none; width:48px; border-radius:12px; color:white; cursor:pointer;"><i class="fas fa-paper-plane"></i></button>
-                                <button id="camera-ia" style="background:#2563eb; border:none; width:48px; border-radius:12px; color:white; cursor:pointer;"><i class="fas fa-camera"></i></button>
-                                <button id="gallery-ia" style="background:#16a34a; border:none; width:48px; border-radius:12px; color:white; cursor:pointer;"><i class="fas fa-image"></i></button>
-                            </div>
-                            <div id="image-preview-ia" style="display:none; margin-top:8px; padding:8px; background:rgba(0,0,0,0.2); border-radius:12px; position:relative;">
-                                <img id="preview-img-ia" style="max-width:100px; max-height:100px; border-radius:8px;">
-                                <button id="cancel-preview-ia" style="position:absolute; top:0; right:0; background:red; color:white; border:none; border-radius:50%; width:20px; height:20px; cursor:pointer;">✕</button>
-                            </div>
-                            <p style="font-size:9px; color:var(--text-muted); margin-top:8px;">Adjunta foto, escribe tu consulta. Botones: 🔊 (voz normal), ⚡ (voz rápida), 📋 (copiar). Las respuestas respetan saltos de línea y muestran fecha.</p>
+                        <div id="image-preview-ia" style="display:none; margin-top:8px; padding:8px; background:rgba(0,0,0,0.2); border-radius:12px; position:relative;">
+                            <img id="preview-img-ia" style="max-width:100px; max-height:100px; border-radius:8px;">
+                            <button id="cancel-preview-ia" style="position:absolute; top:0; right:0; background:red; color:white; border:none; border-radius:50%; width:20px; height:20px; cursor:pointer;">✕</button>
                         </div>
+                        <p style="font-size:9px; color:var(--text-muted); margin-top:8px;">Adjunta foto, escribe tu consulta. Botones: 🔊 (voz normal), ⚡ (voz rápida), 📋 (copiar). Las respuestas respetan saltos de línea y muestran fecha.</p>
                     </div>
                 </div>
             </div>
-        `;
-        document.body.appendChild(modal);
-    
-    // Forzar nuevamente que esté oculto (por si el CSS anterior falla)
+        </div>
+    `;
+    document.body.appendChild(modal);
     modal.style.display = 'none';
+
+    // Guardar referencias (dentro de la función, antes del return)
+    window._chatGroupsList = modal.querySelector('#groups-list-ia');
+    window._chatMessagesContainer = modal.querySelector('#messages-list-ia');
+    window._chatGroupTitle = modal.querySelector('#chat-group-title');
+    window._chatServiceIdSpan = modal.querySelector('#chat-service-id');
+    window._chatMessageInput = modal.querySelector('#message-input-ia');
+    window._chatSendBtn = modal.querySelector('#send-message-ia');
+    window._chatCameraBtn = modal.querySelector('#camera-ia');
+    window._chatGalleryBtn = modal.querySelector('#gallery-ia');
+    window._chatPreviewContainer = modal.querySelector('#image-preview-ia');
+    window._chatPreviewImg = modal.querySelector('#preview-img-ia');
+    window._chatCancelPreview = modal.querySelector('#cancel-preview-ia');
+    window._chatVincularBtn = modal.querySelector('#link-service-ia');
+    window._chatRenombrarBtn = modal.querySelector('#rename-group-ia');
+    window._chatEliminarBtn = modal.querySelector('#delete-group-ia');
+    window._chatExportarBtn = modal.querySelector('#export-pdf-ia');
+    window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
+    window._chatSearchInput = modal.querySelector('#search-group-ia');
+
+    // Eventos
     const closeBtn = modal.querySelector('#close-chat-ia');
     if (closeBtn) {
         closeBtn.onclick = () => {
@@ -333,57 +351,32 @@ function crearModalChat() {
             detenerVoz();
         };
     }
-    
-    return modal;
-}
-        // Guardar referencias
-        window._chatGroupsList = modal.querySelector('#groups-list-ia');
-        window._chatMessagesContainer = modal.querySelector('#messages-list-ia');
-        window._chatGroupTitle = modal.querySelector('#chat-group-title');
-        window._chatServiceIdSpan = modal.querySelector('#chat-service-id');
-        window._chatMessageInput = modal.querySelector('#message-input-ia');
-        window._chatSendBtn = modal.querySelector('#send-message-ia');
-        window._chatCameraBtn = modal.querySelector('#camera-ia');
-        window._chatGalleryBtn = modal.querySelector('#gallery-ia');
-        window._chatPreviewContainer = modal.querySelector('#image-preview-ia');
-        window._chatPreviewImg = modal.querySelector('#preview-img-ia');
-        window._chatCancelPreview = modal.querySelector('#cancel-preview-ia');
-        window._chatVincularBtn = modal.querySelector('#link-service-ia');
-        window._chatRenombrarBtn = modal.querySelector('#rename-group-ia');
-        window._chatEliminarBtn = modal.querySelector('#delete-group-ia');
-        window._chatExportarBtn = modal.querySelector('#export-pdf-ia');
-        window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
-        window._chatSearchInput = modal.querySelector('#search-group-ia');
-        // Eventos
-        modal.querySelector('#close-chat-ia').onclick = () => {
-            modal.style.display = 'none';
-            limpiarPreview();
-            detenerVoz();
+    if (window._chatSendBtn) window._chatSendBtn.onclick = enviarMensaje;
+    if (window._chatCameraBtn) window._chatCameraBtn.onclick = () => seleccionarImagen(true);
+    if (window._chatGalleryBtn) window._chatGalleryBtn.onclick = () => seleccionarImagen(false);
+    if (window._chatCancelPreview) window._chatCancelPreview.onclick = limpiarPreview;
+    if (window._chatVincularBtn) window._chatVincularBtn.onclick = mostrarListaServiciosParaVincular;
+    if (window._chatRenombrarBtn) window._chatRenombrarBtn.onclick = renombrarGrupo;
+    if (window._chatEliminarBtn) window._chatEliminarBtn.onclick = eliminarGrupo;
+    if (window._chatExportarBtn) window._chatExportarBtn.onclick = exportarChatPDF;
+    if (window._chatNewGroupBtn) window._chatNewGroupBtn.onclick = crearNuevoGrupo;
+    if (window._chatSearchInput) window._chatSearchInput.oninput = filtrarGrupos;
+    if (window._chatMessageInput) {
+        window._chatMessageInput.onkeypress = (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                enviarMensaje();
+            }
         };
-        if (window._chatSendBtn) window._chatSendBtn.onclick = enviarMensaje;
-        if (window._chatCameraBtn) window._chatCameraBtn.onclick = () => seleccionarImagen(true);
-        if (window._chatGalleryBtn) window._chatGalleryBtn.onclick = () => seleccionarImagen(false);
-        if (window._chatCancelPreview) window._chatCancelPreview.onclick = limpiarPreview;
-        if (window._chatVincularBtn) window._chatVincularBtn.onclick = mostrarListaServiciosParaVincular;
-        if (window._chatRenombrarBtn) window._chatRenombrarBtn.onclick = renombrarGrupo;
-        if (window._chatEliminarBtn) window._chatEliminarBtn.onclick = eliminarGrupo;
-        if (window._chatExportarBtn) window._chatExportarBtn.onclick = exportarChatPDF;
-        if (window._chatNewGroupBtn) window._chatNewGroupBtn.onclick = crearNuevoGrupo;
-        if (window._chatSearchInput) window._chatSearchInput.oninput = filtrarGrupos;
-        if (window._chatMessageInput) {
-            window._chatMessageInput.onkeypress = (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    enviarMensaje();
-                }
-            };
-        }
-        aplicarTema();
-        const observer = new MutationObserver(() => aplicarTema());
-        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-        return modal;
     }
 
+    // Tema y observer (después de definir aplicarTema)
+    aplicarTema();
+    const observer = new MutationObserver(() => aplicarTema());
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    return modal;
+}
     // ========== 7. TEMAS (claro/oscuro) ==========
     function aplicarTema() {
         if (!modal) return;
@@ -5862,6 +5855,7 @@ async function renderSOSMapa() {
 
     // Después de tener el array `rescates`
 let filtered = rescates;
+let allBounds = [];   // ← agrega esta línea
 if (window.sosFiltroUnicoId) {
     filtered = rescates.filter(r => r.id === window.sosFiltroUnicoId);
 } else {
@@ -5982,6 +5976,7 @@ setTimeout(() => {
 }, 200);
     window.fixMaps?.();
 }
+
 // aqui finaliza renderSOSMapa
 
 // aqui inicia iniciarSeguimientoPersonalSOS mejorado
@@ -8597,6 +8592,7 @@ window.sendContactFromModal = async function() {
     }
 };
 // ===== SISTEMA DE CHAT =====
+// ===== SISTEMA DE CHAT =====
 window.loadChatList = async () => {
     const listEl = document.getElementById('chat-list-items');
     if (!listEl) return;
@@ -8626,41 +8622,36 @@ window.loadChatList = async () => {
 };
 
 window.openChat = (chatId) => {
-    // Cerrar suscripción previa si existe
     if (chatUnsubscribe) chatUnsubscribe();
     activeChatUid = chatId;
 
-    // Título del chat
     getDoc(doc(db, "chats", chatId)).then(snap => {
         if (snap.exists()) {
             const data = snap.data();
-            document.getElementById('chat-title').innerText = data.titulo || 'Chat';
+            const titleEl = document.getElementById('chat-title');
+            if (titleEl) titleEl.innerText = data.titulo || 'Chat';
         }
     });
-}
 
     toggleModal('modal-chat-list', false);
     toggleModal('modal-chat', true);
 
     const messagesContainer = document.getElementById('chat-messages');
+    if (!messagesContainer) return;
     messagesContainer.innerHTML = '';
 
     chatUnsubscribe = onSnapshot(collection(db, "chats", chatId, "mensajes"), (snap) => {
-        // Detectar mensajes nuevos (solo los que se añaden)
         snap.docChanges().forEach(change => {
             if (change.type === 'added') {
                 const msg = change.doc.data();
-                // Si el mensaje NO es del usuario actual, notificar
                 if (msg.uid !== auth.currentUser.uid) {
                     playSound('notif');
-                    // Extraer un número corto del chatId (por ejemplo, últimos 6 caracteres)
                     const shortId = chatId.slice(-6);
                     speakTTS(`Tienes un nuevo mensaje del servicio OBR-${shortId}`);
                 }
             }
         });
 
-        // Renderizar todos los mensajes (igual que antes)
         messagesContainer.innerHTML = '';
         snap.forEach(doc => {
             const msg = doc.data();
@@ -8676,6 +8667,7 @@ window.openChat = (chatId) => {
         });
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     });
+};
 
 window.sendMessage = async () => {
     const input = document.getElementById('chat-input');
@@ -8702,106 +8694,7 @@ window.closeChat = () => {
     activeChatUid = null;
     toggleModal('modal-chat', false);
 };
-window.mostrarOpcionesContacto = async () => {
-    // Obtener el servicio SOS activo del usuario actual
-    let servicioActivo = null;
-    let mecanicoAsignado = null;
-    try {
-        const sosSnap = await getDocs(query(collection(db, "rescates"), where("uid", "==", auth.currentUser.uid), where("status", "in", ["accepted", "repairing", "to_shop", "ready"]), limit(1)));
-        if (!sosSnap.empty) {
-            servicioActivo = sosSnap.docs[0].data();
-            if (servicioActivo.mech_uid) {
-                const mechDoc = await getDoc(doc(db, "users", servicioActivo.mech_uid));
-                if (mechDoc.exists()) {
-                    mecanicoAsignado = mechDoc.data();
-                }
-            }
-        }
-    } catch(e) { console.warn(e); }
 
-    const modalId = 'modal-contacto-taller-opciones';
-    let modalEl = document.getElementById(modalId);
-    if (!modalEl) {
-        modalEl = document.createElement('div');
-        modalEl.id = modalId;
-        modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-        modalEl.innerHTML = `
-            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-blue-500/30 text-center">
-                <i class="fas fa-headset text-4xl text-blue-400 mb-4"></i>
-                <h2 class="text-xl font-black text-white mb-4">Contactar al Taller</h2>
-                <div class="space-y-3">
-                    <button id="contact-call-1" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase"><i class="fas fa-phone mr-2"></i> Llamar 631 155 1533</button>
-                    <button id="contact-call-2" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase"><i class="fas fa-phone mr-2"></i> Llamar 644 110 6011</button>
-                    <button id="contact-chat" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black uppercase"><i class="fas fa-comments mr-2"></i> Chat con Soporte</button>
-                    <button id="contact-mechanic" class="hidden w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase"><i class="fab fa-whatsapp mr-2"></i> Contactar a mi Mecánico</button>
-                    <button onclick="toggleModal('${modalId}', false)" class="w-full bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase">Cancelar</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modalEl);
-        document.getElementById('contact-call-1').onclick = () => window.open('tel:6311551533', '_self');
-        document.getElementById('contact-call-2').onclick = () => window.open('tel:6444207644', '_self');
-        document.getElementById('contact-chat').onclick = () => {
-            window.toggleModal(modalId, false);
-            window.openChatWithTaller();
-        };
-        document.getElementById('contact-mechanic').onclick = () => {
-            window.toggleModal(modalId, false);
-            if (mecanicoAsignado && servicioActivo) {
-                const telefonoClean = (mecanicoAsignado.phone || '').replace('+52', '');
-                if (telefonoClean) {
-                    const tipoServicio = servicioActivo.falla?.match(/\[(.*?)\]/)?.[1] || 'auxilio';
-                    const mensaje = `Hola ${mecanicoAsignado.name || 'mecánico'}, tienes mi caso asignado ${servicioActivo.shortId || 'servicio'} para un ${tipoServicio}. Puedes contactarme.`;
-                    window.open(`https://wa.me/+52${telefonoClean}?text=${encodeURIComponent(mensaje)}`, '_blank');
-                } else {
-                    window.showToast("El mecánico no tiene número de teléfono registrado", true);
-                }
-            }
-        };
-    }
-    // Mostrar/ocultar botón del mecánico según si hay asignado
-    const btnMech = document.getElementById('contact-mechanic');
-    if (btnMech) {
-        if (mecanicoAsignado && (mecanicoAsignado.phone || '').replace('+52', '')) {
-            btnMech.classList.remove('hidden');
-        } else {
-            btnMech.classList.add('hidden');
-        }
-    }
-    window.toggleModal(modalId, true);
-};
-window.openChatWithTaller = async () => {
-    if (!auth.currentUser) {
-        window.showToast("Debes iniciar sesión para usar el chat.", true);
-        return;
-    }
-    const clienteUID = auth.currentUser.uid;
-    const clienteNombre = window.currentUserDoc?.name || "Cliente";
-
-    const qExistente = query(collection(db, "chats"), where("participantes", "array-contains", clienteUID));
-    const snapExistente = await getDocs(qExistente);
-    let chatExistente = null;
-    snapExistente.forEach(doc => {
-        const data = doc.data();
-        if (data.estado === 'activo' || data.estado === 'pendiente') {
-            chatExistente = doc;
-        }
-    });
-    if (chatExistente) {
-        window.openChat(chatExistente.id);
-        return;
-    }
-
-    // Crear nuevo chat pendiente (sin depender de sosData/mechUid)
-    const chatRef = await addDoc(collection(db, "chats"), {
-        titulo: "Soporte General",
-        participantes: [clienteUID],
-        nombres: { [clienteUID]: clienteNombre },
-        estado: "pendiente",
-        creado: Date.now()
-    });
-    window.showToast("Solicitud enviada. Un administrador te atenderá pronto.", false);
-}; 
 window.cargarChatsPendientesAdmin = () => {
     const container = document.getElementById('admin-chats-pendientes-list');
     if (!container) return;
@@ -8847,6 +8740,9 @@ window.tomarChatPendiente = async (chatId) => {
     });
     window.openChat(chatId);
 };
+
+// Nota: las variables chatUnsubscribe y activeChatUid ya deben estar declaradas globalmente
+
 
 window.loadMechPendingCharges = window.loadMechPendingCharges || async function() {};
 window.renderPendingMechanicPayments = window.renderPendingMechanicPayments || async function() {};
