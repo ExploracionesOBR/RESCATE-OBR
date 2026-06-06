@@ -857,6 +857,7 @@ window.globalSettings = globalSettings;
 let sosMapInstance = null, mechMapInst = null, mechMarkerInst = null;
 let adminGeoMap = null, adminGeoCircle = null;
 let adminSOSGlobalMapInst = null, adminSOSMarkers = {};
+let entregasMapInst = null;
 let sosDetailMapInst = null, sosDetailMarker = null, mechSOSMarker = null;
 let shopServices = [], adminInventoryList = [];
 window.posTicket = []; window.posTotal = 0; window.posTotalCost = 0; window.posDescuento = 0;
@@ -1564,6 +1565,78 @@ async function loadServicesCatalog() {
         console.error('Error cargando servicios:', error);
     });
 }
+window.mostrarOpcionesContacto = async () => {
+    // Obtener el servicio SOS activo del usuario actual
+    let servicioActivo = null;
+    let mecanicoAsignado = null;
+    try {
+        const sosSnap = await getDocs(query(collection(db, "rescates"), 
+            where("uid", "==", auth.currentUser.uid), 
+            where("status", "in", ["accepted", "repairing", "to_shop", "ready"]), 
+            limit(1)));
+        if (!sosSnap.empty) {
+            servicioActivo = sosSnap.docs[0].data();
+            if (servicioActivo.mech_uid) {
+                const mechDoc = await getDoc(doc(db, "users", servicioActivo.mech_uid));
+                if (mechDoc.exists()) {
+                    mecanicoAsignado = mechDoc.data();
+                }
+            }
+        }
+    } catch(e) { console.warn(e); }
+
+    const modalId = 'modal-contacto-taller-opciones';
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.innerHTML = `
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-blue-500/30 text-center">
+                <i class="fas fa-headset text-4xl text-blue-400 mb-4"></i>
+                <h2 class="text-xl font-black text-white mb-4">Contactar al Taller</h2>
+                <div class="space-y-3">
+                    <button id="contact-call-1" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase"><i class="fas fa-phone mr-2"></i> Llamar 631 155 1533</button>
+                    <button id="contact-call-2" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase"><i class="fas fa-phone mr-2"></i> Llamar 644 110 6011</button>
+                    <button id="contact-chat" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black uppercase"><i class="fas fa-comments mr-2"></i> Chat con Soporte</button>
+                    <button id="contact-mechanic" class="hidden w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase"><i class="fab fa-whatsapp mr-2"></i> Contactar a mi Mecánico</button>
+                    <button onclick="toggleModal('${modalId}', false)" class="w-full bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase">Cancelar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modalEl);
+        document.getElementById('contact-call-1').onclick = () => window.open('tel:6311551533', '_self');
+        document.getElementById('contact-call-2').onclick = () => window.open('tel:6444207644', '_self');
+        document.getElementById('contact-chat').onclick = () => {
+            window.toggleModal(modalId, false);
+            window.openChatWithTaller();
+        };
+        document.getElementById('contact-mechanic').onclick = () => {
+            window.toggleModal(modalId, false);
+            if (mecanicoAsignado && servicioActivo) {
+                const telefonoClean = (mecanicoAsignado.phone || '').replace('+52', '');
+                if (telefonoClean) {
+                    const tipoServicio = servicioActivo.falla?.match(/\[(.*?)\]/)?.[1] || 'auxilio';
+                    const mensaje = `Hola ${mecanicoAsignado.name || 'mecánico'}, tienes mi caso asignado ${servicioActivo.shortId || 'servicio'} para un ${tipoServicio}. Puedes contactarme.`;
+                    window.open(`https://wa.me/+52${telefonoClean}?text=${encodeURIComponent(mensaje)}`, '_blank');
+                } else {
+                    window.showToast("El mecánico no tiene número de teléfono registrado", true);
+                }
+            }
+        };
+    }
+    // Mostrar/ocultar botón del mecánico según si hay asignado
+    const btnMech = document.getElementById('contact-mechanic');
+    if (btnMech) {
+        if (mecanicoAsignado && (mecanicoAsignado.phone || '').replace('+52', '')) {
+            btnMech.classList.remove('hidden');
+        } else {
+            btnMech.classList.add('hidden');
+        }
+    }
+    window.toggleModal(modalId, true);
+};
+
 
 
 // === FLUJO DE VISTAS Y AUTENTICACIÓN ===
@@ -7740,7 +7813,6 @@ window.searchServiceStatus = async () => {
 // === ENTREGAS - VERSIÓN COMPLETA (con rutas reales y routing machine) ===
 // ======================================================
 // Variables globales
-let entregasMapInst = null;
 let entregasMarkers = {};
 let repartidoresMarkers = {};
 let entregasPedidosUnsubscribe = null;
@@ -9510,75 +9582,3 @@ if ('serviceWorker' in navigator) {
       }
     });
   }
-
-window.mostrarOpcionesContacto = async () => {
-    // Obtener el servicio SOS activo del usuario actual
-    let servicioActivo = null;
-    let mecanicoAsignado = null;
-    try {
-        const sosSnap = await getDocs(query(collection(db, "rescates"), 
-            where("uid", "==", auth.currentUser.uid), 
-            where("status", "in", ["accepted", "repairing", "to_shop", "ready"]), 
-            limit(1)));
-        if (!sosSnap.empty) {
-            servicioActivo = sosSnap.docs[0].data();
-            if (servicioActivo.mech_uid) {
-                const mechDoc = await getDoc(doc(db, "users", servicioActivo.mech_uid));
-                if (mechDoc.exists()) {
-                    mecanicoAsignado = mechDoc.data();
-                }
-            }
-        }
-    } catch(e) { console.warn(e); }
-
-    const modalId = 'modal-contacto-taller-opciones';
-    let modalEl = document.getElementById(modalId);
-    if (!modalEl) {
-        modalEl = document.createElement('div');
-        modalEl.id = modalId;
-        modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-        modalEl.innerHTML = `
-            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-blue-500/30 text-center">
-                <i class="fas fa-headset text-4xl text-blue-400 mb-4"></i>
-                <h2 class="text-xl font-black text-white mb-4">Contactar al Taller</h2>
-                <div class="space-y-3">
-                    <button id="contact-call-1" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase"><i class="fas fa-phone mr-2"></i> Llamar 631 155 1533</button>
-                    <button id="contact-call-2" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase"><i class="fas fa-phone mr-2"></i> Llamar 644 110 6011</button>
-                    <button id="contact-chat" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black uppercase"><i class="fas fa-comments mr-2"></i> Chat con Soporte</button>
-                    <button id="contact-mechanic" class="hidden w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase"><i class="fab fa-whatsapp mr-2"></i> Contactar a mi Mecánico</button>
-                    <button onclick="toggleModal('${modalId}', false)" class="w-full bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase">Cancelar</button>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modalEl);
-        document.getElementById('contact-call-1').onclick = () => window.open('tel:6311551533', '_self');
-        document.getElementById('contact-call-2').onclick = () => window.open('tel:6444207644', '_self');
-        document.getElementById('contact-chat').onclick = () => {
-            window.toggleModal(modalId, false);
-            window.openChatWithTaller();
-        };
-        document.getElementById('contact-mechanic').onclick = () => {
-            window.toggleModal(modalId, false);
-            if (mecanicoAsignado && servicioActivo) {
-                const telefonoClean = (mecanicoAsignado.phone || '').replace('+52', '');
-                if (telefonoClean) {
-                    const tipoServicio = servicioActivo.falla?.match(/\[(.*?)\]/)?.[1] || 'auxilio';
-                    const mensaje = `Hola ${mecanicoAsignado.name || 'mecánico'}, tienes mi caso asignado ${servicioActivo.shortId || 'servicio'} para un ${tipoServicio}. Puedes contactarme.`;
-                    window.open(`https://wa.me/+52${telefonoClean}?text=${encodeURIComponent(mensaje)}`, '_blank');
-                } else {
-                    window.showToast("El mecánico no tiene número de teléfono registrado", true);
-                }
-            }
-        };
-    }
-    // Mostrar/ocultar botón del mecánico según si hay asignado
-    const btnMech = document.getElementById('contact-mechanic');
-    if (btnMech) {
-        if (mecanicoAsignado && (mecanicoAsignado.phone || '').replace('+52', '')) {
-            btnMech.classList.remove('hidden');
-        } else {
-            btnMech.classList.add('hidden');
-        }
-    }
-    window.toggleModal(modalId, true);
-};
