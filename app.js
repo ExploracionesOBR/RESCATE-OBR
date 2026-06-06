@@ -8659,7 +8659,6 @@ window.openChat = (chatId) => {
         });
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     });
-};
 
 window.sendMessage = async () => {
     const input = document.getElementById('chat-input');
@@ -8762,7 +8761,6 @@ window.openChatWithTaller = async () => {
     const clienteUID = auth.currentUser.uid;
     const clienteNombre = window.currentUserDoc?.name || "Cliente";
 
-    // Buscar cualquier chat existente (activo o pendiente)
     const qExistente = query(collection(db, "chats"), where("participantes", "array-contains", clienteUID));
     const snapExistente = await getDocs(qExistente);
     let chatExistente = null;
@@ -8777,15 +8775,16 @@ window.openChatWithTaller = async () => {
         return;
     }
 
-    // Crear nuevo chat pendiente
+    // Crear nuevo chat pendiente (sin depender de sosData/mechUid)
     const chatRef = await addDoc(collection(db, "chats"), {
-    participantes: [sosData.uid, mechUid],
-    nombres: { [sosData.uid]: sosData.clientName, [mechUid]: mech.name },
-    estado: 'activo',
-    creado: Date.now()
-});
-window._sosChatId = chatRef.id;
-
+        titulo: "Soporte General",
+        participantes: [clienteUID],
+        nombres: { [clienteUID]: clienteNombre },
+        estado: "pendiente",
+        creado: Date.now()
+    });
+    window.showToast("Solicitud enviada. Un administrador te atenderá pronto.", false);
+}; 
 window.cargarChatsPendientesAdmin = () => {
     const container = document.getElementById('admin-chats-pendientes-list');
     if (!container) return;
@@ -9513,4 +9512,64 @@ window.centrarMapaEnSOS = (sosId) => {
             }
         }, 300);
     }
-};
+};if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/RESCATE-OBR/sw.js').then(reg => {
+        console.log('SW registrado:', reg.scope);
+      }).catch(err => {
+        console.warn('Error al registrar SW:', err);
+      });
+    });
+  }
+
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/RESCATE-OBR/sw.js').then(reg => {
+      console.log('SW registrado:', reg.scope);
+
+      // Si hay una nueva versión esperando, usar el modal de la app
+      const notificarActualizacion = (worker) => {
+        if (typeof window.confirmModal === 'function') {
+          window.confirmModal(
+            '📢 Nueva versión disponible. ¿Quieres actualizar ahora para ver las mejoras?',
+            () => {
+              worker.postMessage('skipWaiting');
+              setTimeout(() => window.location.reload(), 500);
+            },
+            () => { /* El usuario cancela, la actualización se aplicará en la próxima recarga */ }
+          );
+        } else {
+          // Fallback si el modal aún no está disponible
+          if (confirm('Nueva versión disponible. ¿Actualizar?')) {
+            worker.postMessage('skipWaiting');
+            window.location.reload();
+          }
+        }
+      };
+
+      // Si ya hay un worker esperando al registrar
+      if (reg.waiting) {
+        notificarActualizacion(reg.waiting);
+      }
+
+      // Cuando se detecta una nueva versión
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              notificarActualizacion(newWorker);
+            }
+          });
+        }
+      });
+    }).catch(err => console.warn('Error al registrar SW:', err));
+
+    // Recargar automáticamente cuando el SW tome el control
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    });
+  }
