@@ -550,7 +550,6 @@ function escapeHtml(str) {
         });
     }
 
-    // Función renombrar grupo corregida (no depende de _chatGroupTitle)
     async function renombrarGrupo() {
         if (!currentGroup || !currentGroupId) {
             window.showToast("No hay grupo seleccionado", true);
@@ -561,7 +560,6 @@ function escapeHtml(str) {
             try {
                 await updateDoc(doc(db, "chat_grupos", currentGroupId), { nombre: nuevoNombre });
                 currentGroup.nombre = nuevoNombre;
-                // Actualizar la lista de grupos visualmente
                 const gruposActuales = await obtenerGrupos();
                 renderListaGrupos(gruposActuales);
                 window.showToast("Grupo renombrado correctamente");
@@ -595,7 +593,7 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== 9. ENVÍO DE MENSAJES Y CONSULTA A GROQ ==========
+    // ========== 9. ENVÍO DE MENSAJES Y CONSULTA A GROQ (CORREGIDO ERROR 400) ==========
     async function enviarMensaje() {
         const texto = window._chatMessageInput ? window._chatMessageInput.value.trim() : '';
         const imagenes = pendingImages.map(img => img.dataUrl);
@@ -675,31 +673,46 @@ function escapeHtml(str) {
     async function consultarGroqVision(prompt, grupoId, imagenes) {
         let key = getGroqApiKey();
         if (!currentVisionModel) await initVisionModel();
+        
+        // Obtener historial de mensajes (últimos 5 para contexto)
         const mensajesSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", grupoId)));
         let mensajes = [];
         mensajesSnap.forEach(doc => mensajes.push(doc.data()));
         mensajes.sort((a, b) => b.timestamp - a.timestamp);
         const ultimos5 = mensajes.slice(0, 5);
         const historial = ultimos5.map(m => `${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`).join('\n');
+        
+        // Construir el contenido para Groq
         const content = [];
         let promptFinal = `Contexto:\n${historial}\n\nPregunta: ${prompt || 'Analiza la siguiente imagen'}`;
-        if (historial.length > 1500) promptFinal = promptFinal.slice(0, 1500);
+        if (promptFinal.length > 1500) promptFinal = promptFinal.slice(0, 1500);
         content.push({ type: "text", text: promptFinal });
+        
+        // Añadir imágenes si existen
         for (let img of imagenes) {
             let imageUrl = img;
-            if (!imageUrl.startsWith('data:image')) imageUrl = `data:image/jpeg;base64,${img}`;
+            if (!imageUrl.startsWith('data:image')) {
+                imageUrl = `data:image/jpeg;base64,${img}`;
+            }
             content.push({ type: "image_url", image_url: { url: imageUrl } });
         }
-        const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros analizando preguntas, imágenes, sonidos, videos, síntomas o códigos de error para detectar el problema de forma rápida, clara y profesional.
+        
+        // System prompt (asegurar que no esté vacío)
+        const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros. 
 
 REGLAS DE FORMATO (IMPORTANTE):
 - NO uses asteriscos dobles (**) ni ninguna otra sintaxis de markdown.
-- Usa emojis para hacer las respuestas más visuales y amigables (por ejemplo: 🔧, 🛠️, ⚠️, ✅, ❌, 📝, 🎯, etc.).
-- Para listas, usa guiones (-) o emojis al inicio de cada línea.
+- Usa emojis para hacer las respuestas más visuales (ej: 🔧, 🛠️, ⚠️, ✅, ❌).
+- Para listas, usa guiones (-) al inicio de cada línea.
 - Separa las ideas con saltos de línea.
 - Sé conciso pero informativo.
-- Si la consulta no está relacionada con mecánica, responde únicamente: "❌ No puedo ayudarte con eso ahora, solo puedo responder temas relacionados con mecánica automotriz y motocicletas."`;
+- Si la consulta no está relacionada con mecánica, responde: "❌ No puedo ayudarte con eso, solo temas de mecánica."`;
 
+        // Asegurar que content no esté vacío
+        if (content.length === 0) {
+            content.push({ type: "text", text: prompt || "Consulta sobre mecánica" });
+        }
+        
         const requestBody = {
             model: currentVisionModel,
             messages: [
@@ -709,14 +722,18 @@ REGLAS DE FORMATO (IMPORTANTE):
             temperature: 0.7,
             max_tokens: 1024
         };
+        
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
             body: JSON.stringify(requestBody)
         });
+        
         if (!response.ok) {
             const errorText = await response.text();
-            if (errorText.includes('decommissioned') || errorText.includes('not found')) {
+            console.error('Groq API error:', errorText);
+            // Si el error es 400, puede ser por el modelo no soportado
+            if (errorText.includes('model') || errorText.includes('not found')) {
                 localStorage.removeItem(MODEL_CACHE_KEY);
                 currentVisionModel = null;
                 const nuevoModelo = await initVisionModel();
@@ -795,7 +812,7 @@ REGLAS DE FORMATO (IMPORTANTE):
         modalEl.classList.remove('hidden');
     }
 
-    // ========== 11. CREACIÓN DEL MODAL PRINCIPAL (con toggle y rename corregidos) ==========
+    // ========== 11. CREACIÓN DEL MODAL PRINCIPAL (con pantalla de bienvenida más lenta) ==========
     function crearModalChat() {
         if (modal) return modal;
         modal = document.createElement('div');
@@ -885,7 +902,7 @@ REGLAS DE FORMATO (IMPORTANTE):
         window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
         window._chatSearchInput = modal.querySelector('#search-group-ia');
 
-        // Pantalla de bienvenida y observador
+        // Pantalla de bienvenida con timeout más largo (1500ms)
         const welcomeScreen = modal.querySelector('#welcome-screen-ia');
         const messagesContainer = window._chatMessagesContainer;
         const toggleWelcomeScreen = () => {
@@ -896,7 +913,10 @@ REGLAS DE FORMATO (IMPORTANTE):
         };
         const observerMessages = new MutationObserver(() => toggleWelcomeScreen());
         if (messagesContainer) observerMessages.observe(messagesContainer, { childList: true, subtree: false });
-        setTimeout(toggleWelcomeScreen, 200);
+        // Mostrar bienvenida durante al menos 1.5 segundos antes de ocultarla si hay mensajes
+        setTimeout(() => {
+            toggleWelcomeScreen();
+        }, 1500);
 
         // Menú de acciones (tres puntos del header)
         const triggerBtn = modal.querySelector('#chat-actions-trigger');
@@ -907,7 +927,7 @@ REGLAS DE FORMATO (IMPORTANTE):
             dropdown.addEventListener('click', (e) => e.stopPropagation());
         }
 
-        // Sidebar móvil: toggle y cierre
+        // Sidebar móvil
         const sidebar = modal.querySelector('.chat-sidebar');
         const toggleBtn = modal.querySelector('.chat-sidebar-toggle');
         if (toggleBtn && sidebar) {
@@ -915,7 +935,6 @@ REGLAS DE FORMATO (IMPORTANTE):
                 e.stopPropagation();
                 sidebar.classList.toggle('open');
             });
-            // Cerrar sidebar al hacer clic en el contenido principal (solo en móvil)
             const mainEl = modal.querySelector('.chat-main');
             if (mainEl) {
                 mainEl.addEventListener('click', () => {
