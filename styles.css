@@ -206,7 +206,6 @@ body.light-mode {
 .sos-card-compact .actions { display: flex; gap: 0.5rem; margin-top: 0.25rem; flex-wrap: wrap; }
 .sos-card-compact .actions button { padding: 0.15rem 0.5rem; border-radius: 0.5rem; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; border: none; cursor: pointer; }
 
-/* Layouts responsivos */
 @media (min-width: 1024px) {
     .a-view-alertas .lg\:grid {
         display: grid;
@@ -841,7 +840,6 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
     opacity: 1;
     pointer-events: auto;
 }
-/* Fuerza altura mínima y fondo */
 #mechanic-live-map {
     min-height: 250px !important;
     height: auto !important;
@@ -867,7 +865,6 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 .leaflet-marker-icon.sos-personal-marker {
     display: none !important;
 }
-/* Estilo personalizado para el control de zoom */
 .leaflet-control-zoom {
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
     border-radius: 8px;
@@ -909,7 +906,6 @@ header.sticky,
 .fixed.top-0 {
     padding-top: calc(1rem + var(--safe-area-top));
 }
-/* Botones flotantes (chat IA, invitación) – subidos un 20% más */
 #btn-chat-ai-float,
 #float-invite-btn {
     bottom: calc(100px + var(--safe-area-bottom)) !important;
@@ -945,7 +941,7 @@ header.sticky,
     position: relative;
 }
 #star-rating i.hover-half::before {
-    content: "\f089"; /* media estrella */
+    content: "\f089";
     font-family: "Font Awesome 6 Free";
     font-weight: 900;
     position: absolute;
@@ -954,71 +950,8 @@ header.sticky,
     overflow: hidden;
 }
 
-/* ===== CHAT IA - AGENTE OBR ===== */
-#chat-ia-modal-dinamico {
-    --bg-color: #1A1A1A;
-    --text-color: #ffffff;
-    --border-color: #333;
-    --panel-bg: #111111;
-    --input-bg: #2a2a2a;
-    --header-bg: #0f0f0f;
-    --text-muted: #9ca3af;
-    --input-area-bg: #000000;
-}
-body.light-mode #chat-ia-modal-dinamico {
-    --bg-color: #ffffff;
-    --text-color: #111111;
-    --border-color: #ddd;
-    --panel-bg: #f9f9f9;
-    --input-bg: #ffffff;
-    --header-bg: #f0f0f0;
-    --text-muted: #6b7280;
-    --input-area-bg: #f5f5f5;
-}
-.chat-ia-container {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-}
-#chat-ia-modal-dinamico textarea,
-#chat-ia-modal-dinamico input,
-#chat-ia-modal-dinamico button {
-    font-family: inherit;
-}
-#messages-list-ia {
-    scroll-behavior: smooth;
-}
-#messages-list-ia .bg-naranja {
-    background-color: #FF6B00;
-}
-#messages-list-ia > div {
-    animation: fadeIn 0.2s ease;
-}
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(5px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-/* Sidebar móvil */
-@media (max-width: 768px) {
-    .chat-sidebar {
-        width: 260px !important;
-        background: var(--panel-bg) !important;
-        box-shadow: 2px 0 10px rgba(0,0,0,0.3);
-    }
-    .toggle-sidebar-btn {
-        display: flex !important;
-    }
-}
-/* Botones de acción en grupo */
-.group-action-btn {
-    transition: all 0.2s;
-}
-.group-action-btn:hover {
-    opacity: 0.8;
-    transform: scale(0.95);
-}
-/* ===== AGENTE OBR - NUEVO DISEÑO MODERNO ===== */
+/* ===== CHAT IA - AGENTE OBR (diseño moderno) ===== */
 
-/* Contenedor principal */
 #chat-ia-modal-dinamico {
     --chat-bg: #0a0a0a;
     --chat-sidebar-bg: #111111;
@@ -1140,41 +1073,50 @@ body.light-mode #chat-ia-modal-dinamico {
     opacity: 0.85;
 }
 
-/* Botón toggle para móvil */
-.chat-sidebar-toggle {
-    position: absolute;
-    top: 12px;
-    left: 12px;
-    z-index: 20;
+/* Botón toggle para móvil (dentro del header) */
+.chat-header-left .chat-sidebar-toggle {
     background: var(--chat-accent);
     border: none;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     color: white;
     display: none;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+@media (max-width: 768px) {
+    .chat-header-left .chat-sidebar-toggle {
+        display: flex;
+    }
+    .chat-sidebar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        transform: translateX(-100%);
+        box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+        z-index: 25;
+    }
+    .chat-sidebar.open {
+        transform: translateX(0);
+    }
 }
 
-/* Área principal */
-.chat-main {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    position: relative;
-}
-
+/* Cabecera principal */
 .chat-main-header {
-    padding: 12px 24px;
-    border-bottom: 1px solid var(--chat-border);
-    background: var(--chat-header-bg);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--chat-border);
+    background: var(--chat-header-bg);
+}
+.chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 .chat-main-header h1 {
     font-size: 1.6rem;
@@ -1309,19 +1251,71 @@ body.light-mode #chat-ia-modal-dinamico {
     gap: 12px;
 }
 .chat-messages-list .bg-naranja {
-    background: var(--chat-accent);
+    background: var(--chat-accent) !important;
+    color: white !important;
 }
 .chat-messages-list .bg-gray-200 {
-    background: rgba(255,255,255,0.1);
+    background: #e5e5e5 !important;
+    color: #111111 !important;
 }
 .light-mode .chat-messages-list .bg-gray-200 {
-    background: #e5e5e5;
+    background: #f0f0f0 !important;
+    color: #111111 !important;
 }
 .chat-messages-list .rounded-2xl {
     border-radius: 24px;
 }
 .chat-messages-list .max-w-\[75\%\] {
     max-width: 85%;
+}
+
+/* Menú de tres puntos por mensaje */
+.message-actions-menu {
+    position: relative;
+    display: inline-block;
+    margin-left: 8px;
+}
+.message-actions-trigger {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: inherit;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+.message-actions-trigger:hover {
+    opacity: 1;
+}
+.message-actions-dropdown {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    background: var(--chat-sidebar-bg);
+    border: 1px solid var(--chat-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    display: none;
+    flex-direction: column;
+    min-width: 120px;
+    z-index: 30;
+    margin-bottom: 8px;
+}
+.message-actions-dropdown.show {
+    display: flex;
+}
+.message-actions-dropdown button {
+    background: none;
+    border: none;
+    padding: 8px 12px;
+    text-align: left;
+    color: var(--chat-text);
+    cursor: pointer;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+.message-actions-dropdown button:hover {
+    background: var(--chat-hover);
 }
 
 /* Área de entrada */
@@ -1416,35 +1410,6 @@ body.light-mode #chat-ia-modal-dinamico {
     color: var(--chat-text-muted);
     margin-top: 12px;
     text-align: center;
-}
-
-/* Responsive: móvil */
-@media (max-width: 768px) {
-    .chat-sidebar {
-        position: absolute;
-        left: 0;
-        top: 0;
-        height: 100%;
-        transform: translateX(-100%);
-        box-shadow: 2px 0 10px rgba(0,0,0,0.3);
-        z-index: 25;
-    }
-    .chat-sidebar.open {
-        transform: translateX(0);
-    }
-    .chat-sidebar-toggle {
-        display: flex;
-    }
-    .chat-main-header h1 {
-        font-size: 1.2rem;
-    }
-    .chat-messages-list > div {
-        max-width: 100%;
-    }
-    .welcome-card {
-        width: 100%;
-        max-width: 280px;
-    }
 }
 
 /* Scrollbar personalizado */
