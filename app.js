@@ -539,27 +539,31 @@ function crearModalChat() {
     }
 
     async function consultarGroqVision(prompt, grupoId, imagenBase64) {
-        const key = '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';
-        if (!currentVisionModel) await initVisionModel();
-        const mensajesSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", grupoId)));
-        let mensajes = [];
-        mensajesSnap.forEach(doc => mensajes.push(doc.data()));
-        mensajes.sort((a, b) => b.timestamp - a.timestamp);
-        const ultimos5 = mensajes.slice(0, 5);
-        const historial = ultimos5.map(m => `${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`).join('\n');
-        const content = [];
-        let promptFinal = `Contexto:\n${historial}\n\nPregunta: ${prompt || 'Analiza la siguiente imagen'}`;
-        if (historial.length > 1500) promptFinal = promptFinal.slice(0, 1500);
-        content.push({ type: "text", text: promptFinal });
-        if (imagenBase64) {
-            let imageUrl = imagenBase64;
-            if (!imageUrl.startsWith('data:image')) {
-                imageUrl = `data:image/jpeg;base64,${imagenBase64}`;
-            }
-            content.push({ type: "image_url", image_url: { url: imageUrl } });
+    // Obtener API key de localStorage o usar la por defecto
+    let key = localStorage.getItem('groq_api_key');
+    if (!key) {
+        key = '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';
+    }
+    
+    if (!currentVisionModel) await initVisionModel();
+    const mensajesSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", grupoId)));
+    let mensajes = [];
+    mensajesSnap.forEach(doc => mensajes.push(doc.data()));
+    mensajes.sort((a, b) => b.timestamp - a.timestamp);
+    const ultimos5 = mensajes.slice(0, 5);
+    const historial = ultimos5.map(m => `${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`).join('\n');
+    const content = [];
+    let promptFinal = `Contexto:\n${historial}\n\nPregunta: ${prompt || 'Analiza la siguiente imagen'}`;
+    if (historial.length > 1500) promptFinal = promptFinal.slice(0, 1500);
+    content.push({ type: "text", text: promptFinal });
+    if (imagenBase64) {
+        let imageUrl = imagenBase64;
+        if (!imageUrl.startsWith('data:image')) {
+            imageUrl = `data:image/jpeg;base64,${imagenBase64}`;
         }
-        // System prompt mejorado: sin markdown, con emojis, listas con guiones, saltos de línea
-        const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros analizando preguntas, imágenes, sonidos, videos, síntomas o códigos de error para detectar el problema de forma rápida, clara y profesional.
+        content.push({ type: "image_url", image_url: { url: imageUrl } });
+    }
+    const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros analizando preguntas, imágenes, sonidos, videos, síntomas o códigos de error para detectar el problema de forma rápida, clara y profesional.
 
 REGLAS DE FORMATO (IMPORTANTE):
 - NO uses asteriscos dobles (**) ni ninguna otra sintaxis de markdown.
@@ -569,41 +573,41 @@ REGLAS DE FORMATO (IMPORTANTE):
 - Sé conciso pero informativo.
 - Si la consulta no está relacionada con mecánica, responde únicamente: "❌ No puedo ayudarte con eso ahora, solo puedo responder temas relacionados con mecánica automotriz y motocicletas."`;
 
-        const requestBody = {
-            model: currentVisionModel,
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: content }
-            ],
-            temperature: 0.7,
-            max_tokens: 1024
-        };
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-            body: JSON.stringify(requestBody)
-        });
-        if (!response.ok) {
-            const errorText = await response.text();
-            if (errorText.includes('decommissioned') || errorText.includes('not found')) {
-                localStorage.removeItem(MODEL_CACHE_KEY);
-                currentVisionModel = null;
-                const nuevoModelo = await initVisionModel();
-                const retryBody = { ...requestBody, model: nuevoModelo };
-                const retryResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-                    body: JSON.stringify(retryBody)
-                });
-                if (!retryResponse.ok) throw new Error(`Error después de reintentar: ${await retryResponse.text()}`);
-                const retryData = await retryResponse.json();
-                return retryData.choices[0].message.content;
-            }
-            throw new Error(`Error ${response.status}: ${errorText}`);
+    const requestBody = {
+        model: currentVisionModel,
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: content }
+        ],
+        temperature: 0.7,
+        max_tokens: 1024
+    };
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify(requestBody)
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        if (errorText.includes('decommissioned') || errorText.includes('not found')) {
+            localStorage.removeItem(MODEL_CACHE_KEY);
+            currentVisionModel = null;
+            const nuevoModelo = await initVisionModel();
+            const retryBody = { ...requestBody, model: nuevoModelo };
+            const retryResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                body: JSON.stringify(retryBody)
+            });
+            if (!retryResponse.ok) throw new Error(`Error después de reintentar: ${await retryResponse.text()}`);
+            const retryData = await retryResponse.json();
+            return retryData.choices[0].message.content;
         }
-        const data = await response.json();
-        return data.choices[0].message.content;
+        throw new Error(`Error ${response.status}: ${errorText}`);
     }
+    const data = await response.json();
+    return data.choices[0].message.content;
+}
 
     // ========== 10. MANEJO DE IMÁGENES ==========
     function limpiarPreview() {
@@ -9356,7 +9360,6 @@ async function cargarListaReferidos() {
     if (!container) return;
     container.innerHTML = '<p class="text-xs text-gray-400">Cargando...</p>';
 
-    // Si ya hay un listener activo, lo desconectamos
     if (window._referidosUnsubscribe) {
         window._referidosUnsubscribe();
     }
@@ -9400,13 +9403,80 @@ async function cargarListaReferidos() {
             }
 
             html += `
-                <div class="bg-white/5 p-3 rounded-xl flex justify-between items-center text-xs">
-                    <div>
+                <div class="bg-white/5 p-3 rounded-xl flex justify-between items-center text-xs cursor-pointer hover:bg-white/10 transition-colors" onclick="window.openUserDetail('${ref.referidoId}')">
+                    <div class="flex-1">
                         <p><span class="font-bold">${escapeHtml(referenteName)}</span> → <span class="font-bold">${escapeHtml(referidoName)}</span></p>
                         <p class="text-gray-400">${new Date(ref.fechaRegistro).toLocaleDateString()}</p>
                         <p class="text-gray-400">Servicios: ${ref.serviciosCompletados || 0}</p>
                     </div>
-                    <span class="${estadoColor} uppercase">${estadoTexto}</span>
+                    <div class="flex items-center space-x-2">
+                        <span class="${estadoColor} uppercase">${estadoTexto}</span>
+                        ${ref.estado === 'recompensa_generada' ? `<button onclick="event.stopPropagation(); window.eliminarReferido('${docRef.id}')" class="text-red-400 hover:text-red-300"><i class="fas fa-trash-alt"></i></button>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        container.innerHTML = html;
+    });
+}
+async function cargarListaReferidos() {
+    const container = document.getElementById('admin-referidos-list');
+    if (!container) return;
+    container.innerHTML = '<p class="text-xs text-gray-400">Cargando...</p>';
+
+    if (window._referidosUnsubscribe) {
+        window._referidosUnsubscribe();
+    }
+
+    const q = query(collection(db, "referidos"), orderBy("fechaRegistro", "desc"));
+    window._referidosUnsubscribe = onSnapshot(q, async (snap) => {
+        if (snap.empty) {
+            container.innerHTML = '<p class="text-xs text-gray-400">No hay referidos registrados.</p>';
+            return;
+        }
+        const usersCache = new Map();
+        let html = '';
+        for (const docRef of snap.docs) {
+            const ref = docRef.data();
+            let referenteName = '...', referidoName = '...';
+            if (!usersCache.has(ref.referenteId)) {
+                const userSnap = await getDoc(doc(db, "users", ref.referenteId));
+                usersCache.set(ref.referenteId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
+            }
+            referenteName = usersCache.get(ref.referenteId);
+            if (!usersCache.has(ref.referidoId)) {
+                const userSnap = await getDoc(doc(db, "users", ref.referidoId));
+                usersCache.set(ref.referidoId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
+            }
+            referidoName = usersCache.get(ref.referidoId);
+
+            let estadoTexto = '';
+            let estadoColor = '';
+            switch (ref.estado) {
+                case 'recompensa_generada':
+                    estadoTexto = '✅ Recompensa obtenida';
+                    estadoColor = 'text-green-400';
+                    break;
+                case 'condicion_cumplida':
+                    estadoTexto = '🎯 Condición cumplida';
+                    estadoColor = 'text-yellow-400';
+                    break;
+                default:
+                    estadoTexto = '⏳ En progreso';
+                    estadoColor = 'text-gray-400';
+            }
+
+            html += `
+                <div class="bg-white/5 p-3 rounded-xl flex justify-between items-center text-xs cursor-pointer hover:bg-white/10 transition-colors" onclick="window.openUserDetail('${ref.referidoId}')">
+                    <div class="flex-1">
+                        <p><span class="font-bold">${escapeHtml(referenteName)}</span> → <span class="font-bold">${escapeHtml(referidoName)}</span></p>
+                        <p class="text-gray-400">${new Date(ref.fechaRegistro).toLocaleDateString()}</p>
+                        <p class="text-gray-400">Servicios: ${ref.serviciosCompletados || 0}</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="${estadoColor} uppercase">${estadoTexto}</span>
+                        ${ref.estado === 'recompensa_generada' ? `<button onclick="event.stopPropagation(); window.eliminarReferido('${docRef.id}')" class="text-red-400 hover:text-red-300"><i class="fas fa-trash-alt"></i></button>` : ''}
+                    </div>
                 </div>
             `;
         }
