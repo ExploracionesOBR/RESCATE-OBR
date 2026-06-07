@@ -3903,185 +3903,317 @@ window.downloadCompletedServicePDF = async (id) => {
     const docSnap = await getDoc(doc(db, "rescates", id));
     if (!docSnap.exists()) return showToast("Servicio no encontrado", true);
     const data = docSnap.data();
+    
+    // 1. Obtener datos adicionales
     const bSnap = await getDocs(collection(db, "rescates", id, "bitacora"));
     let bitacora = [];
     bSnap.forEach(d => bitacora.push(d.data()));
     bitacora.sort((a, b) => a.ts - b.ts);
+    
+    // 2. Obtener venta asociada (cobro)
     const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", id), limit(1)));
     let venta = null;
     ventasSnap.forEach(v => { venta = v.data(); });
-
+    
+    // 3. Obtener conversación del chat (si existe)
+    let conversacion = [];
+    if (data.chatId) {
+        const chatMsgsSnap = await getDocs(collection(db, "chats", data.chatId, "mensajes"));
+        chatMsgsSnap.forEach(doc => {
+            const msg = doc.data();
+            conversacion.push({
+                nombre: msg.uid === data.uid ? "Cliente" : "Mecánico",
+                texto: msg.texto,
+                timestamp: msg.timestamp
+            });
+        });
+        conversacion.sort((a, b) => a.timestamp - b.timestamp);
+    }
+    
+    // 4. Obtener puntos de ruta del mecánico (desde RTDB)
+    let rutaPuntos = [];
+    let mechNombre = "Mecánico";
+    if (data.mech_uid) {
+        const mechUserSnap = await getDoc(doc(db, "users", data.mech_uid));
+        if (mechUserSnap.exists()) mechNombre = mechUserSnap.data().name || "Mecánico";
+        const trackingRef = dbRef(rtdb, `sos_tracking/${id}/${data.mech_uid}/points`);
+        const trackSnap = await get(trackingRef);
+        if (trackSnap.exists()) {
+            trackSnap.forEach(child => {
+                const punto = child.val();
+                if (punto.lat && punto.lng) rutaPuntos.push([punto.lat, punto.lng]);
+            });
+        }
+    }
+    // Asegurar que el punto inicial sea la ubicación del mecánico (si no hay tracking, usar la posición al aceptar)
+    if (rutaPuntos.length === 0 && data.mech_uid) {
+        // Intentar obtener la posición inicial del mecánico desde mecanicos_activos (momento de aceptación)
+        const posMechSnap = await get(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`));
+        if (posMechSnap.exists()) {
+            const pos = posMechSnap.val();
+            if (pos.lat && pos.lng) rutaPuntos.push([pos.lat, pos.lng]);
+        }
+    }
+    // Agregar punto final: ubicación del cliente
+    if (data.lat && data.lng) rutaPuntos.push([data.lat, data.lng]);
+    
+    // 5. Generar el PDF con jsPDF
     const { jsPDF } = window.jspdf;
-    const pdfDoc = new jsPDF();
-    const pageWidth = pdfDoc.internal.pageSize.getWidth();
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    
+    // Cargar logo
     const logoImg = new Image();
     logoImg.src = 'logo_oscuro.png';
     await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
-
-    // === ENCABEZADO ESTILO NUEVO ===
-    pdfDoc.setFillColor(255, 107, 0);
-    pdfDoc.rect(0, 0, pageWidth, 28, 'F');
-    if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
-    pdfDoc.setFontSize(14);
-    pdfDoc.setFont("helvetica", "bold");
-    pdfDoc.setTextColor(255, 255, 255);
-    pdfDoc.text("REPORTE DE SERVICIO OBR", logoImg.complete ? 36 : 12, 17.5);
-    pdfDoc.setDrawColor(255, 107, 0);
-    pdfDoc.line(12, 29, pageWidth - 12, 29);
-
+    
+    // ========== HOJA 1: TICKET DE COMPRA ==========
+    pdf.addPage();
+    _addHeader(pdf, logoImg, pageWidth, "REPORTE DE SERVICIO OBR");
     let y = 40;
-    // === CARD DE RESUMEN ===
-    pdfDoc.setFillColor(248, 250, 252);
-    pdfDoc.setDrawColor(226, 232, 240);
-    pdfDoc.roundedRect(12, y, pageWidth - 24, 20, 2, 2, 'FD');
-    pdfDoc.setFontSize(9);
-    pdfDoc.setFont("helvetica", "bold");
-    pdfDoc.setTextColor(15, 23, 42);
-    pdfDoc.text("Resumen de Orden de Auxilio", 16, y + 6);
-    // Dentro de downloadCompletedServicePDF, después de mostrar la moto
-if (data.numeroCuadro) {
-    pdfDoc.setFont("helvetica", "normal");
-    pdfDoc.setFontSize(8.5);
-    pdfDoc.setTextColor(71, 85, 105);
-    pdfDoc.text(`Número de cuadro (últimos 4): ${data.numeroCuadro}`, 16, y);
-    y += 5;
-}
-    pdfDoc.setFont("helvetica", "normal");
-    pdfDoc.setFontSize(8.5);
-    pdfDoc.text(`Servicio: ${data.shortId || id}`, 16, y + 12);
-    pdfDoc.text(`Fecha: ${new Date(data.timestamp).toLocaleString('es-MX')}`, 16, y + 17);
-    pdfDoc.text(`Cliente: ${data.clientName || data.phone || 'Mostrador'}`, pageWidth / 2 + 10, y + 12);
-    pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''}`, pageWidth / 2 + 10, y + 17);
-    if (data.numeroCuadro) {
-    pdfDoc.text(`Número de cuadro: ${data.numeroCuadro}`, 16, y + 22);
-    y += 5; // ajustar la y para que no se solape con el badge
-}
-    // Badge de estado
-    let badgeColor = [245, 158, 11]; // warning
-    if (data.status === 'completed') badgeColor = [34, 197, 94]; // green
-    else if (data.status === 'cancelled') badgeColor = [239, 68, 68]; // red
-    pdfDoc.setFillColor(...badgeColor);
-    pdfDoc.roundedRect(pageWidth - 42, y + 3, 28, 6, 1, 1, 'F');
-    pdfDoc.setFontSize(7);
-    pdfDoc.setTextColor(255, 255, 255);
-    pdfDoc.text((data.status || 'Pendiente').toUpperCase(), pageWidth - 28, y + 7, { align: 'center' });
-    y += 28;
-
-    // === FALLA REPORTADA ===
-    pdfDoc.setFont("helvetica", "bold");
-    pdfDoc.setFontSize(10);
-    pdfDoc.setTextColor(15, 23, 42);
-    pdfDoc.text("FALLA OPERATIVA REPORTADA:", 12, y);
-    y += 5;
-    pdfDoc.setFont("helvetica", "normal");
-    pdfDoc.setFontSize(9);
-    pdfDoc.setTextColor(71, 85, 105);
-    const fallaLines = pdfDoc.splitTextToSize(data.falla || 'Sin desglose de reporte inicial.', pageWidth - 24);
-    pdfDoc.text(fallaLines, 12, y);
-    y += (fallaLines.length * 4.5) + 6;
-
-    // === BITÁCORA (si existe) ===
-    if (bitacora.length) {
-        pdfDoc.setFont("helvetica", "bold");
-        pdfDoc.setFontSize(10);
-        pdfDoc.setTextColor(15, 23, 42);
-        pdfDoc.text("CRONOLOGÍA DE BITÁCORA EN ATENCIÓN:", 12, y);
-        y += 5;
-        pdfDoc.setFont("helvetica", "normal");
-        pdfDoc.setFontSize(8.5);
-        pdfDoc.setTextColor(71, 85, 105);
-        bitacora.slice(0, 5).forEach(entry => {
-            if (y > 260) { pdfDoc.addPage(); y = 36; }
-            const timeStr = new Date(entry.ts).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-            const entryText = `• [${timeStr}] ${entry.mechName || 'Técnico'}: ${entry.text}`;
-            const lines = pdfDoc.splitTextToSize(entryText, pageWidth - 24);
-            pdfDoc.text(lines, 12, y);
-            y += (lines.length * 4.5) + 2;
-        });
-        y += 6;
-    }
-
-    // === LIQUIDACIÓN ECONÓMICA ===
+    
+    // Datos del servicio
+    pdf.setFontSize(10);
+    pdf.setFont("helvetica", "normal");
+    pdf.setTextColor(0, 0, 0);
+    pdf.text(`Folio: ${data.shortId || id}`, 12, y);
+    pdf.text(`Fecha: ${new Date(data.timestamp).toLocaleString('es-MX')}`, 12, y + 6);
+    pdf.text(`Cliente: ${data.clientName || data.phone || 'Mostrador'}`, 12, y + 12);
+    pdf.text(`Moto: ${data.marca || ''} ${data.modelo || ''} (${data.cc || ''})`, 12, y + 18);
+    y += 30;
+    
+    // Tabla de productos / cargos
     if (venta && venta.ticket && venta.ticket.length) {
-        if (y > 220) { pdfDoc.addPage(); y = 36; }
-        pdfDoc.setFont("helvetica", "bold");
-        pdfDoc.setFontSize(10);
-        pdfDoc.setTextColor(15, 23, 42);
-        pdfDoc.text("LIQUIDACIÓN ECONÓMICA DE CONCEPTOS:", 12, y);
-        y += 4;
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(11);
+        pdf.text("CONCEPTOS FACTURADOS:", 12, y);
+        y += 6;
         const bodyRows = venta.ticket.map(item => [item.name, item.garantia || 'N/A', `$${item.price.toFixed(2)}`]);
-        pdfDoc.autoTable({
+        pdf.autoTable({
             startY: y,
-            head: [['Descripción del Concepto / Refacción', 'Garantía', 'Costo Bruto']],
+            head: [['Descripción', 'Garantía', 'Precio']],
             body: bodyRows,
             theme: 'striped',
-            styles: { fontSize: 8.5, cellPadding: 2.5, textColor: [30,41,59], font: 'helvetica' },
-            headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255], fontStyle: 'bold' },
-            columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 35 }, 2: { cellWidth: 30, halign: 'right' } },
+            styles: { fontSize: 9, cellPadding: 2.5 },
+            headStyles: { fillColor: [255, 107, 0], textColor: [255, 255, 255] },
+            columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 30 }, 2: { cellWidth: 30, halign: 'right' } },
             margin: { left: 12, right: 12 }
         });
-        y = pdfDoc.lastAutoTable.finalY + 6;
-        pdfDoc.setFont("helvetica", "bold");
-        pdfDoc.setFontSize(11);
-        pdfDoc.setTextColor(15, 23, 42);
-        pdfDoc.text(`Total Liquidado: $${venta.total.toFixed(2)} MXN`, pageWidth - 12, y, { align: 'right' });
+        y = pdf.lastAutoTable.finalY + 8;
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(12);
+        pdf.text(`Total: $${venta.total.toFixed(2)} MXN`, pageWidth - 12, y, { align: 'right' });
     } else if (data.costoRescateEstimado) {
-        pdfDoc.setFont("helvetica", "bold");
-        pdfDoc.setFontSize(11);
-        pdfDoc.setTextColor(15, 23, 42);
-        pdfDoc.text(`Costo Estimado de Asistencia: $${data.costoRescateEstimado}`, 12, y);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(`Costo estimado: $${data.costoRescateEstimado.toFixed(2)}`, 12, y);
     }
+    
+    // Checklist si existe
+    if (data.checklist) {
+        y += 15;
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(10);
+        pdf.text("CHECKLIST DE INGRESO:", 12, y);
+        y += 5;
+        pdf.setFontSize(8.5);
+        pdf.setFont("helvetica", "normal");
+        const ch = data.checklist;
+        pdf.text(`• Espejos: ${ch.espejos ? '✓ Correctos' : '✗ Dañados'}`, 12, y);
+        pdf.text(`• Luces: ${ch.luces ? '✓ Funcionan' : '✗ No funcionan'}`, 12, y + 5);
+        pdf.text(`• Faro: ${ch.faro ? '✓ Funciona' : '✗ No funciona'}`, 12, y + 10);
+        pdf.text(`• Tapaderas: ${ch.tapaderas ? '✓ Correctas' : '✗ Rotas'}`, 12, y + 15);
+        pdf.text(`• Asiento: ${ch.asiento ? '✓ Bueno' : '✗ Roto'}`, 12, y + 20);
+        pdf.text(`• Rayaduras: ${ch.rayaduras || 'Ninguna'}`, 12, y + 25);
+        pdf.text(`• Observaciones: ${ch.observaciones || 'Ninguna'}`, 12, y + 30);
+    }
+    
+    _addFooter(pdf, pageWidth, pageHeight);
+    
+    // ========== HOJA 2: REPORTE CON MAPA, IMAGEN Y CHAT ==========
+    pdf.addPage();
+    _addHeader(pdf, logoImg, pageWidth, "DETALLE DEL SERVICIO");
+    y = 35;
+    
+    // Dividir la hoja en 3 columnas (anchos: 60mm, 70mm, 60mm aprox)
+    const col1 = 12;
+    const col2 = 75;
+    const col3 = 135;
+    const colWidth = 55;
+    
+    // --- COLUMNA 1: Imagen y falla ---
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.text("EVIDENCIA DEL USUARIO", col1, y);
+    y += 5;
+    if (data.mediaUrl) {
+        let imgUrl = data.mediaUrl;
+        if (!imgUrl.startsWith('http')) imgUrl = '';
+        if (imgUrl) {
+            try {
+                const imgData = await fetch(imgUrl).then(res => res.blob()).then(blob => URL.createObjectURL(blob));
+                const img = new Image();
+                await new Promise((resolve) => { img.onload = resolve; img.src = imgData; });
+                const imgWidth = 50;
+                const imgHeight = (img.height * imgWidth) / img.width;
+                pdf.addImage(img, 'JPEG', col1, y, imgWidth, imgHeight);
+                y += imgHeight + 4;
+                URL.revokeObjectURL(imgData);
+            } catch(e) { console.warn("No se pudo cargar imagen", e); }
+        } else {
+            pdf.text("Sin imagen", col1, y);
+            y += 6;
+        }
+    } else {
+        pdf.text("Sin evidencia fotográfica", col1, y);
+        y += 6;
+    }
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    const fallaText = pdf.splitTextToSize(data.falla || "Sin descripción", colWidth);
+    pdf.text(fallaText, col1, y);
+    y += (fallaText.length * 4) + 10;
+    
+    // --- COLUMNA 2: Mapa de ruta y efecto difuminado ---
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.text("RUTA DEL MECÁNICO", col2, y);
+    y += 5;
+    // Generar imagen del mapa con la ruta
+    const mapImage = await _generateRouteMapImage(rutaPuntos, data.lat, data.lng);
+    if (mapImage) {
+        pdf.addImage(mapImage, 'PNG', col2, y, 55, 55);
+        y += 60;
+    } else {
+        pdf.text("No se pudo generar el mapa", col2, y);
+        y += 6;
+    }
+    // Instrucciones de trayectoria (simuladas)
+    pdf.setFontSize(7);
+    pdf.setFont("helvetica", "italic");
+    const instrucciones = _getRouteInstructions(rutaPuntos);
+    const instrLines = pdf.splitTextToSize(instrucciones, colWidth);
+    pdf.text(instrLines, col2, y);
+    y += instrLines.length * 4 + 8;
+    
+    // Efecto de texto difuminado (simulado con degradado de opacidad)
+    pdf.setFontSize(6);
+    pdf.setTextColor(150, 150, 150);
+    const fadeText = "• • • Fin del reporte • • •";
+    pdf.text(fadeText, col2 + colWidth/2, pageHeight - 15, { align: 'center' });
+    
+    // --- COLUMNA 3: Conversación del chat ---
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.setTextColor(0, 0, 0);
+    pdf.text("CHAT ENTRE CLIENTE Y MECÁNICO", col3, y - (instrLines.length * 4 + 8) + 5);
+    let chatY = y - (instrLines.length * 4 + 8) + 12;
+    if (conversacion.length === 0) {
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.text("No hay conversación registrada", col3, chatY);
+    } else {
+        pdf.setFontSize(7);
+        for (let msg of conversacion.slice(-15)) { // últimos 15 mensajes
+            if (chatY > pageHeight - 20) {
+                pdf.addPage();
+                _addHeader(pdf, logoImg, pageWidth, "DETALLE DEL SERVICIO (cont.)");
+                chatY = 35;
+                pdf.text("CHAT (continuación)", col3, chatY);
+                chatY += 6;
+            }
+            const time = new Date(msg.timestamp).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+            const line = `${time} ${msg.nombre}: ${msg.texto.substring(0, 60)}`;
+            pdf.text(line, col3, chatY);
+            chatY += 4;
+        }
+    }
+    
+    _addFooter(pdf, pageWidth, pageHeight);
+    
+    // Guardar PDF
+    pdf.save(`Reporte_Servicio_${data.shortId || id}.pdf`);
+};
 
-    // Mostrar checklist si existe (dentro de downloadCompletedServicePDF)
-if (data.checklist) {
-    if (y > 220) { pdfDoc.addPage(); y = 36; }
-    pdfDoc.setFont("helvetica", "bold");
-    pdfDoc.setFontSize(10);
-    pdfDoc.setTextColor(15, 23, 42);
-    pdfDoc.text("CHECKLIST DE INGRESO AL TALLER:", 12, y);
-    y += 6;
-    pdfDoc.setFontSize(8.5);
-    pdfDoc.setTextColor(71, 85, 105);
-    const ch = data.checklist;
-    const items = [
-        `• Espejos: ${ch.espejos ? '✓ Correctos' : '✗ Dañados/Faltantes'}`,
-        `• Luces direccionales: ${ch.lucesDireccionales ? '✓ Funcionan' : '✗ No funcionan/Rotas'}`,
-        `• Faro: ${ch.faro ? '✓ Funciona' : '✗ No funciona/Roto'}`,
-        `• Tapaderas: ${ch.tapaderas ? '✓ Correctas' : '✗ Rotas/Faltantes'}`,
-        `• Asiento: ${ch.asiento ? '✓ Buen estado' : '✗ Roto/Descosido'}`,
-        `• Nivel de batería: ${ch.nivelBateria || 'No especificado'}`,
-        `• Combustible: ${ch.combustible || 'No especificado'}`,
-        `• Rayaduras: ${ch.rayaduras || 'Ninguna'}`,
-        `• Observaciones: ${ch.observaciones || 'Ninguna'}`
-    ];
-    items.forEach(item => {
-        const lines = pdfDoc.splitTextToSize(item, pageWidth - 24);
-        pdfDoc.text(lines, 14, y);
-        y += (lines.length * 4.5) + 2;
-        if (y > 280) { pdfDoc.addPage(); y = 36; }
-    });
-    if (ch.fotos && ch.fotos.length) {
-        if (y > 260) { pdfDoc.addPage(); y = 36; }
-        pdfDoc.text("📸 Evidencia fotográfica:", 12, y);
-        y += 6;
-        pdfDoc.text(`Se adjuntaron ${ch.fotos.length} foto(s) en el expediente digital.`, 14, y);
-        y += 6;
+// ========== FUNCIONES AUXILIARES PARA EL PDF ==========
+function _addHeader(pdf, logoImg, pageWidth, title) {
+    pdf.setFillColor(255, 107, 0);
+    pdf.rect(0, 0, pageWidth, 28, 'F');
+    if (logoImg.complete && logoImg.naturalWidth > 0) {
+        pdf.addImage(logoImg, 'PNG', 10, 4, 20, 20);
+    }
+    pdf.setFontSize(14);
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(255, 255, 255);
+    pdf.text(title, logoImg.complete ? 34 : 12, 17);
+    pdf.setDrawColor(255, 107, 0);
+    pdf.line(10, 29, pageWidth - 10, 29);
+}
+
+function _addFooter(pdf, pageWidth, pageHeight) {
+    const totalPages = pdf.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(7);
+        pdf.setTextColor(100);
+        pdf.text(`OBR Moto Rescate - Documento generado el ${new Date().toLocaleDateString('es-MX')}`, 10, pageHeight - 10);
+        pdf.text(`Página ${i} de ${totalPages}`, pageWidth - 25, pageHeight - 10);
     }
 }
-    if (data.zonasDañadas && data.zonasDañadas.length) {
-    if (y > 240) { pdfDoc.addPage(); y = 36; }
-    pdfDoc.setFont("helvetica", "bold");
-    pdfDoc.setFontSize(10);
-    pdfDoc.setTextColor(15, 23, 42);
-    pdfDoc.text("Zonas dañadas marcadas:", 12, y);
-    y += 6;
-    pdfDoc.setFontSize(8.5);
-    pdfDoc.setTextColor(71, 85, 105);
-    data.zonasDañadas.forEach(z => {
-        pdfDoc.text(`• ${z.zona} (coordenadas: ${Math.round(z.x)}, ${Math.round(z.y)})`, 14, y);
-        y += 5;
-        if (y > 280) { pdfDoc.addPage(); y = 36; }
-    });
+
+async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
+    if (!puntos || puntos.length < 1) return null;
+    // Crear un div temporal para el mapa
+    const div = document.createElement('div');
+    div.style.width = '400px';
+    div.style.height = '400px';
+    div.style.position = 'absolute';
+    div.style.top = '-1000px';
+    div.style.left = '-1000px';
+    div.style.zIndex = '-1';
+    document.body.appendChild(div);
+    
+    const map = L.map(div).setView(puntos[0], 13);
+    const isLight = document.body.classList.contains('light-mode');
+    const layerUrl = isLight
+        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(map);
+    
+    // Dibujar la ruta (línea entre puntos)
+    if (puntos.length > 1) {
+        const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
+        L.polyline(latlngs, { color: '#FF6B00', weight: 5 }).addTo(map);
+        // Ajustar vista a los bounds de la ruta
+        const bounds = L.latLngBounds(latlngs);
+        map.fitBounds(bounds, { padding: [30, 30] });
+    } else if (puntos.length === 1) {
+        map.setView(puntos[0], 14);
+    }
+    // Marcar inicio y fin
+    if (puntos[0]) L.marker(puntos[0], { icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div style="background:#22c55e; width:24px; height:24px; border-radius:50%; border:2px solid white;"></div>', iconSize: [24,24] }) }).addTo(map).bindPopup("Inicio (Mecánico)");
+    if (clienteLat && clienteLng) L.marker([clienteLat, clienteLng], { icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div style="background:#FF6B00; width:24px; height:24px; border-radius:50%; border:2px solid white;"></div>', iconSize: [24,24] }) }).addTo(map).bindPopup("Destino (Cliente)");
+    
+    // Esperar a que el mapa cargue tiles
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Capturar imagen con html2canvas
+    await window.loadHtml2Canvas();
+    const canvas = await html2canvas(div, { scale: 2, backgroundColor: null });
+    const imgData = canvas.toDataURL('image/png');
+    document.body.removeChild(div);
+    return imgData;
+}
+
+function _getRouteInstructions(puntos) {
+    if (puntos.length < 2) return "Ruta no disponible";
+    // Simular instrucciones basadas en distancia aproximada (para no complicar con OSRM)
+    const distTotal = puntos.reduce((acc, p, i) => {
+        if (i === 0) return 0;
+        const prev = puntos[i-1];
+        const d = getDistanceKm(prev[0], prev[1], p[0], p[1]);
+        return acc + d;
+    }, 0);
+    return `El mecánico recorrió aproximadamente ${distTotal.toFixed(1)} km para llegar al cliente. La ruta seguida se muestra en el mapa. Tiempo estimado: ${Math.round(distTotal * 3)} minutos.`;
 }
 
     // === FOOTER ===
