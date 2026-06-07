@@ -3904,18 +3904,15 @@ window.downloadCompletedServicePDF = async (id) => {
     if (!docSnap.exists()) return showToast("Servicio no encontrado", true);
     const data = docSnap.data();
     
-    // 1. Obtener datos adicionales
     const bSnap = await getDocs(collection(db, "rescates", id, "bitacora"));
     let bitacora = [];
     bSnap.forEach(d => bitacora.push(d.data()));
     bitacora.sort((a, b) => a.ts - b.ts);
     
-    // 2. Obtener venta asociada (cobro)
     const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", id), limit(1)));
     let venta = null;
     ventasSnap.forEach(v => { venta = v.data(); });
     
-    // 3. Obtener conversación del chat (si existe)
     let conversacion = [];
     if (data.chatId) {
         const chatMsgsSnap = await getDocs(collection(db, "chats", data.chatId, "mensajes"));
@@ -3930,7 +3927,6 @@ window.downloadCompletedServicePDF = async (id) => {
         conversacion.sort((a, b) => a.timestamp - b.timestamp);
     }
     
-    // 4. Obtener puntos de ruta del mecánico (desde RTDB)
     let rutaPuntos = [];
     let mechNombre = "Mecánico";
     if (data.mech_uid) {
@@ -3945,35 +3941,28 @@ window.downloadCompletedServicePDF = async (id) => {
             });
         }
     }
-    // Asegurar que el punto inicial sea la ubicación del mecánico (si no hay tracking, usar la posición al aceptar)
     if (rutaPuntos.length === 0 && data.mech_uid) {
-        // Intentar obtener la posición inicial del mecánico desde mecanicos_activos (momento de aceptación)
         const posMechSnap = await get(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`));
         if (posMechSnap.exists()) {
             const pos = posMechSnap.val();
             if (pos.lat && pos.lng) rutaPuntos.push([pos.lat, pos.lng]);
         }
     }
-    // Agregar punto final: ubicación del cliente
     if (data.lat && data.lng) rutaPuntos.push([data.lat, data.lng]);
     
-    // 5. Generar el PDF con jsPDF
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
     
-    // Cargar logo
     const logoImg = new Image();
     logoImg.src = 'logo_oscuro.png';
     await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
     
-    // ========== HOJA 1: TICKET DE COMPRA ==========
     pdf.addPage();
     _addHeader(pdf, logoImg, pageWidth, "REPORTE DE SERVICIO OBR");
     let y = 40;
     
-    // Datos del servicio
     pdf.setFontSize(10);
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor(0, 0, 0);
@@ -3983,7 +3972,6 @@ window.downloadCompletedServicePDF = async (id) => {
     pdf.text(`Moto: ${data.marca || ''} ${data.modelo || ''} (${data.cc || ''})`, 12, y + 18);
     y += 30;
     
-    // Tabla de productos / cargos
     if (venta && venta.ticket && venta.ticket.length) {
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(11);
@@ -4009,7 +3997,6 @@ window.downloadCompletedServicePDF = async (id) => {
         pdf.text(`Costo estimado: $${data.costoRescateEstimado.toFixed(2)}`, 12, y);
     }
     
-    // Checklist si existe
     if (data.checklist) {
         y += 15;
         pdf.setFont("helvetica", "bold");
@@ -4030,18 +4017,14 @@ window.downloadCompletedServicePDF = async (id) => {
     
     _addFooter(pdf, pageWidth, pageHeight);
     
-    // ========== HOJA 2: REPORTE CON MAPA, IMAGEN Y CHAT ==========
     pdf.addPage();
     _addHeader(pdf, logoImg, pageWidth, "DETALLE DEL SERVICIO");
     y = 35;
-    
-    // Dividir la hoja en 3 columnas (anchos: 60mm, 70mm, 60mm aprox)
     const col1 = 12;
     const col2 = 75;
     const col3 = 135;
     const colWidth = 55;
     
-    // --- COLUMNA 1: Imagen y falla ---
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(9);
     pdf.text("EVIDENCIA DEL USUARIO", col1, y);
@@ -4074,12 +4057,10 @@ window.downloadCompletedServicePDF = async (id) => {
     pdf.text(fallaText, col1, y);
     y += (fallaText.length * 4) + 10;
     
-    // --- COLUMNA 2: Mapa de ruta y efecto difuminado ---
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(9);
     pdf.text("RUTA DEL MECÁNICO", col2, y);
     y += 5;
-    // Generar imagen del mapa con la ruta
     const mapImage = await _generateRouteMapImage(rutaPuntos, data.lat, data.lng);
     if (mapImage) {
         pdf.addImage(mapImage, 'PNG', col2, y, 55, 55);
@@ -4088,7 +4069,6 @@ window.downloadCompletedServicePDF = async (id) => {
         pdf.text("No se pudo generar el mapa", col2, y);
         y += 6;
     }
-    // Instrucciones de trayectoria (simuladas)
     pdf.setFontSize(7);
     pdf.setFont("helvetica", "italic");
     const instrucciones = _getRouteInstructions(rutaPuntos);
@@ -4096,13 +4076,11 @@ window.downloadCompletedServicePDF = async (id) => {
     pdf.text(instrLines, col2, y);
     y += instrLines.length * 4 + 8;
     
-    // Efecto de texto difuminado (simulado con degradado de opacidad)
     pdf.setFontSize(6);
     pdf.setTextColor(150, 150, 150);
     const fadeText = "• • • Fin del reporte • • •";
     pdf.text(fadeText, col2 + colWidth/2, pageHeight - 15, { align: 'center' });
     
-    // --- COLUMNA 3: Conversación del chat ---
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(9);
     pdf.setTextColor(0, 0, 0);
@@ -4114,7 +4092,7 @@ window.downloadCompletedServicePDF = async (id) => {
         pdf.text("No hay conversación registrada", col3, chatY);
     } else {
         pdf.setFontSize(7);
-        for (let msg of conversacion.slice(-15)) { // últimos 15 mensajes
+        for (let msg of conversacion.slice(-15)) {
             if (chatY > pageHeight - 20) {
                 pdf.addPage();
                 _addHeader(pdf, logoImg, pageWidth, "DETALLE DEL SERVICIO (cont.)");
@@ -4130,12 +4108,9 @@ window.downloadCompletedServicePDF = async (id) => {
     }
     
     _addFooter(pdf, pageWidth, pageHeight);
-    
-    // Guardar PDF
     pdf.save(`Reporte_Servicio_${data.shortId || id}.pdf`);
 };
 
-// ========== FUNCIONES AUXILIARES PARA EL PDF ==========
 function _addHeader(pdf, logoImg, pageWidth, title) {
     pdf.setFillColor(255, 107, 0);
     pdf.rect(0, 0, pageWidth, 28, 'F');
@@ -4163,7 +4138,6 @@ function _addFooter(pdf, pageWidth, pageHeight) {
 
 async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     if (!puntos || puntos.length < 1) return null;
-    // Crear un div temporal para el mapa
     const div = document.createElement('div');
     div.style.width = '400px';
     div.style.height = '400px';
@@ -4175,28 +4149,21 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     
     const map = L.map(div).setView(puntos[0], 13);
     const isLight = document.body.classList.contains('light-mode');
-    const layerUrl = isLight
-        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    const layerUrl = isLight ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(map);
     
-    // Dibujar la ruta (línea entre puntos)
     if (puntos.length > 1) {
         const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
         L.polyline(latlngs, { color: '#FF6B00', weight: 5 }).addTo(map);
-        // Ajustar vista a los bounds de la ruta
         const bounds = L.latLngBounds(latlngs);
         map.fitBounds(bounds, { padding: [30, 30] });
     } else if (puntos.length === 1) {
         map.setView(puntos[0], 14);
     }
-    // Marcar inicio y fin
     if (puntos[0]) L.marker(puntos[0], { icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div style="background:#22c55e; width:24px; height:24px; border-radius:50%; border:2px solid white;"></div>', iconSize: [24,24] }) }).addTo(map).bindPopup("Inicio (Mecánico)");
     if (clienteLat && clienteLng) L.marker([clienteLat, clienteLng], { icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div style="background:#FF6B00; width:24px; height:24px; border-radius:50%; border:2px solid white;"></div>', iconSize: [24,24] }) }).addTo(map).bindPopup("Destino (Cliente)");
     
-    // Esperar a que el mapa cargue tiles
     await new Promise(resolve => setTimeout(resolve, 1000));
-    // Capturar imagen con html2canvas
     await window.loadHtml2Canvas();
     const canvas = await html2canvas(div, { scale: 2, backgroundColor: null });
     const imgData = canvas.toDataURL('image/png');
@@ -4206,7 +4173,6 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
 
 function _getRouteInstructions(puntos) {
     if (puntos.length < 2) return "Ruta no disponible";
-    // Simular instrucciones basadas en distancia aproximada (para no complicar con OSRM)
     const distTotal = puntos.reduce((acc, p, i) => {
         if (i === 0) return 0;
         const prev = puntos[i-1];
@@ -4215,7 +4181,6 @@ function _getRouteInstructions(puntos) {
     }, 0);
     return `El mecánico recorrió aproximadamente ${distTotal.toFixed(1)} km para llegar al cliente. La ruta seguida se muestra en el mapa. Tiempo estimado: ${Math.round(distTotal * 3)} minutos.`;
 }
-
     // === FOOTER ===
     const totalPages = pdfDoc.internal.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
