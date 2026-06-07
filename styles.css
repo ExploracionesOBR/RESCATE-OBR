@@ -1032,3 +1032,13 @@ header.sticky,
     width: 50%;
     overflow: hidden;
 }
+@media (max-width: 768px) {
+    #chat-ia-modal-dinamico .chat-ia-container {
+        flex-direction: column;
+    }
+    #chat-ia-modal-dinamico .chat-ia-container > div:first-child {
+        width: 100% !important;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+    }
+}
