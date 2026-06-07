@@ -53,7 +53,7 @@ function escapeHtml(str) {
     });
 }
 
-// ========== CHAT IA – VERSIÓN DEFINITIVA (AGENTE OBR) ==========
+// ========== CHAT IA – VERSIÓN DEFINITIVA (con detección dinámica de modelo de visión) ==========
 (function() {
     // ========== 1. VARIABLES GLOBALES ==========
     let currentGroup = null;
@@ -106,7 +106,7 @@ function escapeHtml(str) {
         return limpio;
     }
 
-    // ========== 3. DETECCIÓN DEL MEJOR MODELO DE VISIÓN (CORREGIDO) ==========
+    // ========== 3. DETECCIÓN DEL MEJOR MODELO DE VISIÓN (DINÁMICA) ==========
     async function obtenerMejorModeloVision() {
         const cached = localStorage.getItem(MODEL_CACHE_KEY);
         if (cached) {
@@ -122,21 +122,21 @@ function escapeHtml(str) {
             });
             if (!response.ok) {
                 console.warn("No se pudo obtener lista de modelos, usando modelo por defecto");
-                return 'llama-3.2-90b-vision-preview';
+                return 'llama-3.2-11b-vision-preview';
             }
             const data = await response.json();
-            // Filtrar modelos de visión compatibles y no obsoletos
-            const visionModels = data.data.filter(m => 
-                m.id.includes('vision') && (m.id.includes('90b') || m.id.includes('11b'))
-            );
-            if (visionModels.length === 0) return 'llama-3.2-90b-vision-preview';
-            visionModels.sort((a, b) => (b.created || 0) - (a.created || 0));
-            const selected = visionModels[0].id;
-            localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ model: selected, timestamp: Date.now() }));
-            return selected;
+            const modelIds = data.data.map(m => m.id);
+            // Prioridad: scout -> vision -> cualquier llama (texto)
+            let workingModel = modelIds.find(m => m.includes('scout')) ||
+                               modelIds.find(m => m.includes('vision')) ||
+                               modelIds.find(m => m.includes('llama')) ||
+                               modelIds[0];
+            if (!workingModel) workingModel = 'llama-3.2-11b-vision-preview';
+            localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ model: workingModel, timestamp: Date.now() }));
+            return workingModel;
         } catch (error) {
             console.warn("Error fetching models:", error);
-            return 'llama-3.2-90b-vision-preview';
+            return 'llama-3.2-11b-vision-preview';
         }
     }
 
@@ -592,7 +592,7 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== 9. ENVÍO DE MENSAJES Y CONSULTA A GROQ (CORREGIDO ERROR 400) ==========
+    // ========== 9. ENVÍO DE MENSAJES Y CONSULTA A GROQ (CORREGIDO ERROR DE MODELO) ==========
     async function enviarMensaje() {
         const texto = window._chatMessageInput ? window._chatMessageInput.value.trim() : '';
         const imagenes = pendingImages.map(img => img.dataUrl);
@@ -696,7 +696,7 @@ function escapeHtml(str) {
             content.push({ type: "image_url", image_url: { url: imageUrl } });
         }
         
-        // System prompt
+        // System prompt mejorado
         const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros. 
 
 REGLAS DE FORMATO (IMPORTANTE):
@@ -731,8 +731,8 @@ REGLAS DE FORMATO (IMPORTANTE):
         if (!response.ok) {
             const errorText = await response.text();
             console.error('Groq API error:', errorText);
-            // Si el error es por modelo descontinuado, limpiar caché y reintentar con el modelo por defecto
-            if (errorText.includes('decommissioned') || errorText.includes('model')) {
+            // Si el error es por modelo descontinuado, limpiar caché y reintentar con un modelo actualizado
+            if (errorText.includes('decommissioned') || errorText.includes('not found')) {
                 localStorage.removeItem(MODEL_CACHE_KEY);
                 currentVisionModel = null;
                 const nuevoModelo = await initVisionModel();
@@ -811,7 +811,7 @@ REGLAS DE FORMATO (IMPORTANTE):
         modalEl.classList.remove('hidden');
     }
 
-    // ========== 11. CREACIÓN DEL MODAL PRINCIPAL (con pantalla de bienvenida y botón de cierre) ==========
+    // ========== 11. CREACIÓN DEL MODAL PRINCIPAL (con botón de cierre) ==========
     function crearModalChat() {
         if (modal) return modal;
         modal = document.createElement('div');
@@ -925,7 +925,6 @@ REGLAS DE FORMATO (IMPORTANTE):
         };
         const observerMessages = new MutationObserver(() => toggleWelcomeScreen());
         if (messagesContainer) observerMessages.observe(messagesContainer, { childList: true, subtree: false });
-        // Mostrar bienvenida durante al menos 1.5 segundos antes de ocultarla si hay mensajes
         setTimeout(() => {
             toggleWelcomeScreen();
         }, 1500);
@@ -985,6 +984,7 @@ REGLAS DE FORMATO (IMPORTANTE):
     // ========== 12. INICIALIZACIÓN Y CIERRE ==========
     window.cerrarChatIA = () => {
         if (modal) modal.style.display = 'none';
+        detenerVoz();
     };
 
     window.abrirChatIA = async () => {
@@ -992,7 +992,7 @@ REGLAS DE FORMATO (IMPORTANTE):
             crearModalChat();
             await initVisionModel().catch(e => {
                 console.warn("Error al inicializar modelo, usando por defecto");
-                currentVisionModel = 'llama-3.2-90b-vision-preview';
+                currentVisionModel = 'llama-3.2-11b-vision-preview';
             });
             cargarGrupos();
         }
