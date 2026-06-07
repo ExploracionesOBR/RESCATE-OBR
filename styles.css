@@ -1453,3 +1453,10 @@ body.light-mode #chat-ia-modal-dinamico {
     background: var(--chat-border);
     border-radius: 4px;
 }
+
+#welcome-screen-ia {
+    transition: opacity 0.4s ease;
+}
+.chat-welcome-screen {
+    transition: opacity 0.4s ease;
+}
