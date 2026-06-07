@@ -53,7 +53,7 @@ function escapeHtml(str) {
     });
 }
 
-// ========== CHAT IA – VERSIÓN DEFINITIVA (con detección dinámica de modelo de visión) ==========
+// ========== CHAT IA – VERSIÓN DEFINITIVA (con detección dinámica de modelos, sin fallback obsoleto) ==========
 (function() {
     // ========== 1. VARIABLES GLOBALES ==========
     let currentGroup = null;
@@ -106,7 +106,7 @@ function escapeHtml(str) {
         return limpio;
     }
 
-    // ========== 3. DETECCIÓN DEL MEJOR MODELO DE VISIÓN (DINÁMICA) ==========
+    // ========== 3. DETECCIÓN DINÁMICA DEL MODELO DE VISIÓN (SIN FALLBACK OBSOLETO) ==========
     async function obtenerMejorModeloVision() {
         const cached = localStorage.getItem(MODEL_CACHE_KEY);
         if (cached) {
@@ -115,33 +115,46 @@ function escapeHtml(str) {
                 if (Date.now() - timestamp < MODEL_CACHE_EXPIRY) return model;
             } catch(e) {}
         }
+
         const key = getGroqApiKey();
         try {
             const response = await fetch('https://api.groq.com/openai/v1/models', {
+                method: 'GET',
                 headers: { 'Authorization': `Bearer ${key}` }
             });
-            if (!response.ok) {
-                console.warn("No se pudo obtener lista de modelos, usando modelo por defecto");
-                return 'llama-3.2-11b-vision-preview';
-            }
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            
             const data = await response.json();
             const modelIds = data.data.map(m => m.id);
-            // Prioridad: scout -> vision -> cualquier llama (texto)
+            
+            // Prioridad: scout → vision → llama → primer modelo disponible
             let workingModel = modelIds.find(m => m.includes('scout')) ||
                                modelIds.find(m => m.includes('vision')) ||
                                modelIds.find(m => m.includes('llama')) ||
                                modelIds[0];
-            if (!workingModel) workingModel = 'llama-3.2-11b-vision-preview';
+            
+            if (!workingModel) {
+                throw new Error('No se encontró ningún modelo en Groq');
+            }
+            
             localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ model: workingModel, timestamp: Date.now() }));
+            console.log(`✅ Modelo de visión seleccionado: ${workingModel}`);
             return workingModel;
         } catch (error) {
-            console.warn("Error fetching models:", error);
-            return 'llama-3.2-11b-vision-preview';
+            console.error('Error obteniendo modelos de Groq:', error);
+            throw new Error('No se pudo obtener un modelo de visión válido. Verifica tu API key y conexión.');
         }
     }
 
     async function initVisionModel() {
-        if (!currentVisionModel) currentVisionModel = await obtenerMejorModeloVision();
+        if (!currentVisionModel) {
+            try {
+                currentVisionModel = await obtenerMejorModeloVision();
+            } catch (err) {
+                console.warn('No se pudo inicializar modelo de visión:', err.message);
+                currentVisionModel = null;
+            }
+        }
         return currentVisionModel;
     }
 
@@ -208,12 +221,10 @@ function escapeHtml(str) {
             container.appendChild(div);
         });
         
-        // Inicializar eventos de menús por mensaje
         document.querySelectorAll('.message-actions-trigger').forEach(btn => {
             btn.removeEventListener('click', window._handleMessageMenu);
             btn.addEventListener('click', window._handleMessageMenu);
         });
-        // Eventos de voz y copia
         container.querySelectorAll('.tts-normal-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -592,7 +603,7 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== 9. ENVÍO DE MENSAJES Y CONSULTA A GROQ (CORREGIDO ERROR DE MODELO) ==========
+    // ========== 9. ENVÍO DE MENSAJES Y CONSULTA A GROQ ==========
     async function enviarMensaje() {
         const texto = window._chatMessageInput ? window._chatMessageInput.value.trim() : '';
         const imagenes = pendingImages.map(img => img.dataUrl);
@@ -671,7 +682,12 @@ function escapeHtml(str) {
 
     async function consultarGroqVision(prompt, grupoId, imagenes) {
         let key = getGroqApiKey();
-        if (!currentVisionModel) await initVisionModel();
+        if (!currentVisionModel) {
+            await initVisionModel();
+            if (!currentVisionModel) {
+                throw new Error('No hay modelo de visión disponible. Verifica tu API key y conexión a internet.');
+            }
+        }
         
         // Obtener historial de mensajes (últimos 5 para contexto)
         const mensajesSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", grupoId)));
@@ -696,7 +712,6 @@ function escapeHtml(str) {
             content.push({ type: "image_url", image_url: { url: imageUrl } });
         }
         
-        // System prompt mejorado
         const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros. 
 
 REGLAS DE FORMATO (IMPORTANTE):
@@ -707,7 +722,6 @@ REGLAS DE FORMATO (IMPORTANTE):
 - Sé conciso pero informativo.
 - Si la consulta no está relacionada con mecánica, responde: "❌ No puedo ayudarte con eso, solo temas de mecánica."`;
 
-        // Asegurar que content no esté vacío
         if (content.length === 0) {
             content.push({ type: "text", text: prompt || "Consulta sobre mecánica" });
         }
@@ -731,20 +745,22 @@ REGLAS DE FORMATO (IMPORTANTE):
         if (!response.ok) {
             const errorText = await response.text();
             console.error('Groq API error:', errorText);
-            // Si el error es por modelo descontinuado, limpiar caché y reintentar con un modelo actualizado
+            // Si el error es por modelo descontinuado, limpiar caché y reintentar con el modelo más reciente
             if (errorText.includes('decommissioned') || errorText.includes('not found')) {
                 localStorage.removeItem(MODEL_CACHE_KEY);
                 currentVisionModel = null;
-                const nuevoModelo = await initVisionModel();
-                const retryBody = { ...requestBody, model: nuevoModelo };
-                const retryResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-                    body: JSON.stringify(retryBody)
-                });
-                if (!retryResponse.ok) throw new Error(`Error después de reintentar: ${await retryResponse.text()}`);
-                const retryData = await retryResponse.json();
-                return retryData.choices[0].message.content;
+                await initVisionModel();
+                if (currentVisionModel) {
+                    const retryBody = { ...requestBody, model: currentVisionModel };
+                    const retryResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                        body: JSON.stringify(retryBody)
+                    });
+                    if (!retryResponse.ok) throw new Error(`Error después de reintentar: ${await retryResponse.text()}`);
+                    const retryData = await retryResponse.json();
+                    return retryData.choices[0].message.content;
+                }
             }
             throw new Error(`Error ${response.status}: ${errorText}`);
         }
@@ -991,8 +1007,8 @@ REGLAS DE FORMATO (IMPORTANTE):
         if (!modal) {
             crearModalChat();
             await initVisionModel().catch(e => {
-                console.warn("Error al inicializar modelo, usando por defecto");
-                currentVisionModel = 'llama-3.2-11b-vision-preview';
+                console.warn("No se pudo inicializar modelo de visión:", e.message);
+                // currentVisionModel queda null, se manejará en consultarGroqVision
             });
             cargarGrupos();
         }
