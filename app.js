@@ -150,85 +150,124 @@ function escapeHtml(str) {
 
     // ========== 4. RENDERIZADO DE MENSAJES (con iconos y colores) ==========
     function renderMensajes(mensajes) {
-        const container = window._chatMessagesContainer;
-        if (!container) return;
-        container.innerHTML = '';
-        mensajes.forEach(m => {
-            const div = document.createElement('div');
-            const esUsuario = m.rol === 'usuario';
-            div.className = `flex ${esUsuario ? 'justify-end' : 'justify-start'} mb-4`;
-            
-            let textoLimpio = limpiarMarkdown(m.texto || '');
-            let textoFormateado = textoLimpio.replace(/[&<>]/g, function(match) {
-                if (match === '&') return '&amp;';
-                if (match === '<') return '&lt;';
-                if (match === '>') return '&gt;';
-                return match;
-            }).replace(/\n/g, '<br>');
-            
-            const fechaHora = new Date(m.timestamp).toLocaleString();
-            let imagenesHtml = '';
-            if (m.imagenes && m.imagenes.length) {
-                imagenesHtml = `<div class="flex gap-1 mt-2 flex-wrap">${m.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox && window.openImageLightbox('${img}')">`).join('')}</div>`;
-            }
-            
-            // Iconos según rol
-            const icono = esUsuario ? '🧑‍🔧' : '🤖';
-            const nombre = esUsuario ? 'Mecánico' : 'AGENTE OBR';
-            const bubbleClass = esUsuario 
-                ? 'bg-gradient-to-r from-naranja to-orange-600 text-white' 
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white';
-            
-            let botonesHtml = '';
-            if (!esUsuario && m.texto !== '...' && !m.loading && m.texto) {
-                const textoEscapado = textoLimpio.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                botonesHtml = `
-                    <div class="flex gap-2 mt-2">
-                        <button class="tts-normal-btn" data-text="${textoEscapado}" data-rate="1.0" class="text-xs bg-black/20 rounded-full px-2 py-1">🔊 Normal</button>
-                        <button class="tts-fast-btn" data-text="${textoEscapado}" data-rate="1.5" class="text-xs bg-black/20 rounded-full px-2 py-1">⚡ Rápido</button>
-                        <button class="copy-btn" data-text="${textoEscapado}" class="text-xs bg-black/20 rounded-full px-2 py-1">📋 Copiar</button>
+    const container = window._chatMessagesContainer;
+    if (!container) return;
+    container.innerHTML = '';
+    mensajes.forEach((m, idx) => {
+        const div = document.createElement('div');
+        const esUsuario = m.rol === 'usuario';
+        div.className = `flex ${esUsuario ? 'justify-end' : 'justify-start'} mb-4`;
+        
+        let textoLimpio = limpiarMarkdown(m.texto || '');
+        let textoFormateado = textoLimpio.replace(/[&<>]/g, function(match) {
+            if (match === '&') return '&amp;';
+            if (match === '<') return '&lt;';
+            if (match === '>') return '&gt;';
+            return match;
+        }).replace(/\n/g, '<br>');
+        
+        const fechaHora = new Date(m.timestamp).toLocaleString();
+        let imagenesHtml = '';
+        if (m.imagenes && m.imagenes.length) {
+            imagenesHtml = `<div class="flex gap-1 mt-2 flex-wrap">${m.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox && window.openImageLightbox('${img}')">`).join('')}</div>`;
+        }
+        
+        const icono = esUsuario ? '🧑‍🔧' : '🤖';
+        const nombre = esUsuario ? 'Mecánico' : 'AGENTE OBR';
+        const bubbleClass = esUsuario 
+            ? 'bg-naranja text-white' 
+            : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white';
+        
+        // Solo añadir menú de acciones para mensajes del asistente (no loading)
+        let accionesHtml = '';
+        if (!esUsuario && m.texto !== '...' && !m.loading && m.texto) {
+            const textoEscapado = textoLimpio.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const menuId = `msg-actions-${idx}-${Date.now()}`;
+            accionesHtml = `
+                <div class="message-actions-menu">
+                    <button class="message-actions-trigger" data-menu="${menuId}">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div id="${menuId}" class="message-actions-dropdown">
+                        <button class="tts-normal-btn" data-text="${textoEscapado}" data-rate="1.0">🔊 Leer normal</button>
+                        <button class="tts-fast-btn" data-text="${textoEscapado}" data-rate="1.5">⚡ Leer rápido</button>
+                        <button class="copy-btn" data-text="${textoEscapado}">📋 Copiar</button>
                     </div>
-                `;
-            }
-            
-            div.innerHTML = `
-                <div class="${bubbleClass} max-w-[85%] p-4 rounded-2xl shadow-md">
-                    <div class="flex items-center gap-2 mb-1">
-                        <span class="text-lg">${icono}</span>
-                        <span class="font-bold text-sm">${nombre}</span>
-                        <span class="text-[9px] opacity-60">${fechaHora}</span>
-                    </div>
-                    <div class="text-sm leading-relaxed">${textoFormateado}</div>
-                    ${imagenesHtml}
-                    ${botonesHtml}
                 </div>
             `;
-            container.appendChild(div);
+        }
+        
+        div.innerHTML = `
+            <div class="${bubbleClass} max-w-[85%] p-4 rounded-2xl shadow-md">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-lg">${icono}</span>
+                    <span class="font-bold text-sm">${nombre}</span>
+                    <span class="text-[9px] opacity-60">${fechaHora}</span>
+                    ${accionesHtml}
+                </div>
+                <div class="text-sm leading-relaxed">${textoFormateado}</div>
+                ${imagenesHtml}
+            </div>
+        `;
+        container.appendChild(div);
+    });
+    
+    // Inicializar eventos de los menús desplegables por mensaje
+    document.querySelectorAll('.message-actions-trigger').forEach(btn => {
+        btn.removeEventListener('click', window._handleMessageMenu);
+        btn.addEventListener('click', window._handleMessageMenu);
+    });
+    // Inicializar eventos de voz y copia (los mismos que antes)
+    container.querySelectorAll('.tts-normal-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const text = btn.getAttribute('data-text');
+            if (text) speakText(text, 1.0);
+            // Cerrar el menú padre
+            btn.closest('.message-actions-dropdown')?.classList.remove('show');
         });
-        // Eventos de voz y copia
-        container.querySelectorAll('.tts-normal-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const text = btn.getAttribute('data-text');
-                if (text) speakText(text, 1.0);
-            });
+    });
+    container.querySelectorAll('.tts-fast-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const text = btn.getAttribute('data-text');
+            if (text) speakText(text, 1.5);
+            btn.closest('.message-actions-dropdown')?.classList.remove('show');
         });
-        container.querySelectorAll('.tts-fast-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const text = btn.getAttribute('data-text');
-                if (text) speakText(text, 1.5);
-            });
+    });
+    container.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const text = btn.getAttribute('data-text');
+            if (text) copyToClipboard(text);
+            btn.closest('.message-actions-dropdown')?.classList.remove('show');
         });
-        container.querySelectorAll('.copy-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const text = btn.getAttribute('data-text');
-                if (text) copyToClipboard(text);
-            });
-        });
-        container.scrollTop = container.scrollHeight;
-    }
+    });
+    
+    container.scrollTop = container.scrollHeight;
+}
+
+// Manejador global para los menús de acciones por mensaje
+window._handleMessageMenu = (e) => {
+    e.stopPropagation();
+    const btn = e.currentTarget;
+    const menuId = btn.getAttribute('data-menu');
+    const dropdown = document.getElementById(menuId);
+    if (!dropdown) return;
+    // Cerrar cualquier otro dropdown abierto
+    document.querySelectorAll('.message-actions-dropdown.show').forEach(d => {
+        if (d.id !== menuId) d.classList.remove('show');
+    });
+    dropdown.classList.toggle('show');
+    // Cerrar al hacer clic fuera
+    const closeHandler = (event) => {
+        if (!dropdown.contains(event.target) && event.target !== btn) {
+            dropdown.classList.remove('show');
+            document.removeEventListener('click', closeHandler);
+        }
+    };
+    setTimeout(() => document.addEventListener('click', closeHandler), 0);
+};
 
     // ========== 5. MODAL PARA LISTA DE SERVICIOS DE TALLER ==========
     async function mostrarListaServiciosParaVincular() {
@@ -768,69 +807,45 @@ REGLAS DE FORMATO (IMPORTANTE):
             font-family: system-ui, sans-serif;
         `;
         modal.innerHTML = `
-            <div class="chat-ia-container">
-                <button class="chat-sidebar-toggle" aria-label="Abrir menú de conversaciones">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <aside class="chat-sidebar">
-                    <div class="chat-sidebar-header">
-                        <h2>Conversaciones</h2>
-                    </div>
-                    <div class="chat-sidebar-search">
-                        <input type="text" id="search-group-ia" placeholder="Buscar conversación...">
-                        <i class="fas fa-search"></i>
-                    </div>
-                    <div id="groups-list-ia" class="chat-groups-list"></div>
-                    <button id="new-group-ia" class="chat-new-group-btn">
-                        <i class="fas fa-plus"></i> Nueva conversación
-                    </button>
-                </aside>
-                <main class="chat-main">
-                    <div class="chat-main-header">
-                        <h1>AGENTE OBR</h1>
-                        <div class="chat-actions-menu">
-                            <button id="chat-actions-trigger" class="chat-actions-trigger">
-                                <i class="fas fa-ellipsis-v"></i>
-                            </button>
-                            <div id="chat-actions-dropdown" class="chat-actions-dropdown">
-                                <button id="link-service-ia" class="action-link">Vincular a servicio</button>
-                                <button id="rename-group-ia" class="action-rename">Renombrar grupo</button>
-                                <button id="delete-group-ia" class="action-delete">Eliminar grupo</button>
-                                <button id="export-pdf-ia" class="action-pdf">Exportar a PDF</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="welcome-screen-ia" class="chat-welcome-screen">
-                        <div class="welcome-content">
-                            <h1>AGENTE OBR</h1>
-                            <p>Tu asistente mecánico inteligente. Pregunta sobre fallas, mantenimiento o diagnósticos.</p>
-                            <div class="welcome-cards">
-                                <div class="welcome-card"><h3>📝 Ejemplos</h3><ul><li>"¿Por qué mi moto no enciende?"</li><li>"¿Cada cuánto cambiar el aceite?"</li><li>"Ruido en el motor al acelerar"</li></ul></div>
-                                <div class="welcome-card"><h3>⚙️ Capacidades</h3><ul><li>Diagnóstico por síntomas</li><li>Análisis de imágenes</li><li>Recomendaciones de taller</li></ul></div>
-                                <div class="welcome-card"><h3>🔒 Limitaciones</h3><ul><li>Solo temas mecánicos</li><li>No reemplaza una revisión física</li><li>Los precios son referenciales</li></ul></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="messages-list-ia" class="chat-messages-list" style="display: none;"></div>
-                    <div class="chat-input-area">
-                        <div class="chat-input-container">
-                            <textarea id="message-input-ia" rows="1" placeholder="Escribe tu consulta..."></textarea>
-                            <div class="chat-input-buttons">
-                                <button id="camera-ia" class="chat-btn-icon" title="Tomar foto"><i class="fas fa-camera"></i></button>
-                                <button id="gallery-ia" class="chat-btn-icon" title="Subir imagen"><i class="fas fa-image"></i></button>
-                                <button id="send-message-ia" class="chat-send-btn" title="Enviar"><i class="fas fa-paper-plane"></i></button>
-                            </div>
-                        </div>
-                        <div id="image-preview-ia" class="chat-image-preview" style="display: none;">
-                            <img id="preview-img-ia"><button id="cancel-preview-ia" class="cancel-preview">✕</button>
-                        </div>
-                        <div class="chat-input-note">
-                            <span>🔊 Botones de voz y copia en cada mensaje. Escribe <strong>API : "clave"</strong> para cambiar la API key.</span>
-                        </div>
-                    </div>
-                </main>
+    <div class="chat-ia-container">
+        <aside class="chat-sidebar">
+            <div class="chat-sidebar-header">
+                <h2>Conversaciones</h2>
             </div>
-        `;
+            <div class="chat-sidebar-search">
+                <input type="text" id="search-group-ia" placeholder="Buscar conversación...">
+                <i class="fas fa-search"></i>
+            </div>
+            <div id="groups-list-ia" class="chat-groups-list"></div>
+            <button id="new-group-ia" class="chat-new-group-btn">
+                <i class="fas fa-plus"></i> Nueva conversación
+            </button>
+        </aside>
+        <main class="chat-main">
+            <div class="chat-main-header">
+                <div class="chat-header-left">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1>AGENTE OBR</h1>
+                </div>
+                <div class="chat-actions-menu">
+                    <button id="chat-actions-trigger" class="chat-actions-trigger">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div id="chat-actions-dropdown" class="chat-actions-dropdown">
+                        <button id="link-service-ia" class="action-link">Vincular a servicio</button>
+                        <button id="rename-group-ia" class="action-rename">Renombrar grupo</button>
+                        <button id="delete-group-ia" class="action-delete">Eliminar grupo</button>
+                        <button id="export-pdf-ia" class="action-pdf">Exportar a PDF</button>
+                    </div>
+                </div>
+            </div>
+            <div id="welcome-screen-ia" class="chat-welcome-screen">...</div>
+            <div id="messages-list-ia" class="chat-messages-list" style="display: none;"></div>
+            <div class="chat-input-area">...</div>
+        </main>
+    </div>
+`;
         document.body.appendChild(modal);
         
         // Referencias
