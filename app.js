@@ -9411,7 +9411,6 @@ async function guardarConfigReferidos() {
     window.showToast("✅ Configuración de referidos guardada");
 }
 
-// Reemplazar cargarListaReferidos con onSnapshot para tiempo real
 async function cargarListaReferidos() {
     const container = document.getElementById('admin-referidos-list');
     if (!container) return;
@@ -9476,71 +9475,13 @@ async function cargarListaReferidos() {
         container.innerHTML = html;
     });
 }
-async function cargarListaReferidos() {
-    const container = document.getElementById('admin-referidos-list');
-    if (!container) return;
-    container.innerHTML = '<p class="text-xs text-gray-400">Cargando...</p>';
-
-    if (window._referidosUnsubscribe) {
-        window._referidosUnsubscribe();
+window.eliminarReferido = async (referidoId) => {
+    if (confirm("¿Eliminar este referido? Esta acción no se puede deshacer.")) {
+        await deleteDoc(doc(db, "referidos", referidoId));
+        window.cargarListaReferidos();
+        window.showToast("Referido eliminado");
     }
-
-    const q = query(collection(db, "referidos"), orderBy("fechaRegistro", "desc"));
-    window._referidosUnsubscribe = onSnapshot(q, async (snap) => {
-        if (snap.empty) {
-            container.innerHTML = '<p class="text-xs text-gray-400">No hay referidos registrados.</p>';
-            return;
-        }
-        const usersCache = new Map();
-        let html = '';
-        for (const docRef of snap.docs) {
-            const ref = docRef.data();
-            let referenteName = '...', referidoName = '...';
-            if (!usersCache.has(ref.referenteId)) {
-                const userSnap = await getDoc(doc(db, "users", ref.referenteId));
-                usersCache.set(ref.referenteId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
-            }
-            referenteName = usersCache.get(ref.referenteId);
-            if (!usersCache.has(ref.referidoId)) {
-                const userSnap = await getDoc(doc(db, "users", ref.referidoId));
-                usersCache.set(ref.referidoId, userSnap.exists() ? userSnap.data().name : 'Desconocido');
-            }
-            referidoName = usersCache.get(ref.referidoId);
-
-            let estadoTexto = '';
-            let estadoColor = '';
-            switch (ref.estado) {
-                case 'recompensa_generada':
-                    estadoTexto = '✅ Recompensa obtenida';
-                    estadoColor = 'text-green-400';
-                    break;
-                case 'condicion_cumplida':
-                    estadoTexto = '🎯 Condición cumplida';
-                    estadoColor = 'text-yellow-400';
-                    break;
-                default:
-                    estadoTexto = '⏳ En progreso';
-                    estadoColor = 'text-gray-400';
-            }
-
-            html += `
-                <div class="bg-white/5 p-3 rounded-xl flex justify-between items-center text-xs cursor-pointer hover:bg-white/10 transition-colors" onclick="window.openUserDetail('${ref.referidoId}')">
-                    <div class="flex-1">
-                        <p><span class="font-bold">${escapeHtml(referenteName)}</span> → <span class="font-bold">${escapeHtml(referidoName)}</span></p>
-                        <p class="text-gray-400">${new Date(ref.fechaRegistro).toLocaleDateString()}</p>
-                        <p class="text-gray-400">Servicios: ${ref.serviciosCompletados || 0}</p>
-                    </div>
-                    <div class="flex items-center space-x-2">
-                        <span class="${estadoColor} uppercase">${estadoTexto}</span>
-                        ${ref.estado === 'recompensa_generada' ? `<button onclick="event.stopPropagation(); window.eliminarReferido('${docRef.id}')" class="text-red-400 hover:text-red-300"><i class="fas fa-trash-alt"></i></button>` : ''}
-                    </div>
-                </div>
-            `;
-        }
-        container.innerHTML = html;
-    });
-}
-
+};
 // 4. Generar códigos de referido para usuarios existentes que no tengan
 async function generarCodigosParaUsuariosExistentes() {
     if (!auth.currentUser || window.currentUserDoc?.role !== 'admin') {
@@ -9779,11 +9720,4 @@ window.ingresarATaller = async () => {
     window.cargarListadoSOS();
     window.renderSOSMapa();
     window.adminListenServices();
-};
-window.eliminarReferido = async (referidoId) => {
-    if (confirm("¿Eliminar este referido? Esta acción no se puede deshacer.")) {
-        await deleteDoc(doc(db, "referidos", referidoId));
-        window.cargarListaReferidos();
-        showToast("Referido eliminado");
-    }
 };
