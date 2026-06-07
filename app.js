@@ -53,7 +53,7 @@ function escapeHtml(str) {
     });
 }
 
-// ========== CHAT IA – VERSIÓN DEFINITIVA (sin **, con emojis y formato mejorado) ==========
+// ========== CHAT IA – VERSIÓN DEFINITIVA (AGENTE OBR) ==========
 (function() {
     // ========== 1. VARIABLES GLOBALES ==========
     let currentGroup = null;
@@ -68,6 +68,11 @@ function escapeHtml(str) {
     // Cache del modelo de visión
     const MODEL_CACHE_KEY = 'groq_vision_model';
     const MODEL_CACHE_EXPIRY = 24 * 60 * 60 * 1000;
+
+    // Obtener API key (de localStorage o la por defecto)
+    function getGroqApiKey() {
+        return localStorage.getItem('groq_api_key') || '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';
+    }
 
     // ========== 2. FUNCIONES DE VOZ Y COPIA ==========
     function detenerVoz() {
@@ -95,17 +100,15 @@ function escapeHtml(str) {
         });
     }
 
-    // Función para limpiar el texto de markdown (eliminar **, __, etc.)
+    // Limpiar markdown (eliminar **, __, etc.)
     function limpiarMarkdown(texto) {
         if (!texto) return '';
-        // Eliminar ** ** (negrita)
         let limpio = texto.replace(/\*\*(.*?)\*\*/g, '$1');
-        // Eliminar __ __ (alternativa)
         limpio = limpio.replace(/__(.*?)__/g, '$1');
         return limpio;
     }
 
-    // ========== 3. DETECCIÓN DEL MEJOR MODELO DE VISIÓN ==========
+    // ========== 3. DETECCIÓN DEL MEJOR MODELO DE VISIÓN (con fallback seguro) ==========
     async function obtenerMejorModeloVision() {
         const cached = localStorage.getItem(MODEL_CACHE_KEY);
         if (cached) {
@@ -114,12 +117,15 @@ function escapeHtml(str) {
                 if (Date.now() - timestamp < MODEL_CACHE_EXPIRY) return model;
             } catch(e) {}
         }
-        const API_KEY = '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';
+        const key = getGroqApiKey();
         try {
             const response = await fetch('https://api.groq.com/openai/v1/models', {
-                headers: { 'Authorization': `Bearer ${API_KEY}` }
+                headers: { 'Authorization': `Bearer ${key}` }
             });
-            if (!response.ok) throw new Error();
+            if (!response.ok) {
+                console.warn("No se pudo obtener lista de modelos, usando modelo por defecto");
+                return 'llama-3.2-11b-vision-preview';
+            }
             const data = await response.json();
             const visionModels = data.data.filter(m => 
                 m.id.includes('vision') || 
@@ -132,6 +138,7 @@ function escapeHtml(str) {
             localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ model: selected, timestamp: Date.now() }));
             return selected;
         } catch (error) {
+            console.warn("Error fetching models:", error);
             return 'llama-3.2-11b-vision-preview';
         }
     }
@@ -141,16 +148,16 @@ function escapeHtml(str) {
         return currentVisionModel;
     }
 
-    // ========== 4. RENDERIZADO DE MENSAJES (con limpieza de markdown) ==========
+    // ========== 4. RENDERIZADO DE MENSAJES (con iconos y colores) ==========
     function renderMensajes(mensajes) {
         const container = window._chatMessagesContainer;
         if (!container) return;
         container.innerHTML = '';
         mensajes.forEach(m => {
             const div = document.createElement('div');
-            div.className = `flex ${m.rol === 'usuario' ? 'justify-end' : 'justify-start'} mb-3`;
-            const bubbleClass = m.rol === 'usuario' ? 'bg-naranja text-white' : 'bg-gray-200 dark:bg-gray-700 text-black dark:text-white';
-            // Limpiar markdown y convertir saltos de línea
+            const esUsuario = m.rol === 'usuario';
+            div.className = `flex ${esUsuario ? 'justify-end' : 'justify-start'} mb-4`;
+            
             let textoLimpio = limpiarMarkdown(m.texto || '');
             let textoFormateado = textoLimpio.replace(/[&<>]/g, function(match) {
                 if (match === '&') return '&amp;';
@@ -158,32 +165,59 @@ function escapeHtml(str) {
                 if (match === '>') return '&gt;';
                 return match;
             }).replace(/\n/g, '<br>');
+            
             const fechaHora = new Date(m.timestamp).toLocaleString();
             let imagenesHtml = '';
             if (m.imagenes && m.imagenes.length) {
                 imagenesHtml = `<div class="flex gap-1 mt-2 flex-wrap">${m.imagenes.map(img => `<img src="${img}" class="w-16 h-16 object-cover rounded cursor-pointer" onclick="window.openImageLightbox && window.openImageLightbox('${img}')">`).join('')}</div>`;
             }
+            
+            // Iconos según rol
+            const icono = esUsuario ? '🧑‍🔧' : '🤖';
+            const nombre = esUsuario ? 'Mecánico' : 'AGENTE OBR';
+            const bubbleClass = esUsuario 
+                ? 'bg-gradient-to-r from-naranja to-orange-600 text-white' 
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white';
+            
             let botonesHtml = '';
-            if (m.rol === 'asistente' && m.texto !== '...' && !m.loading && m.texto) {
+            if (!esUsuario && m.texto !== '...' && !m.loading && m.texto) {
                 const textoEscapado = textoLimpio.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                 botonesHtml = `
-                    <div class="flex gap-1 mt-1">
-                        <button class="tts-normal-btn" data-text="${textoEscapado}" data-rate="1.0" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Leer normal">🔈</button>
-                        <button class="tts-fast-btn" data-text="${textoEscapado}" data-rate="1.5" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Leer rápido">⚡</button>
-                        <button class="copy-btn" data-text="${textoEscapado}" style="background:rgba(0,0,0,0.2); border:none; border-radius:50%; width:24px; height:24px; font-size:12px; cursor:pointer;" title="Copiar">📋</button>
+                    <div class="flex gap-2 mt-2">
+                        <button class="tts-normal-btn" data-text="${textoEscapado}" data-rate="1.0" class="text-xs bg-black/20 rounded-full px-2 py-1">🔊 Normal</button>
+                        <button class="tts-fast-btn" data-text="${textoEscapado}" data-rate="1.5" class="text-xs bg-black/20 rounded-full px-2 py-1">⚡ Rápido</button>
+                        <button class="copy-btn" data-text="${textoEscapado}" class="text-xs bg-black/20 rounded-full px-2 py-1">📋 Copiar</button>
                     </div>
                 `;
             }
-            div.innerHTML = `<div class="${bubbleClass} max-w-[75%] p-3 rounded-2xl text-sm"><div>${textoFormateado}</div>${imagenesHtml}<div class="text-[9px] opacity-60 mt-1 flex justify-between items-center"><span>${fechaHora}</span>${botonesHtml}</div></div>`;
+            
+            div.innerHTML = `
+                <div class="${bubbleClass} max-w-[85%] p-4 rounded-2xl shadow-md">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-lg">${icono}</span>
+                        <span class="font-bold text-sm">${nombre}</span>
+                        <span class="text-[9px] opacity-60">${fechaHora}</span>
+                    </div>
+                    <div class="text-sm leading-relaxed">${textoFormateado}</div>
+                    ${imagenesHtml}
+                    ${botonesHtml}
+                </div>
+            `;
             container.appendChild(div);
         });
         // Eventos de voz y copia
-        container.querySelectorAll('.tts-normal-btn, .tts-fast-btn').forEach(btn => {
+        container.querySelectorAll('.tts-normal-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const text = btn.getAttribute('data-text');
-                const rate = parseFloat(btn.getAttribute('data-rate') || '1.0');
-                if (text) speakText(text, rate);
+                if (text) speakText(text, 1.0);
+            });
+        });
+        container.querySelectorAll('.tts-fast-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const text = btn.getAttribute('data-text');
+                if (text) speakText(text, 1.5);
             });
         });
         container.querySelectorAll('.copy-btn').forEach(btn => {
@@ -249,7 +283,6 @@ function escapeHtml(str) {
                 div.onclick = async () => {
                     await updateDoc(doc(db, "chat_grupos", currentGroupId), { servicioId: serv.shortId });
                     currentGroup.servicioId = serv.shortId;
-                    if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = `📎 Servicio: ${serv.shortId}`;
                     if (window.showToast) window.showToast(`✅ Grupo vinculado a ${serv.shortId}`);
                     modalEl.classList.add('hidden');
                 };
@@ -262,231 +295,92 @@ function escapeHtml(str) {
         }
     }
 
-function crearModalChat() {
-    if (modal) return modal;
-    modal = document.createElement('div');
-    modal.id = 'chat-ia-modal-dinamico';
-    modal.style.cssText = `
-        display: none !important;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: #000000dd;
-        backdrop-filter: blur(4px);
-        z-index: 1000000;
-        flex-direction: column;
-        font-family: system-ui, sans-serif;
-    `;
-    modal.innerHTML = `
-        <div class="chat-ia-container">
-            <!-- Botón toggle para móvil -->
-            <button class="chat-sidebar-toggle" aria-label="Abrir menú de conversaciones">
-                <i class="fas fa-bars"></i>
-            </button>
-
-            <!-- Sidebar de conversaciones -->
-            <aside class="chat-sidebar">
-                <div class="chat-sidebar-header">
-                    <h2>Conversaciones</h2>
-                </div>
-                <div class="chat-sidebar-search">
-                    <input type="text" id="search-group-ia" placeholder="Buscar conversación...">
-                    <i class="fas fa-search"></i>
-                </div>
-                <div id="groups-list-ia" class="chat-groups-list"></div>
-                <button id="new-group-ia" class="chat-new-group-btn">
-                    <i class="fas fa-plus"></i> Nueva conversación
-                </button>
-            </aside>
-
-            <!-- Área principal de chat -->
-            <main class="chat-main">
-                <!-- Cabecera: título + menú de acciones -->
-                <div class="chat-main-header">
-                    <h1>AGENTE OBR</h1>
-                    <div class="chat-actions-menu">
-                        <button id="chat-actions-trigger" class="chat-actions-trigger">
-                            <i class="fas fa-ellipsis-v"></i>
-                        </button>
-                        <div id="chat-actions-dropdown" class="chat-actions-dropdown">
-                            <button id="link-service-ia" class="action-link">Vincular a servicio</button>
-                            <button id="rename-group-ia" class="action-rename">Renombrar grupo</button>
-                            <button id="delete-group-ia" class="action-delete">Eliminar grupo</button>
-                            <button id="export-pdf-ia" class="action-pdf">Exportar a PDF</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Pantalla de bienvenida (visible cuando no hay mensajes) -->
-                <div id="welcome-screen-ia" class="chat-welcome-screen">
-                    <div class="welcome-content">
-                        <h1>AGENTE OBR</h1>
-                        <p>Tu asistente mecánico inteligente. Pregunta sobre fallas, mantenimiento o diagnósticos.</p>
-                        <div class="welcome-cards">
-                            <div class="welcome-card">
-                                <h3>📝 Ejemplos</h3>
-                                <ul>
-                                    <li>"¿Por qué mi moto no enciende?"</li>
-                                    <li>"¿Cada cuánto cambiar el aceite?"</li>
-                                    <li>"Ruido en el motor al acelerar"</li>
-                                </ul>
-                            </div>
-                            <div class="welcome-card">
-                                <h3>⚙️ Capacidades</h3>
-                                <ul>
-                                    <li>Diagnóstico por síntomas</li>
-                                    <li>Análisis de imágenes</li>
-                                    <li>Recomendaciones de taller</li>
-                                </ul>
-                            </div>
-                            <div class="welcome-card">
-                                <h3>🔒 Limitaciones</h3>
-                                <ul>
-                                    <li>Solo temas mecánicos</li>
-                                    <li>No reemplaza una revisión física</li>
-                                    <li>Los precios son referenciales</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Contenedor de mensajes (oculto inicialmente) -->
-                <div id="messages-list-ia" class="chat-messages-list" style="display: none;"></div>
-
-                <!-- Área de entrada de texto -->
-                <div class="chat-input-area">
-                    <div class="chat-input-container">
-                        <textarea id="message-input-ia" rows="1" placeholder="Escribe tu consulta..."></textarea>
-                        <div class="chat-input-buttons">
-                            <button id="camera-ia" class="chat-btn-icon" title="Tomar foto">
-                                <i class="fas fa-camera"></i>
-                            </button>
-                            <button id="gallery-ia" class="chat-btn-icon" title="Subir imagen">
-                                <i class="fas fa-image"></i>
-                            </button>
-                            <button id="send-message-ia" class="chat-send-btn" title="Enviar">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
-                        </div>
-                    </div>
-                    <div id="image-preview-ia" class="chat-image-preview" style="display: none;">
-                        <img id="preview-img-ia">
-                        <button id="cancel-preview-ia" class="cancel-preview">✕</button>
-                    </div>
-                    <div class="chat-input-note">
-                        <span>🔊 Botones de voz y copia en cada mensaje. Escribe <strong>API : "clave"</strong> para cambiar la API key.</span>
-                    </div>
-                </div>
-            </main>
-        </div>
-    `;
-    document.body.appendChild(modal);
-
-    // === OBTENER REFERENCIAS (MISMOS NOMBRES QUE ANTES) ===
-    window._chatGroupsList = modal.querySelector('#groups-list-ia');
-    window._chatMessagesContainer = modal.querySelector('#messages-list-ia');
-    window._chatGroupTitle = null;          // Ya no se usa
-    window._chatServiceIdSpan = null;       // Ya no se usa
-    window._chatMessageInput = modal.querySelector('#message-input-ia');
-    window._chatSendBtn = modal.querySelector('#send-message-ia');
-    window._chatCameraBtn = modal.querySelector('#camera-ia');
-    window._chatGalleryBtn = modal.querySelector('#gallery-ia');
-    window._chatPreviewContainer = modal.querySelector('#image-preview-ia');
-    window._chatPreviewImg = modal.querySelector('#preview-img-ia');
-    window._chatCancelPreview = modal.querySelector('#cancel-preview-ia');
-    window._chatVincularBtn = modal.querySelector('#link-service-ia');
-    window._chatRenombrarBtn = modal.querySelector('#rename-group-ia');
-    window._chatEliminarBtn = modal.querySelector('#delete-group-ia');
-    window._chatExportarBtn = modal.querySelector('#export-pdf-ia');
-    window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
-    window._chatSearchInput = modal.querySelector('#search-group-ia');
-
-    // Elementos adicionales de la nueva interfaz
-    const welcomeScreen = modal.querySelector('#welcome-screen-ia');
-    const messagesContainer = window._chatMessagesContainer;
-    const triggerBtn = modal.querySelector('#chat-actions-trigger');
-    const dropdown = modal.querySelector('#chat-actions-dropdown');
-
-    // Función para mostrar/ocultar pantalla de bienvenida según si hay mensajes
-    const toggleWelcomeScreen = () => {
-        if (!messagesContainer) return;
-        const hasMessages = messagesContainer.children.length > 0;
-        if (welcomeScreen) welcomeScreen.style.display = hasMessages ? 'none' : 'flex';
-        messagesContainer.style.display = hasMessages ? 'flex' : 'none';
-    };
-
-    // Observar cambios en el contenedor de mensajes (para actualizar la bienvenida)
-    const observerMessages = new MutationObserver(() => toggleWelcomeScreen());
-    if (messagesContainer) {
-        observerMessages.observe(messagesContainer, { childList: true, subtree: false });
-    }
-    setTimeout(toggleWelcomeScreen, 200);
-
-    // Menú de acciones (tres puntos)
-    if (triggerBtn && dropdown) {
-        triggerBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            dropdown.classList.toggle('show');
-        });
-        document.addEventListener('click', () => {
-            dropdown.classList.remove('show');
-        });
-        dropdown.addEventListener('click', (e) => e.stopPropagation());
-    }
-
-    // Comportamiento del sidebar drawer en móvil
-    const sidebar = modal.querySelector('.chat-sidebar');
-    const toggleBtn = modal.querySelector('.chat-sidebar-toggle');
-    if (toggleBtn && sidebar) {
-        toggleBtn.addEventListener('click', () => {
-            sidebar.classList.toggle('open');
-        });
-        const mainEl = modal.querySelector('.chat-main');
-        if (mainEl) {
-            mainEl.addEventListener('click', () => {
-                if (sidebar.classList.contains('open')) sidebar.classList.remove('open');
-            });
+    // ========== 6. EXPORTAR PDF PROFESIONAL (con saltos de línea y sin iconos extraños) ==========
+    async function exportarChatPDF() {
+        if (!currentGroupId) return;
+        if (!window.jspdf) {
+            if (window.showToast) window.showToast("La librería PDF no está cargada", true);
+            return;
         }
-    }
+        const mensajesSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", currentGroupId)));
+        const mensajes = [];
+        mensajesSnap.forEach(doc => mensajes.push(doc.data()));
+        mensajes.sort((a, b) => a.timestamp - b.timestamp);
 
-    // Autoajuste del textarea
-    const textarea = window._chatMessageInput;
-    if (textarea) {
-        textarea.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-        });
-    }
-
-    // Eventos de los botones (exactamente igual que en la versión anterior)
-    if (window._chatSendBtn) window._chatSendBtn.onclick = enviarMensaje;
-    if (window._chatCameraBtn) window._chatCameraBtn.onclick = () => seleccionarImagen(true);
-    if (window._chatGalleryBtn) window._chatGalleryBtn.onclick = () => seleccionarImagen(false);
-    if (window._chatCancelPreview) window._chatCancelPreview.onclick = limpiarPreview;
-    if (window._chatVincularBtn) window._chatVincularBtn.onclick = mostrarListaServiciosParaVincular;
-    if (window._chatRenombrarBtn) window._chatRenombrarBtn.onclick = renombrarGrupo;
-    if (window._chatEliminarBtn) window._chatEliminarBtn.onclick = eliminarGrupo;
-    if (window._chatExportarBtn) window._chatExportarBtn.onclick = exportarChatPDF;
-    if (window._chatNewGroupBtn) window._chatNewGroupBtn.onclick = crearNuevoGrupo;
-    if (window._chatSearchInput) window._chatSearchInput.oninput = filtrarGrupos;
-    if (window._chatMessageInput) {
-        window._chatMessageInput.onkeypress = (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                enviarMensaje();
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        
+        // Cargar logo
+        const logoImg = new Image();
+        logoImg.src = 'logo_claro.png';
+        await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
+        
+        // Encabezado
+        pdf.setFillColor(255, 107, 0);
+        pdf.rect(0, 0, pageWidth, 20, 'F');
+        if (logoImg.complete && logoImg.naturalWidth > 0) {
+            pdf.addImage(logoImg, 'PNG', 10, 4, 15, 15);
+        }
+        pdf.setFontSize(16);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(255, 255, 255);
+        pdf.text("REPORTE DE CONVERSACIÓN - AGENTE OBR", logoImg.complete ? 28 : 15, 12.5);
+        pdf.setDrawColor(255, 107, 0);
+        pdf.line(10, 20, pageWidth - 10, 20);
+        
+        let y = 30;
+        pdf.setFontSize(10);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(0, 0, 0);
+        pdf.text(`Grupo: ${currentGroup.nombre}`, 10, y);
+        pdf.text(`Fecha de exportación: ${new Date().toLocaleString()}`, pageWidth - 60, y);
+        y += 10;
+        if (currentGroup.servicioId) {
+            pdf.setFont("helvetica", "bold");
+            pdf.text(`Servicio vinculado: ${currentGroup.servicioId}`, 10, y);
+            y += 8;
+            pdf.setFont("helvetica", "normal");
+        }
+        
+        // Preparar filas para autoTable
+        const bodyRows = mensajes.map(m => {
+            const autor = m.rol === 'usuario' ? '🧑‍🔧 Mecánico' : '🤖 AGENTE OBR';
+            const fecha = new Date(m.timestamp).toLocaleString();
+            let texto = limpiarMarkdown(m.texto || '');
+            if (m.imagenes && m.imagenes.length) {
+                texto += `\n[🖼️ Se adjuntaron ${m.imagenes.length} imagen(es)]`;
             }
-        };
+            // Reemplazar saltos de línea por espacios para que autoTable los maneje
+            texto = texto.replace(/\n/g, ' ');
+            return [autor, fecha, texto];
+        });
+        
+        pdf.autoTable({
+            startY: y,
+            head: [['Remitente', 'Fecha/Hora', 'Mensaje']],
+            body: bodyRows,
+            theme: 'striped',
+            styles: { fontSize: 9, cellPadding: 3, valign: 'top', overflow: 'linebreak' },
+            headStyles: { fillColor: [255, 107, 0], textColor: [255, 255, 255], fontStyle: 'bold' },
+            columnStyles: { 0: { cellWidth: 25 }, 1: { cellWidth: 35 }, 2: { cellWidth: 'auto' } },
+            margin: { left: 10, right: 10 }
+        });
+        
+        // Footer
+        const totalPages = pdf.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            pdf.setPage(i);
+            pdf.setFontSize(7);
+            pdf.setTextColor(100);
+            pdf.text(`AGENTE OBR - Asistente Mecánico Inteligente`, 10, pageHeight - 8);
+            pdf.text(`Página ${i} de ${totalPages}`, pageWidth - 20, pageHeight - 8);
+        }
+        pdf.save(`chat_${currentGroup.nombre.replace(/[^a-z0-9]/gi, '_')}.pdf`);
     }
 
-    // IMPORTANTE: NO se llama a aplicarTema() porque el tema se maneja completamente con CSS y variables.
-    // El CSS que ya tienes define colores según la clase .light-mode en el body.
-    return modal;
-}
-    
-    // ========== 8. FIRESTORE: GRUPOS Y MENSAJES ==========
+    // ========== 7. ACCIONES DE GRUPO (Firestore) ==========
     async function cargarGrupos() {
         if (groupsUnsubscribe) groupsUnsubscribe();
         const q = query(collection(db, "chat_grupos"), orderBy("creado", "desc"));
@@ -511,14 +405,10 @@ function crearModalChat() {
         grupos.forEach(g => {
             const div = document.createElement('div');
             div.className = 'grupo-item';
-            div.style.cssText = 'padding:8px 12px; border-radius:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;';
             if (currentGroupId === g.idDoc) {
-                div.style.backgroundColor = '#FF6B0020';
-                div.style.borderLeft = '3px solid #FF6B00';
-            } else {
-                div.style.backgroundColor = 'transparent';
+                div.classList.add('active');
             }
-            div.innerHTML = `<span style="font-weight:600;">${escapeHtml(g.nombre)}</span>${g.servicioId ? '<span style="font-size:10px; color:#a78bfa;">📎</span>' : ''}`;
+            div.innerHTML = `<span>${escapeHtml(g.nombre)}</span>${g.servicioId ? '<span class="text-accent text-xs ml-2">📎</span>' : ''}`;
             div.onclick = () => seleccionarGrupo(g);
             groupsList.appendChild(div);
         });
@@ -537,6 +427,11 @@ function crearModalChat() {
             snap.forEach(doc => mensajes.push(doc.data()));
             mensajes.sort((a, b) => a.timestamp - b.timestamp);
             renderMensajes(mensajes);
+            // Mostrar/ocultar pantalla de bienvenida
+            const welcomeScreen = document.querySelector('#welcome-screen-ia');
+            if (welcomeScreen) {
+                welcomeScreen.style.display = mensajes.length ? 'none' : 'flex';
+            }
         });
         const gruposActuales = await obtenerGrupos();
         renderListaGrupos(gruposActuales);
@@ -561,201 +456,6 @@ function crearModalChat() {
         seleccionarGrupo({ idDoc: docRef.id, ...nuevoGrupo });
     }
 
-    async function crearGrupoYEnviarMensaje(texto, imagen) {
-        const nombre = `Consulta ${new Date().toLocaleString()}`;
-        const nuevoGrupo = {
-            nombre: nombre,
-            servicioId: null,
-            creado: Date.now(),
-            creadoPor: auth.currentUser?.uid || 'unknown'
-        };
-        const docRef = await addDoc(collection(db, "chat_grupos"), nuevoGrupo);
-        const grupo = { idDoc: docRef.id, ...nuevoGrupo };
-        await seleccionarGrupo(grupo);
-        await enviarMensajeConTextoEImagen(texto, imagen);
-    }
-
-    // ========== 9. ENVÍO DE MENSAJES Y CONSULTA A GROQ ==========
-    async function enviarMensaje() {
-        const texto = window._chatMessageInput ? window._chatMessageInput.value.trim() : '';
-        const imagen = pendingImage;
-        if ((!texto && !imagen)) return;
-        if (!currentGroupId) {
-            await crearGrupoYEnviarMensaje(texto, imagen);
-            return;
-        }
-        await enviarMensajeConTextoEImagen(texto, imagen);
-    }
-
-    async function enviarMensajeConTextoEImagen(texto, imagen) {
-    // 🔥 DETECTAR COMANDO PARA CAMBIAR API KEY
-    if (texto && texto.trim().startsWith('API :')) {
-        const match = texto.match(/API\s*:\s*"([^"]+)"/);
-        if (match && match[1]) {
-            localStorage.setItem('groq_api_key', match[1]);
-            window.showToast("✅ API key actualizada correctamente");
-            // Agregar mensaje de confirmación al chat (como asistente)
-            const confirmMsg = {
-                grupoId: currentGroupId,
-                rol: 'asistente',
-                texto: '✅ API key actualizada. A partir de ahora usaré la nueva clave para las consultas.',
-                timestamp: Date.now(),
-                loading: false
-            };
-            await addDoc(collection(db, "chat_mensajes"), confirmMsg);
-        } else {
-            window.showToast("❌ Formato incorrecto. Usa: API : \"tu_api_key\"", true);
-            // También mostrar en el chat
-            const errorMsg = {
-                grupoId: currentGroupId,
-                rol: 'asistente',
-                texto: '❌ Formato incorrecto. Ejemplo: `API : "gsk_xxxxx"`',
-                timestamp: Date.now(),
-                loading: false
-            };
-            await addDoc(collection(db, "chat_mensajes"), errorMsg);
-        }
-        return; // Salir sin procesar como consulta normal
-    }
-
-    // --- Resto del código original (sin cambios) ---
-    if (!currentGroupId) return;
-    const mensaje = {
-        grupoId: currentGroupId,
-        rol: 'usuario',
-        texto: texto || (imagen ? '[Imagen adjunta]' : ''),
-        timestamp: Date.now(),
-        imagenes: imagen ? [imagen] : []
-    };
-    await addDoc(collection(db, "chat_mensajes"), mensaje);
-    if (window._chatMessageInput) window._chatMessageInput.value = '';
-    const imageTemp = imagen;
-    limpiarPreview();
-    const loadingMsg = {
-        grupoId: currentGroupId,
-        rol: 'asistente',
-        texto: '...',
-        timestamp: Date.now(),
-        loading: true
-    };
-    const loadingRef = await addDoc(collection(db, "chat_mensajes"), loadingMsg);
-    try {
-        const respuesta = await consultarGroqVision(texto, currentGroupId, imageTemp);
-        const respuestaLimpia = limpiarMarkdown(respuesta);
-        await updateDoc(loadingRef, { texto: respuestaLimpia, loading: false });
-    } catch (err) {
-        console.error('Error en enviarMensaje:', err);
-        await updateDoc(loadingRef, { 
-            texto: `Error al contactar con la IA: ${err.message}. Por favor, intenta más tarde.`, 
-            loading: false 
-        });
-    }
-}
-
-    async function consultarGroqVision(prompt, grupoId, imagenBase64) {
-    // Obtener API key de localStorage o usar la por defecto
-    let key = localStorage.getItem('groq_api_key');
-    if (!key) {
-        key = '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';
-    }
-    
-    if (!currentVisionModel) await initVisionModel();
-    const mensajesSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", grupoId)));
-    let mensajes = [];
-    mensajesSnap.forEach(doc => mensajes.push(doc.data()));
-    mensajes.sort((a, b) => b.timestamp - a.timestamp);
-    const ultimos5 = mensajes.slice(0, 5);
-    const historial = ultimos5.map(m => `${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`).join('\n');
-    const content = [];
-    let promptFinal = `Contexto:\n${historial}\n\nPregunta: ${prompt || 'Analiza la siguiente imagen'}`;
-    if (historial.length > 1500) promptFinal = promptFinal.slice(0, 1500);
-    content.push({ type: "text", text: promptFinal });
-    if (imagenBase64) {
-        let imageUrl = imagenBase64;
-        if (!imageUrl.startsWith('data:image')) {
-            imageUrl = `data:image/jpeg;base64,${imagenBase64}`;
-        }
-        content.push({ type: "image_url", image_url: { url: imageUrl } });
-    }
-    const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros analizando preguntas, imágenes, sonidos, videos, síntomas o códigos de error para detectar el problema de forma rápida, clara y profesional.
-
-REGLAS DE FORMATO (IMPORTANTE):
-- NO uses asteriscos dobles (**) ni ninguna otra sintaxis de markdown.
-- Usa emojis para hacer las respuestas más visuales y amigables (por ejemplo: 🔧, 🛠️, ⚠️, ✅, ❌, 📝, 🎯, etc.).
-- Para listas, usa guiones (-) o emojis al inicio de cada línea.
-- Separa las ideas con saltos de línea.
-- Sé conciso pero informativo.
-- Si la consulta no está relacionada con mecánica, responde únicamente: "❌ No puedo ayudarte con eso ahora, solo puedo responder temas relacionados con mecánica automotriz y motocicletas."`;
-
-    const requestBody = {
-        model: currentVisionModel,
-        messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: content }
-        ],
-        temperature: 0.7,
-        max_tokens: 1024
-    };
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-        body: JSON.stringify(requestBody)
-    });
-    if (!response.ok) {
-        const errorText = await response.text();
-        if (errorText.includes('decommissioned') || errorText.includes('not found')) {
-            localStorage.removeItem(MODEL_CACHE_KEY);
-            currentVisionModel = null;
-            const nuevoModelo = await initVisionModel();
-            const retryBody = { ...requestBody, model: nuevoModelo };
-            const retryResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-                body: JSON.stringify(retryBody)
-            });
-            if (!retryResponse.ok) throw new Error(`Error después de reintentar: ${await retryResponse.text()}`);
-            const retryData = await retryResponse.json();
-            return retryData.choices[0].message.content;
-        }
-        throw new Error(`Error ${response.status}: ${errorText}`);
-    }
-    const data = await response.json();
-    return data.choices[0].message.content;
-}
-
-    // ========== 10. MANEJO DE IMÁGENES ==========
-    function limpiarPreview() {
-        pendingImage = null;
-        if (window._chatPreviewContainer) window._chatPreviewContainer.style.display = 'none';
-        if (window._chatPreviewImg) window._chatPreviewImg.src = '';
-    }
-
-    function seleccionarImagen(usarCamara) {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = 'image/*';
-        if (usarCamara && navigator.mediaDevices) {
-            input.capture = 'environment';
-        }
-        input.onchange = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            let compressed = file;
-            if (file.size > 3 * 1024 * 1024 && typeof window.compressImage === 'function') {
-                compressed = await window.compressImage(file);
-            }
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                pendingImage = ev.target.result;
-                if (window._chatPreviewImg) window._chatPreviewImg.src = pendingImage;
-                if (window._chatPreviewContainer) window._chatPreviewContainer.style.display = 'block';
-            };
-            reader.readAsDataURL(compressed);
-        };
-        input.click();
-    }
-
-    // ========== 11. ACCIONES DE GRUPO ==========
     async function crearNuevoGrupo() {
         mostrarPrompt('Nombre del grupo', '', async (nombre) => {
             if (!nombre) return;
@@ -792,77 +492,6 @@ REGLAS DE FORMATO (IMPORTANTE):
         });
     }
 
-    // ========== 12. EXPORTAR PDF PROFESIONAL ==========
-    async function exportarChatPDF() {
-        if (!currentGroupId) return;
-        if (!window.jspdf) {
-            if (window.showToast) window.showToast("La librería PDF no está cargada", true);
-            return;
-        }
-        const mensajesSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", currentGroupId)));
-        const mensajes = [];
-        mensajesSnap.forEach(doc => mensajes.push(doc.data()));
-        mensajes.sort((a, b) => a.timestamp - b.timestamp);
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
-        const pageWidth = pdf.internal.pageSize.getWidth();
-        const logoImg = new Image();
-        logoImg.src = 'logo_oscuro.png';
-        await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
-        pdf.setFillColor(255, 107, 0);
-        pdf.rect(0, 0, pageWidth, 20, 'F');
-        if (logoImg.complete && logoImg.naturalWidth > 0) {
-            pdf.addImage(logoImg, 'PNG', 10, 4, 15, 15);
-        }
-        pdf.setFontSize(14);
-        pdf.setFont("helvetica", "bold");
-        pdf.setTextColor(255, 255, 255);
-        pdf.text("REPORTE DE CONVERSACIÓN IA", logoImg.complete ? 28 : 15, 12.5);
-        pdf.setDrawColor(255, 107, 0);
-        pdf.line(10, 20, pageWidth - 10, 20);
-        let y = 30;
-        pdf.setFontSize(10);
-        pdf.setFont("helvetica", "normal");
-        pdf.setTextColor(0, 0, 0);
-        pdf.text(`Grupo: ${currentGroup.nombre}`, 10, y);
-        pdf.text(`Fecha de exportación: ${new Date().toLocaleString()}`, pageWidth - 60, y);
-        y += 10;
-        if (currentGroup.servicioId) {
-            pdf.setFont("helvetica", "bold");
-            pdf.text(`Servicio vinculado: ${currentGroup.servicioId}`, 10, y);
-            y += 8;
-            pdf.setFont("helvetica", "normal");
-        }
-        const bodyRows = mensajes.map(m => {
-            const autor = m.rol === 'usuario' ? '👤 Cliente' : '🤖 Asistente IA';
-            const fecha = new Date(m.timestamp).toLocaleString();
-            let texto = limpiarMarkdown(m.texto || '');
-            if (m.imagenes && m.imagenes.length) {
-                texto += `\n[🖼️ Imagen adjunta: ${m.imagenes.length} foto(s)]`;
-            }
-            return [autor, fecha, texto];
-        });
-        pdf.autoTable({
-            startY: y,
-            head: [['Remitente', 'Fecha/Hora', 'Mensaje']],
-            body: bodyRows,
-            theme: 'striped',
-            styles: { fontSize: 8, cellPadding: 2.5, valign: 'top' },
-            headStyles: { fillColor: [255, 107, 0], textColor: [255, 255, 255], fontStyle: 'bold' },
-            columnStyles: { 0: { cellWidth: 25 }, 1: { cellWidth: 35 }, 2: { cellWidth: 'auto' } },
-            margin: { left: 10, right: 10 }
-        });
-        const totalPages = pdf.internal.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            pdf.setPage(i);
-            pdf.setFontSize(7);
-            pdf.setTextColor(100);
-            pdf.text(`OBR Moto Rescate - Documento generado por Asistente IA`, 10, pdf.internal.pageSize.getHeight() - 8);
-            pdf.text(`Página ${i} de ${totalPages}`, pageWidth - 20, pdf.internal.pageSize.getHeight() - 8);
-        }
-        pdf.save(`chat_${currentGroup.nombre}.pdf`);
-    }
-
     function filtrarGrupos() {
         const term = window._chatSearchInput ? window._chatSearchInput.value.toLowerCase() : '';
         const groupsList = window._chatGroupsList;
@@ -872,7 +501,196 @@ REGLAS DE FORMATO (IMPORTANTE):
         }
     }
 
-    // ========== 13. MODALES PERSONALIZADOS ==========
+    // ========== 8. MANEJO DE IMÁGENES ==========
+    function limpiarPreview() {
+        pendingImage = null;
+        if (window._chatPreviewContainer) window._chatPreviewContainer.style.display = 'none';
+        if (window._chatPreviewImg) window._chatPreviewImg.src = '';
+    }
+
+    function seleccionarImagen(usarCamara) {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        if (usarCamara && navigator.mediaDevices) {
+            input.capture = 'environment';
+        }
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            let compressed = file;
+            if (file.size > 3 * 1024 * 1024 && typeof window.compressImage === 'function') {
+                compressed = await window.compressImage(file);
+            }
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                pendingImage = ev.target.result;
+                if (window._chatPreviewImg) window._chatPreviewImg.src = pendingImage;
+                if (window._chatPreviewContainer) window._chatPreviewContainer.style.display = 'block';
+            };
+            reader.readAsDataURL(compressed);
+        };
+        input.click();
+    }
+
+    // ========== 9. ENVÍO DE MENSAJES Y CONSULTA A GROQ ==========
+    async function enviarMensaje() {
+        const texto = window._chatMessageInput ? window._chatMessageInput.value.trim() : '';
+        const imagen = pendingImage;
+        if ((!texto && !imagen)) return;
+        if (!currentGroupId) {
+            await crearGrupoYEnviarMensaje(texto, imagen);
+            return;
+        }
+        await enviarMensajeConTextoEImagen(texto, imagen);
+    }
+
+    async function crearGrupoYEnviarMensaje(texto, imagen) {
+        const nombre = `Consulta ${new Date().toLocaleString()}`;
+        const nuevoGrupo = {
+            nombre: nombre,
+            servicioId: null,
+            creado: Date.now(),
+            creadoPor: auth.currentUser?.uid || 'unknown'
+        };
+        const docRef = await addDoc(collection(db, "chat_grupos"), nuevoGrupo);
+        const grupo = { idDoc: docRef.id, ...nuevoGrupo };
+        await seleccionarGrupo(grupo);
+        await enviarMensajeConTextoEImagen(texto, imagen);
+    }
+
+    async function enviarMensajeConTextoEImagen(texto, imagen) {
+        if (!currentGroupId) return;
+        
+        // Detectar comando para cambiar API key
+        if (texto && texto.trim().startsWith('API :')) {
+            const match = texto.match(/API\s*:\s*"([^"]+)"/);
+            if (match && match[1]) {
+                localStorage.setItem('groq_api_key', match[1]);
+                window.showToast("✅ API key actualizada correctamente");
+                const confirmMsg = {
+                    grupoId: currentGroupId,
+                    rol: 'asistente',
+                    texto: '✅ API key actualizada. A partir de ahora usaré la nueva clave para las consultas.',
+                    timestamp: Date.now(),
+                    loading: false
+                };
+                await addDoc(collection(db, "chat_mensajes"), confirmMsg);
+            } else {
+                window.showToast("❌ Formato incorrecto. Usa: API : \"tu_api_key\"", true);
+                const errorMsg = {
+                    grupoId: currentGroupId,
+                    rol: 'asistente',
+                    texto: '❌ Formato incorrecto. Ejemplo: `API : "gsk_xxxxx"`',
+                    timestamp: Date.now(),
+                    loading: false
+                };
+                await addDoc(collection(db, "chat_mensajes"), errorMsg);
+            }
+            if (window._chatMessageInput) window._chatMessageInput.value = '';
+            return;
+        }
+        
+        const mensaje = {
+            grupoId: currentGroupId,
+            rol: 'usuario',
+            texto: texto || (imagen ? '[Imagen adjunta]' : ''),
+            timestamp: Date.now(),
+            imagenes: imagen ? [imagen] : []
+        };
+        await addDoc(collection(db, "chat_mensajes"), mensaje);
+        if (window._chatMessageInput) window._chatMessageInput.value = '';
+        const imageTemp = imagen;
+        limpiarPreview();
+        const loadingMsg = {
+            grupoId: currentGroupId,
+            rol: 'asistente',
+            texto: '...',
+            timestamp: Date.now(),
+            loading: true
+        };
+        const loadingRef = await addDoc(collection(db, "chat_mensajes"), loadingMsg);
+        try {
+            const respuesta = await consultarGroqVision(texto, currentGroupId, imageTemp);
+            const respuestaLimpia = limpiarMarkdown(respuesta);
+            await updateDoc(loadingRef, { texto: respuestaLimpia, loading: false });
+        } catch (err) {
+            console.error('Error en enviarMensaje:', err);
+            await updateDoc(loadingRef, { 
+                texto: `Error al contactar con la IA: ${err.message}. Por favor, intenta más tarde.`, 
+                loading: false 
+            });
+        }
+    }
+
+    async function consultarGroqVision(prompt, grupoId, imagenBase64) {
+        let key = getGroqApiKey();
+        if (!currentVisionModel) await initVisionModel();
+        const mensajesSnap = await getDocs(query(collection(db, "chat_mensajes"), where("grupoId", "==", grupoId)));
+        let mensajes = [];
+        mensajesSnap.forEach(doc => mensajes.push(doc.data()));
+        mensajes.sort((a, b) => b.timestamp - a.timestamp);
+        const ultimos5 = mensajes.slice(0, 5);
+        const historial = ultimos5.map(m => `${m.rol === 'usuario' ? 'Usuario' : 'Asistente'}: ${m.texto}`).join('\n');
+        const content = [];
+        let promptFinal = `Contexto:\n${historial}\n\nPregunta: ${prompt || 'Analiza la siguiente imagen'}`;
+        if (historial.length > 1500) promptFinal = promptFinal.slice(0, 1500);
+        content.push({ type: "text", text: promptFinal });
+        if (imagenBase64) {
+            let imageUrl = imagenBase64;
+            if (!imageUrl.startsWith('data:image')) {
+                imageUrl = `data:image/jpeg;base64,${imagenBase64}`;
+            }
+            content.push({ type: "image_url", image_url: { url: imageUrl } });
+        }
+        
+        const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros analizando preguntas, imágenes, sonidos, videos, síntomas o códigos de error para detectar el problema de forma rápida, clara y profesional.
+
+REGLAS DE FORMATO (IMPORTANTE):
+- NO uses asteriscos dobles (**) ni ninguna otra sintaxis de markdown.
+- Usa emojis para hacer las respuestas más visuales y amigables (por ejemplo: 🔧, 🛠️, ⚠️, ✅, ❌, 📝, 🎯, etc.).
+- Para listas, usa guiones (-) o emojis al inicio de cada línea.
+- Separa las ideas con saltos de línea.
+- Sé conciso pero informativo.
+- Si la consulta no está relacionada con mecánica, responde únicamente: "❌ No puedo ayudarte con eso ahora, solo puedo responder temas relacionados con mecánica automotriz y motocicletas."`;
+
+        const requestBody = {
+            model: currentVisionModel,
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: content }
+            ],
+            temperature: 0.7,
+            max_tokens: 1024
+        };
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+            body: JSON.stringify(requestBody)
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            if (errorText.includes('decommissioned') || errorText.includes('not found')) {
+                localStorage.removeItem(MODEL_CACHE_KEY);
+                currentVisionModel = null;
+                const nuevoModelo = await initVisionModel();
+                const retryBody = { ...requestBody, model: nuevoModelo };
+                const retryResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                    body: JSON.stringify(retryBody)
+                });
+                if (!retryResponse.ok) throw new Error(`Error después de reintentar: ${await retryResponse.text()}`);
+                const retryData = await retryResponse.json();
+                return retryData.choices[0].message.content;
+            }
+            throw new Error(`Error ${response.status}: ${errorText}`);
+        }
+        const data = await response.json();
+        return data.choices[0].message.content;
+    }
+
+    // ========== 10. MODALES PERSONALIZADOS ==========
     function mostrarPrompt(titulo, valorDefault, callback) {
         const modalId = 'modal-prompt-custom';
         let modalEl = document.getElementById(modalId);
@@ -931,25 +749,199 @@ REGLAS DE FORMATO (IMPORTANTE):
         modalEl.classList.remove('hidden');
     }
 
-    // ========== 14. INICIALIZACIÓN ==========
-  window.abrirChatIA = async () => {
-    if (!modal) {
-        crearModalChat();
-        await initVisionModel();
-        cargarGrupos();
+    // ========== 11. CREACIÓN DEL MODAL PRINCIPAL (NUEVO DISEÑO) ==========
+    function crearModalChat() {
+        if (modal) return modal;
+        modal = document.createElement('div');
+        modal.id = 'chat-ia-modal-dinamico';
+        modal.style.cssText = `
+            display: none !important;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000000dd;
+            backdrop-filter: blur(4px);
+            z-index: 1000000;
+            flex-direction: column;
+            font-family: system-ui, sans-serif;
+        `;
+        modal.innerHTML = `
+            <div class="chat-ia-container">
+                <button class="chat-sidebar-toggle" aria-label="Abrir menú de conversaciones">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <aside class="chat-sidebar">
+                    <div class="chat-sidebar-header">
+                        <h2>Conversaciones</h2>
+                    </div>
+                    <div class="chat-sidebar-search">
+                        <input type="text" id="search-group-ia" placeholder="Buscar conversación...">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <div id="groups-list-ia" class="chat-groups-list"></div>
+                    <button id="new-group-ia" class="chat-new-group-btn">
+                        <i class="fas fa-plus"></i> Nueva conversación
+                    </button>
+                </aside>
+                <main class="chat-main">
+                    <div class="chat-main-header">
+                        <h1>AGENTE OBR</h1>
+                        <div class="chat-actions-menu">
+                            <button id="chat-actions-trigger" class="chat-actions-trigger">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </button>
+                            <div id="chat-actions-dropdown" class="chat-actions-dropdown">
+                                <button id="link-service-ia" class="action-link">Vincular a servicio</button>
+                                <button id="rename-group-ia" class="action-rename">Renombrar grupo</button>
+                                <button id="delete-group-ia" class="action-delete">Eliminar grupo</button>
+                                <button id="export-pdf-ia" class="action-pdf">Exportar a PDF</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="welcome-screen-ia" class="chat-welcome-screen">
+                        <div class="welcome-content">
+                            <h1>AGENTE OBR</h1>
+                            <p>Tu asistente mecánico inteligente. Pregunta sobre fallas, mantenimiento o diagnósticos.</p>
+                            <div class="welcome-cards">
+                                <div class="welcome-card"><h3>📝 Ejemplos</h3><ul><li>"¿Por qué mi moto no enciende?"</li><li>"¿Cada cuánto cambiar el aceite?"</li><li>"Ruido en el motor al acelerar"</li></ul></div>
+                                <div class="welcome-card"><h3>⚙️ Capacidades</h3><ul><li>Diagnóstico por síntomas</li><li>Análisis de imágenes</li><li>Recomendaciones de taller</li></ul></div>
+                                <div class="welcome-card"><h3>🔒 Limitaciones</h3><ul><li>Solo temas mecánicos</li><li>No reemplaza una revisión física</li><li>Los precios son referenciales</li></ul></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="messages-list-ia" class="chat-messages-list" style="display: none;"></div>
+                    <div class="chat-input-area">
+                        <div class="chat-input-container">
+                            <textarea id="message-input-ia" rows="1" placeholder="Escribe tu consulta..."></textarea>
+                            <div class="chat-input-buttons">
+                                <button id="camera-ia" class="chat-btn-icon" title="Tomar foto"><i class="fas fa-camera"></i></button>
+                                <button id="gallery-ia" class="chat-btn-icon" title="Subir imagen"><i class="fas fa-image"></i></button>
+                                <button id="send-message-ia" class="chat-send-btn" title="Enviar"><i class="fas fa-paper-plane"></i></button>
+                            </div>
+                        </div>
+                        <div id="image-preview-ia" class="chat-image-preview" style="display: none;">
+                            <img id="preview-img-ia"><button id="cancel-preview-ia" class="cancel-preview">✕</button>
+                        </div>
+                        <div class="chat-input-note">
+                            <span>🔊 Botones de voz y copia en cada mensaje. Escribe <strong>API : "clave"</strong> para cambiar la API key.</span>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        
+        // Referencias
+        window._chatGroupsList = modal.querySelector('#groups-list-ia');
+        window._chatMessagesContainer = modal.querySelector('#messages-list-ia');
+        window._chatGroupTitle = null;
+        window._chatServiceIdSpan = null;
+        window._chatMessageInput = modal.querySelector('#message-input-ia');
+        window._chatSendBtn = modal.querySelector('#send-message-ia');
+        window._chatCameraBtn = modal.querySelector('#camera-ia');
+        window._chatGalleryBtn = modal.querySelector('#gallery-ia');
+        window._chatPreviewContainer = modal.querySelector('#image-preview-ia');
+        window._chatPreviewImg = modal.querySelector('#preview-img-ia');
+        window._chatCancelPreview = modal.querySelector('#cancel-preview-ia');
+        window._chatVincularBtn = modal.querySelector('#link-service-ia');
+        window._chatRenombrarBtn = modal.querySelector('#rename-group-ia');
+        window._chatEliminarBtn = modal.querySelector('#delete-group-ia');
+        window._chatExportarBtn = modal.querySelector('#export-pdf-ia');
+        window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
+        window._chatSearchInput = modal.querySelector('#search-group-ia');
+        
+        // Elementos adicionales
+        const welcomeScreen = modal.querySelector('#welcome-screen-ia');
+        const messagesContainer = window._chatMessagesContainer;
+        const triggerBtn = modal.querySelector('#chat-actions-trigger');
+        const dropdown = modal.querySelector('#chat-actions-dropdown');
+        
+        const toggleWelcomeScreen = () => {
+            if (!messagesContainer) return;
+            const hasMessages = messagesContainer.children.length > 0;
+            if (welcomeScreen) welcomeScreen.style.display = hasMessages ? 'none' : 'flex';
+            messagesContainer.style.display = hasMessages ? 'flex' : 'none';
+        };
+        
+        const observerMessages = new MutationObserver(() => toggleWelcomeScreen());
+        if (messagesContainer) observerMessages.observe(messagesContainer, { childList: true, subtree: false });
+        setTimeout(toggleWelcomeScreen, 200);
+        
+        // Menú acciones
+        if (triggerBtn && dropdown) {
+            triggerBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdown.classList.toggle('show');
+            });
+            document.addEventListener('click', () => dropdown.classList.remove('show'));
+            dropdown.addEventListener('click', (e) => e.stopPropagation());
+        }
+        
+        // Sidebar móvil
+        const sidebar = modal.querySelector('.chat-sidebar');
+        const toggleBtn = modal.querySelector('.chat-sidebar-toggle');
+        if (toggleBtn && sidebar) {
+            toggleBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
+            const mainEl = modal.querySelector('.chat-main');
+            if (mainEl) mainEl.addEventListener('click', () => sidebar.classList.remove('open'));
+        }
+        
+        // Autoajuste textarea
+        const textarea = window._chatMessageInput;
+        if (textarea) {
+            textarea.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            });
+        }
+        
+        // Eventos de botones
+        if (window._chatSendBtn) window._chatSendBtn.onclick = enviarMensaje;
+        if (window._chatCameraBtn) window._chatCameraBtn.onclick = () => seleccionarImagen(true);
+        if (window._chatGalleryBtn) window._chatGalleryBtn.onclick = () => seleccionarImagen(false);
+        if (window._chatCancelPreview) window._chatCancelPreview.onclick = limpiarPreview;
+        if (window._chatVincularBtn) window._chatVincularBtn.onclick = mostrarListaServiciosParaVincular;
+        if (window._chatRenombrarBtn) window._chatRenombrarBtn.onclick = renombrarGrupo;
+        if (window._chatEliminarBtn) window._chatEliminarBtn.onclick = eliminarGrupo;
+        if (window._chatExportarBtn) window._chatExportarBtn.onclick = exportarChatPDF;
+        if (window._chatNewGroupBtn) window._chatNewGroupBtn.onclick = crearNuevoGrupo;
+        if (window._chatSearchInput) window._chatSearchInput.oninput = filtrarGrupos;
+        if (window._chatMessageInput) {
+            window._chatMessageInput.onkeypress = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    enviarMensaje();
+                }
+            };
+        }
+        
+        return modal;
     }
-    if (modal) {
-        // Aplicar tema (ya lo hace, pero no mostrar si está oculto)
-        aplicarTema();
-        modal.style.display = 'flex';
-    }
-};
+    
+    // ========== 12. INICIALIZACIÓN ==========
+    window.abrirChatIA = async () => {
+        if (!modal) {
+            crearModalChat();
+            await initVisionModel().catch(e => {
+                console.warn("Error al inicializar modelo, usando por defecto");
+                currentVisionModel = 'llama-3.2-11b-vision-preview';
+            });
+            cargarGrupos();
+        }
+        if (modal) {
+            modal.style.display = 'flex';
+        }
+    };
+    
     const conectarBotonesExternos = () => {
         const floatBtn = document.getElementById('btn-chat-ai-float');
         if (floatBtn) floatBtn.onclick = window.abrirChatIA;
         const menuBtn = document.getElementById('btn-ia-menu');
         if (menuBtn) menuBtn.onclick = window.abrirChatIA;
     };
+    
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', conectarBotonesExternos);
     } else {
