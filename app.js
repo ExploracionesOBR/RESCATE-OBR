@@ -282,12 +282,9 @@ function crearModalChat() {
     `;
     modal.innerHTML = `
         <div class="chat-ia-container">
-            <!-- Botón toggle para móvil (sidebar drawer) -->
             <button class="chat-sidebar-toggle" aria-label="Abrir menú de conversaciones">
                 <i class="fas fa-bars"></i>
             </button>
-
-            <!-- Sidebar de conversaciones -->
             <aside class="chat-sidebar">
                 <div class="chat-sidebar-header">
                     <h2>Conversaciones</h2>
@@ -301,10 +298,7 @@ function crearModalChat() {
                     <i class="fas fa-plus"></i> Nueva conversación
                 </button>
             </aside>
-
-            <!-- Área principal de chat -->
             <main class="chat-main">
-                <!-- Cabecera: solo título y menú de acciones -->
                 <div class="chat-main-header">
                     <h1>AGENTE OBR</h1>
                     <div class="chat-actions-menu">
@@ -319,8 +313,6 @@ function crearModalChat() {
                         </div>
                     </div>
                 </div>
-
-                <!-- Pantalla de bienvenida (visible por defecto cuando no hay mensajes) -->
                 <div id="welcome-screen-ia" class="chat-welcome-screen">
                     <div class="welcome-content">
                         <h1>AGENTE OBR</h1>
@@ -353,11 +345,7 @@ function crearModalChat() {
                         </div>
                     </div>
                 </div>
-
-                <!-- Contenedor de mensajes (inicialmente oculto hasta que haya mensajes) -->
                 <div id="messages-list-ia" class="chat-messages-list" style="display: none;"></div>
-
-                <!-- Área de entrada de texto (rediseñada) -->
                 <div class="chat-input-area">
                     <div class="chat-input-container">
                         <textarea id="message-input-ia" rows="1" placeholder="Escribe tu consulta..."></textarea>
@@ -390,7 +378,7 @@ function crearModalChat() {
     window._chatGroupsList = modal.querySelector('#groups-list-ia');
     window._chatMessagesContainer = modal.querySelector('#messages-list-ia');
     window._chatGroupTitle = null; // ya no se usa (se reemplaza por el título fijo)
-    window._chatServiceIdSpan = null; // se puede integrar en la cabecera, pero por simplicidad se omite (la funcionalidad sigue igual)
+    window._chatServiceIdSpan = null; // se omite (la funcionalidad sigue igual)
     window._chatMessageInput = modal.querySelector('#message-input-ia');
     window._chatSendBtn = modal.querySelector('#send-message-ia');
     window._chatCameraBtn = modal.querySelector('#camera-ia');
@@ -405,13 +393,13 @@ function crearModalChat() {
     window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
     window._chatSearchInput = modal.querySelector('#search-group-ia');
 
-    // Elementos adicionales para la interfaz
+    // Elementos adicionales
     const welcomeScreen = modal.querySelector('#welcome-screen-ia');
     const messagesContainer = window._chatMessagesContainer;
     const triggerBtn = modal.querySelector('#chat-actions-trigger');
     const dropdown = modal.querySelector('#chat-actions-dropdown');
 
-    // Función para mostrar/ocultar la pantalla de bienvenida según si hay mensajes
+    // Función para mostrar/ocultar pantalla de bienvenida según si hay mensajes
     const toggleWelcomeScreen = () => {
         if (!messagesContainer) return;
         const hasMessages = messagesContainer.children.length > 0;
@@ -419,33 +407,12 @@ function crearModalChat() {
         messagesContainer.style.display = hasMessages ? 'flex' : 'none';
     };
 
-    // Sobrescribir la función original renderMensajes para que además controle la pantalla de bienvenida
-    const originalRenderMensajes = window.renderMensajes;
-    if (originalRenderMensajes) {
-        window.renderMensajes = function(mensajes) {
-            originalRenderMensajes(mensajes);
-            toggleWelcomeScreen();
-        };
+    // Observar cambios en el contenedor de mensajes (para actualizar la bienvenida)
+    const observerMessages = new MutationObserver(() => toggleWelcomeScreen());
+    if (messagesContainer) {
+        observerMessages.observe(messagesContainer, { childList: true, subtree: false });
     }
-
-    // Cada vez que se seleccione un grupo, se debe comprobar si hay mensajes
-    const originalSeleccionarGrupo = window.seleccionarGrupo;
-    if (originalSeleccionarGrupo) {
-        window.seleccionarGrupo = async function(grupo) {
-            await originalSeleccionarGrupo(grupo);
-            // Pequeña espera para que onSnapshot actualice los mensajes
-            setTimeout(toggleWelcomeScreen, 100);
-        };
-    }
-
-    // Al enviar un mensaje, también se debe ocultar la pantalla de bienvenida
-    const originalEnviarMensaje = window.enviarMensaje;
-    if (originalEnviarMensaje) {
-        window.enviarMensaje = async function() {
-            await originalEnviarMensaje();
-            setTimeout(toggleWelcomeScreen, 100);
-        };
-    }
+    setTimeout(toggleWelcomeScreen, 200);
 
     // Menú de acciones (tres puntos)
     if (triggerBtn && dropdown) {
@@ -466,15 +433,15 @@ function crearModalChat() {
         toggleBtn.addEventListener('click', () => {
             sidebar.classList.toggle('open');
         });
-        // Cerrar sidebar al hacer clic fuera (en el main)
-        modal.querySelector('.chat-main').addEventListener('click', (e) => {
-            if (sidebar.classList.contains('open')) {
-                sidebar.classList.remove('open');
-            }
-        });
+        const mainEl = modal.querySelector('.chat-main');
+        if (mainEl) {
+            mainEl.addEventListener('click', () => {
+                if (sidebar.classList.contains('open')) sidebar.classList.remove('open');
+            });
+        }
     }
 
-    // Ajustar altura del textarea automáticamente
+    // Autoajuste del textarea
     const textarea = window._chatMessageInput;
     if (textarea) {
         textarea.addEventListener('input', function() {
@@ -483,7 +450,7 @@ function crearModalChat() {
         });
     }
 
-    // Eventos de los botones (igual que antes)
+    // Eventos de los botones (igual que en la versión original)
     if (window._chatSendBtn) window._chatSendBtn.onclick = enviarMensaje;
     if (window._chatCameraBtn) window._chatCameraBtn.onclick = () => seleccionarImagen(true);
     if (window._chatGalleryBtn) window._chatGalleryBtn.onclick = () => seleccionarImagen(false);
@@ -503,32 +470,12 @@ function crearModalChat() {
         };
     }
 
-    // Aplicar tema y observer
-    // ========== 7. TEMAS (claro/oscuro) ==========
-function aplicarTema() {
-    if (!modal) return;
-    const isLight = document.body.classList.contains('light-mode');
-    const bg = isLight ? '#ffffff' : '#1A1A1A';
-    const text = isLight ? '#111111' : '#ffffff';
-    const border = isLight ? '#ddd' : '#333';
-    const panelBg = isLight ? '#f9f9f9' : '#111111';
-    const inputBg = isLight ? '#ffffff' : '#2a2a2a';
-    const headerBg = isLight ? '#f0f0f0' : '#0f0f0f';
-    const textMuted = isLight ? '#6b7280' : '#9ca3af';
-    const inputAreaBg = isLight ? '#f5f5f5' : '#000000';
-    const container = modal.querySelector('.chat-ia-container');
-    if (container) {
-        container.style.setProperty('--bg-color', bg);
-        container.style.setProperty('--text-color', text);
-        container.style.setProperty('--border-color', border);
-        container.style.setProperty('--panel-bg', panelBg);
-        container.style.setProperty('--input-bg', inputBg);
-        container.style.setProperty('--header-bg', headerBg);
-        container.style.setProperty('--text-muted', textMuted);
-        container.style.setProperty('--input-area-bg', inputAreaBg);
-    }
-}
+    // El tema se aplica globalmente con las clases CSS y las variables definidas en el CSS.
+    // No es necesario llamar a aplicarTema() aquí para evitar errores.
 
+    return modal;
+}
+    
     // ========== 8. FIRESTORE: GRUPOS Y MENSAJES ==========
     async function cargarGrupos() {
         if (groupsUnsubscribe) groupsUnsubscribe();
