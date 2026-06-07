@@ -1011,3 +1011,24 @@ header.sticky,
         right: calc(12px + var(--safe-area-right)) !important;
     }
 }
+#star-rating i {
+    cursor: pointer;
+    transition: color 0.2s;
+}
+#star-rating i.active,
+#star-rating i.hover {
+    color: #FF6B00;
+}
+#star-rating i.hover-half {
+    color: #FF6B00;
+    position: relative;
+}
+#star-rating i.hover-half::before {
+    content: "\f089"; /* media estrella */
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    position: absolute;
+    left: 0;
+    width: 50%;
+    overflow: hidden;
+}
