@@ -106,7 +106,7 @@ function escapeHtml(str) {
         return limpio;
     }
 
-    // ========== 3. DETECCIÓN DEL MEJOR MODELO DE VISIÓN ==========
+    // ========== 3. DETECCIÓN DEL MEJOR MODELO DE VISIÓN (CORREGIDO) ==========
     async function obtenerMejorModeloVision() {
         const cached = localStorage.getItem(MODEL_CACHE_KEY);
         if (cached) {
@@ -122,22 +122,21 @@ function escapeHtml(str) {
             });
             if (!response.ok) {
                 console.warn("No se pudo obtener lista de modelos, usando modelo por defecto");
-                return 'llama-3.2-11b-vision-preview';
+                return 'llama-3.2-90b-vision-preview';
             }
             const data = await response.json();
+            // Filtrar modelos de visión compatibles y no obsoletos
             const visionModels = data.data.filter(m => 
-                m.id.includes('vision') || 
-                m.id.includes('llama-4-scout') || 
-                (m.id.includes('llama') && m.id.includes('instruct'))
+                m.id.includes('vision') && (m.id.includes('90b') || m.id.includes('11b'))
             );
-            if (visionModels.length === 0) return 'llama-3.2-11b-vision-preview';
+            if (visionModels.length === 0) return 'llama-3.2-90b-vision-preview';
             visionModels.sort((a, b) => (b.created || 0) - (a.created || 0));
             const selected = visionModels[0].id;
             localStorage.setItem(MODEL_CACHE_KEY, JSON.stringify({ model: selected, timestamp: Date.now() }));
             return selected;
         } catch (error) {
             console.warn("Error fetching models:", error);
-            return 'llama-3.2-11b-vision-preview';
+            return 'llama-3.2-90b-vision-preview';
         }
     }
 
@@ -697,7 +696,7 @@ function escapeHtml(str) {
             content.push({ type: "image_url", image_url: { url: imageUrl } });
         }
         
-        // System prompt (asegurar que no esté vacío)
+        // System prompt
         const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros. 
 
 REGLAS DE FORMATO (IMPORTANTE):
@@ -732,8 +731,8 @@ REGLAS DE FORMATO (IMPORTANTE):
         if (!response.ok) {
             const errorText = await response.text();
             console.error('Groq API error:', errorText);
-            // Si el error es 400, puede ser por el modelo no soportado
-            if (errorText.includes('model') || errorText.includes('not found')) {
+            // Si el error es por modelo descontinuado, limpiar caché y reintentar con el modelo por defecto
+            if (errorText.includes('decommissioned') || errorText.includes('model')) {
                 localStorage.removeItem(MODEL_CACHE_KEY);
                 currentVisionModel = null;
                 const nuevoModelo = await initVisionModel();
@@ -812,7 +811,7 @@ REGLAS DE FORMATO (IMPORTANTE):
         modalEl.classList.remove('hidden');
     }
 
-    // ========== 11. CREACIÓN DEL MODAL PRINCIPAL (con pantalla de bienvenida más lenta) ==========
+    // ========== 11. CREACIÓN DEL MODAL PRINCIPAL (con pantalla de bienvenida y botón de cierre) ==========
     function crearModalChat() {
         if (modal) return modal;
         modal = document.createElement('div');
@@ -844,13 +843,18 @@ REGLAS DE FORMATO (IMPORTANTE):
                             <button class="chat-sidebar-toggle" aria-label="Abrir menú"><i class="fas fa-bars"></i></button>
                             <h1>AGENTE OBR</h1>
                         </div>
-                        <div class="chat-actions-menu">
-                            <button id="chat-actions-trigger" class="chat-actions-trigger"><i class="fas fa-ellipsis-v"></i></button>
-                            <div id="chat-actions-dropdown" class="chat-actions-dropdown">
-                                <button id="link-service-ia" class="action-link">Vincular a servicio</button>
-                                <button id="rename-group-ia" class="action-rename">Renombrar grupo</button>
-                                <button id="delete-group-ia" class="action-delete">Eliminar grupo</button>
-                                <button id="export-pdf-ia" class="action-pdf">Exportar a PDF</button>
+                        <div class="chat-actions">
+                            <button id="close-chat-ia-modal" class="chat-close-btn" title="Cerrar">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <div class="chat-actions-menu">
+                                <button id="chat-actions-trigger" class="chat-actions-trigger"><i class="fas fa-ellipsis-v"></i></button>
+                                <div id="chat-actions-dropdown" class="chat-actions-dropdown">
+                                    <button id="link-service-ia" class="action-link">Vincular a servicio</button>
+                                    <button id="rename-group-ia" class="action-rename">Renombrar grupo</button>
+                                    <button id="delete-group-ia" class="action-delete">Eliminar grupo</button>
+                                    <button id="export-pdf-ia" class="action-pdf">Exportar a PDF</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -901,6 +905,14 @@ REGLAS DE FORMATO (IMPORTANTE):
         window._chatExportarBtn = modal.querySelector('#export-pdf-ia');
         window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
         window._chatSearchInput = modal.querySelector('#search-group-ia');
+
+        // Botón de cierre
+        const closeModalBtn = modal.querySelector('#close-chat-ia-modal');
+        if (closeModalBtn) {
+            closeModalBtn.onclick = () => {
+                window.cerrarChatIA();
+            };
+        }
 
         // Pantalla de bienvenida con timeout más largo (1500ms)
         const welcomeScreen = modal.querySelector('#welcome-screen-ia');
@@ -970,13 +982,17 @@ REGLAS DE FORMATO (IMPORTANTE):
         return modal;
     }
 
-    // ========== 12. INICIALIZACIÓN ==========
+    // ========== 12. INICIALIZACIÓN Y CIERRE ==========
+    window.cerrarChatIA = () => {
+        if (modal) modal.style.display = 'none';
+    };
+
     window.abrirChatIA = async () => {
         if (!modal) {
             crearModalChat();
             await initVisionModel().catch(e => {
                 console.warn("Error al inicializar modelo, usando por defecto");
-                currentVisionModel = 'llama-3.2-11b-vision-preview';
+                currentVisionModel = 'llama-3.2-90b-vision-preview';
             });
             cargarGrupos();
         }
