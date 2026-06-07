@@ -2533,6 +2533,26 @@ function listenToMySOS() {
 
         const data = snap.val();
 
+        // Actualizar tarjeta de taller (si la moto está en el taller)
+if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
+    const wsCard = document.getElementById('active-workshop-card');
+    if (wsCard) {
+        wsCard.classList.remove('hidden');
+        const steps = { 'recibida': 1, 'mecanica': 2, 'pruebas': 3, 'lista': 4 };
+        const currentStep = steps[data.tallerStatus] || 0;
+        const wsProgress = document.getElementById('client-ws-progress');
+        if (wsProgress) wsProgress.style.width = ((currentStep - 1) * 33.33) + '%';
+        const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
+        wsTexts.forEach((id, idx) => {
+            const el = document.getElementById(id);
+            if (el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
+        });
+    }
+} else {
+    const wsCard = document.getElementById('active-workshop-card');
+    if (wsCard) wsCard.classList.add('hidden');
+}
+
         // Mostrar tarjeta activa y ocultar mensaje de "sin actividad"
         if (activeCard) activeCard.classList.remove('hidden');
         if (noServicesMsg) noServicesMsg.classList.add('hidden');
@@ -2719,12 +2739,12 @@ function listenToMySOS() {
                 routingControl.remove();
                 routingControl = null;
             }
-            if (window.clientMapInstance) {
-                if (window.clientMapMarkers.mech) window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
-                if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                window.clientMapMarkers.mech = null;
-                window.clientMapMarkers.client = null;
-            }
+           if (window.clientMapInstance) {
+    if (window.clientMapMarkers.mech) window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+    if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+    window.clientMapMarkers.mech = null;
+    window.clientMapMarkers.client = null;
+}
             if (mechPosUnsubscribe) mechPosUnsubscribe();
         }
 
@@ -2812,12 +2832,58 @@ window.abrirChatSOS = () => {
 // ===== Funciones globales que estaban mal ubicadas dentro de listenToMySOS =====
 window.openSOSDetailClient = function() {};
 
-window.setRating = r => {
-    window.currentRating = r; 
-    const stars = document.getElementById('star-rating').children;
-    for(let i=0; i<5; i++) stars[i].classList.toggle('text-naranja', i < r);
-    document.getElementById('survey-comments').classList.toggle('hidden', r >= 3);
+window.setRating = (rating) => {
+    window.currentRating = rating;
+    const stars = document.querySelectorAll('#star-rating i');
+    stars.forEach(star => {
+        const val = parseFloat(star.getAttribute('data-value'));
+        if (val <= rating) {
+            star.className = 'fas fa-star';
+        } else if (val - 0.5 === rating) {
+            star.className = 'fas fa-star-half-alt';
+        } else {
+            star.className = 'far fa-star';
+        }
+    });
+    document.getElementById('survey-comments').classList.toggle('hidden', rating >= 3);
 };
+
+// Manejar hover y clic
+document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('star-rating');
+    if (!container) return;
+    container.addEventListener('mouseover', (e) => {
+        const star = e.target.closest('i');
+        if (!star) return;
+        const val = parseFloat(star.getAttribute('data-value'));
+        const stars = container.querySelectorAll('i');
+        stars.forEach(s => {
+            const sVal = parseFloat(s.getAttribute('data-value'));
+            if (sVal <= val) {
+                if (sVal === val && val % 1 !== 0) {
+                    s.className = 'fas fa-star-half-alt hover';
+                } else {
+                    s.className = 'fas fa-star hover';
+                }
+            } else {
+                s.className = 'far fa-star hover';
+            }
+        });
+    });
+    container.addEventListener('mouseout', () => {
+        if (window.currentRating) {
+            window.setRating(window.currentRating);
+        } else {
+            container.querySelectorAll('i').forEach(s => s.className = 'far fa-star');
+        }
+    });
+    container.addEventListener('click', (e) => {
+        const star = e.target.closest('i');
+        if (!star) return;
+        const val = parseFloat(star.getAttribute('data-value'));
+        window.setRating(val);
+    });
+});
 
 window.submitSurvey = async () => {
     if(!window.currentRating) return showToast("Selecciona una calificación", true);
@@ -2830,8 +2896,8 @@ window.submitSurvey = async () => {
         timestamp: Date.now(), 
         mechName: window.currentUserDoc.name || 'Mecánico' 
     });
-    document.getElementById('satisfaction-survey').classList.add('hidden'); 
-    document.getElementById('no-active-services-msg')?.classList.remove('hidden'); 
+    document.getElementById('satisfaction-survey').classList.add('hidden');
+document.getElementById('no-active-services-msg').classList.remove('hidden'); 
     showToast("¡Gracias!");
 };
 // === ADMIN TALLER Y CITAS (organizado por bloques, solo "lista" es solo lectura) ===
@@ -3275,14 +3341,11 @@ window.openDetalleServicio = async (id) => {
         actionsContainer.innerHTML = '';
         if (isPending) {
             // Mostrar botones: Asignar, Cancelar
-            actionsContainer.innerHTML = `
-                <button onclick="window.asignarMecanicoDesdeDetalle('${id}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">
-                    <i class="fas fa-user-plus mr-2"></i>Asignar Mecánico
-                </button>
-                <button onclick="window.cancelSOS('${id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">
-                    <i class="fas fa-times mr-2"></i>Cancelar
-                </button>
-            `;
+actionsContainer.innerHTML = `
+    <button onclick="window.cambiarEstadoServicio('mecanica')" class="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Mecánica</button>
+    <button onclick="window.cambiarEstadoServicio('pruebas')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Pruebas</button>
+    <button onclick="window.abrirCobroDesdeDetalle()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Cobrar</button>
+`;
         } else if (isAccepted) {
             // Mostrar botones de taller
             actionsContainer.innerHTML = `
@@ -5909,9 +5972,9 @@ async function renderSOSMapa() {
     }
 
     Object.values(adminSOSMarkers).forEach(m => {
-        if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.removeLayer(m);
-    });
-    adminSOSMarkers = {};
+    if (adminSOSGlobalMapInst && m && m.remove) m.remove();
+});
+adminSOSMarkers = {};
 
     if (window._adminSOSTrackingListeners) {
         Object.values(window._adminSOSTrackingListeners).forEach(unsub => unsub());
