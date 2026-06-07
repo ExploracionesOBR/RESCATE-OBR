@@ -8635,37 +8635,16 @@ window.exportUserHistoryPDF = async () => {
     pdfDoc.save(`Historial_Clinico_${user.name || 'Cliente'}.pdf`);
 };
 // =========================================================================
-// 🎨 MOTOR VISUAL GLOBAL Y CONFIGURACIÓN DE LIENZO PRESET
+// 🎨 MOTOR VISUAL GLOBAL Y CONFIGURACIÓN DE LIENZO PRESET (CORREGIDO)
 // =========================================================================
 window._setupProfessionalPDF = (doc, title, logoImg = null) => {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     
-    // 1. Limpieza de Fondo de Hoja
-    doc.setFillColor(255, 255, 255);
-    doc.rect(0, 0, pageWidth, pageHeight, 'F');
+    // ⚠️ ELIMINAMOS LA LIMPIEZA DE FONDO Y EL REDIBUJADO DEL ENCABEZADO
+    // para no interferir con el contenido que ya se ha dibujado.
     
-    // 2. Encabezado Premium - Barra Institucional OBR
-    doc.setFillColor(255, 107, 0);
-    doc.rect(0, 0, pageWidth, 28, 'F');
-    
-    // 3. Inserción Controlada de Logotipo en Canvas
-    if (logoImg && logoImg.complete && logoImg.naturalWidth > 0) {
-        doc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
-    }
-    
-    // 4. Tipografía y Posición del Título Corporativo
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(255, 255, 255);
-    doc.text(title.toUpperCase(), logoImg && logoImg.complete ? 36 : 12, 17.5);
-    
-    // 5. Línea Estética de Acento de Taller
-    doc.setDrawColor(255, 107, 0);
-    doc.setLineWidth(0.8);
-    doc.line(12, 29, pageWidth - 12, 29);
-    
-    // 6. Callback de Retorno para Inyección Automatizada de Footer
+    // Solo retornamos el callback que añade el footer.
     const addFooter = (pdf) => {
         const totalPages = pdf.internal.getNumberOfPages();
         for (let i = 1; i <= totalPages; i++) {
@@ -8686,6 +8665,7 @@ window._setupProfessionalPDF = (doc, title, logoImg = null) => {
     };
     return addFooter;
 };
+
 
 // Helper Auxiliar: Constructor Automatizado de Tarjetas de Información (Cards)
 const _drawDataCard = (doc, x, y, width, height, title, rows) => {
