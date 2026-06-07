@@ -1,4 +1,5 @@
-/* ===== styles.css COMPLETO ===== */
+/* ===== styles.css COMPLETO (optimizado y sin duplicados) ===== */
+
 :root {
     --bg: #1A1A1A;
     --text: #ffffff;
@@ -205,6 +206,7 @@ body.light-mode {
 .sos-card-compact .actions { display: flex; gap: 0.5rem; margin-top: 0.25rem; flex-wrap: wrap; }
 .sos-card-compact .actions button { padding: 0.15rem 0.5rem; border-radius: 0.5rem; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; border: none; cursor: pointer; }
 
+/* Layouts responsivos */
 @media (min-width: 1024px) {
     .a-view-alertas .lg\:grid {
         display: grid;
@@ -229,9 +231,6 @@ body.light-mode {
     .a-view-alertas .lg\:col-span-2 {
         min-height: 600px;
     }
-}
-
-@media (min-width: 1280px) {
     body {
         padding: 0 2rem;
     }
@@ -577,7 +576,6 @@ input:focus, select:focus, textarea:focus {
     overflow: hidden;
     background: #000;
 }
-/* Ajuste para el video promocional en móviles */
 @media (max-width: 768px) {
     #video-banner-container video,
     #video-banner-container-client video {
@@ -654,22 +652,6 @@ button, label, .no-select {
     background-color: rgba(0,0,0,0.05) !important;
 }
 
-/* Ajustes de tamaño de fuente en móviles para mejorar manipulación */
-@media (max-width: 768px) {
-    body {
-        font-size: 15px;
-    }
-    input, select, textarea {
-        font-size: 16px !important;
-    }
-    .text-xs {
-        font-size: 0.75rem !important;
-    }
-    .text-sm {
-        font-size: 0.85rem !important;
-    }
-}
-
 /* Ajustes de espaciado para la barra de navegación inferior */
 nav.fixed.bottom-0 {
     padding-bottom: env(safe-area-inset-bottom, 0.75rem);
@@ -678,6 +660,8 @@ nav.fixed.bottom-0 {
 #a-view-pos {
     max-width: 100%;
 }
+
+/* Video banner */
 #video-banner-container {
     width: 100%;
     max-width: 100%;
@@ -720,7 +704,6 @@ nav.fixed.bottom-0 {
   position: relative;
   overflow: hidden;
 }
-
 .vip-shimmer-banner::before {
   content: '';
   position: absolute;
@@ -739,18 +722,12 @@ nav.fixed.bottom-0 {
   animation: vipShimmer 3s ease-in-out infinite;
   z-index: 5;
 }
-
 @keyframes vipShimmer {
-  0% {
-    transform: translateX(-100%);
-  }
-  50% {
-    transform: translateX(0%);
-  }
-  100% {
-    transform: translateX(0%);
-  }
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(0%); }
+  100% { transform: translateX(0%); }
 }
+
 #modal-contact button {
     white-space: nowrap;
 }
@@ -803,6 +780,7 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 #sos-service-dropdown div:hover {
     background-color: rgba(255, 107, 0, 0.3);
 }
+
 /* Contenedor del video (sin padding extra) */
 #video-banner-container,
 #video-banner-container-client {
@@ -813,26 +791,20 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
     overflow: hidden;
     background-color: #000;
 }
-
-/* Video que llena todo el contenedor sin bordes negros */
 #video-banner-container video,
 #video-banner-container-client video {
     width: 100%;
     height: 100%;
-    object-fit: cover;   /* Cambiado de 'contain' a 'cover' */
+    object-fit: cover;
     display: block;
     border-radius: 1rem;
 }
-
-/* En móviles, altura fija más pequeña (opcional) */
 @media (max-width: 768px) {
     #video-banner-container,
     #video-banner-container-client {
-        height: 170px;  /* Ajusta según tu diseño */
+        height: 170px;
     }
 }
-
-/* En escritorio, altura un poco mayor (opcional) */
 @media (min-width: 769px) {
     #video-banner-container,
     #video-banner-container-client {
@@ -853,7 +825,8 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
 .animate-pulse-soft {
     animation: soft-pulse 1.5s infinite ease-in-out;
 }
-/* El mapa siempre está presente pero invisible hasta que haya rescate */
+
+/* Mapa del cliente (oculto hasta que se active) */
 #mechanic-live-map {
     width: 100%;
     min-height: 250px !important;
@@ -862,32 +835,18 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
     border-radius: 0.75rem;
     transition: opacity 0.3s ease-in-out;
     opacity: 0;
-    pointer-events: none; /* Evita que el usuario interactúe cuando está oculto */
+    pointer-events: none;
 }
 #mechanic-live-map.visible {
     opacity: 1;
     pointer-events: auto;
 }
-
-#modal-chat-ai {
-    display: none !important;
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    background-color: rgba(0,0,0,0.95) !important;
-    backdrop-filter: blur(4px) !important;
-    z-index: 100000 !important;
-    overflow: auto !important;
-}
-#modal-chat-ai:not(.hidden) {
-    display: flex !important;
-}
-/* Asegurar que el mapa tenga margen inferior suficiente para no ser tapado por la barra de navegación */
+/* Fuerza altura mínima y fondo */
 #mechanic-live-map {
+    min-height: 250px !important;
+    height: auto !important;
+    background-color: #374151 !important;
+    border-radius: 0.75rem;
     margin-bottom: 1rem;
 }
 
@@ -896,58 +855,18 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
     padding-bottom: 80px;
 }
 
-/* Fuerza altura mínima y fondo del mapa */
-#mechanic-live-map {
-    min-height: 250px !important;
-    height: auto !important;
-    background-color: #374151 !important;
-    border-radius: 0.75rem;
-}
-
-/* Evita que la barra de navegación tape el contenido de la pestaña RESCATE */
-#c-view-rescate {
-    padding-bottom: 80px;
-}
-/* Ocultar atribuciones de Leaflet y CARTO */
+/* Leaflet: ocultar atribuciones y paneles de routing */
 .leaflet-control-attribution {
     display: none !important;
 }
-
-/* Estilo personalizado para el control de zoom */
-.leaflet-control-zoom {
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    border-radius: 8px;
-}
-.leaflet-control-zoom a {
-    background-color: #1A1A1A;
-    color: white;
-    width: 30px;
-    height: 30px;
-    line-height: 30px;
-    font-size: 18px;
-}
-.light-mode .leaflet-control-zoom a {
-    background-color: #f0f0f0;
-    color: black;
-}
-
-/* Ocultar atribuciones de Leaflet y CARTO */
-.leaflet-control-attribution {
-    display: none !important;
-}
-
-/* Ocultar paneles de instrucciones del routing machine */
 .leaflet-routing-container,
 .leaflet-routing-alt,
 .leaflet-routing-collapse-btn {
     display: none !important;
 }
-
-/* Ocultar posibles marcadores azules de personal (si quedan) */
 .leaflet-marker-icon.sos-personal-marker {
     display: none !important;
 }
-
 /* Estilo personalizado para el control de zoom */
 .leaflet-control-zoom {
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
@@ -965,6 +884,7 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
     background-color: #f0f0f0;
     color: black;
 }
+
 /* ===== ÁREA SEGURA (safe-area) PARA DISPOSITIVOS CON NOTCH ===== */
 :root {
     --safe-area-top: env(safe-area-inset-top, 0px);
@@ -972,16 +892,12 @@ body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10,
     --safe-area-left: env(safe-area-inset-left, 0px);
     --safe-area-right: env(safe-area-inset-right, 0px);
 }
-
-/* Ajuste general del body para evitar superposiciones */
 body {
     padding-top: var(--safe-area-top);
     padding-bottom: var(--safe-area-bottom);
     padding-left: var(--safe-area-left);
     padding-right: var(--safe-area-right);
 }
-
-/* Barras de navegación fijas (inferior y superior) */
 nav.fixed.bottom-0,
 #app-client nav,
 #app-admin nav {
@@ -989,28 +905,33 @@ nav.fixed.bottom-0,
     padding-left: calc(1rem + var(--safe-area-left));
     padding-right: calc(1rem + var(--safe-area-right));
 }
-
-/* Cabeceras fijas */
 header.sticky,
 .fixed.top-0 {
     padding-top: calc(1rem + var(--safe-area-top));
 }
-
-/* Botones flotantes (chat IA, invitación) */
+/* Botones flotantes (chat IA, invitación) – subidos un 20% más */
 #btn-chat-ai-float,
 #float-invite-btn {
-    bottom: calc(80px + var(--safe-area-bottom)) !important;
-    right: calc(16px + var(--safe-area-right)) !important;
+    bottom: calc(100px + var(--safe-area-bottom)) !important;
+    right: calc(20px + var(--safe-area-right)) !important;
 }
-
-/* En móviles, ajustar más */
+#admin-chat-float-btn {
+    bottom: calc(100px + var(--safe-area-bottom)) !important;
+    left: calc(12px + var(--safe-area-left)) !important;
+}
 @media (max-width: 768px) {
     #btn-chat-ai-float,
     #float-invite-btn {
-        bottom: calc(70px + var(--safe-area-bottom)) !important;
+        bottom: calc(90px + var(--safe-area-bottom)) !important;
         right: calc(12px + var(--safe-area-right)) !important;
     }
+    #admin-chat-float-btn {
+        bottom: calc(90px + var(--safe-area-bottom)) !important;
+        left: calc(8px + var(--safe-area-left)) !important;
+    }
 }
+
+/* ===== ESTRELLAS ENCUESTA (medias estrellas) ===== */
 #star-rating i {
     cursor: pointer;
     transition: color 0.2s;
@@ -1032,18 +953,8 @@ header.sticky,
     width: 50%;
     overflow: hidden;
 }
-@media (max-width: 768px) {
-    #chat-ia-modal-dinamico .chat-ia-container {
-        flex-direction: column;
-    }
-    #chat-ia-modal-dinamico .chat-ia-container > div:first-child {
-        width: 100% !important;
-        border-right: none;
-        border-bottom: 1px solid var(--border-color);
-    }
-}
 
-/* CHAT IA - AGENTE OBR */
+/* ===== CHAT IA - AGENTE OBR ===== */
 #chat-ia-modal-dinamico {
     --bg-color: #1A1A1A;
     --text-color: #ffffff;
@@ -1079,7 +990,6 @@ body.light-mode #chat-ia-modal-dinamico {
 #messages-list-ia .bg-naranja {
     background-color: #FF6B00;
 }
-/* Estilos para mensajes */
 #messages-list-ia > div {
     animation: fadeIn 0.2s ease;
 }
