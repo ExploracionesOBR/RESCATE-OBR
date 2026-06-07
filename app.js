@@ -262,7 +262,6 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== 6. CREACIÓN DEL MODAL PRINCIPAL (igual que antes, sin cambios) ==========
 function crearModalChat() {
     if (modal) return modal;
     modal = document.createElement('div');
@@ -282,9 +281,12 @@ function crearModalChat() {
     `;
     modal.innerHTML = `
         <div class="chat-ia-container">
+            <!-- Botón toggle para móvil -->
             <button class="chat-sidebar-toggle" aria-label="Abrir menú de conversaciones">
                 <i class="fas fa-bars"></i>
             </button>
+
+            <!-- Sidebar de conversaciones -->
             <aside class="chat-sidebar">
                 <div class="chat-sidebar-header">
                     <h2>Conversaciones</h2>
@@ -298,7 +300,10 @@ function crearModalChat() {
                     <i class="fas fa-plus"></i> Nueva conversación
                 </button>
             </aside>
+
+            <!-- Área principal de chat -->
             <main class="chat-main">
+                <!-- Cabecera: título + menú de acciones -->
                 <div class="chat-main-header">
                     <h1>AGENTE OBR</h1>
                     <div class="chat-actions-menu">
@@ -313,6 +318,8 @@ function crearModalChat() {
                         </div>
                     </div>
                 </div>
+
+                <!-- Pantalla de bienvenida (visible cuando no hay mensajes) -->
                 <div id="welcome-screen-ia" class="chat-welcome-screen">
                     <div class="welcome-content">
                         <h1>AGENTE OBR</h1>
@@ -322,7 +329,7 @@ function crearModalChat() {
                                 <h3>📝 Ejemplos</h3>
                                 <ul>
                                     <li>"¿Por qué mi moto no enciende?"</li>
-                                    <li>"Cada cuanto cambiar el aceite?"</li>
+                                    <li>"¿Cada cuánto cambiar el aceite?"</li>
                                     <li>"Ruido en el motor al acelerar"</li>
                                 </ul>
                             </div>
@@ -345,7 +352,11 @@ function crearModalChat() {
                         </div>
                     </div>
                 </div>
+
+                <!-- Contenedor de mensajes (oculto inicialmente) -->
                 <div id="messages-list-ia" class="chat-messages-list" style="display: none;"></div>
+
+                <!-- Área de entrada de texto -->
                 <div class="chat-input-area">
                     <div class="chat-input-container">
                         <textarea id="message-input-ia" rows="1" placeholder="Escribe tu consulta..."></textarea>
@@ -377,8 +388,8 @@ function crearModalChat() {
     // === OBTENER REFERENCIAS (MISMOS NOMBRES QUE ANTES) ===
     window._chatGroupsList = modal.querySelector('#groups-list-ia');
     window._chatMessagesContainer = modal.querySelector('#messages-list-ia');
-    window._chatGroupTitle = null; // ya no se usa (se reemplaza por el título fijo)
-    window._chatServiceIdSpan = null; // se omite (la funcionalidad sigue igual)
+    window._chatGroupTitle = null;          // Ya no se usa
+    window._chatServiceIdSpan = null;       // Ya no se usa
     window._chatMessageInput = modal.querySelector('#message-input-ia');
     window._chatSendBtn = modal.querySelector('#send-message-ia');
     window._chatCameraBtn = modal.querySelector('#camera-ia');
@@ -393,7 +404,7 @@ function crearModalChat() {
     window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
     window._chatSearchInput = modal.querySelector('#search-group-ia');
 
-    // Elementos adicionales
+    // Elementos adicionales de la nueva interfaz
     const welcomeScreen = modal.querySelector('#welcome-screen-ia');
     const messagesContainer = window._chatMessagesContainer;
     const triggerBtn = modal.querySelector('#chat-actions-trigger');
@@ -450,7 +461,7 @@ function crearModalChat() {
         });
     }
 
-    // Eventos de los botones (igual que en la versión original)
+    // Eventos de los botones (exactamente igual que en la versión anterior)
     if (window._chatSendBtn) window._chatSendBtn.onclick = enviarMensaje;
     if (window._chatCameraBtn) window._chatCameraBtn.onclick = () => seleccionarImagen(true);
     if (window._chatGalleryBtn) window._chatGalleryBtn.onclick = () => seleccionarImagen(false);
@@ -470,9 +481,8 @@ function crearModalChat() {
         };
     }
 
-    // El tema se aplica globalmente con las clases CSS y las variables definidas en el CSS.
-    // No es necesario llamar a aplicarTema() aquí para evitar errores.
-
+    // IMPORTANTE: NO se llama a aplicarTema() porque el tema se maneja completamente con CSS y variables.
+    // El CSS que ya tienes define colores según la clase .light-mode en el body.
     return modal;
 }
     
