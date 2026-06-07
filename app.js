@@ -3322,6 +3322,7 @@ window.guardarChecklistIngreso = async () => {
 window.adminIngresarServicioManual = window.abrirModalIngresoServicio;
 
 window.openDetalleServicio = async (id) => {
+    const soloLectura = data.tallerStatus === 'lista' || data.tallerStatus === 'pagado' || data.status === 'completed';
     const docSnap = await getDoc(doc(db, "rescates", id));
     if (!docSnap.exists()) return;
     const data = docSnap.data();
@@ -3342,9 +3343,10 @@ window.openDetalleServicio = async (id) => {
         if (isPending) {
             // Mostrar botones: Asignar, Cancelar
 actionsContainer.innerHTML = `
-    <button onclick="window.cambiarEstadoServicio('mecanica')" class="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Mecánica</button>
-    <button onclick="window.cambiarEstadoServicio('pruebas')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Pruebas</button>
-    <button onclick="window.abrirCobroDesdeDetalle()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Cobrar</button>
+    <button onclick="window.cambiarEstadoServicio('mecanica')" class="flex-1 bg-yellow-600 ...">Mecánica</button>
+    <button onclick="window.cambiarEstadoServicio('pruebas')" class="flex-1 bg-blue-600 ...">Pruebas</button>
+    <button onclick="window.abrirCobroDesdeDetalle()" class="flex-1 bg-indigo-600 ...">Cobrar</button>
+    <button onclick="window.ingresarATaller()" class="flex-1 bg-purple-600 ...">LLEVAR A TALLER</button>
 `;
         } else if (isAccepted) {
             // Mostrar botones de taller
@@ -3510,7 +3512,7 @@ window.openClientServiceDetail = async (id) => {
 
 window.downloadClientTicket = async (serviceId) => {
     const docSnap = await getDoc(doc(db, "rescates", serviceId));
-    if (!docSnap.exists()) return;
+    if (!docSnap.exists()) return showToast("Servicio no encontrado", true);
     const data = docSnap.data();
 
     const { jsPDF } = window.jspdf;
@@ -3520,6 +3522,7 @@ window.downloadClientTicket = async (serviceId) => {
     logoImg.src = 'logo_claro.png';
     await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
 
+    // Encabezado
     pdfDoc.setFillColor(255, 107, 0);
     pdfDoc.rect(0, 0, pageWidth, 28, 'F');
     if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
@@ -3531,52 +3534,44 @@ window.downloadClientTicket = async (serviceId) => {
     pdfDoc.line(12, 29, pageWidth - 12, 29);
 
     let y = 40;
-    _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 20, 'Registro de Admisión', [
-        { label: 'Folio Servicio:', value: String(data.shortId || 'Pendiente'), rightLabel: 'Ingreso:', rightValue: new Date(data.timestamp).toLocaleString('es-MX'), valueOffset: 20 },
-        { label: 'Cliente Asignado:', value: String(window.currentUserDoc?.name || data.clientName || 'No provisto'), rightLabel: 'Unidad:', rightValue: `${data.marca || ''} ${data.modelo || ''}`, valueOffset: 20 }
-    ]);
-    _drawStatusBadge(pdfDoc, pageWidth - 42, y + 3.5, data.status || 'En Proceso');
-    y += 28;
+    // Datos del servicio
+    pdfDoc.setFontSize(10);
+    pdfDoc.setFont("helvetica", "normal");
+    pdfDoc.setTextColor(0, 0, 0);
+    pdfDoc.text(`Folio: ${data.shortId || 'N/A'}`, 12, y);
+    pdfDoc.text(`Fecha: ${new Date(data.timestamp).toLocaleString()}`, 12, y + 6);
+    pdfDoc.text(`Cliente: ${data.clientName || data.phone || 'N/A'}`, 12, y + 12);
+    pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''} (${data.cc || ''})`, 12, y + 18);
+    y += 30;
 
     pdfDoc.setFont("helvetica", "bold");
-    pdfDoc.setFontSize(10);
-    pdfDoc.setTextColor(15, 23, 42);
-    pdfDoc.text("DECLARACIÓN DE DAÑOS / SÍNTOMAS:", 12, y);
-    y += 5;
+    pdfDoc.text("Falla reportada:", 12, y);
+    y += 6;
     pdfDoc.setFont("helvetica", "normal");
-    pdfDoc.setFontSize(9);
-    pdfDoc.setTextColor(71, 85, 105);
-    const descLines = pdfDoc.splitTextToSize(data.falla || 'Sin detalles adicionales registrados por el operador.', pageWidth - 24);
-    pdfDoc.text(descLines, 12, y);
-    y += (descLines.length * 4.5) + 6;
-
-    if (data.tallerStatus) {
-        pdfDoc.setFont("helvetica", "bold");
-        pdfDoc.setFontSize(9.5);
-        pdfDoc.setTextColor(30, 41, 59);
-        pdfDoc.text(`📍 Ubicación actual: ${data.tallerStatus}`, 12, y);
-        y += 8;
-    }
+    const fallaLines = pdfDoc.splitTextToSize(data.falla || 'Sin descripción', pageWidth - 24);
+    pdfDoc.text(fallaLines, 12, y);
+    y += fallaLines.length * 5 + 10;
 
     if (data.costoRescateEstimado) {
-        y += 2;
-        pdfDoc.setFillColor(255, 247, 237);
-        pdfDoc.setDrawColor(255, 237, 213);
-        pdfDoc.roundedRect(12, y, pageWidth - 24, 10, 1, 1, 'FD');
         pdfDoc.setFont("helvetica", "bold");
-        pdfDoc.setFontSize(9.5);
-        pdfDoc.setTextColor(194, 65, 12);
-        pdfDoc.text(`Presupuesto Límite Inicial Autorizado: $${Number(data.costoRescateEstimado).toFixed(2)} MXN`, 16, y + 6.5);
-        y += 14;
+        pdfDoc.text(`Costo estimado: $${data.costoRescateEstimado.toFixed(2)}`, 12, y);
+        y += 10;
     }
 
-    pdfDoc.setFontSize(7);
+    pdfDoc.setFontSize(8);
     pdfDoc.setTextColor(100);
-    pdfDoc.text("Nota: Los costos de refacciones críticas no contempladas se notificarán vía telefónica para la autorización del usuario antes de proceder.", 12, y);
+    pdfDoc.text("Este comprobante es de carácter informativo. Los costos finales pueden variar según refacciones.", 12, y);
 
-    const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE ADMISIÓN EN TALLER', logoImg);
-    addFooter(pdfDoc);
-    pdfDoc.save(`Ticket_Admision_${data.shortId || serviceId}.pdf`);
+    // Footer
+    const totalPages = pdfDoc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        pdfDoc.setPage(i);
+        pdfDoc.setFontSize(7);
+        pdfDoc.setTextColor(150);
+        pdfDoc.text(`Generado el ${new Date().toLocaleDateString()}`, 12, pdfDoc.internal.pageSize.getHeight() - 8);
+        pdfDoc.text(`Página ${i} de ${totalPages}`, pageWidth - 25, pdfDoc.internal.pageSize.getHeight() - 8);
+    }
+    pdfDoc.save(`Ticket_${data.shortId || serviceId}.pdf`);
 };
 // === CITAS DEL CLIENTE ===
 window.loadClientCitas = () => {
@@ -4739,17 +4734,18 @@ window.loadVentasRealizadas = async () => {
     container.innerHTML = '';
     snap.forEach(docSnap => {
         const v = docSnap.data();
-        container.innerHTML += `<div class="bg-white/5 border border-white/10 p-3 rounded-xl text-xs text-white flex justify-between items-center mb-2">
-            <div>
-                <span class="font-bold">${v.shortId}</span> - ${new Date(v.fecha).toLocaleDateString()}
-                <p class="text-gray-400">${v.desc?.substring(0,40)}</p>
-                <p class="text-naranja font-black">$${v.total?.toFixed(2)}</p>
+        const itemsCount = v.ticket ? v.ticket.length : 0;
+        container.innerHTML += `
+            <div class="bg-white/5 border border-white/10 p-3 rounded-xl text-xs text-white">
+                <div class="flex justify-between">
+                    <span class="font-bold">${v.shortId}</span>
+                    <span>${new Date(v.fecha).toLocaleDateString()}</span>
+                </div>
+                <p class="text-gray-400">${v.desc?.substring(0, 50) || `${itemsCount} productos`}</p>
+                <p class="text-naranja font-black">$${v.total?.toFixed(2) || '0.00'}</p>
+                <button onclick="window.reimprimirVenta('${docSnap.id}')" class="mt-1 bg-blue-600 text-white px-2 py-1 rounded text-[9px] font-bold uppercase">Reimprimir</button>
             </div>
-            <div>
-                <button onclick="window.reimprimirVenta('${docSnap.id}')" class="bg-blue-600 text-white px-2 py-1 rounded text-[9px] font-bold uppercase">Reimprimir</button>
-                ${v.garantias ? `<button onclick="window.verGarantiasVenta('${docSnap.id}')" class="bg-green-600 text-white px-2 py-1 rounded text-[9px] font-bold uppercase mt-1">Garantías</button>` : ''}
-            </div>
-        </div>`;
+        `;
     });
 };
 window.reimprimirVenta = async (ventaId) => {
@@ -9645,3 +9641,22 @@ if ('serviceWorker' in navigator) {
       }
     });
   }
+window.ingresarATaller = async () => {
+    if (!currentDetalleServicioId) return;
+    await updateDoc(doc(db, "rescates", currentDetalleServicioId), { 
+        tallerStatus: 'recibida',
+        status: 'completed'   // el cliente ya no lo ve como activo
+    });
+    // Notificar al cliente que la moto está en taller
+    showToast("Servicio enviado a taller. El cliente será notificado.");
+    toggleModal('modal-detalle-servicio', false);
+    window.cargarListadoSOS();
+    window.renderSOSMapa();
+};
+window.eliminarReferido = async (referidoId) => {
+    if (confirm("¿Eliminar este referido? Esta acción no se puede deshacer.")) {
+        await deleteDoc(doc(db, "referidos", referidoId));
+        window.cargarListaReferidos();
+        showToast("Referido eliminado");
+    }
+};
