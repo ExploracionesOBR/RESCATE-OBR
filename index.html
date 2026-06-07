@@ -439,13 +439,18 @@
             <div id="satisfaction-survey" class="hidden bg-black/50 p-6 rounded-3xl border border-naranja/50 shadow-2xl">
                 <p class="text-[10px] text-naranja font-black uppercase tracking-widest mb-2 text-center">¡Servicio Finalizado!</p>
                 <p class="text-sm text-white text-center mb-4 font-bold">¿Cómo calificarías a nuestro mecánico?</p>
-                <div class="flex justify-center space-x-3 text-3xl text-gray-600 mb-6" id="star-rating">
-                    <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(1)"></i>
-                    <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(2)"></i>
-                    <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(3)"></i>
-                    <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(4)"></i>
-                    <i class="fas fa-star cursor-pointer hover:text-naranja transition-colors" onclick="window.setRating?.(5)"></i>
-                </div>
+            <div class="flex justify-center items-center space-x-1 text-3xl mb-6" id="star-rating">
+    <i class="far fa-star" data-value="0.5"></i>
+    <i class="far fa-star" data-value="1"></i>
+    <i class="far fa-star" data-value="1.5"></i>
+    <i class="far fa-star" data-value="2"></i>
+    <i class="far fa-star" data-value="2.5"></i>
+    <i class="far fa-star" data-value="3"></i>
+    <i class="far fa-star" data-value="3.5"></i>
+    <i class="far fa-star" data-value="4"></i>
+    <i class="far fa-star" data-value="4.5"></i>
+    <i class="far fa-star" data-value="5"></i>
+</div>
                 <textarea id="survey-comments" placeholder="Cuéntanos qué podemos mejorar (opcional si es positiva)" rows="2" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white text-xs mb-3 hidden"></textarea>
                 <button onclick="window.submitSurvey?.()" class="w-full bg-naranja hover:bg-orange-600 text-white text-xs font-black uppercase py-3 rounded-xl transition-colors">Enviar Calificación</button>
             </div>
