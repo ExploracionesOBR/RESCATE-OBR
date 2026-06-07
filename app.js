@@ -3356,52 +3356,79 @@ window.guardarChecklistIngreso = async () => {
 window.adminIngresarServicioManual = window.abrirModalIngresoServicio;
 
 window.openDetalleServicio = async (id) => {
-    const soloLectura = data.tallerStatus === 'lista' || data.tallerStatus === 'pagado' || data.status === 'completed';
     const docSnap = await getDoc(doc(db, "rescates", id));
     if (!docSnap.exists()) return;
     const data = docSnap.data();
     currentDetalleServicioId = id;
-    const soloLectura = data.tallerStatus === 'lista' || data.tallerStatus === 'pagado';
-    const isPending = data.status === 'pending';  // Nuevo: si está pendiente de asignación
+    
+    // Declaración única
+    let soloLectura = data.tallerStatus === 'lista' || data.tallerStatus === 'pagado' || data.status === 'completed';
+    const isPending = data.status === 'pending';
     const isAccepted = data.status === 'accepted' || data.status === 'repairing';
 
-    // ... (código de llenado de datos, fotos, etc.)
+    // Llenar información y fotos (código existente)
+    const clientDisplayName = data.clientName || (data.phone ? data.phone.replace('+52', '') : 'Cliente');
+    document.getElementById('servicio-detalle-phone').innerText = `${data.shortId || ''} - ${clientDisplayName}`;
+    document.getElementById('servicio-detalle-info').innerHTML = `<p class="text-xs text-white">Moto: ${data.marca||''} ${data.modelo||''} ${data.cc||''}<br><br>${data.falla}</p>`;
 
+    const mediaContainer = document.getElementById('servicio-fotos-container');
+    let existingUrls = [];
+    if (data.mediaUrl) {
+        existingUrls = Array.isArray(data.mediaUrl) ? data.mediaUrl : [data.mediaUrl];
+    }
+    mediaContainer.innerHTML = existingUrls.map(url => `<img src="${url}" class="h-20 w-20 object-contain rounded-xl border border-white/10 cursor-pointer" onclick="window.openImageLightbox('${url}')">`).join('');
+    if (existingUrls.length === 0) mediaContainer.innerHTML = '<p class="text-[10px] text-gray-500 italic">Sin fotos</p>';
+
+    const addPhotoBtn = document.getElementById('servicio-add-photo-btn');
     const actionsContainer = document.getElementById('servicio-actions-container');
+    const comentarioInput = document.getElementById('servicio-comentario');
+    const comentarioBtn = comentarioInput?.nextElementSibling;
+
     if (soloLectura) {
+        if (addPhotoBtn) addPhotoBtn.classList.add('hidden');
         if (actionsContainer) actionsContainer.classList.add('hidden');
+        if (comentarioInput) comentarioInput.disabled = true;
+        if (comentarioBtn) comentarioBtn.classList.add('hidden');
     } else {
-        if (actionsContainer) actionsContainer.classList.remove('hidden');
-        // Limpiar y reconstruir botones según estado
-        actionsContainer.innerHTML = '';
-        if (isPending) {
-            // Mostrar botones: Asignar, Cancelar
-actionsContainer.innerHTML = `
-    <button onclick="window.cambiarEstadoServicio('mecanica')" class="flex-1 bg-yellow-600 ...">Mecánica</button>
-    <button onclick="window.cambiarEstadoServicio('pruebas')" class="flex-1 bg-blue-600 ...">Pruebas</button>
-    <button onclick="window.abrirCobroDesdeDetalle()" class="flex-1 bg-indigo-600 ...">Cobrar</button>
-    <button onclick="window.ingresarATaller()" class="flex-1 bg-purple-600 ...">LLEVAR A TALLER</button>
-`;
-        } else if (isAccepted) {
-            // Mostrar botones de taller
-            actionsContainer.innerHTML = `
-                <button onclick="window.cambiarEstadoServicio('mecanica')" class="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Mecánica</button>
-                <button onclick="window.cambiarEstadoServicio('pruebas')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Pruebas</button>
-                <button onclick="window.abrirCobroDesdeDetalle()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Cobrar</button>
-                <button onclick="window.cambiarEstadoServicio('lista')" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Lista</button>
-            `;
-        } else {
-            // Otros estados (por si acaso)
-            actionsContainer.innerHTML = `
-                <button onclick="window.cambiarEstadoServicio('mecanica')" class="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Mecánica</button>
-                <button onclick="window.cambiarEstadoServicio('pruebas')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Pruebas</button>
-                <button onclick="window.abrirCobroDesdeDetalle()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Cobrar</button>
-                <button onclick="window.cambiarEstadoServicio('lista')" class="flex-1 bg-green-600 hover:bg-green-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Lista</button>
-            `;
+        if (addPhotoBtn) {
+            addPhotoBtn.classList.remove('hidden');
+            addPhotoBtn.onclick = () => window.addExtraPhotos(id);
         }
+        if (actionsContainer) {
+            actionsContainer.classList.remove('hidden');
+            // Limpiar y reconstruir botones según estado
+            actionsContainer.innerHTML = '';
+            if (isPending) {
+                actionsContainer.innerHTML = `
+                    <button onclick="window.asignarMecanicoDesdeDetalle('${id}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">
+                        <i class="fas fa-user-plus mr-2"></i>Asignar Mecánico
+                    </button>
+                    <button onclick="window.cancelSOS('${id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">
+                        <i class="fas fa-times mr-2"></i>Cancelar
+                    </button>
+                `;
+            } else if (isAccepted) {
+                actionsContainer.innerHTML = `
+                    <button onclick="window.cambiarEstadoServicio('mecanica')" class="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Mecánica</button>
+                    <button onclick="window.cambiarEstadoServicio('pruebas')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Pruebas</button>
+                    <button onclick="window.abrirCobroDesdeDetalle()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Cobrar</button>
+                    <button onclick="window.ingresarATaller()" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">LLEVAR A TALLER</button>
+                `;
+            } else {
+                // Otros estados (no debería ocurrir)
+                actionsContainer.innerHTML = `
+                    <button onclick="window.cambiarEstadoServicio('mecanica')" class="flex-1 bg-yellow-600 ...">Mecánica</button>
+                    <button onclick="window.cambiarEstadoServicio('pruebas')" class="flex-1 bg-blue-600 ...">Pruebas</button>
+                    <button onclick="window.abrirCobroDesdeDetalle()" class="flex-1 bg-indigo-600 ...">Cobrar</button>
+                    <button onclick="window.ingresarATaller()" class="flex-1 bg-purple-600 ...">LLEVAR A TALLER</button>
+                `;
+            }
+        }
+        if (comentarioInput) comentarioInput.disabled = false;
+        if (comentarioBtn) comentarioBtn.classList.remove('hidden');
     }
 
-    // ... resto del código (bitácora, etc.)
+    window.loadServicioBitacora(id);
     toggleModal('modal-detalle-servicio', true);
 };
 
@@ -9745,13 +9772,13 @@ window.ingresarATaller = async () => {
     if (!currentDetalleServicioId) return;
     await updateDoc(doc(db, "rescates", currentDetalleServicioId), { 
         tallerStatus: 'recibida',
-        status: 'completed'   // el cliente ya no lo ve como activo
+        status: 'completed'
     });
-    // Notificar al cliente que la moto está en taller
     showToast("Servicio enviado a taller. El cliente será notificado.");
     toggleModal('modal-detalle-servicio', false);
     window.cargarListadoSOS();
     window.renderSOSMapa();
+    window.adminListenServices();
 };
 window.eliminarReferido = async (referidoId) => {
     if (confirm("¿Eliminar este referido? Esta acción no se puede deshacer.")) {
