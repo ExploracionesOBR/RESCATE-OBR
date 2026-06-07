@@ -262,7 +262,7 @@ function escapeHtml(str) {
         setTimeout(() => document.addEventListener('click', closeHandler), 0);
     };
 
-    // ========== 5. MANEJO DE MÚLTIPLES IMÁGENES (preview sobre el chat) ==========
+    // ========== 5. MANEJO DE MÚLTIPLES IMÁGENES ==========
     function actualizarPreviewImagenes() {
         const container = window._chatPreviewContainer;
         if (!container) return;
@@ -323,7 +323,7 @@ function escapeHtml(str) {
         input.click();
     }
 
-    // ========== 6. MODAL PARA LISTA DE SERVICIOS DE TALLER ==========
+    // ========== 6. MODAL PARA LISTA DE SERVICIOS ==========
     async function mostrarListaServiciosParaVincular() {
         if (!currentGroup) {
             if (window.showToast) window.showToast("Primero selecciona un grupo", true);
@@ -388,7 +388,7 @@ function escapeHtml(str) {
         }
     }
 
-    // ========== 7. EXPORTAR PDF PROFESIONAL (logo oscuro y texto limpio) ==========
+    // ========== 7. EXPORTAR PDF PROFESIONAL ==========
     async function exportarChatPDF() {
         if (!currentGroupId) return;
         if (!window.jspdf) {
@@ -414,7 +414,7 @@ function escapeHtml(str) {
         };
         
         const logoImg = new Image();
-        logoImg.src = 'logo_oscuro.png';  // ← cambiado a oscuro
+        logoImg.src = 'logo_oscuro.png';
         await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
         
         pdf.setFillColor(255, 107, 0);
@@ -511,8 +511,6 @@ function escapeHtml(str) {
         if (!grupo || !grupo.idDoc) return;
         currentGroupId = grupo.idDoc;
         currentGroup = grupo;
-        if (window._chatGroupTitle) window._chatGroupTitle.innerText = grupo.nombre;
-        if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = grupo.servicioId ? `📎 Servicio: ${grupo.servicioId}` : '';
         if (messagesUnsubscribe) messagesUnsubscribe();
         const q = query(collection(db, "chat_mensajes"), where("grupoId", "==", grupo.idDoc));
         messagesUnsubscribe = onSnapshot(q, (snap) => {
@@ -552,14 +550,24 @@ function escapeHtml(str) {
         });
     }
 
+    // Función renombrar grupo corregida (no depende de _chatGroupTitle)
     async function renombrarGrupo() {
-        if (!currentGroup) return;
-        mostrarPrompt('Nuevo nombre', currentGroup.nombre, async (nuevo) => {
-            if (nuevo && currentGroupId) {
-                await updateDoc(doc(db, "chat_grupos", currentGroupId), { nombre: nuevo });
-                currentGroup.nombre = nuevo;
-                if (window._chatGroupTitle) window._chatGroupTitle.innerText = nuevo;
-                cargarGrupos();
+        if (!currentGroup || !currentGroupId) {
+            window.showToast("No hay grupo seleccionado", true);
+            return;
+        }
+        mostrarPrompt('Nuevo nombre del grupo', currentGroup.nombre, async (nuevoNombre) => {
+            if (!nuevoNombre || nuevoNombre === currentGroup.nombre) return;
+            try {
+                await updateDoc(doc(db, "chat_grupos", currentGroupId), { nombre: nuevoNombre });
+                currentGroup.nombre = nuevoNombre;
+                // Actualizar la lista de grupos visualmente
+                const gruposActuales = await obtenerGrupos();
+                renderListaGrupos(gruposActuales);
+                window.showToast("Grupo renombrado correctamente");
+            } catch (error) {
+                console.error(error);
+                window.showToast("Error al renombrar grupo", true);
             }
         });
     }
@@ -572,10 +580,9 @@ function escapeHtml(str) {
             for (const docMsg of msgsSnap.docs) await deleteDoc(docMsg.ref);
             await deleteDoc(doc(db, "chat_grupos", currentGroupId));
             currentGroup = null; currentGroupId = null;
-            if (window._chatGroupTitle) window._chatGroupTitle.innerText = 'Selecciona un grupo';
-            if (window._chatServiceIdSpan) window._chatServiceIdSpan.innerText = '';
             if (window._chatMessagesContainer) window._chatMessagesContainer.innerHTML = '';
             cargarGrupos();
+            window.showToast("Grupo eliminado");
         });
     }
 
@@ -683,32 +690,129 @@ function escapeHtml(str) {
             if (!imageUrl.startsWith('data:image')) imageUrl = `data:image/jpeg;base64,${img}`;
             content.push({ type: "image_url", image_url: { url: imageUrl } });
         }
-        const systemPrompt = `Eres un mecánico automotriz... (mismo prompt de antes)`;
+        const systemPrompt = `Eres un mecánico automotriz y de motocicletas especializado en diagnóstico de fallas, reparación y mantenimiento. Tu única función es responder consultas relacionadas con mecánica de motos y carros analizando preguntas, imágenes, sonidos, videos, síntomas o códigos de error para detectar el problema de forma rápida, clara y profesional.
+
+REGLAS DE FORMATO (IMPORTANTE):
+- NO uses asteriscos dobles (**) ni ninguna otra sintaxis de markdown.
+- Usa emojis para hacer las respuestas más visuales y amigables (por ejemplo: 🔧, 🛠️, ⚠️, ✅, ❌, 📝, 🎯, etc.).
+- Para listas, usa guiones (-) o emojis al inicio de cada línea.
+- Separa las ideas con saltos de línea.
+- Sé conciso pero informativo.
+- Si la consulta no está relacionada con mecánica, responde únicamente: "❌ No puedo ayudarte con eso ahora, solo puedo responder temas relacionados con mecánica automotriz y motocicletas."`;
+
         const requestBody = {
             model: currentVisionModel,
-            messages: [{ role: "system", content: systemPrompt }, { role: "user", content }],
-            temperature: 0.7, max_tokens: 1024
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: content }
+            ],
+            temperature: 0.7,
+            max_tokens: 1024
         };
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
             body: JSON.stringify(requestBody)
         });
-        if (!response.ok) throw new Error(`Error ${response.status}`);
+        if (!response.ok) {
+            const errorText = await response.text();
+            if (errorText.includes('decommissioned') || errorText.includes('not found')) {
+                localStorage.removeItem(MODEL_CACHE_KEY);
+                currentVisionModel = null;
+                const nuevoModelo = await initVisionModel();
+                const retryBody = { ...requestBody, model: nuevoModelo };
+                const retryResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                    body: JSON.stringify(retryBody)
+                });
+                if (!retryResponse.ok) throw new Error(`Error después de reintentar: ${await retryResponse.text()}`);
+                const retryData = await retryResponse.json();
+                return retryData.choices[0].message.content;
+            }
+            throw new Error(`Error ${response.status}: ${errorText}`);
+        }
         const data = await response.json();
         return data.choices[0].message.content;
     }
 
     // ========== 10. MODALES PERSONALIZADOS ==========
-    function mostrarPrompt(titulo, valorDefault, callback) { /* misma implementación */ }
-    function mostrarConfirm(titulo, mensaje, onConfirm) { /* misma implementación */ }
+    function mostrarPrompt(titulo, valorDefault, callback) {
+        const modalId = 'modal-prompt-custom';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[1000010] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `
+                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-white/10">
+                    <p class="text-white font-bold mb-4" id="prompt-title">Título</p>
+                    <input id="prompt-input" type="text" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white mb-4">
+                    <div class="flex space-x-3">
+                        <button id="prompt-ok" class="bg-green-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">Aceptar</button>
+                        <button id="prompt-cancel" class="bg-gray-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">Cancelar</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalEl);
+        }
+        document.getElementById('prompt-title').innerText = titulo;
+        const input = document.getElementById('prompt-input');
+        input.value = valorDefault;
+        const okBtn = document.getElementById('prompt-ok');
+        const cancelBtn = document.getElementById('prompt-cancel');
+        const close = () => modalEl.classList.add('hidden');
+        okBtn.onclick = () => { close(); callback(input.value); };
+        cancelBtn.onclick = () => { close(); callback(null); };
+        modalEl.classList.remove('hidden');
+        input.focus();
+    }
 
-    // ========== 11. CREACIÓN DEL MODAL PRINCIPAL (nuevo diseño, preview sobre el chat) ==========
+    function mostrarConfirm(titulo, mensaje, onConfirm) {
+        const modalId = 'modal-confirm-custom';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[1000010] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `
+                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-white/10 text-center">
+                    <p id="confirm-msg" class="text-white font-bold mb-6"></p>
+                    <div class="flex space-x-3">
+                        <button id="confirm-yes" class="bg-green-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">Sí</button>
+                        <button id="confirm-no" class="bg-gray-600 text-white px-6 py-3 rounded-xl font-black uppercase text-sm">No</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalEl);
+        }
+        document.getElementById('confirm-msg').innerText = mensaje;
+        const yesBtn = document.getElementById('confirm-yes');
+        const noBtn = document.getElementById('confirm-no');
+        const close = () => modalEl.classList.add('hidden');
+        yesBtn.onclick = () => { close(); onConfirm(); };
+        noBtn.onclick = () => { close(); };
+        modalEl.classList.remove('hidden');
+    }
+
+    // ========== 11. CREACIÓN DEL MODAL PRINCIPAL (con toggle y rename corregidos) ==========
     function crearModalChat() {
         if (modal) return modal;
         modal = document.createElement('div');
         modal.id = 'chat-ia-modal-dinamico';
-        modal.style.cssText = `display: none !important; position: fixed; top:0; left:0; width:100%; height:100%; background-color:#000000dd; backdrop-filter:blur(4px); z-index:1000000; flex-direction:column; font-family:system-ui, sans-serif;`;
+        modal.style.cssText = `
+            display: none !important;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000000dd;
+            backdrop-filter: blur(4px);
+            z-index: 1000000;
+            flex-direction: column;
+            font-family: system-ui, sans-serif;
+        `;
         modal.innerHTML = `
             <div class="chat-ia-container">
                 <aside class="chat-sidebar">
@@ -733,15 +837,25 @@ function escapeHtml(str) {
                             </div>
                         </div>
                     </div>
-                    <div id="welcome-screen-ia" class="chat-welcome-screen"> ... </div>
+                    <div id="welcome-screen-ia" class="chat-welcome-screen">
+                        <div class="welcome-content">
+                            <h1>AGENTE OBR</h1>
+                            <p>Tu asistente mecánico inteligente. Pregunta sobre fallas, mantenimiento o diagnósticos.</p>
+                            <div class="welcome-cards">
+                                <div class="welcome-card"><h3>📝 Ejemplos</h3><ul><li>"¿Por qué mi moto no enciende?"</li><li>"¿Cada cuánto cambiar el aceite?"</li><li>"Ruido en el motor al acelerar"</li></ul></div>
+                                <div class="welcome-card"><h3>⚙️ Capacidades</h3><ul><li>Diagnóstico por síntomas</li><li>Análisis de imágenes</li><li>Recomendaciones de taller</li></ul></div>
+                                <div class="welcome-card"><h3>🔒 Limitaciones</h3><ul><li>Solo temas mecánicos</li><li>No reemplaza una revisión física</li><li>Los precios son referenciales</li></ul></div>
+                            </div>
+                        </div>
+                    </div>
                     <div id="messages-list-ia" class="chat-messages-list" style="display: none;"></div>
                     <div class="chat-input-area">
                         <div class="chat-input-container">
                             <textarea id="message-input-ia" rows="1" placeholder="Escribe tu consulta..."></textarea>
                             <div class="chat-input-buttons">
-                                <button id="camera-ia" class="chat-btn-icon"><i class="fas fa-camera"></i></button>
-                                <button id="gallery-ia" class="chat-btn-icon"><i class="fas fa-image"></i></button>
-                                <button id="send-message-ia" class="chat-send-btn"><i class="fas fa-paper-plane"></i></button>
+                                <button id="camera-ia" class="chat-btn-icon" title="Tomar foto"><i class="fas fa-camera"></i></button>
+                                <button id="gallery-ia" class="chat-btn-icon" title="Subir imagen"><i class="fas fa-image"></i></button>
+                                <button id="send-message-ia" class="chat-send-btn" title="Enviar"><i class="fas fa-paper-plane"></i></button>
                             </div>
                         </div>
                         <div id="image-preview-ia" class="chat-image-preview" style="display: none; margin-top: 8px; flex-wrap: wrap; gap: 8px;"></div>
@@ -771,7 +885,7 @@ function escapeHtml(str) {
         window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
         window._chatSearchInput = modal.querySelector('#search-group-ia');
 
-        // Pantalla de bienvenida y observadores
+        // Pantalla de bienvenida y observador
         const welcomeScreen = modal.querySelector('#welcome-screen-ia');
         const messagesContainer = window._chatMessagesContainer;
         const toggleWelcomeScreen = () => {
@@ -784,7 +898,7 @@ function escapeHtml(str) {
         if (messagesContainer) observerMessages.observe(messagesContainer, { childList: true, subtree: false });
         setTimeout(toggleWelcomeScreen, 200);
 
-        // Menú de acciones
+        // Menú de acciones (tres puntos del header)
         const triggerBtn = modal.querySelector('#chat-actions-trigger');
         const dropdown = modal.querySelector('#chat-actions-dropdown');
         if (triggerBtn && dropdown) {
@@ -793,13 +907,23 @@ function escapeHtml(str) {
             dropdown.addEventListener('click', (e) => e.stopPropagation());
         }
 
-        // Sidebar móvil
+        // Sidebar móvil: toggle y cierre
         const sidebar = modal.querySelector('.chat-sidebar');
         const toggleBtn = modal.querySelector('.chat-sidebar-toggle');
         if (toggleBtn && sidebar) {
-            toggleBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                sidebar.classList.toggle('open');
+            });
+            // Cerrar sidebar al hacer clic en el contenido principal (solo en móvil)
             const mainEl = modal.querySelector('.chat-main');
-            if (mainEl) mainEl.addEventListener('click', () => sidebar.classList.remove('open'));
+            if (mainEl) {
+                mainEl.addEventListener('click', () => {
+                    if (window.innerWidth <= 768 && sidebar.classList.contains('open')) {
+                        sidebar.classList.remove('open');
+                    }
+                });
+            }
         }
 
         // Autoajuste textarea
