@@ -281,20 +281,40 @@ function crearModalChat() {
         font-family: system-ui, sans-serif;
     `;
     modal.innerHTML = `
-        <div class="chat-ia-container" style="display:flex; flex-direction:column; width:100%; height:100%; max-width:1200px; margin:0 auto; background:var(--bg-color); color:var(--text-color);">
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-bottom:1px solid var(--border-color); background:var(--header-bg);">
-                <div style="display:flex; align-items:center; gap:12px;"><i class="fas fa-robot" style="color:#FF6B00; font-size:28px;"></i><h2 style="font-size:1.5rem; font-weight:900;">Asistente IA</h2></div>
-                <button id="close-chat-ia" style="background:rgba(0,0,0,0.2); border:none; width:40px; height:40px; border-radius:50%; cursor:pointer;"><i class="fas fa-times"></i></button>
-            </div>
-            <div style="display:flex; flex:1; overflow:hidden;">
-                <div style="width:260px; background:var(--panel-bg); border-right:1px solid var(--border-color); display:flex; flex-direction:column;">
-                    <div style="padding:12px;"><input type="text" id="search-group-ia" placeholder="Buscar grupo..." style="width:100%; background:var(--input-bg); border:1px solid var(--border-color); border-radius:8px; padding:8px; font-size:12px; color:var(--text-color);"></div>
-                    <div id="groups-list-ia" style="flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:8px;"></div>
-                    <div style="padding:12px; border-top:1px solid var(--border-color);"><button id="new-group-ia" style="width:100%; background:#22c55e; color:white; border:none; padding:8px; border-radius:12px; font-weight:900; cursor:pointer;">+ Nuevo grupo</button></div>
+        <div class="chat-ia-container" style="display:flex; flex-direction:column; width:100%; height:100%; max-width:1400px; margin:0 auto; background:var(--bg-color); color:var(--text-color);">
+            <!-- Barra superior -->
+            <div class="chat-header" style="display:flex; justify-content:space-between; align-items:center; padding:12px 20px; background:var(--header-bg); border-bottom:1px solid var(--border-color);">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <i class="fas fa-robot" style="color:#FF6B00; font-size:28px;"></i>
+                    <h2 style="font-size:1.5rem; font-weight:900;">AGENTE OBR</h2>
                 </div>
-                <div style="flex:1; display:flex; flex-direction:column;">
+                <button id="close-chat-ia" style="background:rgba(0,0,0,0.2); border:none; width:40px; height:40px; border-radius:50%; cursor:pointer; color:var(--text-color);"><i class="fas fa-times"></i></button>
+            </div>
+
+            <!-- Cuerpo principal: en escritorio dos columnas, en móvil colapsable -->
+            <div style="display:flex; flex:1; overflow:hidden; position:relative;">
+                <!-- Sidebar (lista de grupos) - visible en escritorio, ocultable en móvil -->
+                <div id="chat-sidebar" class="chat-sidebar" style="width:280px; background:var(--panel-bg); border-right:1px solid var(--border-color); display:flex; flex-direction:column; transition:transform 0.3s ease;">
+                    <div style="padding:12px;">
+                        <input type="text" id="search-group-ia" placeholder="Buscar grupo..." style="width:100%; background:var(--input-bg); border:1px solid var(--border-color); border-radius:8px; padding:8px; font-size:12px; color:var(--text-color);">
+                    </div>
+                    <div id="groups-list-ia" style="flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:8px;"></div>
+                    <div style="padding:12px; border-top:1px solid var(--border-color);">
+                        <button id="new-group-ia" style="width:100%; background:#22c55e; color:white; border:none; padding:8px; border-radius:12px; font-weight:900; cursor:pointer;">+ Nuevo grupo</button>
+                    </div>
+                </div>
+
+                <!-- Botón para mostrar/ocultar sidebar en móvil -->
+                <button id="toggle-sidebar-mobile" class="toggle-sidebar-btn" style="position:absolute; left:10px; top:10px; z-index:10; background:#FF6B00; border:none; border-radius:50%; width:36px; height:36px; display:none; align-items:center; justify-content:center; color:white; cursor:pointer;"><i class="fas fa-bars"></i></button>
+
+                <!-- Área de chat principal -->
+                <div class="chat-main" style="flex:1; display:flex; flex-direction:column; min-width:0;">
+                    <!-- Cabecera del chat activo -->
                     <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 16px; background:var(--header-bg); border-bottom:1px solid var(--border-color);">
-                        <div><span id="chat-group-title" style="font-weight:bold; font-size:1.1rem;">Selecciona un grupo</span><span id="chat-service-id" style="font-size:0.7rem; color:var(--text-muted); margin-left:8px;"></span></div>
+                        <div>
+                            <span id="chat-group-title" style="font-weight:bold; font-size:1.1rem;">Selecciona un grupo</span>
+                            <span id="chat-service-id" style="font-size:0.7rem; color:var(--text-muted); margin-left:8px;"></span>
+                        </div>
                         <div style="display:flex; gap:8px;">
                             <button id="link-service-ia" class="group-action-btn" style="background:rgba(147,51,234,0.2); color:#a78bfa; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Vincular</button>
                             <button id="rename-group-ia" class="group-action-btn" style="background:rgba(234,179,8,0.2); color:#facc15; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">Renombrar</button>
@@ -302,7 +322,11 @@ function crearModalChat() {
                             <button id="export-pdf-ia" class="group-action-btn" style="background:rgba(59,130,246,0.2); color:#60a5fa; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:900; cursor:pointer;">PDF</button>
                         </div>
                     </div>
+
+                    <!-- Mensajes -->
                     <div id="messages-list-ia" style="flex:1; overflow-y:auto; padding:16px; display:flex; flex-direction:column; gap:16px;"></div>
+
+                    <!-- Entrada de mensajes -->
                     <div style="padding:16px; border-top:1px solid var(--border-color); background:var(--input-area-bg);">
                         <div style="display:flex; gap:8px; margin-bottom:8px;">
                             <textarea id="message-input-ia" rows="2" placeholder="Describe la falla o haz una pregunta..." style="flex:1; background:var(--input-bg); border:1px solid var(--border-color); border-radius:12px; padding:12px; font-size:14px; resize:none; color:var(--text-color);"></textarea>
@@ -314,16 +338,15 @@ function crearModalChat() {
                             <img id="preview-img-ia" style="max-width:100px; max-height:100px; border-radius:8px;">
                             <button id="cancel-preview-ia" style="position:absolute; top:0; right:0; background:red; color:white; border:none; border-radius:50%; width:20px; height:20px; cursor:pointer;">✕</button>
                         </div>
-                        <p style="font-size:9px; color:var(--text-muted); margin-top:8px;">Adjunta foto, escribe tu consulta. Botones: 🔊 (voz normal), ⚡ (voz rápida), 📋 (copiar). Las respuestas respetan saltos de línea y muestran fecha.</p>
+                        <p style="font-size:9px; color:var(--text-muted); margin-top:8px;">🔊 Botones de voz y copia en cada mensaje. Escribe <strong>API : "clave"</strong> para cambiar la API key.</p>
                     </div>
                 </div>
             </div>
         </div>
     `;
     document.body.appendChild(modal);
-    modal.style.display = 'none';
 
-    // Guardar referencias (dentro de la función, antes del return)
+    // Guardar referencias (las mismas de antes)
     window._chatGroupsList = modal.querySelector('#groups-list-ia');
     window._chatMessagesContainer = modal.querySelector('#messages-list-ia');
     window._chatGroupTitle = modal.querySelector('#chat-group-title');
@@ -342,15 +365,41 @@ function crearModalChat() {
     window._chatNewGroupBtn = modal.querySelector('#new-group-ia');
     window._chatSearchInput = modal.querySelector('#search-group-ia');
 
-    // Eventos
-    const closeBtn = modal.querySelector('#close-chat-ia');
-    if (closeBtn) {
-        closeBtn.onclick = () => {
-            modal.style.display = 'none';
-            limpiarPreview();
-            detenerVoz();
+    // Eventos (los mismos)
+    modal.querySelector('#close-chat-ia').onclick = () => {
+        modal.style.display = 'none';
+        limpiarPreview();
+        detenerVoz();
+    };
+
+    // Lógica para móvil: toggle sidebar
+    const sidebar = modal.querySelector('#chat-sidebar');
+    const toggleBtn = modal.querySelector('#toggle-sidebar-mobile');
+    const isMobile = () => window.innerWidth <= 768;
+    const updateLayout = () => {
+        if (isMobile()) {
+            sidebar.style.transform = 'translateX(-100%)';
+            sidebar.style.position = 'absolute';
+            sidebar.style.height = '100%';
+            sidebar.style.zIndex = '20';
+            toggleBtn.style.display = 'flex';
+        } else {
+            sidebar.style.transform = 'translateX(0)';
+            sidebar.style.position = 'relative';
+            sidebar.style.zIndex = 'auto';
+            toggleBtn.style.display = 'none';
+        }
+    };
+    if (toggleBtn) {
+        toggleBtn.onclick = () => {
+            const isVisible = sidebar.style.transform !== 'translateX(-100%)';
+            sidebar.style.transform = isVisible ? 'translateX(-100%)' : 'translateX(0)';
         };
     }
+    window.addEventListener('resize', updateLayout);
+    updateLayout();
+
+    // Vincular eventos de los botones (como antes)
     if (window._chatSendBtn) window._chatSendBtn.onclick = enviarMensaje;
     if (window._chatCameraBtn) window._chatCameraBtn.onclick = () => seleccionarImagen(true);
     if (window._chatGalleryBtn) window._chatGalleryBtn.onclick = () => seleccionarImagen(false);
@@ -370,11 +419,9 @@ function crearModalChat() {
         };
     }
 
-    // Tema y observer (después de definir aplicarTema)
     aplicarTema();
     const observer = new MutationObserver(() => aplicarTema());
     observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-
     return modal;
 }
     // ========== 7. TEMAS (claro/oscuro) ==========
