@@ -4181,18 +4181,6 @@ function _getRouteInstructions(puntos) {
     }, 0);
     return `El mecánico recorrió aproximadamente ${distTotal.toFixed(1)} km para llegar al cliente. La ruta seguida se muestra en el mapa. Tiempo estimado: ${Math.round(distTotal * 3)} minutos.`;
 }
-    // === FOOTER ===
-    const totalPages = pdfDoc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-        pdfDoc.setPage(i);
-        pdfDoc.setFontSize(7);
-        pdfDoc.setTextColor(148, 163, 184);
-        pdfDoc.setFont("helvetica", "normal");
-        pdfDoc.text(`OBR Moto Rescate | Documento generado el ${new Date().toLocaleDateString('es-MX')}`, 12, 287);
-        pdfDoc.text(`Página ${i} de ${totalPages}`, pageWidth - 25, 287);
-    }
-    pdfDoc.save(`Reporte_Servicio_${data.shortId || id}.pdf`);
-};
 window.editService = (serviceId) => {
     getDoc(doc(db, "servicios", serviceId)).then(snap => {
         if (!snap.exists()) return;
