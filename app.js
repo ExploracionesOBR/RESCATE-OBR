@@ -504,14 +504,29 @@ function crearModalChat() {
     }
 
     // Aplicar tema y observer
-    aplicarTema();
-    const observer = new MutationObserver(() => aplicarTema());
-    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-
-    // Inicialmente mostrar pantalla de bienvenida si no hay mensajes
-    setTimeout(toggleWelcomeScreen, 200);
-
-    return modal;
+    // ========== 7. TEMAS (claro/oscuro) ==========
+function aplicarTema() {
+    if (!modal) return;
+    const isLight = document.body.classList.contains('light-mode');
+    const bg = isLight ? '#ffffff' : '#1A1A1A';
+    const text = isLight ? '#111111' : '#ffffff';
+    const border = isLight ? '#ddd' : '#333';
+    const panelBg = isLight ? '#f9f9f9' : '#111111';
+    const inputBg = isLight ? '#ffffff' : '#2a2a2a';
+    const headerBg = isLight ? '#f0f0f0' : '#0f0f0f';
+    const textMuted = isLight ? '#6b7280' : '#9ca3af';
+    const inputAreaBg = isLight ? '#f5f5f5' : '#000000';
+    const container = modal.querySelector('.chat-ia-container');
+    if (container) {
+        container.style.setProperty('--bg-color', bg);
+        container.style.setProperty('--text-color', text);
+        container.style.setProperty('--border-color', border);
+        container.style.setProperty('--panel-bg', panelBg);
+        container.style.setProperty('--input-bg', inputBg);
+        container.style.setProperty('--header-bg', headerBg);
+        container.style.setProperty('--text-muted', textMuted);
+        container.style.setProperty('--input-area-bg', inputAreaBg);
+    }
 }
 
     // ========== 8. FIRESTORE: GRUPOS Y MENSAJES ==========
