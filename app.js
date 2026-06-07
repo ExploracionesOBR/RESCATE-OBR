@@ -504,39 +504,69 @@ function crearModalChat() {
     }
 
     async function enviarMensajeConTextoEImagen(texto, imagen) {
-        if (!currentGroupId) return;
-        const mensaje = {
-            grupoId: currentGroupId,
-            rol: 'usuario',
-            texto: texto || (imagen ? '[Imagen adjunta]' : ''),
-            timestamp: Date.now(),
-            imagenes: imagen ? [imagen] : []
-        };
-        await addDoc(collection(db, "chat_mensajes"), mensaje);
-        if (window._chatMessageInput) window._chatMessageInput.value = '';
-        const imageTemp = imagen;
-        limpiarPreview();
-        const loadingMsg = {
-            grupoId: currentGroupId,
-            rol: 'asistente',
-            texto: '...',
-            timestamp: Date.now(),
-            loading: true
-        };
-        const loadingRef = await addDoc(collection(db, "chat_mensajes"), loadingMsg);
-        try {
-            const respuesta = await consultarGroqVision(texto, currentGroupId, imageTemp);
-            // Limpiar también la respuesta de la IA antes de guardar
-            const respuestaLimpia = limpiarMarkdown(respuesta);
-            await updateDoc(loadingRef, { texto: respuestaLimpia, loading: false });
-        } catch (err) {
-            console.error('Error en enviarMensaje:', err);
-            await updateDoc(loadingRef, { 
-                texto: `Error al contactar con la IA: ${err.message}. Por favor, intenta más tarde.`, 
-                loading: false 
-            });
+    // 🔥 DETECTAR COMANDO PARA CAMBIAR API KEY
+    if (texto && texto.trim().startsWith('API :')) {
+        const match = texto.match(/API\s*:\s*"([^"]+)"/);
+        if (match && match[1]) {
+            localStorage.setItem('groq_api_key', match[1]);
+            window.showToast("✅ API key actualizada correctamente");
+            // Agregar mensaje de confirmación al chat (como asistente)
+            const confirmMsg = {
+                grupoId: currentGroupId,
+                rol: 'asistente',
+                texto: '✅ API key actualizada. A partir de ahora usaré la nueva clave para las consultas.',
+                timestamp: Date.now(),
+                loading: false
+            };
+            await addDoc(collection(db, "chat_mensajes"), confirmMsg);
+        } else {
+            window.showToast("❌ Formato incorrecto. Usa: API : \"tu_api_key\"", true);
+            // También mostrar en el chat
+            const errorMsg = {
+                grupoId: currentGroupId,
+                rol: 'asistente',
+                texto: '❌ Formato incorrecto. Ejemplo: `API : "gsk_xxxxx"`',
+                timestamp: Date.now(),
+                loading: false
+            };
+            await addDoc(collection(db, "chat_mensajes"), errorMsg);
         }
+        return; // Salir sin procesar como consulta normal
     }
+
+    // --- Resto del código original (sin cambios) ---
+    if (!currentGroupId) return;
+    const mensaje = {
+        grupoId: currentGroupId,
+        rol: 'usuario',
+        texto: texto || (imagen ? '[Imagen adjunta]' : ''),
+        timestamp: Date.now(),
+        imagenes: imagen ? [imagen] : []
+    };
+    await addDoc(collection(db, "chat_mensajes"), mensaje);
+    if (window._chatMessageInput) window._chatMessageInput.value = '';
+    const imageTemp = imagen;
+    limpiarPreview();
+    const loadingMsg = {
+        grupoId: currentGroupId,
+        rol: 'asistente',
+        texto: '...',
+        timestamp: Date.now(),
+        loading: true
+    };
+    const loadingRef = await addDoc(collection(db, "chat_mensajes"), loadingMsg);
+    try {
+        const respuesta = await consultarGroqVision(texto, currentGroupId, imageTemp);
+        const respuestaLimpia = limpiarMarkdown(respuesta);
+        await updateDoc(loadingRef, { texto: respuestaLimpia, loading: false });
+    } catch (err) {
+        console.error('Error en enviarMensaje:', err);
+        await updateDoc(loadingRef, { 
+            texto: `Error al contactar con la IA: ${err.message}. Por favor, intenta más tarde.`, 
+            loading: false 
+        });
+    }
+}
 
     async function consultarGroqVision(prompt, grupoId, imagenBase64) {
     // Obtener API key de localStorage o usar la por defecto
