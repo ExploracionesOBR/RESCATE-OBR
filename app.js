@@ -2157,57 +2157,114 @@ window.processRegister = async () => {
         return showToast("Completa datos (Pass min 6)", true);
     }
     
+    // Verificar conexión a Internet
+    const isOnline = await checkConnection();
+    if (!isOnline) {
+        showToast("❌ Sin conexión a Internet. Verifica tu red.", true);
+        return;
+    }
+    
     const fakeEmail = `${rawPhone}@motorescateobr.com`;
+    let userCredential = null;
+    
+    // Reintentar registro hasta 3 veces
+    for (let intento = 1; intento <= 3; intento++) {
+        try {
+            userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
+            break; // Éxito, salir del bucle
+        } catch (error) {
+            console.error(`Intento ${intento} fallido:`, error);
+            
+            if (intento === 3) {
+                if (error.code === 'auth/network-request-failed') {
+                    showToast("❌ Error de red después de varios intentos. Intenta más tarde.", true);
+                } else if (error.code === 'auth/email-already-in-use') {
+                    showToast("Ya existe una cuenta con ese número. Inicia sesión.", true);
+                    document.getElementById('auth-step-register').classList.add('hidden');
+                    document.getElementById('auth-step-login').classList.remove('hidden');
+                } else {
+                    showToast(`Error: ${error.message}`, true);
+                }
+                return;
+            }
+            
+            // Esperar antes de reintentar (1, 2, 3 segundos)
+            await new Promise(r => setTimeout(r, intento * 1000));
+        }
+    }
+    
+    if (!userCredential) return;
+    
+    const uid = userCredential.user.uid;
+    const codigoReferido = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const urlParams = new URLSearchParams(window.location.search);
+    const codigoReferente = urlParams.get('ref');
     
     try {
-        // 1. Crear usuario en Authentication
-        const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
-        const uid = userCredential.user.uid;
-        
-        // 2. Generar código de referido único (6 caracteres)
-        const codigoReferido = Math.random().toString(36).substring(2, 8).toUpperCase();
-        
-        // 3. Leer parámetro 'ref' de la URL (si existe)
-        const urlParams = new URLSearchParams(window.location.search);
-        const codigoReferente = urlParams.get('ref');
-        
-        // 4. Guardar datos del usuario en Firestore (incluyendo referidos)
-await setDoc(doc(db, "users", uid), {
-    phone: "+52" + rawPhone,
-    name: name,
-    role: 'cliente',
-    secQuestion: question,
-    secAnswer: answer.toLowerCase(),
-    pwd: password,
-    firstLogin: false,   // ← Cambiado a false
-    created: Date.now(),
-    codigoReferido: codigoReferido,
-    referidoPor: codigoReferente || null,
-    serviciosCompletados: 0
-});
-        
-        // 5. Si viene de un referido, registrar la relación en colección "referidos"
-       if (codigoReferente) {
-    const qReferente = query(collection(db, "users"), where("codigoReferido", "==", codigoReferente), limit(1));
-    const snapReferente = await getDocs(qReferente);
-    if (!snapReferente.empty) {
-        const referenteDoc = snapReferente.docs[0];
-        const referenteId = referenteDoc.id;
-        await addDoc(collection(db, "referidos"), {
-            referenteId: referenteId,
-            referidoId: uid,
-            codigoReferente: codigoReferente,
-            fechaRegistro: Date.now(),
-            estado: 'pendiente',
-            servicioCompletado: false,
-            serviciosCompletados: 0   // ← AÑADE ESTA LÍNEA si no existe
+        await setDoc(doc(db, "users", uid), {
+            phone: "+52" + rawPhone,
+            name: name,
+            role: 'cliente',
+            secQuestion: question,
+            secAnswer: answer.toLowerCase(),
+            pwd: password,
+            firstLogin: false,
+            created: Date.now(),
+            codigoReferido: codigoReferido,
+            referidoPor: codigoReferente || null,
+            serviciosCompletados: 0
         });
-        // Notificación al referente
-        await setDoc(doc(db, "notificaciones", referenteId), {
-            msg: `🎉 ¡${name} se registró usando tu código de referido!`,
-            timestamp: Date.now(),
-            leida: false
-        });
+        
+        if (codigoReferente) {
+            const qReferente = query(collection(db, "users"), where("codigoReferido", "==", codigoReferente), limit(1));
+            const snapReferente = await getDocs(qReferente);
+            if (!snapReferente.empty) {
+                const referenteDoc = snapReferente.docs[0];
+                const referenteId = referenteDoc.id;
+                await addDoc(collection(db, "referidos"), {
+                    referenteId: referenteId,
+                    referidoId: uid,
+                    codigoReferente: codigoReferente,
+                    fechaRegistro: Date.now(),
+                    estado: 'pendiente',
+                    servicioCompletado: false,
+                    serviciosCompletados: 0
+                });
+                await setDoc(doc(db, "notificaciones", referenteId), {
+                    msg: `🎉 ¡${name} se registró usando tu código de referido!`,
+                    timestamp: Date.now(),
+                    leida: false
+                });
+            }
+        }
+        
+        showToast("✅ Registro exitoso!");
+        
+        // Redirigir según rol
+        const role = window.currentUserDoc?.role;
+        if (role === 'admin' || role === 'mecanico' || role === 'taller' || role === 'socio') {
+            window.showView('app-admin');
+        } else {
+            window.showView('app-client');
+            window.switchClientView('c-view-rescate');
+        }
+        
+    } catch (error) {
+        console.error("Error guardando datos:", error);
+        showToast("Error guardando datos del usuario", true);
+    }
+};
+
+// Función auxiliar para verificar conexión (colócala en algún lugar accesible)
+async function checkConnection() {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        await fetch('https://www.google.com', { method: 'HEAD', signal: controller.signal });
+        clearTimeout(timeoutId);
+        return true;
+    } catch {
+        return false;
     }
 }
         
