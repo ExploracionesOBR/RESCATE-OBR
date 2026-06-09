@@ -2266,7 +2266,7 @@ async function checkConnection() {
     } catch {
         return false;
     }
-}
+};
         
        // 6. Crear o actualizar modal de invitación (para compartir enlace)
 const modalId = 'modal-whatsapp-invite';
