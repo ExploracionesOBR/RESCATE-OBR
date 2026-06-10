@@ -1638,6 +1638,33 @@ async function loadGlobalSettings() {
         }
     });
 }
+
+// ... después de speakTTS y playSound ...
+function alertarGlobal(mensaje, tipo = 'notif') {
+    // Sonido
+    playSound(tipo);
+    // TTS
+    speakTTS(mensaje);
+    // Notificación push (si hay token y FCM configurado)
+    if (auth.currentUser) {
+        // RTDB para notificación en segundo plano
+        rtdbSet(dbRef(rtdb, 'notificaciones/' + auth.currentUser.uid), { msg: mensaje });
+        // Si tienes FCM, también puedes enviar al token
+        // (opcional, ver sección FCM más abajo)
+    }
+}
+// ... luego sigue updateLandingStatus ...
+
+// ... después de speakTTS
+function alertarGlobal(mensaje, tipo = 'notif') {
+    playSound(tipo);
+    speakTTS(mensaje);
+    if (auth.currentUser) {
+        rtdbSet(dbRef(rtdb, 'notificaciones/' + auth.currentUser.uid), { msg: mensaje });
+    }
+}
+// ... luego viene updateLandingStatus
+
 function updateLandingStatus() {
     const now = new Date();
     const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
@@ -1906,7 +1933,8 @@ onAuthStateChanged(auth, async user => {
 }, 100);
         document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
         window.loadClientHistory(); 
-        listenToMySOS(); 
+        listenToMySOS();
+        listenToMyDeliveries(); 
         window.loadClientCitas(); 
         loadPublicStore();
         window.loadMyOrders();
@@ -2671,7 +2699,7 @@ function initClientMap() {
     setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
 }
 
-// ========== LISTEN TO MY SOS – VERSIÓN DEFINITIVA (RUTA EN TIEMPO REAL) ==========
+// ========== LISTEN TO MY SOS – VERSIÓN DEFINITIVA (CORREGIDA) ==========
 function listenToMySOS() {
     // Limpiar listener anterior si existe
     if (window.mySOSListener && typeof window.mySOSListener === 'function') {
@@ -2698,13 +2726,13 @@ function listenToMySOS() {
         // Si no hay servicio activo
         if (!snap.exists()) {
             if (activeCard) activeCard.classList.add('hidden');
-            if (noServicesMsg) noServicesMsg?.classList.remove('hidden');
+            if (wsCard) wsCard.classList.add('hidden');   // ← AGREGADO
+            if (noServicesMsg) noServicesMsg.classList.remove('hidden');
             if (survey) survey.classList.add('hidden');
             if (mechanicMapDiv) {
                 mechanicMapDiv.classList.add('hidden');
                 mechanicMapDiv.style.display = 'none';
             }
-            if (wsCard) wsCard.classList.add('hidden');
             if (emergencyBtn) emergencyBtn.style.display = 'flex';
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (routingControl) {
@@ -2723,24 +2751,22 @@ function listenToMySOS() {
         const data = snap.val();
 
         // Actualizar tarjeta de taller (si la moto está en el taller)
-if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
-    const wsCard = document.getElementById('active-workshop-card');
-    if (wsCard) {
-        wsCard.classList.remove('hidden');
-        const steps = { 'recibida': 1, 'mecanica': 2, 'pruebas': 3, 'lista': 4 };
-        const currentStep = steps[data.tallerStatus] || 0;
-        const wsProgress = document.getElementById('client-ws-progress');
-        if (wsProgress) wsProgress.style.width = ((currentStep - 1) * 33.33) + '%';
-        const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
-        wsTexts.forEach((id, idx) => {
-            const el = document.getElementById(id);
-            if (el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
-        });
-    }
-} else {
-    const wsCard = document.getElementById('active-workshop-card');
-    if (wsCard) wsCard.classList.add('hidden');
-}
+        if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
+            if (wsCard) {
+                wsCard.classList.remove('hidden');
+                const steps = { 'recibida': 1, 'mecanica': 2, 'pruebas': 3, 'lista': 4 };
+                const currentStep = steps[data.tallerStatus] || 0;
+                const wsProgress = document.getElementById('client-ws-progress');
+                if (wsProgress) wsProgress.style.width = ((currentStep - 1) * 33.33) + '%';
+                const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
+                wsTexts.forEach((id, idx) => {
+                    const el = document.getElementById(id);
+                    if (el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
+                });
+            }
+        } else {
+            if (wsCard) wsCard.classList.add('hidden');
+        }
 
         // Mostrar tarjeta activa y ocultar mensaje de "sin actividad"
         if (activeCard) activeCard.classList.remove('hidden');
@@ -2928,12 +2954,12 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                 routingControl.remove();
                 routingControl = null;
             }
-           if (window.clientMapInstance) {
-    if (window.clientMapMarkers.mech) window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
-    if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-    window.clientMapMarkers.mech = null;
-    window.clientMapMarkers.client = null;
-}
+            if (window.clientMapInstance) {
+                if (window.clientMapMarkers.mech) window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+                if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                window.clientMapMarkers.mech = null;
+                window.clientMapMarkers.client = null;
+            }
             if (mechPosUnsubscribe) mechPosUnsubscribe();
         }
 
@@ -2945,53 +2971,301 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
             if (chatBtn && data.mech_uid) chatBtn.classList.remove('hidden');
         }
 
+        // === BLOQUE FINAL (COMPLETED / CANCELLED) – CORREGIDO ===
         if ((data.status === 'completed' || data.status === 'cancelled') && 
-    window.lastClientSOSStatus !== 'completed' && 
-    window.lastClientSOSStatus !== 'cancelled') {
+            window.lastClientSOSStatus !== 'completed' && 
+            window.lastClientSOSStatus !== 'cancelled') {
+            
+            // Ocultar TODAS las tarjetas activas
+            if (activeCard) activeCard.classList.add('hidden');
+            if (wsCard) wsCard.classList.add('hidden');
+            if (mechanicMapDiv) {
+                mechanicMapDiv.classList.add('hidden');
+                mechanicMapDiv.style.display = 'none';
+            }
+            
+            // NOTIFICACIONES: MANTENER (NO ELIMINAR)
+            if (data.status === 'completed') {
+                speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
+                playSound('notif');
+                if (activeCard) activeCard.classList.add('hidden');
+                setTimeout(() => {
+                    const surveyEl = document.getElementById('satisfaction-survey');
+                    if (surveyEl) surveyEl.classList.remove('hidden');
+                }, 200);
+            } else {
+                speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
+                playSound('notif');
+                if (activeCard) activeCard.classList.add('hidden');
+            }
+            
+            // Eliminar alerta RTDB (esto no afecta notificaciones)
+            remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
+            window.loadClientHistory();
+            
+            // Cerrar chat y limpiar recursos
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
+            if (window.clientMapInstance) {
+                window.clientMapInstance.remove();
+                window.clientMapInstance = null;
+                window.clientMapMarkers = { mech: null, client: null, taller: null };
+            }
+            window.lastClientSOSStatus = data.status;
+            return;
+        }
 
-    // Ocultar tarjeta de SOS activo
-    if (activeCard) activeCard.classList.add('hidden');
-    // Ocultar tarjeta de taller
-    if (wsCard) wsCard.classList.add('hidden');
-    // Ocultar mapa
-    if (mechanicMapDiv) {
-        mechanicMapDiv.classList.add('hidden');
-        mechanicMapDiv.style.display = 'none';
-    }
-    // Mantener notificaciones sin eliminar
-    if (data.status === 'completed') {
-        speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
-        playSound('notif');
-        setTimeout(() => {
-            const surveyEl = document.getElementById('satisfaction-survey');
-            if (surveyEl) surveyEl.classList.remove('hidden');
-        }, 200);
-    } else {
-        speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
-        playSound('notif');
-    }
-
-    // Eliminar alerta RTDB (esto no afecta notificaciones)
-    remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
-    window.loadClientHistory();
-
-    // Cerrar chat y liberar recursos
-    if (mechPosUnsubscribe) mechPosUnsubscribe();
-    if (routingControl) {
-        routingControl.remove();
-        routingControl = null;
-    }
-    if (window.clientMapInstance) {
-        window.clientMapInstance.remove();
-        window.clientMapInstance = null;
-        window.clientMapMarkers = { mech: null, client: null, taller: null };
-    }
-
-    window.lastClientSOSStatus = data.status;
-    return;
+        window.lastClientSOSStatus = data.status;
+    });
 }
+// ========== FIN DE listenToMySOS ==========
 
-// aqui finaliza listenToMySOS //
+// ========== LISTEN TO MY DELIVERIES – SEGUIMIENTO DE ENTREGAS ==========
+function listenToMyDeliveries() {
+    // Limpiar listener anterior si existe
+    if (window._deliveryListener && typeof window._deliveryListener === 'function') {
+        window._deliveryListener();
+        window._deliveryListener = null;
+    }
+    if (!auth.currentUser) return;
+
+    let mechPosUnsubscribe = null;
+    let routingControl = null;
+
+    // Escuchar el pedido online activo del usuario (estado pendiente, en_camino, aceptado)
+    window._deliveryListener = onValue(dbRef(rtdb, 'pedidos_online/' + auth.currentUser.uid), async (snap) => {
+        const activeCard = document.getElementById('active-delivery-card');
+        const noServicesMsg = document.getElementById('no-active-delivery-msg');
+        const mechanicMapDiv = document.getElementById('delivery-live-map');
+        const statusDesc = document.getElementById('delivery-status-desc-client');
+        const progressBar = document.getElementById('delivery-progress-bar');
+        const stepLabels = ['delivery-step-1', 'delivery-step-2', 'delivery-step-3', 'delivery-step-4'];
+        const stepDots = ['delivery-dot-1', 'delivery-dot-2', 'delivery-dot-3', 'delivery-dot-4'];
+        const emergencyBtn = document.getElementById('emergency-client-btn');
+
+        // Si no hay pedido activo o está entregado
+        if (!snap.exists() || !snap.val().estado_entrega || snap.val().estado_entrega === 'entregado') {
+            if (activeCard) activeCard.classList.add('hidden');
+            if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+            if (mechanicMapDiv) {
+                mechanicMapDiv.classList.add('hidden');
+                mechanicMapDiv.style.display = 'none';
+            }
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
+            if (window.clientMapInstance) {
+                window.clientMapInstance.remove();
+                window.clientMapInstance = null;
+                window.clientMapMarkers = { mech: null, client: null, taller: null };
+            }
+            window._lastDeliveryStatus = null;
+            return;
+        }
+
+        const data = snap.val();
+
+        // Mostrar tarjeta activa
+        if (activeCard) activeCard.classList.remove('hidden');
+        if (noServicesMsg) noServicesMsg.classList.add('hidden');
+
+        // Asegurar mapa visible
+        if (mechanicMapDiv) {
+            mechanicMapDiv.classList.remove('hidden');
+            mechanicMapDiv.style.display = 'block';
+            mechanicMapDiv.style.height = '250px';
+            mechanicMapDiv.style.minHeight = '250px';
+            mechanicMapDiv.style.opacity = '1';
+        }
+
+        // Ocultar botón de emergencia si la entrega está en curso
+        if (data.estado_entrega === 'en_camino' || data.estado_entrega === 'pendiente') {
+            if (emergencyBtn) emergencyBtn.style.display = 'none';
+        } else {
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+        }
+
+        // Barra de progreso
+        let currentStep = 0, progressPercent = 0;
+        if (data.status === 'aceptado' && data.estado_entrega === 'pendiente') { currentStep = 1; progressPercent = 25; }
+        else if (data.estado_entrega === 'en_camino') { currentStep = 2; progressPercent = 50; }
+        else if (data.estado_entrega === 'entregado') { currentStep = 3; progressPercent = 100; }
+
+        // Actualizar pasos (si tienes los elementos en HTML)
+        if (stepLabels.length) {
+            for (let i = 0; i < stepLabels.length; i++) {
+                const labelEl = document.getElementById(stepLabels[i]);
+                const dotEl = document.getElementById(stepDots[i]);
+                if (i < currentStep) {
+                    labelEl?.classList.add('text-green-400', 'font-bold');
+                    dotEl?.classList.remove('bg-asfalto', 'border-white/20');
+                    dotEl?.classList.add('bg-green-500', 'border-asfalto');
+                } else {
+                    labelEl?.classList.remove('text-green-400', 'font-bold');
+                    dotEl?.classList.remove('bg-green-500', 'border-asfalto');
+                    dotEl?.classList.add('bg-asfalto', 'border-white/20');
+                }
+            }
+        }
+        if (progressBar) progressBar.style.width = progressPercent + '%';
+
+        // Texto de estado
+        if (statusDesc) {
+            let estadoTexto = "Pedido recibido";
+            if (data.estado_entrega === 'pendiente') estadoTexto = "Preparando entrega";
+            else if (data.estado_entrega === 'en_camino') estadoTexto = "Repartidor en camino";
+            else if (data.estado_entrega === 'entregado') estadoTexto = "Entregado";
+            statusDesc.innerText = estadoTexto;
+        }
+
+        // === MAPA Y RUTA (similar a SOS) ===
+        if (data.estado_entrega === 'pendiente' || data.estado_entrega === 'en_camino') {
+            const initClientMapIfNeeded = () => {
+                if (!mechanicMapDiv) return;
+                const rect = mechanicMapDiv.getBoundingClientRect();
+                if (rect.height < 100) {
+                    setTimeout(initClientMapIfNeeded, 300);
+                    return;
+                }
+                if (!window.clientMapInstance) {
+                    if (typeof initClientMap === 'function') initClientMap();
+                } else {
+                    window.clientMapInstance.invalidateSize();
+                }
+            };
+            initClientMapIfNeeded();
+
+            if (window.clientMapInstance && data.lat && data.lng) {
+                // Marcador del cliente (destino)
+                if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
+                    icon: L.divIcon({
+                        className: 'gps-pulse-marker',
+                        html: '<div class="pulse-inner" style="background:#FF6B00; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-map-marker-alt" style="color:white; font-size:14px;"></i></div>',
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 28]
+                    })
+                }).addTo(window.clientMapInstance).bindPopup("📍 Tu destino");
+
+                // Suscripción a la posición del repartidor
+                if (mechPosUnsubscribe) mechPosUnsubscribe();
+                if (data.repartidor_uid) {
+                    const repartidorSnap = await getDoc(doc(db, "users", data.repartidor_uid));
+                    const repartidorData = repartidorSnap.exists() ? repartidorSnap.data() : { name: 'Repartidor', phone: '' };
+                    const telefono = repartidorData.phone || '';
+                    const telefonoClean = telefono.replace('+52', '');
+                    const nombre = repartidorData.name || 'Repartidor';
+
+                    const popupContent = `
+                        <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${document.body.classList.contains('light-mode') ? '#ffffff' : '#1A1A1A'}; color:${document.body.classList.contains('light-mode') ? '#111111' : '#ffffff'}; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
+                            <b>${escapeHtml(nombre)}</b><br>
+                            ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+                            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                                ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+                                ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                            </div>
+                        </div>
+                    `;
+
+                    mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.repartidor_uid}`), (posSnap) => {
+                        if (posSnap.exists() && window.clientMapInstance) {
+                            const pos = posSnap.val();
+                            if (pos.lat && pos.lng) {
+                                if (window.clientMapMarkers.mech) {
+                                    window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
+                                    window.clientMapMarkers.mech.setPopupContent(popupContent);
+                                } else {
+                                    window.clientMapMarkers.mech = L.marker([pos.lat, pos.lng], {
+                                        icon: L.divIcon({
+                                            className: 'mech-pulse-marker',
+                                            html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-truck" style="color:white; font-size:16px;"></i></div>',
+                                            iconSize: [32, 32],
+                                            iconAnchor: [16, 32]
+                                        })
+                                    }).addTo(window.clientMapInstance).bindPopup(popupContent);
+                                }
+
+                                window.clientMapInstance.setView([pos.lat, pos.lng], 14);
+
+                                // Ruta
+                                if (routingControl) {
+                                    routingControl.setWaypoints([
+                                        L.latLng(pos.lat, pos.lng),
+                                        L.latLng(data.lat, data.lng)
+                                    ]);
+                                } else {
+                                    try {
+                                        routingControl = L.Routing.control({
+                                            waypoints: [
+                                                L.latLng(pos.lat, pos.lng),
+                                                L.latLng(data.lat, data.lng)
+                                            ],
+                                            routeWhileDragging: false,
+                                            language: 'es',
+                                            showAlternatives: false,
+                                            show: false,
+                                            collapsible: false,
+                                            lineOptions: { styles: [{ color: '#22c55e', weight: 6, opacity: 0.9 }] },
+                                            router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+                                            createMarker: () => null
+                                        }).addTo(window.clientMapInstance);
+                                        setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
+                                    } catch (e) { console.warn('Error al crear routing control:', e); }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Ajustar límites
+                const bounds = [];
+                if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
+                if (window.clientMapMarkers.mech) {
+                    const latlng = window.clientMapMarkers.mech.getLatLng();
+                    if (latlng) bounds.push([latlng.lat, latlng.lng]);
+                }
+                if (bounds.length >= 2) {
+                    window.clientMapInstance.fitBounds(bounds, { padding: [50, 50] });
+                } else if (bounds.length === 1) {
+                    window.clientMapInstance.setView(bounds[0], 14);
+                }
+            }
+        } else {
+            // Si no está en camino, eliminar ruta y marcadores
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
+            if (window.clientMapInstance) {
+                if (window.clientMapMarkers.mech) window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+                if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                window.clientMapMarkers.mech = null;
+                window.clientMapMarkers.client = null;
+            }
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+        }
+
+        // Notificaciones
+        if (data.estado_entrega === 'en_camino' && window._lastDeliveryStatus !== 'en_camino') {
+            speakTTS('Tu pedido está en camino.');
+            playSound('notif');
+        }
+        if (data.estado_entrega === 'entregado' && window._lastDeliveryStatus !== 'entregado') {
+            speakTTS('Tu pedido ha sido entregado.');
+            playSound('notif');
+        }
+
+        window._lastDeliveryStatus = data.estado_entrega;
+    });
+}
+// ========== FIN DE listenToMyDeliveries ==========
+
 window.abrirChatSOS = () => {
     if (window._sosChatId) {
         window.openChat(window._sosChatId);
