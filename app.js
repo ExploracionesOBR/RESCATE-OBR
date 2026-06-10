@@ -2691,7 +2691,6 @@ function initClientMap() {
 
 // ========== LISTEN TO MY SOS – VERSIÓN DEFINITIVA (CORREGIDA) ==========
 function listenToMySOS() {
-    // Limpiar listener anterior si existe
     if (window.mySOSListener && typeof window.mySOSListener === 'function') {
         window.mySOSListener();
         window.mySOSListener = null;
@@ -2709,14 +2708,13 @@ function listenToMySOS() {
         const wsCard = document.getElementById('active-workshop-card');
         const statusDesc = document.getElementById('sos-status-desc-client');
         const progressBar = document.getElementById('sos-progress-bar');
-        const stepLabels = ['step-1-label', 'step-2-label', 'step-3-label', 'step-4-label'];
-        const stepDots = ['step-dot-1', 'step-dot-2', 'step-dot-3', 'step-dot-4'];
         const emergencyBtn = document.getElementById('emergency-client-btn');
+        const chatBtn = document.getElementById('btn-chat-sos');
 
         // Si no hay servicio activo
         if (!snap.exists()) {
             if (activeCard) activeCard.classList.add('hidden');
-            if (wsCard) wsCard.classList.add('hidden');   // ← AGREGADO
+            if (wsCard) wsCard.classList.add('hidden');
             if (noServicesMsg) noServicesMsg.classList.remove('hidden');
             if (survey) survey.classList.add('hidden');
             if (mechanicMapDiv) {
@@ -2724,6 +2722,7 @@ function listenToMySOS() {
                 mechanicMapDiv.style.display = 'none';
             }
             if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (chatBtn) chatBtn.classList.add('hidden');
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (routingControl) {
                 routingControl.remove();
@@ -2740,55 +2739,86 @@ function listenToMySOS() {
 
         const data = snap.val();
 
-        // Actualizar tarjeta de taller (si la moto está en el taller)
-        if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
-            if (wsCard) {
-                wsCard.classList.remove('hidden');
-                const steps = { 'recibida': 1, 'mecanica': 2, 'pruebas': 3, 'lista': 4 };
-                const currentStep = steps[data.tallerStatus] || 0;
-                const wsProgress = document.getElementById('client-ws-progress');
-                if (wsProgress) wsProgress.style.width = ((currentStep - 1) * 33.33) + '%';
-                const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
-                wsTexts.forEach((id, idx) => {
-                    const el = document.getElementById(id);
-                    if (el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
-                });
-            }
-        } else {
+        // --- SI EL SERVICIO ESTÁ COMPLETADO O CANCELADO ---
+        if (data.status === 'completed' || data.status === 'cancelled') {
+            // OCULTAR TARJETA DE SOS Y TALLER INMEDIATAMENTE
+            if (activeCard) activeCard.classList.add('hidden');
             if (wsCard) wsCard.classList.add('hidden');
+            if (mechanicMapDiv) {
+                mechanicMapDiv.classList.add('hidden');
+                mechanicMapDiv.style.display = 'none';
+            }
+            if (chatBtn) chatBtn.classList.add('hidden');
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
+            if (window.clientMapInstance) {
+                window.clientMapInstance.remove();
+                window.clientMapInstance = null;
+                window.clientMapMarkers = { mech: null, client: null, taller: null };
+            }
+
+            // NOTIFICACIONES
+            if (data.status === 'completed') {
+                speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
+                playSound('notif');
+                // Verificar si ya calificó este servicio
+                const shortId = data.shortId || 'unknown';
+                const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
+                if (!yaCalifico) {
+                    if (survey) survey.classList.remove('hidden');
+                } else {
+                    if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+                }
+            } else {
+                speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
+                playSound('notif');
+                if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+            }
+
+            // Eliminar alerta RTDB
+            remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
+            window.loadClientHistory();
+
+            window.lastClientSOSStatus = data.status;
+            return;
         }
 
-        // Mostrar tarjeta activa y ocultar mensaje de "sin actividad"
+        // --- SERVICIO ACTIVO (NO COMPLETADO) ---
         if (activeCard) activeCard.classList.remove('hidden');
         if (noServicesMsg) noServicesMsg.classList.add('hidden');
 
-        // Asegurar que el contenedor del mapa sea visible y tenga altura
+        // Asegurar mapa visible
         if (mechanicMapDiv) {
             mechanicMapDiv.classList.remove('hidden');
             mechanicMapDiv.style.display = 'block';
             mechanicMapDiv.style.height = '250px';
             mechanicMapDiv.style.minHeight = '250px';
-            mechanicMapDiv.style.opacity = '1';
         }
 
-        // Ocultar botón de emergencia si el servicio está en curso
-        const estadosOcultarEmergencia = ['accepted', 'repairing', 'to_shop', 'ready'];
-        if (estadosOcultarEmergencia.includes(data.status)) {
-            if (emergencyBtn) emergencyBtn.style.display = 'none';
+        // Ocultar botón emergencia
+        if (emergencyBtn) emergencyBtn.style.display = 'none';
+
+        // Chat button
+        if (data.mech_uid && data.chatId) {
+            if (chatBtn) chatBtn.classList.remove('hidden');
         } else {
-            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (chatBtn) chatBtn.classList.add('hidden');
         }
 
-        // Actualizar barra de progreso (pasos)
+        // Barra de progreso
         let currentStep = 0, progressPercent = 0;
         if (data.status === 'accepted') { currentStep = 1; progressPercent = 25; }
         else if (data.status === 'repairing') { currentStep = 2; progressPercent = 50; }
         else if (data.status === 'to_shop' || data.status === 'ready') { currentStep = 3; progressPercent = 75; }
         else if (data.status === 'completed') { currentStep = 4; progressPercent = 100; }
 
-        for (let i = 0; i < stepLabels.length; i++) {
-            const labelEl = document.getElementById(stepLabels[i]);
-            const dotEl = document.getElementById(stepDots[i]);
+        for (let i = 0; i < 4; i++) {
+            const labelEl = document.getElementById('step-' + (i+1) + '-label');
+            const dotEl = document.getElementById('step-dot-' + (i+1));
             if (i < currentStep) {
                 labelEl?.classList.add('text-red-400', 'font-bold');
                 dotEl?.classList.remove('bg-asfalto', 'border-white/20');
@@ -2812,9 +2842,8 @@ function listenToMySOS() {
             statusDesc.innerText = estadoTexto;
         }
 
-        // === INICIALIZAR / ACTUALIZAR MAPA Y RUTA ===
+        // --- MAPA Y RUTA (código original) ---
         if (data.status === 'accepted' || data.status === 'repairing') {
-            // Inicializar el mapa del cliente si es necesario
             const initClientMapIfNeeded = () => {
                 if (!mechanicMapDiv) return;
                 const rect = mechanicMapDiv.getBoundingClientRect();
@@ -2824,7 +2853,6 @@ function listenToMySOS() {
                 }
                 if (!window.clientMapInstance) {
                     if (typeof initClientMap === 'function') initClientMap();
-                    else console.error('initClientMap no está definida');
                 } else {
                     window.clientMapInstance.invalidateSize();
                 }
@@ -3014,8 +3042,8 @@ function listenToMySOS() {
 // ========== FIN DE listenToMySOS ==========
 
 // ========== LISTEN TO MY DELIVERIES – SEGUIMIENTO DE ENTREGAS ==========
+// ========== LISTEN TO MY DELIVERIES – ENTREGAS ACTIVAS ==========
 function listenToMyDeliveries() {
-    // Limpiar listener anterior si existe
     if (window._deliveryListener && typeof window._deliveryListener === 'function') {
         window._deliveryListener();
         window._deliveryListener = null;
@@ -3025,25 +3053,23 @@ function listenToMyDeliveries() {
     let mechPosUnsubscribe = null;
     let routingControl = null;
 
-    // Escuchar el pedido online activo del usuario (estado pendiente, en_camino, aceptado)
     window._deliveryListener = onValue(dbRef(rtdb, 'pedidos_online/' + auth.currentUser.uid), async (snap) => {
         const activeCard = document.getElementById('active-delivery-card');
-        const noServicesMsg = document.getElementById('no-active-delivery-msg');
+        const noServicesMsg = document.getElementById('no-active-services-msg');
         const mechanicMapDiv = document.getElementById('delivery-live-map');
         const statusDesc = document.getElementById('delivery-status-desc-client');
         const progressBar = document.getElementById('delivery-progress-bar');
-        const stepLabels = ['delivery-step-1', 'delivery-step-2', 'delivery-step-3', 'delivery-step-4'];
-        const stepDots = ['delivery-dot-1', 'delivery-dot-2', 'delivery-dot-3', 'delivery-dot-4'];
         const emergencyBtn = document.getElementById('emergency-client-btn');
+        const chatBtn = document.getElementById('btn-chat-delivery');
 
-        // Si no hay pedido activo o está entregado
+        // Si no hay pedido activo o está entregado/cancelado
         if (!snap.exists() || !snap.val().estado_entrega || snap.val().estado_entrega === 'entregado') {
             if (activeCard) activeCard.classList.add('hidden');
-            if (noServicesMsg) noServicesMsg.classList.remove('hidden');
             if (mechanicMapDiv) {
                 mechanicMapDiv.classList.add('hidden');
                 mechanicMapDiv.style.display = 'none';
             }
+            if (chatBtn) chatBtn.classList.add('hidden');
             if (emergencyBtn) emergencyBtn.style.display = 'flex';
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (routingControl) {
@@ -3055,66 +3081,95 @@ function listenToMyDeliveries() {
                 window.clientMapInstance = null;
                 window.clientMapMarkers = { mech: null, client: null, taller: null };
             }
+            // Si no hay otro servicio activo (rescate), mostrar "Sin actividad"
+            const sosActive = document.getElementById('active-sos-card');
+            if (!sosActive || sosActive.classList.contains('hidden')) {
+                if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+            }
             window._lastDeliveryStatus = null;
             return;
         }
 
         const data = snap.val();
 
-        // Mostrar tarjeta activa
+        // SI LA ENTREGA ESTÁ COMPLETADA
+        if (data.estado_entrega === 'entregado') {
+            if (activeCard) activeCard.classList.add('hidden');
+            if (mechanicMapDiv) {
+                mechanicMapDiv.classList.add('hidden');
+                mechanicMapDiv.style.display = 'none';
+            }
+            if (chatBtn) chatBtn.classList.add('hidden');
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
+            if (window.clientMapInstance) {
+                window.clientMapInstance.remove();
+                window.clientMapInstance = null;
+                window.clientMapMarkers = { mech: null, client: null, taller: null };
+            }
+            // Si no hay rescate activo, mostrar "Sin actividad"
+            const sosActive = document.getElementById('active-sos-card');
+            if (!sosActive || sosActive.classList.contains('hidden')) {
+                if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+            }
+            return;
+        }
+
+        // --- ENTREGA ACTIVA ---
         if (activeCard) activeCard.classList.remove('hidden');
         if (noServicesMsg) noServicesMsg.classList.add('hidden');
 
-        // Asegurar mapa visible
+        // Mostrar mapa
         if (mechanicMapDiv) {
             mechanicMapDiv.classList.remove('hidden');
             mechanicMapDiv.style.display = 'block';
             mechanicMapDiv.style.height = '250px';
             mechanicMapDiv.style.minHeight = '250px';
-            mechanicMapDiv.style.opacity = '1';
         }
 
-        // Ocultar botón de emergencia si la entrega está en curso
-        if (data.estado_entrega === 'en_camino' || data.estado_entrega === 'pendiente') {
-            if (emergencyBtn) emergencyBtn.style.display = 'none';
+        // Ocultar botón emergencia
+        if (emergencyBtn) emergencyBtn.style.display = 'none';
+
+        // Chat button
+        if (data.chatId) {
+            if (chatBtn) chatBtn.classList.remove('hidden');
         } else {
-            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (chatBtn) chatBtn.classList.add('hidden');
         }
 
-        // Barra de progreso
+        // Progreso
         let currentStep = 0, progressPercent = 0;
-        if (data.status === 'aceptado' && data.estado_entrega === 'pendiente') { currentStep = 1; progressPercent = 25; }
-        else if (data.estado_entrega === 'en_camino') { currentStep = 2; progressPercent = 50; }
-        else if (data.estado_entrega === 'entregado') { currentStep = 3; progressPercent = 100; }
+        if (data.estado_entrega === 'pendiente') { currentStep = 1; progressPercent = 33; }
+        else if (data.estado_entrega === 'en_camino') { currentStep = 2; progressPercent = 66; }
+        if (progressBar) progressBar.style.width = progressPercent + '%';
 
-        // Actualizar pasos (si tienes los elementos en HTML)
-        if (stepLabels.length) {
-            for (let i = 0; i < stepLabels.length; i++) {
-                const labelEl = document.getElementById(stepLabels[i]);
-                const dotEl = document.getElementById(stepDots[i]);
-                if (i < currentStep) {
-                    labelEl?.classList.add('text-green-400', 'font-bold');
-                    dotEl?.classList.remove('bg-asfalto', 'border-white/20');
-                    dotEl?.classList.add('bg-green-500', 'border-asfalto');
-                } else {
-                    labelEl?.classList.remove('text-green-400', 'font-bold');
-                    dotEl?.classList.remove('bg-green-500', 'border-asfalto');
-                    dotEl?.classList.add('bg-asfalto', 'border-white/20');
-                }
+        // Actualizar pasos
+        for (let i = 0; i < 3; i++) {
+            const labelEl = document.getElementById('delivery-step-' + (i+1));
+            const dotEl = document.getElementById('delivery-dot-' + (i+1));
+            if (i < currentStep) {
+                labelEl?.classList.add('text-green-400', 'font-bold');
+                dotEl?.classList.remove('bg-asfalto', 'border-white/20');
+                dotEl?.classList.add('bg-green-500', 'border-asfalto');
+            } else {
+                labelEl?.classList.remove('text-green-400', 'font-bold');
+                dotEl?.classList.remove('bg-green-500', 'border-asfalto');
+                dotEl?.classList.add('bg-asfalto', 'border-white/20');
             }
         }
-        if (progressBar) progressBar.style.width = progressPercent + '%';
 
         // Texto de estado
         if (statusDesc) {
-            let estadoTexto = "Pedido recibido";
-            if (data.estado_entrega === 'pendiente') estadoTexto = "Preparando entrega";
-            else if (data.estado_entrega === 'en_camino') estadoTexto = "Repartidor en camino";
-            else if (data.estado_entrega === 'entregado') estadoTexto = "Entregado";
-            statusDesc.innerText = estadoTexto;
+            if (data.estado_entrega === 'pendiente') statusDesc.innerText = "Preparando entrega";
+            else if (data.estado_entrega === 'en_camino') statusDesc.innerText = "Repartidor en camino";
+            else statusDesc.innerText = "Estado desconocido";
         }
 
-        // === MAPA Y RUTA (similar a SOS) ===
+        // --- MAPA Y RUTA (similar a SOS pero con repartidor) ---
         if (data.estado_entrega === 'pendiente' || data.estado_entrega === 'en_camino') {
             const initClientMapIfNeeded = () => {
                 if (!mechanicMapDiv) return;
@@ -3226,29 +3281,6 @@ function listenToMyDeliveries() {
                     window.clientMapInstance.setView(bounds[0], 14);
                 }
             }
-        } else {
-            // Si no está en camino, eliminar ruta y marcadores
-            if (routingControl) {
-                routingControl.remove();
-                routingControl = null;
-            }
-            if (window.clientMapInstance) {
-                if (window.clientMapMarkers.mech) window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
-                if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                window.clientMapMarkers.mech = null;
-                window.clientMapMarkers.client = null;
-            }
-            if (mechPosUnsubscribe) mechPosUnsubscribe();
-        }
-
-        // Notificaciones
-        if (data.estado_entrega === 'en_camino' && window._lastDeliveryStatus !== 'en_camino') {
-            speakTTS('Tu pedido está en camino.');
-            playSound('notif');
-        }
-        if (data.estado_entrega === 'entregado' && window._lastDeliveryStatus !== 'entregado') {
-            speakTTS('Tu pedido ha sido entregado.');
-            playSound('notif');
         }
 
         window._lastDeliveryStatus = data.estado_entrega;
@@ -3256,11 +3288,34 @@ function listenToMyDeliveries() {
 }
 // ========== FIN DE listenToMyDeliveries ==========
 
-window.abrirChatSOS = () => {
+window.abrirChatSOS = async () => {
     if (window._sosChatId) {
         window.openChat(window._sosChatId);
+        return;
+    }
+    if (!window.currentSOSId) {
+        // Buscar el SOS activo del usuario
+        const snap = await getDocs(query(collection(db, "rescates"), where("uid", "==", auth.currentUser.uid), where("status", "in", ["accepted", "repairing", "to_shop", "ready"]), limit(1)));
+        if (snap.empty) {
+            window.showToast("No tienes un servicio activo con chat disponible.", true);
+            return;
+        }
+        const data = snap.docs[0].data();
+        window.currentSOSId = snap.docs[0].id;
+        if (data.chatId) {
+            window._sosChatId = data.chatId;
+            window.openChat(data.chatId);
+        } else {
+            window.showToast("Aún no hay chat disponible. Espera a que el taller asigne el servicio.", true);
+        }
     } else {
-        window.showToast("Aún no hay chat disponible. Espera a que el taller asigne el servicio.", true);
+        const snap = await getDoc(doc(db, "rescates", window.currentSOSId));
+        if (snap.exists() && snap.data().chatId) {
+            window._sosChatId = snap.data().chatId;
+            window.openChat(window._sosChatId);
+        } else {
+            window.showToast("Aún no hay chat disponible. Espera a que el taller asigne el servicio.", true);
+        }
     }
 };
 // ===== Funciones globales que estaban mal ubicadas dentro de listenToMySOS =====
@@ -3320,18 +3375,32 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 window.submitSurvey = async () => {
-    if(!window.currentRating) return showToast("Selecciona una calificación", true);
+    if (!window.currentRating) return showToast("Selecciona una calificación", true);
     const comments = document.getElementById('survey-comments').value.trim();
-    if(window.currentRating < 3 && !comments) return showToast("¿Qué mejorarías?", true);
-    await addDoc(collection(db, "satisfaction"), { 
-        uid: auth.currentUser.uid, 
-        rating: window.currentRating, 
-        comments, 
-        timestamp: Date.now(), 
-        mechName: window.currentUserDoc.name || 'Mecánico' 
+    if (window.currentRating < 3 && !comments) return showToast("¿Qué mejorarías?", true);
+
+    // Obtener shortId del servicio completado
+    const snap = await getDocs(query(collection(db, "rescates"), where("uid", "==", auth.currentUser.uid), where("status", "==", "completed"), orderBy("timestamp", "desc"), limit(1)));
+    let shortId = 'unknown';
+    if (!snap.empty) {
+        shortId = snap.docs[0].data().shortId || 'unknown';
+    }
+
+    // Guardar en Firestore
+    await addDoc(collection(db, "satisfaction"), {
+        uid: auth.currentUser.uid,
+        rating: window.currentRating,
+        comments,
+        timestamp: Date.now(),
+        shortId: shortId,
+        mechName: window.currentUserDoc?.name || 'Mecánico'
     });
+
+    // Guardar en localStorage para evitar mostrar encuesta nuevamente
+    localStorage.setItem('calificado_' + shortId, 'true');
+
     document.getElementById('satisfaction-survey').classList.add('hidden');
-document.getElementById('no-active-services-msg').classList.remove('hidden'); 
+    document.getElementById('no-active-services-msg').classList.remove('hidden');
     showToast("¡Gracias!");
 };
 // === ADMIN TALLER Y CITAS (organizado por bloques, solo "lista" es solo lectura) ===
