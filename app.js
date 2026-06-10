@@ -2948,15 +2948,20 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
         if ((data.status === 'completed' || data.status === 'cancelled') && 
     window.lastClientSOSStatus !== 'completed' && 
     window.lastClientSOSStatus !== 'cancelled') {
-    
-    const chatBtn = document.getElementById('btn-chat-sos');
-    if (chatBtn) chatBtn.classList.add('hidden');
-    window._sosChatId = null;
-    
+
+    // Ocultar tarjeta de SOS activo
+    if (activeCard) activeCard.classList.add('hidden');
+    // Ocultar tarjeta de taller
+    if (wsCard) wsCard.classList.add('hidden');
+    // Ocultar mapa
+    if (mechanicMapDiv) {
+        mechanicMapDiv.classList.add('hidden');
+        mechanicMapDiv.style.display = 'none';
+    }
+    // Mantener notificaciones sin eliminar
     if (data.status === 'completed') {
         speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
         playSound('notif');
-        if (activeCard) activeCard.classList.add('hidden');
         setTimeout(() => {
             const surveyEl = document.getElementById('satisfaction-survey');
             if (surveyEl) surveyEl.classList.remove('hidden');
@@ -2964,33 +2969,13 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
     } else {
         speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
         playSound('notif');
-        if (activeCard) activeCard.classList.add('hidden');
     }
-    
+
+    // Eliminar alerta RTDB (esto no afecta notificaciones)
     remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
     window.loadClientHistory();
-    
-    // 👇 **AQUÍ VA EL BLOQUE QUE ME DISTE PARA LA TARJETA DEL TALLER**
-    if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
-        const wsCard = document.getElementById('active-workshop-card');
-        if (wsCard) {
-            wsCard.classList.remove('hidden');
-            const steps = { 'recibida': 1, 'mecanica': 2, 'pruebas': 3, 'lista': 4 };
-            const currentStep = steps[data.tallerStatus] || 0;
-            const wsProgress = document.getElementById('client-ws-progress');
-            if (wsProgress) wsProgress.style.width = ((currentStep - 1) * 33.33) + '%';
-            const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
-            wsTexts.forEach((id, idx) => {
-                const el = document.getElementById(id);
-                if (el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
-            });
-        }
-    } else {
-        const wsCard = document.getElementById('active-workshop-card');
-        if (wsCard) wsCard.classList.add('hidden');
-    }
-    // 👆 HASTA AQUÍ
 
+    // Cerrar chat y liberar recursos
     if (mechPosUnsubscribe) mechPosUnsubscribe();
     if (routingControl) {
         routingControl.remove();
@@ -3001,13 +2986,9 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
         window.clientMapInstance = null;
         window.clientMapMarkers = { mech: null, client: null, taller: null };
     }
-    
+
     window.lastClientSOSStatus = data.status;
     return;
-}
-
-        window.lastClientSOSStatus = data.status;
-    });
 }
 
 // aqui finaliza listenToMySOS //
