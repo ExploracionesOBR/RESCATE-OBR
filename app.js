@@ -1655,16 +1655,6 @@ function alertarGlobal(mensaje, tipo = 'notif') {
 }
 // ... luego sigue updateLandingStatus ...
 
-// ... después de speakTTS
-function alertarGlobal(mensaje, tipo = 'notif') {
-    playSound(tipo);
-    speakTTS(mensaje);
-    if (auth.currentUser) {
-        rtdbSet(dbRef(rtdb, 'notificaciones/' + auth.currentUser.uid), { msg: mensaje });
-    }
-}
-// ... luego viene updateLandingStatus
-
 function updateLandingStatus() {
     const now = new Date();
     const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
