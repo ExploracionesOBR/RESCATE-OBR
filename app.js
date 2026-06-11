@@ -2758,231 +2758,228 @@ function listenToMySOS() {
             }
             // No ocultamos noServicesMsg aquí porque depende también de la entrega
             window.lastClientSOSStatus = null;
-            // Salimos para que el resto del código evalúe la entrega
-            // (El código de entrega está más abajo, fuera de este bloque)
-            return;
-        }
-
-        const data = snap.val();
-
-        // CASO 2: Servicio COMPLETADO o CANCELADO (ocultar tarjeta y eliminar nodo)
-        if (data.status === 'completed' || data.status === 'cancelled') {
-            // 1. Ocultar tarjeta inmediatamente
-            if (activeCard) activeCard.classList.add('hidden');
-            if (wsCard) wsCard.classList.add('hidden');
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.add('hidden');
-                mechanicMapDiv.style.display = 'none';
-            }
-            if (chatBtn) chatBtn.classList.add('hidden');
-            if (mechPosUnsubscribe) mechPosUnsubscribe();
-            if (routingControl) {
-                routingControl.remove();
-                routingControl = null;
-            }
-
-            // 2. Notificaciones
-            if (data.status === 'completed') {
-                const shortId = data.shortId || 'unknown';
-                const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
-                if (!yaCalifico) {
-                    if (survey) survey.classList.remove('hidden');
-                }
-                speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
-                playSound('notif');
-            } else {
-                speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
-                playSound('notif');
-            }
-
-            // 3. Eliminar el nodo de RTDB (para que el listener no se vuelva a disparar)
-            await remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid)).catch(console.warn);
-            
-            window.loadClientHistory();
-            window.lastClientSOSStatus = data.status;
-            // No hacemos return para que siga evaluando la entrega (código más abajo)
+            // No hacemos return para que el código de entrega se ejecute más abajo
         } else {
-            // --- SOS ACTIVO (no completado) ---
-            if (activeCard) activeCard.classList.remove('hidden');
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.remove('hidden');
-                mechanicMapDiv.style.display = 'block';
-                mechanicMapDiv.style.height = '250px';
-                mechanicMapDiv.style.minHeight = '250px';
-            }
-            if (emergencyBtn) emergencyBtn.style.display = 'none';
-            if (data.mech_uid && data.chatId) {
-                if (chatBtn) chatBtn.classList.remove('hidden');
-            }
+            const data = snap.val();
 
-            // Barra de progreso SOS
-            let currentStep = 0, progressPercent = 0;
-            if (data.status === 'accepted') { currentStep = 1; progressPercent = 25; }
-            else if (data.status === 'repairing') { currentStep = 2; progressPercent = 50; }
-            else if (data.status === 'to_shop' || data.status === 'ready') { currentStep = 3; progressPercent = 75; }
-            else if (data.status === 'completed') { currentStep = 4; progressPercent = 100; }
-
-            for (let i = 0; i < 4; i++) {
-                const labelEl = document.getElementById('step-' + (i+1) + '-label');
-                const dotEl = document.getElementById('step-dot-' + (i+1));
-                if (i < currentStep) {
-                    labelEl?.classList.add('text-red-400', 'font-bold');
-                    dotEl?.classList.remove('bg-asfalto', 'border-white/20');
-                    dotEl?.classList.add('bg-red-500', 'border-asfalto');
-                } else {
-                    labelEl?.classList.remove('text-red-400', 'font-bold');
-                    dotEl?.classList.remove('bg-red-500', 'border-asfalto');
-                    dotEl?.classList.add('bg-asfalto', 'border-white/20');
+            // CASO 2: Servicio COMPLETADO o CANCELADO (ocultar tarjeta y eliminar nodo)
+            if (data.status === 'completed' || data.status === 'cancelled') {
+                // 1. Ocultar tarjeta inmediatamente
+                if (activeCard) activeCard.classList.add('hidden');
+                if (wsCard) wsCard.classList.add('hidden');
+                if (mechanicMapDiv) {
+                    mechanicMapDiv.classList.add('hidden');
+                    mechanicMapDiv.style.display = 'none';
                 }
-            }
-            if (progressBar) progressBar.style.width = progressPercent + '%';
-
-            // Texto de estado SOS
-            if (statusDesc) {
-                let estadoTexto = "Esperando confirmación";
-                if (data.status === 'accepted') estadoTexto = "Mecánico en camino";
-                else if (data.status === 'repairing') estadoTexto = "Reparando";
-                else if (data.status === 'to_shop' || data.status === 'ready') estadoTexto = "Finalizado";
-                else if (data.status === 'completed') estadoTexto = "Servicio finalizado";
-                else if (data.status === 'cancelled') estadoTexto = "Cancelado";
-                statusDesc.innerText = estadoTexto;
-            }
-
-            // MAPA Y RUTA SOS (código original - se mantiene igual)
-            if (data.status === 'accepted' || data.status === 'repairing') {
-                const initClientMapIfNeeded = () => {
-                    if (!mechanicMapDiv) return;
-                    const rect = mechanicMapDiv.getBoundingClientRect();
-                    if (rect.height < 100) {
-                        setTimeout(initClientMapIfNeeded, 300);
-                        return;
-                    }
-                    if (!window.clientMapInstance) {
-                        if (typeof initClientMap === 'function') initClientMap();
-                    } else {
-                        window.clientMapInstance.invalidateSize();
-                    }
-                };
-                initClientMapIfNeeded();
-
-                if (window.clientMapInstance && data.lat && data.lng) {
-                    // Marcador del cliente (ubicación de la avería)
-                    if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                    window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
-                        icon: L.divIcon({
-                            className: 'gps-pulse-marker',
-                            html: '<div class="pulse-inner" style="background:#FF6B00; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-map-marker-alt" style="color:white; font-size:14px;"></i></div>',
-                            iconSize: [28, 28],
-                            iconAnchor: [14, 28]
-                        })
-                    }).addTo(window.clientMapInstance).bindPopup("📍 Tu ubicación");
-
-                    // Suscripción a la posición del mecánico
-                    if (mechPosUnsubscribe) mechPosUnsubscribe();
-                    if (data.mech_uid) {
-                        const mechUserSnap = await getDoc(doc(db, "users", data.mech_uid));
-                        const mechData = mechUserSnap.exists() ? mechUserSnap.data() : { name: 'Mecánico', phone: '' };
-                        const calificacion = await obtenerPromedioCalificacion(data.mech_uid);
-                        const stars = calificacion ? '★'.repeat(Math.round(calificacion.promedio)) + '☆'.repeat(5 - Math.round(calificacion.promedio)) : '☆☆☆☆☆';
-                        const ratingText = calificacion ? `${calificacion.promedio} ⭐ (${calificacion.total} reseñas)` : 'Sin reseñas';
-                        const telefono = mechData.phone || '';
-                        const telefonoClean = telefono.replace('+52', '');
-                        const nombre = mechData.name || 'Mecánico';
-                        const popupContent = `
-                            <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${document.body.classList.contains('light-mode') ? '#ffffff' : '#1A1A1A'}; color:${document.body.classList.contains('light-mode') ? '#111111' : '#ffffff'}; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
-                                <b>${escapeHtml(nombre)}</b><br>
-                                <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
-                                ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
-                                <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-                                    ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
-                                    ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
-                                </div>
-                            </div>
-                        `;
-
-                        mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
-                            if (posSnap.exists() && window.clientMapInstance) {
-                                const pos = posSnap.val();
-                                if (pos.lat && pos.lng) {
-                                    if (window.clientMapMarkers.mech) {
-                                        window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
-                                        window.clientMapMarkers.mech.setPopupContent(popupContent);
-                                    } else {
-                                        window.clientMapMarkers.mech = L.marker([pos.lat, pos.lng], {
-                                            icon: L.divIcon({
-                                                className: 'mech-pulse-marker',
-                                                html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-motorcycle" style="color:white; font-size:16px;"></i></div>',
-                                                iconSize: [32, 32],
-                                                iconAnchor: [16, 32]
-                                            })
-                                        }).addTo(window.clientMapInstance).bindPopup(popupContent);
-                                    }
-
-                                    window.clientMapInstance.setView([pos.lat, pos.lng], 14);
-
-                                    // Ruta SOS
-                                    if (routingControl) {
-                                        routingControl.setWaypoints([
-                                            L.latLng(pos.lat, pos.lng),
-                                            L.latLng(data.lat, data.lng)
-                                        ]);
-                                    } else {
-                                        try {
-                                            routingControl = L.Routing.control({
-                                                waypoints: [
-                                                    L.latLng(pos.lat, pos.lng),
-                                                    L.latLng(data.lat, data.lng)
-                                                ],
-                                                routeWhileDragging: false,
-                                                language: 'es',
-                                                showAlternatives: false,
-                                                show: false,
-                                                collapsible: false,
-                                                lineOptions: { styles: [{ color: '#440dfa', weight: 6, opacity: 0.9 }] },
-                                                router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
-                                                createMarker: () => null
-                                            }).addTo(window.clientMapInstance);
-                                            setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
-                                        } catch (e) { console.warn('Error al crear routing control:', e); }
-                                    }
-                                }
-                            }
-                        });
-                    }
-
-                    // Ajustar límites del mapa SOS
-                    const bounds = [];
-                    if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
-                    if (window.clientMapMarkers.mech) {
-                        const latlng = window.clientMapMarkers.mech.getLatLng();
-                        if (latlng) bounds.push([latlng.lat, latlng.lng]);
-                    }
-                    if (bounds.length >= 2) {
-                        window.clientMapInstance.fitBounds(bounds, { padding: [50, 50] });
-                    } else if (bounds.length === 1) {
-                        window.clientMapInstance.setView(bounds[0], 14);
-                    }
-                }
-            } else {
-                // Si el estado no es accepted/repairing, eliminar ruta y marcadores SOS
+                if (chatBtn) chatBtn.classList.add('hidden');
+                if (mechPosUnsubscribe) mechPosUnsubscribe();
                 if (routingControl) {
                     routingControl.remove();
                     routingControl = null;
                 }
-                if (window.clientMapInstance) {
-                    if (window.clientMapMarkers.mech) window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
-                    if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                    window.clientMapMarkers.mech = null;
-                    window.clientMapMarkers.client = null;
-                }
-                if (mechPosUnsubscribe) mechPosUnsubscribe();
-            }
 
-            window.lastClientSOSStatus = data.status;
+                // 2. Notificaciones
+                if (data.status === 'completed') {
+                    const shortId = data.shortId || 'unknown';
+                    const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
+                    if (!yaCalifico) {
+                        if (survey) survey.classList.remove('hidden');
+                    }
+                    speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
+                    playSound('notif');
+                } else {
+                    speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
+                    playSound('notif');
+                }
+
+                // 3. Eliminar el nodo de RTDB (para que el listener no se vuelva a disparar)
+                await remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid)).catch(console.warn);
+
+                window.loadClientHistory();
+                window.lastClientSOSStatus = data.status;
+                // No hacemos return para que siga evaluando la entrega (código más abajo)
+            } else {
+                // --- SOS ACTIVO (no completado) ---
+                if (activeCard) activeCard.classList.remove('hidden');
+                if (mechanicMapDiv) {
+                    mechanicMapDiv.classList.remove('hidden');
+                    mechanicMapDiv.style.display = 'block';
+                    mechanicMapDiv.style.height = '250px';
+                    mechanicMapDiv.style.minHeight = '250px';
+                }
+                if (emergencyBtn) emergencyBtn.style.display = 'none';
+                if (data.mech_uid && data.chatId) {
+                    if (chatBtn) chatBtn.classList.remove('hidden');
+                }
+
+                // Barra de progreso SOS
+                let currentStep = 0, progressPercent = 0;
+                if (data.status === 'accepted') { currentStep = 1; progressPercent = 25; }
+                else if (data.status === 'repairing') { currentStep = 2; progressPercent = 50; }
+                else if (data.status === 'to_shop' || data.status === 'ready') { currentStep = 3; progressPercent = 75; }
+                else if (data.status === 'completed') { currentStep = 4; progressPercent = 100; }
+
+                for (let i = 0; i < 4; i++) {
+                    const labelEl = document.getElementById('step-' + (i+1) + '-label');
+                    const dotEl = document.getElementById('step-dot-' + (i+1));
+                    if (i < currentStep) {
+                        labelEl?.classList.add('text-red-400', 'font-bold');
+                        dotEl?.classList.remove('bg-asfalto', 'border-white/20');
+                        dotEl?.classList.add('bg-red-500', 'border-asfalto');
+                    } else {
+                        labelEl?.classList.remove('text-red-400', 'font-bold');
+                        dotEl?.classList.remove('bg-red-500', 'border-asfalto');
+                        dotEl?.classList.add('bg-asfalto', 'border-white/20');
+                    }
+                }
+                if (progressBar) progressBar.style.width = progressPercent + '%';
+
+                // Texto de estado SOS
+                if (statusDesc) {
+                    let estadoTexto = "Esperando confirmación";
+                    if (data.status === 'accepted') estadoTexto = "Mecánico en camino";
+                    else if (data.status === 'repairing') estadoTexto = "Reparando";
+                    else if (data.status === 'to_shop' || data.status === 'ready') estadoTexto = "Finalizado";
+                    else if (data.status === 'completed') estadoTexto = "Servicio finalizado";
+                    else if (data.status === 'cancelled') estadoTexto = "Cancelado";
+                    statusDesc.innerText = estadoTexto;
+                }
+
+                // MAPA Y RUTA SOS (código original - se mantiene igual)
+                if (data.status === 'accepted' || data.status === 'repairing') {
+                    const initClientMapIfNeeded = () => {
+                        if (!mechanicMapDiv) return;
+                        const rect = mechanicMapDiv.getBoundingClientRect();
+                        if (rect.height < 100) {
+                            setTimeout(initClientMapIfNeeded, 300);
+                            return;
+                        }
+                        if (!window.clientMapInstance) {
+                            if (typeof initClientMap === 'function') initClientMap();
+                        } else {
+                            window.clientMapInstance.invalidateSize();
+                        }
+                    };
+                    initClientMapIfNeeded();
+
+                    if (window.clientMapInstance && data.lat && data.lng) {
+                        // Marcador del cliente (ubicación de la avería)
+                        if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                        window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
+                            icon: L.divIcon({
+                                className: 'gps-pulse-marker',
+                                html: '<div class="pulse-inner" style="background:#FF6B00; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-map-marker-alt" style="color:white; font-size:14px;"></i></div>',
+                                iconSize: [28, 28],
+                                iconAnchor: [14, 28]
+                            })
+                        }).addTo(window.clientMapInstance).bindPopup("📍 Tu ubicación");
+
+                        // Suscripción a la posición del mecánico
+                        if (mechPosUnsubscribe) mechPosUnsubscribe();
+                        if (data.mech_uid) {
+                            const mechUserSnap = await getDoc(doc(db, "users", data.mech_uid));
+                            const mechData = mechUserSnap.exists() ? mechUserSnap.data() : { name: 'Mecánico', phone: '' };
+                            const calificacion = await obtenerPromedioCalificacion(data.mech_uid);
+                            const stars = calificacion ? '★'.repeat(Math.round(calificacion.promedio)) + '☆'.repeat(5 - Math.round(calificacion.promedio)) : '☆☆☆☆☆';
+                            const ratingText = calificacion ? `${calificacion.promedio} ⭐ (${calificacion.total} reseñas)` : 'Sin reseñas';
+                            const telefono = mechData.phone || '';
+                            const telefonoClean = telefono.replace('+52', '');
+                            const nombre = mechData.name || 'Mecánico';
+                            const popupContent = `
+                                <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${document.body.classList.contains('light-mode') ? '#ffffff' : '#1A1A1A'}; color:${document.body.classList.contains('light-mode') ? '#111111' : '#ffffff'}; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
+                                    <b>${escapeHtml(nombre)}</b><br>
+                                    <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
+                                    ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+                                    <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                                        ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+                                        ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                                    </div>
+                                </div>
+                            `;
+
+                            mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
+                                if (posSnap.exists() && window.clientMapInstance) {
+                                    const pos = posSnap.val();
+                                    if (pos.lat && pos.lng) {
+                                        if (window.clientMapMarkers.mech) {
+                                            window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
+                                            window.clientMapMarkers.mech.setPopupContent(popupContent);
+                                        } else {
+                                            window.clientMapMarkers.mech = L.marker([pos.lat, pos.lng], {
+                                                icon: L.divIcon({
+                                                    className: 'mech-pulse-marker',
+                                                    html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-motorcycle" style="color:white; font-size:16px;"></i></div>',
+                                                    iconSize: [32, 32],
+                                                    iconAnchor: [16, 32]
+                                                })
+                                            }).addTo(window.clientMapInstance).bindPopup(popupContent);
+                                        }
+
+                                        window.clientMapInstance.setView([pos.lat, pos.lng], 14);
+
+                                        // Ruta SOS
+                                        if (routingControl) {
+                                            routingControl.setWaypoints([
+                                                L.latLng(pos.lat, pos.lng),
+                                                L.latLng(data.lat, data.lng)
+                                            ]);
+                                        } else {
+                                            try {
+                                                routingControl = L.Routing.control({
+                                                    waypoints: [
+                                                        L.latLng(pos.lat, pos.lng),
+                                                        L.latLng(data.lat, data.lng)
+                                                    ],
+                                                    routeWhileDragging: false,
+                                                    language: 'es',
+                                                    showAlternatives: false,
+                                                    show: false,
+                                                    collapsible: false,
+                                                    lineOptions: { styles: [{ color: '#440dfa', weight: 6, opacity: 0.9 }] },
+                                                    router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+                                                    createMarker: () => null
+                                                }).addTo(window.clientMapInstance);
+                                                setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
+                                            } catch (e) { console.warn('Error al crear routing control:', e); }
+                                        }
+                                    }
+                                }
+                            });
+                        }
+
+                        // Ajustar límites del mapa SOS
+                        const bounds = [];
+                        if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
+                        if (window.clientMapMarkers.mech) {
+                            const latlng = window.clientMapMarkers.mech.getLatLng();
+                            if (latlng) bounds.push([latlng.lat, latlng.lng]);
+                        }
+                        if (bounds.length >= 2) {
+                            window.clientMapInstance.fitBounds(bounds, { padding: [50, 50] });
+                        } else if (bounds.length === 1) {
+                            window.clientMapInstance.setView(bounds[0], 14);
+                        }
+                    }
+                } else {
+                    // Si el estado no es accepted/repairing, eliminar ruta y marcadores SOS
+                    if (routingControl) {
+                        routingControl.remove();
+                        routingControl = null;
+                    }
+                    if (window.clientMapInstance) {
+                        if (window.clientMapMarkers.mech) window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+                        if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                        window.clientMapMarkers.mech = null;
+                        window.clientMapMarkers.client = null;
+                    }
+                    if (mechPosUnsubscribe) mechPosUnsubscribe();
+                }
+
+                window.lastClientSOSStatus = data.status;
+            }
         }
 
         // ========== VERIFICAR ENTREGA ACTIVA (pedidos_online) ==========
-        // Usamos get() que debe estar importado desde firebase-database
         const deliverySnap = await get(dbRef(rtdb, 'pedidos_online/' + auth.currentUser.uid)).catch(() => null);
         const deliveryCard = document.getElementById('active-delivery-card');
         const deliveryMapDiv = document.getElementById('delivery-live-map');
