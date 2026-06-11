@@ -1656,7 +1656,6 @@ async function loadGlobalSettings() {
             }
         }
     });
-}
 
 // ... después de speakTTS
 function alertarGlobal(mensaje, tipo = 'notif') {
