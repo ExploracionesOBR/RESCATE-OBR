@@ -1639,19 +1639,37 @@ async function loadGlobalSettings() {
     });
 }
 
-// ... después de speakTTS y playSound ...
+// ... después de speakTTS
 function alertarGlobal(mensaje, tipo = 'notif') {
-    // Sonido
     playSound(tipo);
-    // TTS
     speakTTS(mensaje);
-    // Notificación push (si hay token y FCM configurado)
-    if (auth.currentUser) {
-        // RTDB para notificación en segundo plano
-        rtdbSet(dbRef(rtdb, 'notificaciones/' + auth.currentUser.uid), { msg: mensaje });
-        // Si tienes FCM, también puedes enviar al token
-        // (opcional, ver sección FCM más abajo)
-    }
+    // ...
+}
+// ... después de la definición de alertarGlobal
+function iniciarListenerGlobalSOS() {
+    let lastSOSCount = 0;
+    const q = query(collection(db, "rescates"), where("status", "==", "pending"));
+    onSnapshot(q, (snap) => {
+        const currentCount = snap.size;
+        if (lastSOSCount > 0 && currentCount > lastSOSCount) {
+            const nuevaSOS = currentCount - lastSOSCount;
+            if (nuevaSOS > 0) {
+                playSound('alert');
+                speakTTS('¡Nueva solicitud de auxilio entrante!');
+                if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+                    navigator.serviceWorker.ready.then(reg => {
+                        reg.showNotification('🚨 Nuevo SOS', {
+                            body: `Hay ${nuevaSOS} nueva(s) solicitud(es) de auxilio pendiente(s).`,
+                            icon: 'icono.png',
+                            vibrate: [200, 100, 200]
+                        });
+                    });
+                }
+                showToast(`🚨 ¡${nuevaSOS} nueva solicitud de auxilio entrante!`, false);
+            }
+        }
+        lastSOSCount = currentCount;
+    });
 }
 // ... luego sigue updateLandingStatus ...
 
@@ -1894,6 +1912,7 @@ onAuthStateChanged(auth, async user => {
         globalSettings.centerLng = TALLER_LNG;
         showView('app-admin');
         document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
+         iniciarListenerGlobalSOS();
         setTimeout(() => {
             window.adminRefreshConfigUI();
             window.adminLoadInventory();
@@ -7391,17 +7410,82 @@ window.finalizeMechanicCharge = async () => {
     
     const total = mechanicRescueCost + mechanicTicket.reduce((s, i) => s + i.price, 0);
     
-    // 1. Descontar stock de productos
+    // 1. Descontar stock de productos (si hay)
     for (let item of mechanicTicket) {
         if (item.type === 'producto' && item.id) {
             const prodRef = doc(db, "inventario", item.id);
             const prodSnap = await getDoc(prodRef);
             if (prodSnap.exists()) {
                 const newStock = (prodSnap.data().stock || 0) - 1;
-                await updateDoc(prodRef, { stock: newStock });
+                await updateDoc(prodRef, { stock: Math.max(0, newStock) });
             }
         }
     }
+    
+    // 2. Obtener datos del servicio
+    const sosSnap = await getDoc(doc(db, "rescates", currentMechanicSOSId));
+    if (!sosSnap.exists()) return window.showToast("Servicio no encontrado", true);
+    const sosData = sosSnap.data();
+    const clienteName = sosData.clientName || sosData.phone || "Cliente";
+    const pendingId = generateShortId();
+    
+    // 3. Registrar la venta (si total > 0)
+    if (total > 0) {
+        await addDoc(collection(db, "cobros_pendientes"), {
+            pendingId: pendingId,
+            sosId: currentMechanicSOSId,
+            cliente: clienteName,
+            mech_uid: auth.currentUser.uid,
+            mech_name: window.currentUserDoc?.name || 'Mecánico',
+            concepto: `Servicio ${sosData.shortId || currentMechanicSOSId}`,
+            monto: total,
+            ticket: mechanicTicket,
+            rescueCost: mechanicRescueCost,
+            estado: 'pendiente',
+            timestamp: Date.now(),
+            metodoPago: 'Pendiente'
+        });
+        
+        await addDoc(collection(db, "ventas"), {
+            shortId: pendingId,
+            desc: mechanicTicket.map(i => i.name).join(", "),
+            total: total,
+            costo: mechanicTicket.reduce((s, i) => s + (i.cost || 0), 0),
+            metodoPago: 'Pendiente',
+            ticket: mechanicTicket,
+            sosId: currentMechanicSOSId,
+            rescueCost: mechanicRescueCost,
+            fecha: new Date().toISOString(),
+            estado: 'pendiente'
+        });
+        
+        await set(dbRef(rtdb, 'notificaciones_caja/cobro_' + Date.now()), {
+            msg: `Nuevo cobro pendiente de ${clienteName} por $${total.toFixed(2)}`,
+            type: 'cobro_mecanico',
+            pendingId: pendingId,
+            mech_name: window.currentUserDoc?.name
+        });
+        
+        window.showToast(`Cobro registrado por $${total.toFixed(2)}. Espera confirmación del administrador.`);
+    } else {
+        // Si total es 0, marcar directamente como pagado
+        await updateDoc(doc(db, "rescates", currentMechanicSOSId), { 
+            tallerStatus: 'pagado',
+            status: 'completed',
+            pagadoEn: Date.now()
+        });
+        window.showToast("Servicio finalizado sin costo adicional.");
+    }
+    
+    // 4. ✅ FINALIZAR EL SERVICIO PARA EL CLIENTE (cierra el ciclo)
+    await finalizarServicioParaCliente(currentMechanicSOSId);
+    
+    // 5. Limpiar y cerrar modal
+    toggleModal('modal-mechanic-pos', false);
+    currentMechanicSOSId = null;
+    mechanicTicket = [];
+    mechanicRescueCost = 0;
+};
     
     // 2. Obtener datos del servicio
     const sosSnap = await getDoc(doc(db, "rescates", currentMechanicSOSId));
@@ -7471,10 +7555,16 @@ await addDoc(collection(db, "ventas"), {
 
 // Función auxiliar para que el cliente vea el servicio finalizado (encuesta)
 async function finalizarServicioParaCliente(sosId) {
-    await updateDoc(doc(db, "rescates", sosId), { status: 'completed' });
+    // 1. Actualizar documento a 'completed'
+    await updateDoc(doc(db, "rescates", sosId), { 
+        status: 'completed',
+        tallerStatus: 'pagado'  // ← Asegurar que tallerStatus también se actualice
+    });
+    // 2. Eliminar la alerta RTDB para que el listener reciba snap.exists() == false
     const sosSnap = await getDoc(doc(db, "rescates", sosId));
     if (sosSnap.exists() && sosSnap.data().uid) {
         await remove(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid));
+        // 3. Notificar al cliente (opcional)
         await push(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid + '/notifs'), {
             msg: '✅ Servicio finalizado. ¡Califícanos!'
         });
