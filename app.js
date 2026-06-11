@@ -4189,7 +4189,8 @@ window.openClientServiceDetail = async (id) => {
                     : (data.tallerStatus ? `<p class="text-xs">Taller: ${data.tallerStatus}</p>` : '')
                 }
                 <p class="text-xs text-gray-500">${new Date(data.timestamp).toLocaleString()}</p>
-                ${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('${id}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">Descargar Ticket PDF</button>` : ''}
+                <!-- En el detalle del servicio -->
+${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('${id}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">Descargar Ticket PDF</button>` : ''}
             </div>
         `;
         contentDiv.innerHTML = detailHTML;
@@ -4199,6 +4200,18 @@ window.openClientServiceDetail = async (id) => {
 };
 
 window.downloadClientTicket = async (serviceId) => {
+    // 1. Buscar la venta asociada al servicio
+    const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", serviceId), limit(1)));
+    
+    if (!ventasSnap.empty) {
+        // ✅ Si hay venta, generar el ticket completo de venta (con productos, garantías, etc.)
+        const ventaDoc = ventasSnap.docs[0];
+        const venta = ventaDoc.data();
+        window.imprimirTicketVenta(ventaDoc.id, venta);
+        return;
+    }
+    
+    // 2. Fallback: Si no hay venta, generar un ticket de admisión básico (solo para casos excepcionales)
     const docSnap = await getDoc(doc(db, "rescates", serviceId));
     if (!docSnap.exists()) return showToast("Servicio no encontrado", true);
     const data = docSnap.data();
@@ -4208,7 +4221,7 @@ window.downloadClientTicket = async (serviceId) => {
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
     const logoImg = new Image();
     logoImg.src = 'logo_oscuro.png';
-    await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
+    await new Promise((resolve) => { logoImg.onload = resolve; if (logoImg.complete) resolve(); });
 
     // Encabezado
     pdfDoc.setFillColor(255, 107, 0);
@@ -4222,7 +4235,6 @@ window.downloadClientTicket = async (serviceId) => {
     pdfDoc.line(12, 29, pageWidth - 12, 29);
 
     let y = 40;
-    // Datos del servicio
     pdfDoc.setFontSize(10);
     pdfDoc.setFont("helvetica", "normal");
     pdfDoc.setTextColor(0, 0, 0);
@@ -4249,16 +4261,10 @@ window.downloadClientTicket = async (serviceId) => {
     pdfDoc.setFontSize(8);
     pdfDoc.setTextColor(100);
     pdfDoc.text("Este comprobante es de carácter informativo. Los costos finales pueden variar según refacciones.", 12, y);
-
+    
     // Footer
-    const totalPages = pdfDoc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-        pdfDoc.setPage(i);
-        pdfDoc.setFontSize(7);
-        pdfDoc.setTextColor(150);
-        pdfDoc.text(`Generado el ${new Date().toLocaleDateString()}`, 12, pdfDoc.internal.pageSize.getHeight() - 8);
-        pdfDoc.text(`Página ${i} de ${totalPages}`, pageWidth - 25, pdfDoc.internal.pageSize.getHeight() - 8);
-    }
+    const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE ADMISIÓN EN TALLER', logoImg);
+    addFooter(pdfDoc);
     pdfDoc.save(`Ticket_${data.shortId || serviceId}.pdf`);
 };
 // === CITAS DEL CLIENTE ===
@@ -5332,19 +5338,21 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
                 estado: 'activa'
             }));
 
-        const saleData = {
-            shortId: sId,
-            desc: window.posTicket.map(i => i.name).join(", "),
-            total: totalToPay,
-            costo: window.posTotalCost,
-            metodoPago: paymentMethod,
-            clienteCel: phone ? "+52"+phone : null,
-            ticket: window.posTicket,
-            garantias: garantias.length ? garantias : null,
-            fecha: new Date().toISOString()
-        };
-
-        const docRef = await addDoc(collection(db, "ventas"), saleData);
+// Asegúrate de que esto esté dentro de la función finalizeCheckout
+const saleData = {
+    shortId: sId,
+    desc: window.posTicket.map(i => i.name).join(", "),
+    total: totalToPay,
+    costo: window.posTotalCost,
+    metodoPago: paymentMethod,
+    clienteCel: phone ? "+52"+phone : null,
+    ticket: window.posTicket,
+    garantias: garantias.length ? garantias : null,
+    fecha: new Date().toISOString(),
+    sosId: currentDetalleServicioId || null,  // ← AGREGAR ESTA LÍNEA
+    rescueCost: window.currentSOSCost || 0    // ← AGREGAR ESTA LÍNEA
+};
+await addDoc(collection(db, "ventas"), saleData);
 
         for (let g of garantias) {
             await addDoc(collection(db, "garantias"), {
@@ -7419,18 +7427,19 @@ window.finalizeMechanicCharge = async () => {
             metodoPago: 'Pendiente'
         });
         
-        await addDoc(collection(db, "ventas"), {
-            shortId: pendingId,
-            desc: mechanicTicket.map(i => i.name).join(", "),
-            total: total,
-            costo: mechanicTicket.reduce((s, i) => s + (i.cost || 0), 0),
-            metodoPago: 'Pendiente',
-            ticket: mechanicTicket,
-            sosId: currentMechanicSOSId,
-            rescueCost: mechanicRescueCost,
-            fecha: new Date().toISOString(),
-            estado: 'pendiente'
-        });
+        // Asegúrate de que esto esté dentro de la función finalizeMechanicCharge
+await addDoc(collection(db, "ventas"), {
+    shortId: pendingId,
+    desc: mechanicTicket.map(i => i.name).join(", "),
+    total: total,
+    costo: mechanicTicket.reduce((s, i) => s + (i.cost || 0), 0),
+    metodoPago: 'Pendiente',
+    ticket: mechanicTicket,
+    sosId: currentMechanicSOSId,  // ← AGREGAR ESTA LÍNEA
+    rescueCost: mechanicRescueCost,
+    fecha: new Date().toISOString(),
+    estado: 'pendiente'
+});
         
         await set(dbRef(rtdb, 'notificaciones_caja/cobro_' + Date.now()), {
             msg: `Nuevo cobro pendiente de ${clienteName} por $${total.toFixed(2)}`,
