@@ -1960,7 +1960,9 @@ onAuthStateChanged(auth, async user => {
         window.loadClientHistory(); 
         listenToMySOS();
         listenToMyDeliveries(); 
-        window.loadClientCitas(); 
+        window.loadClientCitas();
+        console.log('Cargando tienda para usuario:', window.currentUserDoc?.phone);
+loadPublicStore();
         loadPublicStore();
         window.loadMyOrders();
         updateLandingStatus();
@@ -2726,26 +2728,19 @@ function initClientMap() {
 
 // ========== LISTEN TO MY SOS – VERSIÓN DEFINITIVA (CORREGIDA) ==========
 function listenToMySOS() {
-    // Limpiar listener anterior de SOS
     if (window.mySOSListener && typeof window.mySOSListener === 'function') {
         window.mySOSListener();
         window.mySOSListener = null;
-    }
-    // Limpiar listener anterior de Entregas
-    if (window._deliveryListener && typeof window._deliveryListener === 'function') {
-        window._deliveryListener();
-        window._deliveryListener = null;
     }
     if (!auth.currentUser) return;
 
     // Variables para SOS
     let mechPosUnsubscribe = null;
     let routingControl = null;
-    // Variables para Entrega
-    let deliveryMechPosUnsubscribe = null;
-    let deliveryRoutingControl = null;
 
-    // ========== LISTENER DE SOS (alerta en RTDB) ==========
+    // Variable para recordar el último estado del servicio
+    let lastSOSStatus = null;
+
     window.mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), async (snap) => {
         const activeCard = document.getElementById('active-sos-card');
         const noServicesMsg = document.getElementById('no-active-services-msg');
@@ -2757,30 +2752,11 @@ function listenToMySOS() {
         const emergencyBtn = document.getElementById('emergency-client-btn');
         const chatBtn = document.getElementById('btn-chat-sos');
 
-        // CASO 1: No hay alerta (el nodo fue eliminado)
+        // CASO 1: El nodo fue eliminado (servicio finalizado o cancelado)
         if (!snap.exists()) {
-            // Ocultar todo inmediatamente
-            if (activeCard) activeCard.classList.add('hidden');
-            if (wsCard) wsCard.classList.add('hidden');
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.add('hidden');
-                mechanicMapDiv.style.display = 'none';
-            }
-            if (chatBtn) chatBtn.classList.add('hidden');
-            if (mechPosUnsubscribe) mechPosUnsubscribe();
-            if (routingControl) {
-                routingControl.remove();
-                routingControl = null;
-            }
-            // No ocultamos noServicesMsg aquí porque depende también de la entrega
-            window.lastClientSOSStatus = null;
-            // No hacemos return para que el código de entrega se ejecute más abajo
-        } else {
-            const data = snap.val();
-
-            // CASO 2: Servicio COMPLETADO o CANCELADO (ocultar tarjeta y eliminar nodo)
-            if (data.status === 'completed' || data.status === 'cancelled') {
-                // 1. Ocultar tarjeta inmediatamente
+            // Si el último estado conocido era 'completed' o 'cancelled', mostrar encuesta
+            if (lastSOSStatus === 'completed' || lastSOSStatus === 'cancelled') {
+                // Ocultar tarjeta de SOS
                 if (activeCard) activeCard.classList.add('hidden');
                 if (wsCard) wsCard.classList.add('hidden');
                 if (mechanicMapDiv) {
@@ -2788,45 +2764,113 @@ function listenToMySOS() {
                     mechanicMapDiv.style.display = 'none';
                 }
                 if (chatBtn) chatBtn.classList.add('hidden');
-                if (mechPosUnsubscribe) mechPosUnsubscribe();
+                if (emergencyBtn) emergencyBtn.style.display = 'flex';
+
+                // Limpiar rutas y marcadores
                 if (routingControl) {
                     routingControl.remove();
                     routingControl = null;
                 }
+                if (window.clientMapInstance) {
+                    // Eliminar marcadores de forma segura
+                    if (window.clientMapMarkers.mech) {
+                        window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+                        window.clientMapMarkers.mech = null;
+                    }
+                    if (window.clientMapMarkers.client) {
+                        window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                        window.clientMapMarkers.client = null;
+                    }
+                }
 
-                // 2. Notificaciones
-                if (data.status === 'completed') {
+                // Mostrar encuesta si es completado
+                if (lastSOSStatus === 'completed') {
                     const shortId = data.shortId || 'unknown';
                     const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
                     if (!yaCalifico) {
                         if (survey) survey.classList.remove('hidden');
+                    } else {
+                        if (noServicesMsg) noServicesMsg.classList.remove('hidden');
                     }
                     speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
                     playSound('notif');
                 } else {
                     speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
                     playSound('notif');
+                    if (noServicesMsg) noServicesMsg.classList.remove('hidden');
                 }
-
-                // 3. Eliminar el nodo de RTDB (para que el listener no se vuelva a disparar)
-                await remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid)).catch(console.warn);
 
                 window.loadClientHistory();
-                window.lastClientSOSStatus = data.status;
-                // No hacemos return para que siga evaluando la entrega (código más abajo)
+                lastSOSStatus = null;
+                return;
+            }
+
+            // Si no había estado, solo ocultar tarjeta
+            if (activeCard) activeCard.classList.add('hidden');
+            if (wsCard) wsCard.classList.add('hidden');
+            if (mechanicMapDiv) {
+                mechanicMapDiv.classList.add('hidden');
+                mechanicMapDiv.style.display = 'none';
+            }
+            if (chatBtn) chatBtn.classList.add('hidden');
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
+            if (window.clientMapInstance) {
+                // ... limpiar marcadores de forma segura
+            }
+            window.lastClientSOSStatus = null;
+            return;
+        }
+
+        const data = snap.val();
+        lastSOSStatus = data.status; // Actualizar estado
+
+        // CASO 2: Servicio completado o cancelado (aún en RTDB)
+        if (data.status === 'completed' || data.status === 'cancelled') {
+            // Ocultar tarjeta inmediatamente
+            if (activeCard) activeCard.classList.add('hidden');
+            if (wsCard) wsCard.classList.add('hidden');
+            if (mechanicMapDiv) {
+                mechanicMapDiv.classList.add('hidden');
+                mechanicMapDiv.style.display = 'none';
+            }
+            if (chatBtn) chatBtn.classList.add('hidden');
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
+
+            // No eliminar el nodo aquí. Dejar que el listener maneje la eliminación.
+            // Solo notificar
+            if (data.status === 'completed') {
+                speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
+                playSound('notif');
             } else {
-                // --- SOS ACTIVO (no completado) ---
-                if (activeCard) activeCard.classList.remove('hidden');
-                if (mechanicMapDiv) {
-                    mechanicMapDiv.classList.remove('hidden');
-                    mechanicMapDiv.style.display = 'block';
-                    mechanicMapDiv.style.height = '250px';
-                    mechanicMapDiv.style.minHeight = '250px';
-                }
-                if (emergencyBtn) emergencyBtn.style.display = 'none';
-                if (data.mech_uid && data.chatId) {
-                    if (chatBtn) chatBtn.classList.remove('hidden');
-                }
+                speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
+                playSound('notif');
+            }
+
+            window.loadClientHistory();
+            return;
+        }
+
+        // --- SOS ACTIVO ---
+        if (activeCard) activeCard.classList.remove('hidden');
+        if (mechanicMapDiv) {
+            mechanicMapDiv.classList.remove('hidden');
+            mechanicMapDiv.style.display = 'block';
+            mechanicMapDiv.style.height = '250px';
+        }
+        if (emergencyBtn) emergencyBtn.style.display = 'none';
+        if (data.mech_uid && data.chatId) {
+            if (chatBtn) chatBtn.classList.remove('hidden');
+        }
 
                 // Barra de progreso SOS
                 let currentStep = 0, progressPercent = 0;
@@ -2983,11 +3027,16 @@ function listenToMySOS() {
                         routingControl = null;
                     }
                     if (window.clientMapInstance) {
-                        if (window.clientMapMarkers.mech) window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
-                        if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                        window.clientMapMarkers.mech = null;
-                        window.clientMapMarkers.client = null;
-                    }
+                        if (window.clientMapInstance) {
+    if (window.clientMapMarkers.mech) {
+        window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+        window.clientMapMarkers.mech = null;
+    }
+    if (window.clientMapMarkers.client) {
+        window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+        window.clientMapMarkers.client = null;
+    }
+}
                     if (mechPosUnsubscribe) mechPosUnsubscribe();
                 }
 
@@ -3174,11 +3223,16 @@ function listenToMySOS() {
                         deliveryRoutingControl = null;
                     }
                     if (window.clientMapInstance) {
-                        if (window.clientMapMarkers.mech) window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
-                        if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                        window.clientMapMarkers.mech = null;
-                        window.clientMapMarkers.client = null;
-                    }
+                        if (window.clientMapInstance) {
+    if (window.clientMapMarkers.mech) {
+        window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+        window.clientMapMarkers.mech = null;
+    }
+    if (window.clientMapMarkers.client) {
+        window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+        window.clientMapMarkers.client = null;
+    }
+}
                     if (deliveryMechPosUnsubscribe) deliveryMechPosUnsubscribe();
                 }
             } else {
@@ -7541,22 +7595,25 @@ window.finalizeMechanicCharge = async () => {
 };
 // Función auxiliar para que el cliente vea el servicio finalizado (encuesta)
 async function finalizarServicioParaCliente(sosId) {
-    await updateDoc(doc(db, "rescates", sosId), { status: 'completed', tallerStatus: 'pagado' });
+    // 1. Actualizar el servicio a completado y pagado
+    await updateDoc(doc(db, "rescates", sosId), { 
+        status: 'completed',
+        tallerStatus: 'pagado' 
+    });
+
+    // 2. Obtener datos para notificar al cliente
     const sosSnap = await getDoc(doc(db, "rescates", sosId));
     if (sosSnap.exists() && sosSnap.data().uid) {
-        await remove(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid));
-        await push(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid + '/notifs'), {
-            msg: '✅ Servicio finalizado. ¡Califícanos!'
+        const uid = sosSnap.data().uid;
+        // Eliminar la alerta SOS para que el cliente ya no vea el seguimiento
+        await remove(dbRef(rtdb, 'sos_alerts/' + uid));
+        
+        // Notificar al cliente que finalizó (no "cobro pendiente")
+        await push(dbRef(rtdb, 'sos_alerts/' + uid + '/notifs'), {
+            msg: '✅ Tu servicio ha sido finalizado y pagado. ¡Califícanos!'
         });
     }
 }
-// Buscador de productos en tiempo real
-document.addEventListener('DOMContentLoaded', () => {
-    const searchInput = document.getElementById('mech-product-search');
-    if (searchInput) {
-        searchInput.addEventListener('input', () => renderMechanicProducts());
-    }
-});
 
 // ---------- Asignar mecánico y enviar WhatsApp ----------
 async function loadMecanicosActivosParaAsignar(sosId) {
