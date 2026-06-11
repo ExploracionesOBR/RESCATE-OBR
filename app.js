@@ -3186,7 +3186,6 @@ function listenToMySOS() {
 } 
 // ========== FIN DE listenToMySOS ==========
 
-// ========== LISTEN TO MY DELIVERIES – SEGUIMIENTO DE ENTREGAS ==========
 // ========== LISTEN TO MY DELIVERIES – ENTREGAS ACTIVAS ==========
 function listenToMyDeliveries() {
     if (window._deliveryListener && typeof window._deliveryListener === 'function') {
@@ -3230,8 +3229,7 @@ function listenToMyDeliveries() {
         // Mostrar botón de entregas
         if (deliveryBtn) deliveryBtn.style.display = 'flex';
 
-        const data = snap.val();
-        
+        const data = snap.val();        
         // SI LA ENTREGA ESTÁ COMPLETADA
         if (data.estado_entrega === 'entregado') {
             if (activeCard) activeCard.classList.add('hidden');
