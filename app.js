@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, where, limit, updateDoc, deleteDoc, orderBy, onSnapshot, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getDatabase, ref as dbRef, set, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref as dbRef, set, onValue, push, remove, update, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 // Cargar tema guardado localmente
 function cargarTemaLocal() {
@@ -2710,7 +2710,7 @@ function listenToMySOS() {
     let deliveryMechPosUnsubscribe = null;
     let deliveryRoutingControl = null;
 
-    // ========== LISTENER DE SOS ==========
+    // ========== LISTENER DE SOS (alerta en RTDB) ==========
     window.mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), async (snap) => {
         const activeCard = document.getElementById('active-sos-card');
         const noServicesMsg = document.getElementById('no-active-services-msg');
@@ -2722,8 +2722,9 @@ function listenToMySOS() {
         const emergencyBtn = document.getElementById('emergency-client-btn');
         const chatBtn = document.getElementById('btn-chat-sos');
 
-        // Si no hay alerta SOS
+        // CASO 1: No hay alerta (el nodo fue eliminado)
         if (!snap.exists()) {
+            // Ocultar todo inmediatamente
             if (activeCard) activeCard.classList.add('hidden');
             if (wsCard) wsCard.classList.add('hidden');
             if (mechanicMapDiv) {
@@ -2736,15 +2737,18 @@ function listenToMySOS() {
                 routingControl.remove();
                 routingControl = null;
             }
+            // No ocultamos noServicesMsg aquí porque depende también de la entrega
             window.lastClientSOSStatus = null;
-            // No ocultamos noServicesMsg aquí, depende también de la entrega
+            // Salimos para que el resto del código evalúe la entrega
+            // (El código de entrega está más abajo, fuera de este bloque)
             return;
         }
 
         const data = snap.val();
 
-        // --- SI EL SERVICIO SOS ESTÁ COMPLETADO O CANCELADO ---
+        // CASO 2: Servicio COMPLETADO o CANCELADO (ocultar tarjeta y eliminar nodo)
         if (data.status === 'completed' || data.status === 'cancelled') {
+            // 1. Ocultar tarjeta inmediatamente
             if (activeCard) activeCard.classList.add('hidden');
             if (wsCard) wsCard.classList.add('hidden');
             if (mechanicMapDiv) {
@@ -2758,6 +2762,7 @@ function listenToMySOS() {
                 routingControl = null;
             }
 
+            // 2. Notificaciones
             if (data.status === 'completed') {
                 const shortId = data.shortId || 'unknown';
                 const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
@@ -2771,14 +2776,14 @@ function listenToMySOS() {
                 playSound('notif');
             }
 
-            // Eliminar alerta RTDB
-            remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
+            // 3. Eliminar el nodo de RTDB (para que el listener no se vuelva a disparar)
+            await remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid)).catch(console.warn);
+            
             window.loadClientHistory();
-
             window.lastClientSOSStatus = data.status;
-            // No hacemos return aquí para que siga evaluando la entrega
+            // No hacemos return para que siga evaluando la entrega (código más abajo)
         } else {
-            // --- SOS ACTIVO ---
+            // --- SOS ACTIVO (no completado) ---
             if (activeCard) activeCard.classList.remove('hidden');
             if (mechanicMapDiv) {
                 mechanicMapDiv.classList.remove('hidden');
@@ -2958,7 +2963,8 @@ function listenToMySOS() {
         }
 
         // ========== VERIFICAR ENTREGA ACTIVA (pedidos_online) ==========
-        const deliverySnap = await get(dbRef(rtdb, 'pedidos_online/' + auth.currentUser.uid));
+        // Usamos get() que debe estar importado desde firebase-database
+        const deliverySnap = await get(dbRef(rtdb, 'pedidos_online/' + auth.currentUser.uid)).catch(() => null);
         const deliveryCard = document.getElementById('active-delivery-card');
         const deliveryMapDiv = document.getElementById('delivery-live-map');
         const deliveryStatusDesc = document.getElementById('delivery-status-desc-client');
@@ -2966,7 +2972,7 @@ function listenToMySOS() {
         const deliveryChatBtn = document.getElementById('btn-chat-delivery');
         const separator = document.getElementById('delivery-separator');
 
-        if (deliverySnap.exists()) {
+        if (deliverySnap && deliverySnap.exists()) {
             const deliveryData = deliverySnap.val();
             const estado = deliveryData.estado_entrega;
 
@@ -3183,7 +3189,7 @@ function listenToMySOS() {
             if (noServicesMsg) noServicesMsg.classList.add('hidden');
         }
     });
-} 
+}
 // ========== FIN DE listenToMySOS ==========
 
 // ========== LISTEN TO MY DELIVERIES – ENTREGAS ACTIVAS ==========
