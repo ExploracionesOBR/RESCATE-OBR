@@ -1552,9 +1552,16 @@ window.updateEmergencyButtonState = (isOpen, sched) => {
     const emText = document.getElementById('emergency-closed-text');
     if (!emBtn) return;
 
+    // Resetear clases y estilo
+    emBtn.classList.remove(
+        'opacity-50', 'pointer-events-none', 'bg-gray-600',
+        'bg-gradient-to-r', 'from-red-600', 'to-naranja'
+    );
+    emBtn.style.display = 'flex';
+
     if (isOpen) {
-        emBtn.classList.remove('opacity-50', 'pointer-events-none', 'bg-gray-600');
         emBtn.classList.add('bg-gradient-to-r', 'from-red-600', 'to-naranja');
+        emBtn.classList.remove('opacity-50', 'pointer-events-none', 'bg-gray-600');
         if (emText) emText.classList.add('hidden');
         emBtn.onclick = () => window.startFlow('sos');
     } else {
@@ -1572,7 +1579,6 @@ window.updateEmergencyButtonState = (isOpen, sched) => {
         emBtn.onclick = () => window.showToast("Taller cerrado. Vuelve en horario laboral.", true);
     }
 };
-
 // === INICIO Y CONFIGURACIÓN GLOBAL ===
 async function loadGlobalSettings() {
     // Primero aplicar tema local
@@ -1594,6 +1600,21 @@ async function loadGlobalSettings() {
         // Si no hay usuario, el tema local ya se aplicó
     }
     applyTheme();
+    // Forzar actualización del botón inmediatamente después de cargar ajustes
+window.updateEmergencyButtonState(
+    (() => {
+        const now = new Date();
+        const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
+        const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
+        const [hOpen, mOpen] = sched.o.split(':').map(Number);
+        const [hClose, mClose] = sched.c.split(':').map(Number);
+        const nowMins = now.getHours() * 60 + now.getMinutes();
+        const openMins = hOpen * 60 + mOpen;
+        const closeMins = hClose * 60 + mClose;
+        return nowMins >= openMins && nowMins < closeMins;
+    })(),
+    globalSettings.schedule?.[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1] || { o: "08:00", c: "20:00" }
+);
     updateLandingStatus();
     loadPublicStore();
     loadServicesCatalog();
@@ -1718,7 +1739,6 @@ function updateLandingStatus() {
         }
     });
 
-    // Mostrar fecha de lanzamiento si existe
     if (globalSettings.fechaLanzamiento) {
         const fechaEl = document.getElementById('fecha-lanzamiento');
         if (fechaEl) fechaEl.innerText = new Date(globalSettings.fechaLanzamiento).toLocaleDateString();
