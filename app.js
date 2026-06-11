@@ -7407,10 +7407,10 @@ window.addManualChargeToMechanicPOS = () => {
 // Finalizar cobro (guardar en cobros_pendientes, descontar stock y finalizar servicio para el cliente)
 window.finalizeMechanicCharge = async () => {
     if (!currentMechanicSOSId) return window.showToast("No hay servicio activo", true);
-    
+
     const total = mechanicRescueCost + mechanicTicket.reduce((s, i) => s + i.price, 0);
-    
-    // 1. Descontar stock de productos (si hay)
+
+    // 1. Descontar stock de productos
     for (let item of mechanicTicket) {
         if (item.type === 'producto' && item.id) {
             const prodRef = doc(db, "inventario", item.id);
@@ -7421,14 +7421,14 @@ window.finalizeMechanicCharge = async () => {
             }
         }
     }
-    
+
     // 2. Obtener datos del servicio
     const sosSnap = await getDoc(doc(db, "rescates", currentMechanicSOSId));
     if (!sosSnap.exists()) return window.showToast("Servicio no encontrado", true);
     const sosData = sosSnap.data();
     const clienteName = sosData.clientName || sosData.phone || "Cliente";
     const pendingId = generateShortId();
-    
+
     // 3. Registrar la venta (si total > 0)
     if (total > 0) {
         await addDoc(collection(db, "cobros_pendientes"), {
@@ -7445,8 +7445,8 @@ window.finalizeMechanicCharge = async () => {
             timestamp: Date.now(),
             metodoPago: 'Pendiente'
         });
-        
-        await addDoc(collection(db, "ventas"), {
+
+        const ventaRef = await addDoc(collection(db, "ventas"), {
             shortId: pendingId,
             desc: mechanicTicket.map(i => i.name).join(", "),
             total: total,
@@ -7458,29 +7458,28 @@ window.finalizeMechanicCharge = async () => {
             fecha: new Date().toISOString(),
             estado: 'pendiente'
         });
-        
+
         await set(dbRef(rtdb, 'notificaciones_caja/cobro_' + Date.now()), {
             msg: `Nuevo cobro pendiente de ${clienteName} por $${total.toFixed(2)}`,
             type: 'cobro_mecanico',
             pendingId: pendingId,
             mech_name: window.currentUserDoc?.name
         });
-        
+
         window.showToast(`Cobro registrado por $${total.toFixed(2)}. Espera confirmación del administrador.`);
     } else {
-        // Si total es 0, marcar directamente como pagado
-        await updateDoc(doc(db, "rescates", currentMechanicSOSId), { 
+        await updateDoc(doc(db, "rescates", currentMechanicSOSId), {
             tallerStatus: 'pagado',
             status: 'completed',
             pagadoEn: Date.now()
         });
         window.showToast("Servicio finalizado sin costo adicional.");
     }
-    
-    // 4. ✅ FINALIZAR EL SERVICIO PARA EL CLIENTE (cierra el ciclo)
+
+    // 4. Finalizar servicio para el cliente
     await finalizarServicioParaCliente(currentMechanicSOSId);
-    
-    // 5. Limpiar y cerrar modal
+
+    // 5. Limpiar
     toggleModal('modal-mechanic-pos', false);
     currentMechanicSOSId = null;
     mechanicTicket = [];
@@ -7555,22 +7554,15 @@ await addDoc(collection(db, "ventas"), {
 
 // Función auxiliar para que el cliente vea el servicio finalizado (encuesta)
 async function finalizarServicioParaCliente(sosId) {
-    // 1. Actualizar documento a 'completed'
-    await updateDoc(doc(db, "rescates", sosId), { 
-        status: 'completed',
-        tallerStatus: 'pagado'  // ← Asegurar que tallerStatus también se actualice
-    });
-    // 2. Eliminar la alerta RTDB para que el listener reciba snap.exists() == false
+    await updateDoc(doc(db, "rescates", sosId), { status: 'completed', tallerStatus: 'pagado' });
     const sosSnap = await getDoc(doc(db, "rescates", sosId));
     if (sosSnap.exists() && sosSnap.data().uid) {
         await remove(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid));
-        // 3. Notificar al cliente (opcional)
         await push(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid + '/notifs'), {
             msg: '✅ Servicio finalizado. ¡Califícanos!'
         });
     }
 }
-
 // Buscador de productos en tiempo real
 document.addEventListener('DOMContentLoaded', () => {
     const searchInput = document.getElementById('mech-product-search');
