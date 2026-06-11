@@ -354,14 +354,14 @@
         <!-- ================= PESTAÑA RESCATE ================= -->
         <section id="c-view-rescate" class="c-view space-y-6 pb-20">
     <!-- Botón grande de emergencia -->
-    <button id="emergency-client-btn" class="w-full rounded-3xl p-6 shadow-[0_0_20px_rgba(255,107,0,0.3)] active:scale-95 transition-transform flex items-center justify-between border border-naranja/50 opacity-50 pointer-events-none bg-gray-600">
-        <div class="text-left text-white">
-            <h3 class="text-2xl font-black italic uppercase">Emergencia</h3>
-            <p class="text-[10px] uppercase font-bold tracking-widest opacity-80">Solicitar rescate ahora</p>
-            <p id="emergency-closed-text" class="text-[10px] uppercase font-bold tracking-widest text-red-300">Abrimos a las 00:00</p>
-        </div>
-        <i class="fas fa-ambulance text-5xl text-white opacity-80 animate-pulse"></i>
-    </button>
+<button id="emergency-client-btn" class="w-full rounded-3xl p-6 shadow-[0_0_20px_rgba(255,107,0,0.3)] active:scale-95 transition-transform flex items-center justify-between border border-naranja/50">
+    <div class="text-left text-white">
+        <h3 class="text-2xl font-black italic uppercase">Emergencia</h3>
+        <p class="text-[10px] uppercase font-bold tracking-widest opacity-80">Solicitar rescate ahora</p>
+        <p id="emergency-closed-text" class="text-[10px] uppercase font-bold tracking-widest text-red-300 hidden">Abrimos a las 00:00</p>
+    </div>
+    <i class="fas fa-ambulance text-5xl text-white opacity-80 animate-pulse"></i>
+</button>
 
     <!-- Mensaje cuando no hay servicios activos -->
     <div id="no-active-services-msg" class="bg-white/5 border border-white/10 p-8 rounded-3xl text-center shadow-lg flex flex-col items-center justify-center">
