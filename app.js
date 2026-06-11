@@ -1583,12 +1583,12 @@ window.updateEmergencyButtonState = (isOpen, sched) => {
 async function loadGlobalSettings() {
     // Primero aplicar tema local
     cargarTemaLocal();
-    
+
     const snap = await getDoc(doc(db, 'settings', 'general'));
     if (snap.exists()) Object.assign(globalSettings, snap.data());
     globalSettings.centerLat = TALLER_LAT;
     globalSettings.centerLng = TALLER_LNG;
-    
+
     // Sincronizar: si es admin, guardar en Firestore; si no, prevalece local
     if (auth.currentUser && window.currentUserDoc?.role === 'admin') {
         const localMode = localStorage.getItem('obr_theme_mode');
@@ -1600,25 +1600,23 @@ async function loadGlobalSettings() {
         // Si no hay usuario, el tema local ya se aplicó
     }
     applyTheme();
-    // Forzar actualización del botón inmediatamente después de cargar ajustes
-window.updateEmergencyButtonState(
-    (() => {
-        const now = new Date();
-        const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
-        const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
-        const [hOpen, mOpen] = sched.o.split(':').map(Number);
-        const [hClose, mClose] = sched.c.split(':').map(Number);
-        const nowMins = now.getHours() * 60 + now.getMinutes();
-        const openMins = hOpen * 60 + mOpen;
-        const closeMins = hClose * 60 + mClose;
-        return nowMins >= openMins && nowMins < closeMins;
-    })(),
-    globalSettings.schedule?.[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1] || { o: "08:00", c: "20:00" }
-);
+
+    // ✅ CORRECCIÓN: Forzar actualización del botón inmediatamente después de cargar ajustes
+    const now = new Date();
+    const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
+    const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
+    const [hOpen, mOpen] = sched.o.split(':').map(Number);
+    const [hClose, mClose] = sched.c.split(':').map(Number);
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const openMins = hOpen * 60 + mOpen;
+    const closeMins = hClose * 60 + mClose;
+    const isOpen = nowMins >= openMins && nowMins < closeMins;
+    window.updateEmergencyButtonState(isOpen, sched);
+
     updateLandingStatus();
     loadPublicStore();
     loadServicesCatalog();
-
+}
     // --- Listener en tiempo real ---
     if (window._settingsUnsubscribe) window._settingsUnsubscribe();
     window._settingsUnsubscribe = onSnapshot(doc(db, 'settings', 'general'), (docSnap) => {
@@ -3569,12 +3567,17 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 window.submitSurvey = async () => {
-    // ... (validaciones iniciales)
+    if (!window.currentRating) return showToast("Selecciona una calificación", true);
     const comments = document.getElementById('survey-comments').value.trim();
-    // ... (resto de validaciones)
+    if (window.currentRating < 3 && !comments) return showToast("¿Qué mejorarías?", true);
 
     // Obtener shortId del servicio completado
-    const snap = await getDocs(query(collection(db, "rescates"), where("uid", "==", auth.currentUser.uid), where("status", "==", "completed"), orderBy("timestamp", "desc"), limit(1)));
+    const snap = await getDocs(query(collection(db, "rescates"), 
+        where("uid", "==", auth.currentUser.uid), 
+        where("status", "==", "completed"), 
+        orderBy("timestamp", "desc"), 
+        limit(1)
+    ));
     let shortId = 'unknown';
     if (!snap.empty) {
         shortId = snap.docs[0].data().shortId || 'unknown';
@@ -3587,16 +3590,52 @@ window.submitSurvey = async () => {
         comments,
         timestamp: Date.now(),
         shortId: shortId,
+        estado: 'completada',
         mechName: window.currentUserDoc?.name || 'Mecánico'
     });
 
     // ✅ Guardar en localStorage para NO mostrar la encuesta nuevamente
     localStorage.setItem('calificado_' + shortId, 'true');
+    localStorage.removeItem('encuesta_cancelada_' + shortId);
 
     document.getElementById('satisfaction-survey').classList.add('hidden');
     document.getElementById('no-active-services-msg').classList.remove('hidden');
     showToast("¡Gracias!");
 };
+
+window.cancelSurvey = async () => {
+    // Obtener shortId del servicio completado
+    const snap = await getDocs(query(collection(db, "rescates"), 
+        where("uid", "==", auth.currentUser.uid), 
+        where("status", "==", "completed"), 
+        orderBy("timestamp", "desc"), 
+        limit(1)
+    ));
+    let shortId = 'unknown';
+    if (!snap.empty) {
+        shortId = snap.docs[0].data().shortId || 'unknown';
+    }
+
+    // Guardar en Firestore con rating 5 y comentario de cancelación
+    await addDoc(collection(db, "satisfaction"), {
+        uid: auth.currentUser.uid,
+        rating: 5,
+        comments: 'El usuario canceló la encuesta. Se asigna calificación máxima automáticamente.',
+        timestamp: Date.now(),
+        shortId: shortId,
+        estado: 'cancelada',
+        mechName: window.currentUserDoc?.name || 'Mecánico'
+    });
+
+    // ✅ Guardar en localStorage para no volver a mostrar
+    localStorage.setItem('calificado_' + shortId, 'true');
+    localStorage.setItem('encuesta_cancelada_' + shortId, 'true');
+
+    document.getElementById('satisfaction-survey').classList.add('hidden');
+    document.getElementById('no-active-services-msg').classList.remove('hidden');
+    showToast("Encuesta cancelada. Se asignó calificación de 5 estrellas.");
+};
+
 // === ADMIN TALLER Y CITAS (organizado por bloques, solo "lista" es solo lectura) ===
 window.adminListenServices = () => {
     if (serviciosListener) serviciosListener();
@@ -8049,21 +8088,14 @@ window.marcarCobroPagado = async (cobroId) => {
                 </div>
             `;
             document.body.appendChild(modalEl);
-            document.getElementById('pay-efectivo').onclick = () => {
-                toggleModal(modalId, false);
-                resolve('Efectivo');
-            };
-            document.getElementById('pay-tarjeta').onclick = () => {
-                toggleModal(modalId, false);
-                resolve('Tarjeta/Transferencia');
-            };
+            document.getElementById('pay-efectivo').onclick = () => { toggleModal(modalId, false); resolve('Efectivo'); };
+            document.getElementById('pay-tarjeta').onclick = () => { toggleModal(modalId, false); resolve('Tarjeta/Transferencia'); };
         }
         toggleModal(modalId, true);
     });
     if (!metodo) return;
 
     try {
-        // Actualizar el cobro pendiente
         await updateDoc(cobroRef, {
             estado: 'pagado',
             metodoPago: metodo,
@@ -8075,10 +8107,12 @@ window.marcarCobroPagado = async (cobroId) => {
         // Descontar inventario
         if (cobro.ticket && cobro.ticket.length) {
             for (let item of cobro.ticket) {
-                if (item.type === 'almacen') {
-                    const pData = adminInventoryList.find(x => x.id === item.id);
-                    if (pData && pData.stock > 0) {
-                        await updateDoc(doc(db, "inventario", item.id), { stock: pData.stock - 1 });
+                if (item.type === 'almacen' && item.id) {
+                    const prodRef = doc(db, "inventario", item.id);
+                    const prodSnap = await getDoc(prodRef);
+                    if (prodSnap.exists()) {
+                        const newStock = (prodSnap.data().stock || 0) - 1;
+                        await updateDoc(prodRef, { stock: Math.max(0, newStock) });
                     }
                 }
             }
@@ -8101,17 +8135,17 @@ window.marcarCobroPagado = async (cobroId) => {
         }
 
         showToast(`Cobro de $${cobro.monto.toFixed(2)} marcado como pagado.`);
-        window.cargarCobrosMecanicosPanel(); // refrescar lista
-        
-        // Notificar al mecánico
+        window.cargarCobrosMecanicosPanel();
+
+        // Notificar al mecánico (CORREGIDO: usar set)
         if (cobro.mech_uid) {
-            rtdbSet(dbRef(rtdb, 'notificaciones/' + cobro.mech_uid), {
+            await set(dbRef(rtdb, 'notificaciones/' + cobro.mech_uid), {
                 msg: `💰 Tu cobro por $${cobro.monto.toFixed(2)} ha sido pagado por caja.`
             });
         }
     } catch (e) {
         console.error(e);
-        showToast("Error al procesar el pago", true);
+        showToast("Error al procesar el pago: " + e.message, true);
     }
 };
 // ======================================================
@@ -10454,3 +10488,24 @@ window.ingresarATaller = async () => {
     window.renderSOSMapa();
     window.adminListenServices();
 };
+function crearListenerSeguro(query, callback) {
+    let unsubscribe = null;
+    let reconnectTimer = null;
+
+    function conectar() {
+        if (unsubscribe) unsubscribe();
+        unsubscribe = onSnapshot(query, 
+            (snap) => {
+                if (reconnectTimer) clearTimeout(reconnectTimer);
+                callback(snap);
+            },
+            (error) => {
+                console.warn('Firestore error, reconectando en 5s:', error);
+                if (reconnectTimer) clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(conectar, 5000);
+            }
+        );
+    }
+    conectar();
+    return () => { if (unsubscribe) unsubscribe(); if (reconnectTimer) clearTimeout(reconnectTimer); };
+}
