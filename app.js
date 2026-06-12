@@ -4888,37 +4888,46 @@ function _addFooter(pdf, pageWidth, pageHeight) {
 async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     console.log('🚀 INICIO _generateRouteMapImage');
     console.log('📌 Puntos:', puntos);
+    console.log('📍 Cliente - Lat:', clienteLat, 'Lng:', clienteLng);
     
-    // Crear un div temporal pero visible para el navegador (fuera de la pantalla)
     const div = document.createElement('div');
     div.style.width = '600px';
     div.style.height = '500px';
     div.style.position = 'fixed';
-    div.style.left = '-9999px';    // Fuera de la pantalla
-    div.style.top = '-9999px';     // Fuera de la pantalla
+    div.style.left = '-9999px';
+    div.style.top = '-9999px';
     div.style.zIndex = '-1';
-    div.style.backgroundColor = '#ffffff'; // Fondo blanco para el mapa
-    div.style.visibility = 'visible';      // Leaflet necesita visibilidad
+    div.style.backgroundColor = '#ffffff';
+    div.style.visibility = 'visible';
     document.body.appendChild(div);
     
     try {
-        // Usar tiles de OpenStreetMap (más confiables)
         const layerUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-        const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-        
-        // Crear el mapa
         const map = L.map(div, {
             zoomControl: false,
             attributionControl: false,
             scrollWheelZoom: false
         });
+        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
         
-        // Añadir capa de tiles
-        L.tileLayer(layerUrl, { attribution }).addTo(map);
+        // Determinar centro del mapa
+        let centerLat = TALLER_LAT;
+        let centerLng = TALLER_LNG;
+        if (puntos && puntos.length > 0) {
+            centerLat = puntos[0][0];
+            centerLng = puntos[0][1];
+        }
+        map.setView([centerLat, centerLng], 13);
         
-        // Si tenemos puntos, dibujar la ruta y centrar el mapa
+        await new Promise((resolve) => {
+            map.whenReady(() => {
+                map.invalidateSize();
+                setTimeout(resolve, 500);
+            });
+        });
+        
+        // ✅ DIBUJAR LA RUTA (POLILÍNEA) CORRECTAMENTE
         if (puntos && puntos.length > 1) {
-            // Dibujar la polilínea (ruta del mecánico)
             const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
             const polyline = L.polyline(latlngs, { 
                 color: '#FF6B00', 
@@ -4927,26 +4936,13 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
                 smoothFactor: 1
             }).addTo(map);
             
-            // Ajustar el mapa para que muestre todos los puntos
+            // Centrar el mapa en la ruta
             const bounds = L.latLngBounds(latlngs);
             map.fitBounds(bounds, { padding: [50, 50] });
-        } else if (puntos && puntos.length === 1) {
-            // Si solo hay un punto, centrar en ese punto
-            map.setView([puntos[0][0], puntos[0][1]], 15);
-        } else {
-            // Si no hay puntos, centrar en el taller
-            map.setView([TALLER_LAT, TALLER_LNG], 13);
+            console.log('✅ Ruta dibujada con', puntos.length, 'puntos');
         }
         
-        // Esperar a que el mapa esté listo
-        await new Promise((resolve) => {
-            map.whenReady(() => {
-                map.invalidateSize();
-                setTimeout(resolve, 500);
-            });
-        });
-        
-        // Marcador de inicio (mecánico) – verde
+        // ✅ MARCADOR DE INICIO (MECÁNICO)
         if (puntos && puntos.length > 0 && puntos[0]) {
             L.marker(puntos[0], {
                 icon: L.divIcon({
@@ -4955,10 +4951,10 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
                     iconSize: [24, 24],
                     iconAnchor: [12, 12]
                 })
-            }).addTo(map);
+            }).addTo(map).bindPopup("Inicio (Mecánico)");
         }
         
-        // Marcador de destino (cliente) – naranja
+        // ✅ MARCADOR DE DESTINO (CLIENTE) - AHORA SE MUESTRA CORRECTAMENTE
         if (clienteLat && clienteLng) {
             L.marker([clienteLat, clienteLng], {
                 icon: L.divIcon({
@@ -4967,15 +4963,14 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
                     iconSize: [24, 24],
                     iconAnchor: [12, 12]
                 })
-            }).addTo(map);
+            }).addTo(map).bindPopup("Destino (Cliente)");
+            console.log('✅ Marcador de cliente agregado');
         }
         
-        // Esperar 3 segundos para carga completa de tiles
-        console.log('⏳ Esperando 3 segundos para carga de tiles...');
+        // Esperar carga de tiles
         await new Promise(resolve => setTimeout(resolve, 3000));
         
-        // Tomar captura de pantalla con html2canvas
-        console.log('📸 Capturando el mapa...');
+        // Capturar imagen
         await window.loadHtml2Canvas();
         const canvas = await html2canvas(div, {
             scale: 2,
@@ -4985,16 +4980,13 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
             logging: false
         });
         const imgData = canvas.toDataURL('image/png');
-        console.log('✅ Imagen generada correctamente (primeros 50 chars):', imgData.substring(0, 50));
+        console.log('✅ Imagen generada correctamente');
         return imgData;
     } catch (error) {
         console.error('❌ Error crítico al generar el mapa:', error);
         return null;
     } finally {
-        // Limpiar el div del DOM
-        if (div.parentNode) {
-            document.body.removeChild(div);
-        }
+        if (div.parentNode) document.body.removeChild(div);
     }
 }
 function _getRouteInstructions(puntos) {
@@ -5813,6 +5805,7 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
             pdfDoc.setFont("helvetica", "bold");
             pdfDoc.setFontSize(10);
             pdfDoc.setTextColor(15, 23, 42);
+            
             pdfDoc.text("ARTÍCULOS ADQUIRIDOS:", 12, y);
             y += 4;
             const body = saleData.ticket.map(item => [item.name, item.garantia || 'Sin garantía', `$${item.price.toFixed(2)}`]);
@@ -5831,6 +5824,45 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
             pdfDoc.setFontSize(12);
             pdfDoc.text(`Total Neto: $${saleData.total.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
             y += 10;
+            // --- INFORMACIÓN ADICIONAL DEL SERVICIO ---
+let additionalInfoY = y + 5;
+pdfDoc.setFont("helvetica", "bold");
+pdfDoc.setFontSize(9);
+pdfDoc.setTextColor(255, 107, 0);
+pdfDoc.text("DETALLES DEL SERVICIO", 12, additionalInfoY);
+additionalInfoY += 6;
+pdfDoc.setFont("helvetica", "normal");
+pdfDoc.setFontSize(8);
+pdfDoc.setTextColor(60, 60, 60);
+
+// Costo del rescate (si existe)
+if (saleData.rescueCost) {
+    pdfDoc.text(`Costo de rescate: $${saleData.rescueCost.toFixed(2)}`, 12, additionalInfoY);
+    additionalInfoY += 5;
+}
+
+// Descuento aplicado
+if (saleData.descuento && saleData.descuento > 0) {
+    pdfDoc.text(`Descuento aplicado: -$${saleData.descuento.toFixed(2)}`, 12, additionalInfoY);
+    additionalInfoY += 5;
+}
+
+// Servicio específico (si está en el ticket)
+const servicioItem = saleData.ticket?.find(item => item.type === 'servicio' || item.type === 'rescate');
+if (servicioItem) {
+    pdfDoc.text(`Servicio: ${servicioItem.name}`, 12, additionalInfoY);
+    additionalInfoY += 5;
+}
+
+// Si hay información adicional en el rescate (marca, modelo, etc.)
+if (saleData.marca || saleData.modelo) {
+    pdfDoc.text(`Moto: ${saleData.marca || ''} ${saleData.modelo || ''}`, 12, additionalInfoY);
+    additionalInfoY += 5;
+}
+
+// Espacio antes del mapa
+y = additionalInfoY + 10;
+            
 
             // --- 🔴 GENERACIÓN DEL MAPA EN EL TICKET DE VENTA ---
             if (saleData.sosId) {
