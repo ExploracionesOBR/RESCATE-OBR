@@ -1842,5 +1842,15 @@ window.onerror = function(msg, url, line) {
     return true;
 };
 </script>
+    <!-- Barra de progreso para descarga de PDF -->
+<div id="pdf-progress-container" class="fixed inset-0 bg-black/80 z-[9999] flex items-center justify-center hidden">
+    <div class="bg-asfalto p-8 rounded-2xl border border-naranja/30 shadow-2xl text-center">
+        <h3 class="text-white font-bold mb-4">Generando PDF...</h3>
+        <div class="w-64 h-3 bg-white/10 rounded-full overflow-hidden">
+            <div id="pdf-progress-bar" class="h-full bg-naranja rounded-full transition-all duration-300" style="width: 0%;"></div>
+        </div>
+        <p id="pdf-progress-text" class="text-xs text-gray-400 mt-3">Preparando documento...</p>
+    </div>
+</div>
 </body>
 </html>
