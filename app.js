@@ -4339,30 +4339,39 @@ ${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('$
     toggleModal(modalId, true);
 };
 
-window.downloadClientTicket = async (serviceId) => {
+window.downloadClientTicket = async function(serviceId) {
+    console.log('🔍 DOWNLOAD CLIENT TICKET INICIADO con serviceId:', serviceId);
+    
     // 1. Buscar la venta asociada al servicio
     const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", serviceId), limit(1)));
+    console.log('📊 Ventas encontradas:', ventasSnap.size);
     
     if (!ventasSnap.empty) {
-        // ✅ Si hay venta, generar el ticket completo de venta (con productos, garantías, etc.)
         const ventaDoc = ventasSnap.docs[0];
         const venta = ventaDoc.data();
+        console.log('✅ Venta encontrada:', venta);
         window.imprimirTicketVenta(ventaDoc.id, venta);
         return;
     }
     
-    // 2. Fallback: Si no hay venta, generar un ticket de admisión básico (solo para casos excepcionales)
+    // 2. Fallback: Si no hay venta, generar ticket básico
+    console.log('⚠️ No se encontró venta, generando ticket básico');
     const docSnap = await getDoc(doc(db, "rescates", serviceId));
-    if (!docSnap.exists()) return showToast("Servicio no encontrado", true);
+    if (!docSnap.exists()) {
+        console.error('❌ Servicio no encontrado');
+        return showToast("Servicio no encontrado", true);
+    }
     const data = docSnap.data();
-
+    console.log('📄 Datos del rescate:', data);
+    
+    // ---- AQUÍ CREAMOS EL PDF ----
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
     const logoImg = new Image();
     logoImg.src = 'logo_oscuro.png';
     await new Promise((resolve) => { logoImg.onload = resolve; if (logoImg.complete) resolve(); });
-
+    
     // Encabezado
     pdfDoc.setFillColor(255, 107, 0);
     pdfDoc.rect(0, 0, pageWidth, 28, 'F');
@@ -4373,7 +4382,7 @@ window.downloadClientTicket = async (serviceId) => {
     pdfDoc.text("COMPROBANTE DE ADMISIÓN EN TALLER", logoImg.complete ? 36 : 12, 17.5);
     pdfDoc.setDrawColor(255, 107, 0);
     pdfDoc.line(12, 29, pageWidth - 12, 29);
-
+    
     let y = 40;
     pdfDoc.setFontSize(10);
     pdfDoc.setFont("helvetica", "normal");
@@ -4383,7 +4392,7 @@ window.downloadClientTicket = async (serviceId) => {
     pdfDoc.text(`Cliente: ${data.clientName || data.phone || 'N/A'}`, 12, y + 12);
     pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''} (${data.cc || ''})`, 12, y + 18);
     y += 30;
-
+    
     pdfDoc.setFont("helvetica", "bold");
     pdfDoc.text("Falla reportada:", 12, y);
     y += 6;
@@ -4391,22 +4400,67 @@ window.downloadClientTicket = async (serviceId) => {
     const fallaLines = pdfDoc.splitTextToSize(data.falla || 'Sin descripción', pageWidth - 24);
     pdfDoc.text(fallaLines, 12, y);
     y += fallaLines.length * 5 + 10;
-
+    
     if (data.costoRescateEstimado) {
         pdfDoc.setFont("helvetica", "bold");
         pdfDoc.text(`Costo estimado: $${data.costoRescateEstimado.toFixed(2)}`, 12, y);
         y += 10;
     }
-
+    
+    // --- INTENTO DE GENERAR EL MAPA ---
+    console.log('🗺️ Iniciando generación del mapa...');
+    let mapImage = null;
+    try {
+        // Obtener puntos de tracking
+        let rutaPuntos = [];
+        if (data.mech_uid) {
+            const trackingRef = dbRef(rtdb, `sos_tracking/${serviceId}/${data.mech_uid}/points`);
+            const trackSnap = await get(trackingRef);
+            if (trackSnap.exists()) {
+                trackSnap.forEach(child => {
+                    const punto = child.val();
+                    if (punto.lat && punto.lng) rutaPuntos.push([punto.lat, punto.lng]);
+                });
+            }
+        }
+        if (rutaPuntos.length === 0 && data.mech_uid) {
+            const posMechSnap = await get(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`));
+            if (posMechSnap.exists()) {
+                const pos = posMechSnap.val();
+                if (pos.lat && pos.lng) rutaPuntos.push([pos.lat, pos.lng]);
+            }
+        }
+        if (data.lat && data.lng) rutaPuntos.push([data.lat, data.lng]);
+        console.log('📍 Puntos de ruta obtenidos:', rutaPuntos);
+        
+        // Llamar a _generateRouteMapImage
+        mapImage = await _generateRouteMapImage(rutaPuntos, data.lat, data.lng);
+        console.log('🎨 Imagen de mapa generada?', mapImage ? 'SÍ' : 'NO');
+    } catch (error) {
+        console.error('❌ Error al generar el mapa:', error);
+    }
+    
+    // Añadir mapa al PDF
+    if (mapImage) {
+        console.log('📸 Añadiendo imagen al PDF...');
+        pdfDoc.addImage(mapImage, 'PNG', 12, y, 55, 55);
+        console.log('✅ Imagen añadida al PDF');
+    } else {
+        pdfDoc.text("No se pudo generar el mapa", 12, y);
+    }
+    y += 60;
+    
+    // --- FIN DEL MAPA ---
+    
     pdfDoc.setFontSize(8);
     pdfDoc.setTextColor(100);
     pdfDoc.text("Este comprobante es de carácter informativo. Los costos finales pueden variar según refacciones.", 12, y);
     
-    // Footer
     const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE ADMISIÓN EN TALLER', logoImg);
     addFooter(pdfDoc);
     pdfDoc.save(`Ticket_${data.shortId || serviceId}.pdf`);
 };
+
 // === CITAS DEL CLIENTE ===
 window.loadClientCitas = () => {
     if(!window.currentUserDoc) return;
