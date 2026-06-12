@@ -2087,15 +2087,42 @@ window.switchClientView = (id) => {
     if (id === 'c-view-rescate' && window.mechMapInst) {
         setTimeout(() => window.mechMapInst.invalidateSize(), 300);
     }
+    
     // Cargar video promocional solo en tienda
     if (id === 'c-view-tienda') window.loadPromoVideo();
+
+    // ✅ CARGAR DATOS SEGÚN LA VISTA SELECCIONADA
+    if (id === 'c-view-tienda') {
+        if (typeof loadPublicStore === 'function') {
+            loadPublicStore();
+        } else {
+            console.warn('loadPublicStore no está disponible');
+        }
+    }
+
+    if (id === 'c-view-citas') {
+        if (typeof window.loadClientCitas === 'function') {
+            window.loadClientCitas();
+        } else {
+            console.warn('loadClientCitas no está disponible');
+        }
+    }
+
+    if (id === 'c-view-historial') {
+        if (typeof window.loadClientHistory === 'function') {
+            window.loadClientHistory();
+        } else {
+            console.warn('loadClientHistory no está disponible');
+        }
+    }
+
     window.fixMaps?.();
 };
 
 window.switchAdminView = (id) => {
     toggleModal('modal-user-detail', false);
     
- // Mostrar/ocultar botón flotante del chat IA
+    // Mostrar/ocultar botón flotante del chat IA
     const chatAiBtn = document.getElementById('btn-chat-ai-float');
     if (chatAiBtn) {
         chatAiBtn.style.display = id === 'a-view-servicios' ? 'flex' : 'none';
@@ -2118,7 +2145,11 @@ window.switchAdminView = (id) => {
         window._servicesCatalogUnsubscribe = onSnapshot(collection(db, "servicios"), () => refreshCatalogUI());
     }
     if(id === 'a-view-usuarios') window.adminLoadUsers();
-    if(id === 'a-view-promos') { window.adminLoadLoyalty(); populatePromoProductSelect(); window.loadPromoPreview?.(); }
+    if(id === 'a-view-promos') { 
+        window.adminLoadLoyalty(); 
+        populatePromoProductSelect(); 
+        window.loadPromoPreview?.(); 
+    }
     if(id === 'a-view-stats') window.loadStats();
     if(id === 'a-view-citas') window.adminLoadCitas();
     if(id === 'a-view-alertas') window.renderSOSGlobalMap();
@@ -2140,6 +2171,7 @@ window.switchAdminView = (id) => {
     
     window.fixMaps?.();
 };
+
 window.applyViewPermissions = () => {
     const vistas = window.currentUserDoc?.vistasPermitidas;
     if (!vistas || !Array.isArray(vistas)) return;
