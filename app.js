@@ -2528,14 +2528,12 @@ window.filterServiceOptions = () => {
 };
 
 // Ocultar dropdown al hacer clic fuera
-document.addEventListener('DOMContentLoaded', (e) => {
+// Ocultar dropdown de servicios al hacer clic fuera
+document.addEventListener('click', function(e) {
     const input = document.getElementById('sos-service-input');
     const dropdown = document.getElementById('sos-service-dropdown');
     if (input && dropdown && !input.contains(e.target) && !dropdown.contains(e.target)) {
         dropdown.classList.add('hidden');
-     } catch (error) {
-        console.error('Error en inicialización:', error);
-        window.showToast?.('Error al cargar la aplicación. Recarga la página.', true);
     }
 });
 window.clearServiceSelection = () => {
