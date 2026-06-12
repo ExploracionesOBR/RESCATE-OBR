@@ -4341,8 +4341,59 @@ ${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('$
     toggleModal(modalId, true);
 };
 
+let progressTimeout = null;
+
+function showPDFProgress() {
+    const container = document.getElementById('pdf-progress-container');
+    const bar = document.getElementById('pdf-progress-bar');
+    const text = document.getElementById('pdf-progress-text');
+    if (container) container.classList.remove('hidden');
+    if (bar) bar.style.width = '0%';
+    if (text) text.innerText = 'Preparando documento...';
+    // Simular progreso automático
+    let progress = 0;
+    if (progressTimeout) clearInterval(progressTimeout);
+    progressTimeout = setInterval(() => {
+        progress += 5;
+        if (progress > 90) {
+            clearInterval(progressTimeout);
+            progressTimeout = null;
+        }
+        const bar = document.getElementById('pdf-progress-bar');
+        const text = document.getElementById('pdf-progress-text');
+        if (bar) bar.style.width = progress + '%';
+        if (text) {
+            if (progress < 30) text.innerText = 'Generando mapa...';
+            else if (progress < 60) text.innerText = 'Creando documento...';
+            else if (progress < 90) text.innerText = 'Añadiendo contenido...';
+        }
+    }, 300);
+}
+
+function hidePDFProgress() {
+    if (progressTimeout) {
+        clearInterval(progressTimeout);
+        progressTimeout = null;
+    }
+    const container = document.getElementById('pdf-progress-container');
+    const bar = document.getElementById('pdf-progress-bar');
+    if (bar) bar.style.width = '100%';
+    if (container) {
+        setTimeout(() => {
+            container.classList.add('hidden');
+            if (bar) bar.style.width = '0%';
+        }, 500);
+    }
+}
+
+// Exponer globalmente
+window.showPDFProgress = showPDFProgress;
+window.hidePDFProgress = hidePDFProgress;
+
 window.downloadClientTicket = async function(serviceId) {
+    window.showPDFProgress(); 
     console.log('🔍 DOWNLOAD CLIENT TICKET INICIADO con serviceId:', serviceId);
+
     
     // 1. Buscar la venta asociada al servicio
     const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", serviceId), limit(1)));
@@ -4442,24 +4493,40 @@ window.downloadClientTicket = async function(serviceId) {
     }
     
     // Añadir mapa al PDF
-    if (mapImage) {
-        console.log('📸 Añadiendo imagen al PDF...');
-        pdfDoc.addImage(mapImage, 'PNG', 12, y, 55, 55);
-        console.log('✅ Imagen añadida al PDF');
-        y += 60;
-    } else {
-        pdfDoc.text("No se pudo generar el mapa", 12, y);
-        y += 10;
-    }
+// En la parte donde añades el mapa al PDF, cambia esto:
+if (mapImage) {
+    console.log('📸 Añadiendo imagen al PDF...');
+    // Marco naranja alrededor del mapa
+    pdfDoc.setDrawColor(255, 107, 0);
+    pdfDoc.setLineWidth(0.5);
+    const mapX = 12;
+    const mapY = y;
+    const mapWidth = 80; // Más grande (de 55 a 80)
+    const mapHeight = 55;
+    pdfDoc.rect(mapX, mapY, mapWidth, mapHeight, 'S');
+    pdfDoc.addImage(mapImage, 'PNG', mapX, mapY, mapWidth, mapHeight);
+    y += 60;
+} else {
+    pdfDoc.text("No se pudo generar el mapa", 12, y);
+    y += 10;
+}
     // --- FIN DEL MAPA ---
     
     pdfDoc.setFontSize(8);
     pdfDoc.setTextColor(100);
     pdfDoc.text("Este comprobante es de carácter informativo. Los costos finales pueden variar según refacciones.", 12, y);
     
-    const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE ADMISIÓN EN TALLER', logoImg);
-    addFooter(pdfDoc);
-    pdfDoc.save(`Ticket_${data.shortId || serviceId}.pdf`);
+        const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE ADMISIÓN EN TALLER', logoImg);
+        addFooter(pdfDoc);
+        
+        pdfDoc.save(`Ticket_${data.shortId || serviceId}.pdf`);
+        
+        window.hidePDFProgress();   // ← 2. OCULTAR BARRA DE PROGRESO (éxito)
+        
+    } catch (error) {
+        console.error('❌ Error generando PDF:', error);
+        window.showToast('Error al generar el PDF. Intenta de nuevo.', true);
+    }
 };
 
 // === CITAS DEL CLIENTE ===
@@ -4833,16 +4900,6 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     document.body.appendChild(div);
     
     try {
-        // Determinar centro del mapa
-        let centerLat = TALLER_LAT;
-        let centerLng = TALLER_LNG;
-        let zoom = 13;
-        
-        if (puntos && puntos.length > 0) {
-            centerLat = puntos[0][0];
-            centerLng = puntos[0][1];
-        }
-        
         // Usar tiles de OpenStreetMap (más confiables)
         const layerUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
         const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
@@ -4857,8 +4914,27 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
         // Añadir capa de tiles
         L.tileLayer(layerUrl, { attribution }).addTo(map);
         
-        // Establecer vista inicial
-        map.setView([centerLat, centerLng], zoom);
+        // Si tenemos puntos, dibujar la ruta y centrar el mapa
+        if (puntos && puntos.length > 1) {
+            // Dibujar la polilínea (ruta del mecánico)
+            const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
+            const polyline = L.polyline(latlngs, { 
+                color: '#FF6B00', 
+                weight: 6, 
+                opacity: 0.9,
+                smoothFactor: 1
+            }).addTo(map);
+            
+            // Ajustar el mapa para que muestre todos los puntos
+            const bounds = L.latLngBounds(latlngs);
+            map.fitBounds(bounds, { padding: [50, 50] });
+        } else if (puntos && puntos.length === 1) {
+            // Si solo hay un punto, centrar en ese punto
+            map.setView([puntos[0][0], puntos[0][1]], 15);
+        } else {
+            // Si no hay puntos, centrar en el taller
+            map.setView([TALLER_LAT, TALLER_LNG], 13);
+        }
         
         // Esperar a que el mapa esté listo
         await new Promise((resolve) => {
@@ -4867,14 +4943,6 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
                 setTimeout(resolve, 500);
             });
         });
-        
-        // Dibujar la ruta (polilínea)
-        if (puntos && puntos.length > 1) {
-            const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
-            L.polyline(latlngs, { color: '#FF6B00', weight: 5, opacity: 0.8 }).addTo(map);
-            const bounds = L.latLngBounds(latlngs);
-            map.fitBounds(bounds, { padding: [40, 40] });
-        }
         
         // Marcador de inicio (mecánico) – verde
         if (puntos && puntos.length > 0 && puntos[0]) {
@@ -4900,9 +4968,9 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
             }).addTo(map);
         }
         
-        // ⚠️ TIEMPO DE ESPERA LARGO (5 segundos) para que los tiles terminen de cargar
-        console.log('⏳ Esperando 5 segundos para carga completa de tiles...');
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        // Esperar 3 segundos para carga completa de tiles
+        console.log('⏳ Esperando 3 segundos para carga de tiles...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
         
         // Tomar captura de pantalla con html2canvas
         console.log('📸 Capturando el mapa...');
@@ -5711,6 +5779,7 @@ await addDoc(collection(db, "ventas"), saleData);
     }
 }
 window.imprimirTicketVenta = async (ventaId, saleData) => {
+    window.showPDFProgress(); 
     console.log('🧾 Imprimiendo ticket de venta:', ventaId);
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
@@ -5799,14 +5868,22 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
                 console.error('Error generando mapa:', err);
             }
 
-            if (mapImage) {
-                pdfDoc.addImage(mapImage, 'PNG', 12, y, 55, 55);
-                y += 60;
-            } else {
-                pdfDoc.text("No se pudo generar el mapa", 12, y);
-                y += 10;
-            }
-        }
+            // En la parte donde añades la imagen al PDF, cambia esto:
+if (mapImage) {
+    // Marco naranja alrededor del mapa
+    pdfDoc.setDrawColor(255, 107, 0);
+    pdfDoc.setLineWidth(0.5);
+    const mapX = 12;
+    const mapY = y;
+    const mapWidth = 80; // Más grande
+    const mapHeight = 55;
+    pdfDoc.rect(mapX, mapY, mapWidth, mapHeight, 'S');
+    pdfDoc.addImage(mapImage, 'PNG', mapX, mapY, mapWidth, mapHeight);
+    y += 60;
+} else {
+    pdfDoc.text("No se pudo generar el mapa", 12, y);
+    y += 10;
+}
         // --- FIN DEL MAPA ---
 
         pdfDoc.setFontSize(7);
@@ -5816,18 +5893,32 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
         const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE VENTA', logoImg);
         addFooter(pdfDoc);
         try {
-            const blob = pdfDoc.output('blob');
-            const url = URL.createObjectURL(blob);
-            const printWindow = window.open(url, '_blank');
-            if (printWindow) printWindow.onload = () => printWindow.print();
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `Venta_${saleData.shortId}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(url); }, 100);
-        } catch(e) { pdfDoc.save(`Venta_${saleData.shortId}.pdf`); }
+                const blob = pdfDoc.output('blob');
+                const url = URL.createObjectURL(blob);
+                const printWindow = window.open(url, '_blank');
+                if (printWindow) printWindow.onload = () => printWindow.print();
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `Venta_${saleData.shortId}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                setTimeout(() => { 
+                    document.body.removeChild(link); 
+                    URL.revokeObjectURL(url); 
+                }, 100);
+            } catch(e) {
+                // FALLBACK: GUARDAR DIRECTAMENTE
+                pdfDoc.save(`Venta_${saleData.shortId}.pdf`);
+            }
+            
+            window.hidePDFProgress();   // ← 2. OCULTAR BARRA DE PROGRESO (éxito)
+            
+        } catch (error) {
+            console.error('❌ Error generando PDF:', error);
+            window.showToast('Error al generar el PDF. Intenta de nuevo.', true);
+        }
     };
+    
     if (logoImg.complete && logoImg.naturalWidth > 0) await generar();
     else { logoImg.onload = generar; logoImg.onerror = generar; }
 };
