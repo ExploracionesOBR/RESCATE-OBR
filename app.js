@@ -24,7 +24,8 @@ const rtdb = getDatabase(app);
 const storage = getStorage(app);
 window.setDoc = setDoc;
 window.doc = doc;
-window.dbRef = dbRef;
+window.dbRef = dbRef; 
+
 
 // === CARGA DIFERIDA DE html2canvas ==
 window.loadHtml2Canvas = () => {
@@ -4408,7 +4409,7 @@ window.downloadClientTicket = async function(serviceId) {
         y += 10;
     }
     
-    // --- INTENTO DE GENERAR EL MAPA ---
+    // --- GENERACIÓN DEL MAPA ---
     console.log('🗺️ Iniciando generación del mapa...');
     let mapImage = null;
     try {
@@ -4434,7 +4435,6 @@ window.downloadClientTicket = async function(serviceId) {
         if (data.lat && data.lng) rutaPuntos.push([data.lat, data.lng]);
         console.log('📍 Puntos de ruta obtenidos:', rutaPuntos);
         
-        // Llamar a _generateRouteMapImage
         mapImage = await _generateRouteMapImage(rutaPuntos, data.lat, data.lng);
         console.log('🎨 Imagen de mapa generada?', mapImage ? 'SÍ' : 'NO');
     } catch (error) {
@@ -4446,11 +4446,11 @@ window.downloadClientTicket = async function(serviceId) {
         console.log('📸 Añadiendo imagen al PDF...');
         pdfDoc.addImage(mapImage, 'PNG', 12, y, 55, 55);
         console.log('✅ Imagen añadida al PDF');
+        y += 60;
     } else {
         pdfDoc.text("No se pudo generar el mapa", 12, y);
+        y += 10;
     }
-    y += 60;
-    
     // --- FIN DEL MAPA ---
     
     pdfDoc.setFontSize(8);
@@ -4893,10 +4893,10 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
         await window.loadHtml2Canvas();
         const canvas = await html2canvas(div, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
         const imgData = canvas.toDataURL('image/png');
-        console.log('✅ Imagen generada');
+        console.log('✅ Imagen generada (primeros 50 chars):', imgData.substring(0, 50));
         return imgData;
     } catch (error) {
-        console.error('❌ Error:', error);
+        console.error('❌ Error en _generateRouteMapImage:', error);
         return null;
     } finally {
         if (div.parentNode) document.body.removeChild(div);
@@ -5649,7 +5649,43 @@ await addDoc(collection(db, "ventas"), saleData);
 
         showToast("Venta Registrada y Pagada", false);
 
-        window.imprimirTicketVenta = async (ventaId, saleData) => {
+        window.imprimirTicketVenta(docRef.id, saleData);
+
+        const ticketRespaldo = [...window.posTicket];
+        
+        window.posTicket = [];
+        window.posDescuento = 0;
+        const phoneInput = document.getElementById('pos-customer-phone');
+        const promoInput = document.getElementById('pos-promo-code');
+        const amountInput = document.getElementById('pos-amount-received');
+        if (phoneInput) phoneInput.value = '';
+        if (promoInput) promoInput.value = '';
+        if (amountInput) amountInput.value = '';
+
+        window.renderTicket();
+        window.adminLoadInventory();
+        window.adminLoadSales();
+        window.adminListenServices();
+        if (phone) {
+            try {
+                window.sendTicketWhatsAppAfterCheckout(phone, totalToPay, ticketRespaldo);
+            } catch (e) {
+                console.warn('Error al enviar WhatsApp:', e);
+            }
+        }
+        window.loadVentasRealizadas();
+
+    } catch (e) {
+        console.error('Error en finalizeCheckout:', e);
+        showToast("Error al procesar: " + (e.message || 'Error desconocido'), true);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<span>Cobrar</span> <span id="pos-btn-total">$0.00</span>`;
+        }
+    }
+}
+window.imprimirTicketVenta = async (ventaId, saleData) => {
     console.log('🧾 Imprimiendo ticket de venta:', ventaId);
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
@@ -5704,9 +5740,8 @@ await addDoc(collection(db, "ventas"), saleData);
             console.log('🗺️ Generando mapa para SOS ID:', saleData.sosId);
             let rutaPuntos = [];
             try {
-                // Obtener puntos de tracking usando window.dbRef
-                const { get } = window;
-                const trackingRef = window.dbRef(rtdb, `sos_tracking/${saleData.sosId}/${window.auth.currentUser.uid}/points`);
+                // Obtener puntos de tracking desde RTDB
+                const trackingRef = dbRef(rtdb, `sos_tracking/${saleData.sosId}/${auth.currentUser.uid}/points`);
                 const trackSnap = await get(trackingRef);
                 if (trackSnap.exists()) {
                     trackSnap.forEach(child => {
@@ -5714,17 +5749,26 @@ await addDoc(collection(db, "ventas"), saleData);
                         if (punto.lat && punto.lng) rutaPuntos.push([punto.lat, punto.lng]);
                     });
                 }
-                console.log('📍 Puntos de ruta recuperados:', rutaPuntos);
+                // Fallback: posición actual del mecánico
+                if (rutaPuntos.length === 0 && auth.currentUser) {
+                    const posMechSnap = await get(dbRef(rtdb, `mecanicos_activos/${auth.currentUser.uid}`));
+                    if (posMechSnap.exists()) {
+                        const pos = posMechSnap.val();
+                        if (pos.lat && pos.lng) rutaPuntos.push([pos.lat, pos.lng]);
+                    }
+                }
+                // Si aún no hay puntos, usar la ubicación del taller
+                if (rutaPuntos.length === 0) {
+                    rutaPuntos.push([TALLER_LAT, TALLER_LNG]);
+                }
+                console.log('📍 Puntos para el mapa:', rutaPuntos);
             } catch (err) {
                 console.warn('Error obteniendo puntos de tracking:', err);
             }
 
-            // Generar imagen del mapa (pasar lat/lng del cliente si existen)
             let mapImage = null;
             try {
-                const clienteLat = saleData.lat || null;
-                const clienteLng = saleData.lng || null;
-                mapImage = await _generateRouteMapImage(rutaPuntos, clienteLat, clienteLng);
+                mapImage = await _generateRouteMapImage(rutaPuntos, saleData.lat, saleData.lng);
                 console.log('🎨 Imagen de mapa generada:', mapImage ? 'SÍ' : 'NO');
             } catch (err) {
                 console.error('Error generando mapa:', err);
@@ -5734,7 +5778,7 @@ await addDoc(collection(db, "ventas"), saleData);
                 pdfDoc.addImage(mapImage, 'PNG', 12, y, 55, 55);
                 y += 60;
             } else {
-                pdfDoc.text("Mapa no disponible", 12, y);
+                pdfDoc.text("No se pudo generar el mapa", 12, y);
                 y += 10;
             }
         }
