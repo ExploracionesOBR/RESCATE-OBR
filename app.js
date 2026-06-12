@@ -2083,43 +2083,63 @@ window.switchClientView = (id) => {
     const btn = Array.from(document.querySelectorAll('.c-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
     if (btn) btn.classList.add('tab-active');
 
-    // Cargar video promocional solo en tienda
-    if (id === 'c-view-tienda') {
-        window.loadPromoVideo();
-        // Cargar productos de la tienda al cambiar a la pestaña
-        if (typeof loadPublicStore === 'function') {
-            loadPublicStore();
-        } else {
-            console.warn('loadPublicStore no está disponible');
-        }
-    }
-
-    // Cargar citas al cambiar a la pestaña de citas
-    if (id === 'c-view-citas') {
-        if (typeof window.loadClientCitas === 'function') {
-            window.loadClientCitas();
-        } else {
-            console.warn('loadClientCitas no está disponible');
-        }
-    }
-
-    // Cargar historial al cambiar a la pestaña de historial
-    if (id === 'c-view-historial') {
-        if (typeof window.loadClientHistory === 'function') {
-            window.loadClientHistory();
-        } else {
-            console.warn('loadClientHistory no está disponible');
-        }
-    }
-
-    // Forzar redimensionamiento del mapa en Rescate
+    // Si cambiamos a la pestaña de RESCATE, forzar redimensionamiento del mapa
     if (id === 'c-view-rescate' && window.mechMapInst) {
         setTimeout(() => window.mechMapInst.invalidateSize(), 300);
     }
-
+    // Cargar video promocional solo en tienda
+    if (id === 'c-view-tienda') window.loadPromoVideo();
     window.fixMaps?.();
 };
 
+window.switchAdminView = (id) => {
+    toggleModal('modal-user-detail', false);
+    
+ // Mostrar/ocultar botón flotante del chat IA
+    const chatAiBtn = document.getElementById('btn-chat-ai-float');
+    if (chatAiBtn) {
+        chatAiBtn.style.display = id === 'a-view-servicios' ? 'flex' : 'none';
+    }
+    
+    // Mostrar/ocultar botón de chat de soporte (solo en POS y Alertas)
+    const chatBtn = document.getElementById('admin-chat-float-btn');
+    if(chatBtn) chatBtn.classList.toggle('hidden', !['a-view-pos', 'a-view-alertas'].includes(id));
+    
+    document.querySelectorAll('.a-view').forEach(v => v.classList.add('hidden')); 
+    document.getElementById(id).classList.remove('hidden');
+    document.querySelectorAll('.a-nav-btn').forEach(b => b.classList.remove('tab-active'));
+    const btn = Array.from(document.querySelectorAll('.a-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
+    if(btn) btn.classList.add('tab-active');
+
+    if(id === 'a-view-config') {
+        window.adminRefreshConfigUI();
+        window.renderAdminMap();
+        if (window._servicesCatalogUnsubscribe) window._servicesCatalogUnsubscribe();
+        window._servicesCatalogUnsubscribe = onSnapshot(collection(db, "servicios"), () => refreshCatalogUI());
+    }
+    if(id === 'a-view-usuarios') window.adminLoadUsers();
+    if(id === 'a-view-promos') { window.adminLoadLoyalty(); populatePromoProductSelect(); window.loadPromoPreview?.(); }
+    if(id === 'a-view-stats') window.loadStats();
+    if(id === 'a-view-citas') window.adminLoadCitas();
+    if(id === 'a-view-alertas') window.renderSOSGlobalMap();
+    if(id === 'a-view-pos') { 
+        window.posFilterProducts(); 
+        window.cargarNotificacionesCitas(); 
+        window.cargarCobrosMecanicosPanel(); 
+        window.loadVentasRealizadas(); 
+        setTimeout(() => window.loadOnlineOrders?.(), 200);
+        window.cargarChatsPendientesAdmin();
+    }
+    if(id === 'a-view-entregas') { 
+        setTimeout(() => window.loadEntregas?.(), 300);
+        window.fixMaps?.();
+    }
+    
+    const entregaPanel = document.getElementById('entrega-actions-panel');
+    if (entregaPanel) entregaPanel.classList.add('hidden');
+    
+    window.fixMaps?.();
+};
 window.applyViewPermissions = () => {
     const vistas = window.currentUserDoc?.vistasPermitidas;
     if (!vistas || !Array.isArray(vistas)) return;
