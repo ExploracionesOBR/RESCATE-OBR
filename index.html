@@ -352,18 +352,18 @@
 
     <main class="p-4 lg:p-8 max-w-lg lg:max-w-5xl mx-auto space-y-6 lg:space-y-10 animate-fade-in w-full flex-grow">
         <!-- ================= PESTAÑA RESCATE ================= -->
-        <section id="c-view-rescate" class="c-view space-y-6 pb-20">
+        <section id="c-view-rescate" class="c-view space-y-6">
     <!-- Botón grande de emergencia -->
-<button id="emergency-client-btn" class="w-full rounded-3xl p-6 shadow-[0_0_20px_rgba(255,107,0,0.3)] active:scale-95 transition-transform flex items-center justify-between border border-naranja/50">
-    <div class="text-left text-white">
-        <h3 class="text-2xl font-black italic uppercase">Emergencia</h3>
-        <p class="text-[10px] uppercase font-bold tracking-widest opacity-80">Solicitar rescate ahora</p>
-        <p id="emergency-closed-text" class="text-[10px] uppercase font-bold tracking-widest text-red-300 hidden">Abrimos a las 00:00</p>
-    </div>
-    <i class="fas fa-ambulance text-5xl text-white opacity-80 animate-pulse"></i>
-</button>
+    <button id="emergency-client-btn" class="w-full rounded-3xl p-6 shadow-[0_0_20px_rgba(255,107,0,0.3)] active:scale-95 transition-transform flex items-center justify-between border border-naranja/50 opacity-50 pointer-events-none bg-gray-600">
+        <div class="text-left text-white">
+            <h3 class="text-2xl font-black italic uppercase">Emergencia</h3>
+            <p class="text-[10px] uppercase font-bold tracking-widest opacity-80">Solicitar rescate ahora</p>
+            <p id="emergency-closed-text" class="text-[10px] uppercase font-bold tracking-widest text-red-300">Abrimos a las 00:00</p>
+        </div>
+        <i class="fas fa-ambulance text-5xl text-white opacity-80 animate-pulse"></i>
+    </button>
 
-    <!-- Mensaje cuando no hay servicios activos -->
+    <!-- Mensaje cuando no hay servicio activo -->
     <div id="no-active-services-msg" class="bg-white/5 border border-white/10 p-8 rounded-3xl text-center shadow-lg flex flex-col items-center justify-center">
         <div class="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6">
             <i class="fas fa-map-marked-alt text-4xl text-gray-600"></i>
@@ -372,8 +372,9 @@
         <p class="text-gray-400 font-bold text-sm">No tienes rescates ni entregas activas en este momento.</p>
     </div>
 
-    <!-- ====== TARJETA DE RESCATE ACTIVO ====== -->
+    <!-- TARJETA DE RESCATE ACTIVO -->
     <div id="active-sos-card" class="hidden bg-gradient-to-br from-red-900/40 to-asfalto border border-red-500 p-6 rounded-3xl shadow-xl">
+        <!-- Barra de progreso SOS -->
         <div class="mb-6">
             <div class="flex justify-between text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
                 <span id="step-1-label">Aceptado</span>
@@ -408,15 +409,8 @@
         </div>
     </div>
 
-    <!-- ====== SEPARADOR (solo visible cuando ambas están activas) ====== -->
-    <div id="delivery-separator" class="hidden flex items-center justify-center my-2">
-        <div class="h-px bg-green-500/30 flex-grow"></div>
-        <span class="px-4 text-[10px] font-black uppercase tracking-widest text-green-400">SEGUIMIENTO DE ENTREGA</span>
-        <div class="h-px bg-green-500/30 flex-grow"></div>
-    </div>
-
-    <!-- ====== TARJETA DE ENTREGA ACTIVA ====== -->
-    <div id="active-delivery-card-entregas" class="hidden bg-gradient-to-br from-green-900/40 to-asfalto border border-green-500 p-6 rounded-3xl shadow-xl">
+    <!-- TARJETA DE ENTREGA ACTIVA -->
+    <div id="active-delivery-card" class="hidden bg-gradient-to-br from-green-900/40 to-asfalto border border-green-500 p-6 rounded-3xl shadow-xl">
         <div class="mb-6">
             <div class="flex justify-between text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
                 <span id="delivery-step-1">Preparando</span>
@@ -449,29 +443,51 @@
         </div>
     </div>
 
-    <!-- ====== ENCUESTA DE SATISFACCIÓN ====== -->
+    <!-- Tarjeta de taller (solo para rescate en taller) -->
+    <div id="active-workshop-card" class="hidden bg-gradient-to-b from-black to-asfalto border border-blue-500/30 p-6 lg:p-8 rounded-3xl shadow-xl relative overflow-hidden cursor-pointer" onclick="window.viewActiveWorkshop?.()">
+        <div class="absolute top-0 right-0 bg-blue-600 text-white px-4 py-1 rounded-bl-2xl text-[10px] font-black uppercase shadow-md">Taller OBR</div>
+        <p class="text-[10px] lg:text-xs text-gray-500 font-bold uppercase tracking-widest mt-2 mb-1">Estado de Reparación</p>
+        <p class="font-black text-2xl lg:text-3xl mb-8 text-white" id="client-ws-display">En Taller</p>
+        <div class="relative h-1.5 lg:h-2 bg-white/10 rounded-full flex justify-between items-center mb-8">
+            <div id="client-ws-progress" class="h-full absolute bg-blue-500 rounded-full transition-all duration-500" style="width: 0%"></div>
+            <div class="z-10 w-5 h-5 rounded-full bg-blue-500 border-4 border-asfalto" id="ws-dot-1"></div>
+            <div class="z-10 w-5 h-5 rounded-full bg-asfalto border-4 border-white/20" id="ws-dot-2"></div>
+            <div class="z-10 w-5 h-5 rounded-full bg-asfalto border-4 border-white/20" id="ws-dot-3"></div>
+            <div class="z-10 w-5 h-5 rounded-full bg-asfalto border-4 border-white/20" id="ws-dot-4"></div>
+        </div>
+        <div class="grid grid-cols-4 text-[9px] lg:text-[10px] text-center font-black uppercase tracking-tighter text-gray-600">
+            <div id="ws-text-1" class="text-blue-400">Recibida</div>
+            <div id="ws-text-2">Mecánica</div>
+            <div id="ws-text-3">Pruebas</div>
+            <div id="ws-text-4">Lista</div>
+        </div>
+        <div id="client-ws-comments-area" class="mt-8 pt-6 border-t border-white/10 hidden">
+            <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3"><i class="fas fa-comment-dots mr-1"></i> Bitácora del Mecánico</p>
+            <div id="client-ws-timeline" class="space-y-3 max-h-40 overflow-y-auto hide-scroll pr-2"></div>
+        </div>
+    </div>
+
+    <!-- Encuesta de satisfacción -->
     <div id="satisfaction-survey" class="hidden bg-black/50 p-6 rounded-3xl border border-naranja/50 shadow-2xl">
-    <p class="text-[10px] text-naranja font-black uppercase tracking-widest mb-2 text-center">¡Servicio Finalizado!</p>
-    <p class="text-sm text-white text-center mb-4 font-bold">¿Cómo calificarías a nuestro mecánico?</p>
-    <div class="flex justify-center items-center space-x-1 text-3xl mb-6" id="star-rating">
-        <i class="far fa-star" data-value="0.5"></i>
-        <i class="far fa-star" data-value="1"></i>
-        <i class="far fa-star" data-value="1.5"></i>
-        <i class="far fa-star" data-value="2"></i>
-        <i class="far fa-star" data-value="2.5"></i>
-        <i class="far fa-star" data-value="3"></i>
-        <i class="far fa-star" data-value="3.5"></i>
-        <i class="far fa-star" data-value="4"></i>
-        <i class="far fa-star" data-value="4.5"></i>
-        <i class="far fa-star" data-value="5"></i>
+        <p class="text-[10px] text-naranja font-black uppercase tracking-widest mb-2 text-center">¡Servicio Finalizado!</p>
+        <p class="text-sm text-white text-center mb-4 font-bold">¿Cómo calificarías a nuestro mecánico?</p>
+        <div class="flex justify-center items-center space-x-1 text-3xl mb-6" id="star-rating">
+            <i class="far fa-star" data-value="0.5"></i>
+            <i class="far fa-star" data-value="1"></i>
+            <i class="far fa-star" data-value="1.5"></i>
+            <i class="far fa-star" data-value="2"></i>
+            <i class="far fa-star" data-value="2.5"></i>
+            <i class="far fa-star" data-value="3"></i>
+            <i class="far fa-star" data-value="3.5"></i>
+            <i class="far fa-star" data-value="4"></i>
+            <i class="far fa-star" data-value="4.5"></i>
+            <i class="far fa-star" data-value="5"></i>
+        </div>
+        <textarea id="survey-comments" placeholder="Cuéntanos qué podemos mejorar (opcional si es positiva)" rows="2" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white text-xs mb-3 hidden"></textarea>
+        <button onclick="window.submitSurvey?.()" class="w-full bg-naranja hover:bg-orange-600 text-white text-xs font-black uppercase py-3 rounded-xl transition-colors">Enviar Calificación</button>
     </div>
-    <textarea id="survey-comments" placeholder="Cuéntanos qué podemos mejorar (opcional si es positiva)" rows="2" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white text-xs mb-3 hidden"></textarea>
-    <div class="flex space-x-2">
-        <button onclick="window.submitSurvey?.()" class="w-full bg-naranja hover:bg-orange-600 text-white text-xs font-black uppercase py-3 rounded-xl transition-colors flex-1">Enviar Calificación</button>
-        <button onclick="window.cancelSurvey?.()" class="w-full bg-gray-600 hover:bg-gray-500 text-white text-xs font-black uppercase py-3 rounded-xl transition-colors flex-1">Cancelar</button>
-    </div>
-</div>
-        
+</section>
+
         <!-- ================= PESTAÑA TIENDA ================= -->
         <section id="c-view-tienda" class="c-view hidden space-y-6">
             <h2 class="text-2xl font-black italic uppercase text-center">Refacciones</h2>
@@ -1647,8 +1663,6 @@
         <div class="p-4 md:p-6">
             <h2 class="text-2xl font-black italic uppercase text-white mb-2">Ingreso de Moto al Taller</h2>
             <p class="text-xs text-gray-400 mb-4">Complete el checklist. <span class="text-naranja">* Teléfono obligatorio</span></p>
-             </div>
-        </div> 
 
             <!-- Teléfono del cliente (obligatorio) -->
             <div class="mb-6 p-4 bg-naranja/10 rounded-xl border border-naranja/30">
@@ -1772,7 +1786,7 @@
         <button onclick="window.aplicarGarantia?.()" class="w-full bg-green-500 hover:bg-green-400 text-white p-3 rounded-xl font-black uppercase">Confirmar Aplicación</button>
     </div>
 <!-- FIN DE MODALES -->
-<script type="module" src="app.js" defer></script>
+<script type="module" src="app.js"></script>
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -1836,19 +1850,6 @@
       }
     });
   }
-</script>
-    <script>
-window.onerror = function(msg, url, line) {
-    document.body.innerHTML = `
-        <div style="padding:2rem; text-align:center; color:white; background:#1A1A1A;">
-            <h1 style="color:#FF6B00;">Error crítico</h1>
-            <p>${msg}</p>
-            <p>Línea ${line}</p>
-            <button onclick="location.reload()" style="background:#FF6B00; padding:10px 20px; border:none; border-radius:8px; color:white; font-weight:bold;">Recargar</button>
-        </div>
-    `;
-    return true;
-};
 </script>
 </body>
 </html>
