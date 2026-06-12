@@ -4890,6 +4890,11 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     console.log('📌 Puntos:', puntos);
     console.log('📍 Cliente - Lat:', clienteLat, 'Lng:', clienteLng);
     
+    if (!puntos || puntos.length < 1) {
+        console.warn('⚠️ No hay puntos para dibujar el mapa');
+        return null;
+    }
+    
     const div = document.createElement('div');
     div.style.width = '600px';
     div.style.height = '500px';
@@ -4908,7 +4913,7 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
             attributionControl: false,
             scrollWheelZoom: false
         });
-        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
+        L.tileLayer(layerUrl).addTo(map);
         
         // Determinar centro del mapa
         let centerLat = TALLER_LAT;
@@ -4926,7 +4931,7 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
             });
         });
         
-        // ✅ DIBUJAR LA RUTA (POLILÍNEA) CORRECTAMENTE
+        // ✅ DIBUJAR LA RUTA (POLILÍNEA)
         if (puntos && puntos.length > 1) {
             const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
             const polyline = L.polyline(latlngs, { 
@@ -4951,10 +4956,10 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
                     iconSize: [24, 24],
                     iconAnchor: [12, 12]
                 })
-            }).addTo(map).bindPopup("Inicio (Mecánico)");
+            }).addTo(map);
         }
         
-        // ✅ MARCADOR DE DESTINO (CLIENTE) - AHORA SE MUESTRA CORRECTAMENTE
+        // ✅ MARCADOR DE DESTINO (CLIENTE)
         if (clienteLat && clienteLng) {
             L.marker([clienteLat, clienteLng], {
                 icon: L.divIcon({
@@ -4963,8 +4968,7 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
                     iconSize: [24, 24],
                     iconAnchor: [12, 12]
                 })
-            }).addTo(map).bindPopup("Destino (Cliente)");
-            console.log('✅ Marcador de cliente agregado');
+            }).addTo(map);
         }
         
         // Esperar carga de tiles
@@ -5678,21 +5682,52 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
                 estado: 'activa'
             }));
 
-// Asegúrate de que esto esté dentro de la función finalizeCheckout
-const saleData = {
-    shortId: sId,
-    desc: window.posTicket.map(i => i.name).join(", "),
-    total: totalToPay,
-    costo: window.posTotalCost,
-    metodoPago: paymentMethod,
-    clienteCel: phone ? "+52"+phone : null,
-    ticket: window.posTicket,
-    garantias: garantias.length ? garantias : null,
-    fecha: new Date().toISOString(),
-    sosId: currentDetalleServicioId || null,  // ← AGREGAR ESTA LÍNEA
-    rescueCost: window.currentSOSCost || 0    // ← AGREGAR ESTA LÍNEA
-};
-await addDoc(collection(db, "ventas"), saleData);
+        // Obtener datos del servicio (rescate) si existe
+        let servicioNombre = null;
+        let lat = null;
+        let lng = null;
+        if (currentDetalleServicioId) {
+            try {
+                const docSnap = await getDoc(doc(db, "rescates", currentDetalleServicioId));
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    // Extraer nombre del servicio de la falla o del campo específico
+                    if (data.falla) {
+                        const match = data.falla.match(/\[(.*?)\]/);
+                        if (match) {
+                            servicioNombre = match[1];
+                        } else {
+                            servicioNombre = data.falla.substring(0, 40) + '...';
+                        }
+                    }
+                    lat = data.lat || null;
+                    lng = data.lng || null;
+                }
+            } catch (err) {
+                console.warn('Error obteniendo datos del servicio:', err);
+            }
+        }
+
+        // Datos de la venta
+        const saleData = {
+            shortId: sId,
+            desc: window.posTicket.map(i => i.name).join(", "),
+            total: totalToPay,
+            costo: window.posTotalCost,
+            metodoPago: paymentMethod,
+            clienteCel: phone ? "+52"+phone : null,
+            ticket: window.posTicket,
+            garantias: garantias.length ? garantias : null,
+            fecha: new Date().toISOString(),
+            sosId: currentDetalleServicioId || null,
+            rescueCost: window.currentSOSCost || 0,
+            descuento: window.posDescuento || 0,
+            servicioNombre: servicioNombre,
+            lat: lat,
+            lng: lng
+        };
+        
+        const docRef = await addDoc(collection(db, "ventas"), saleData);
 
         for (let g of garantias) {
             await addDoc(collection(db, "garantias"), {
@@ -5772,7 +5807,9 @@ await addDoc(collection(db, "ventas"), saleData);
         }
     }
 }
-window.imprimirTicketVenta = async (ventaId, saleData) => {
+        showToast("Venta Registrada y Pagada", false);
+
+        window.imprimirTicketVenta = async (ventaId, saleData) => {
     window.showPDFProgress(); 
     console.log('🧾 Imprimiendo ticket de venta:', ventaId);
     const { jsPDF } = window.jspdf;
@@ -5802,17 +5839,56 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
             ]);
             y += 32;
 
+            // --- 🔴 INFORMACIÓN DEL RESCATE (Antes de ARTÍCULOS ADQUIRIDOS) ---
+            if (saleData.rescueCost || saleData.descuento || saleData.servicioNombre) {
+                let rescueY = y;
+                pdfDoc.setFont("helvetica", "bold");
+                pdfDoc.setFontSize(9);
+                pdfDoc.setTextColor(255, 107, 0);
+                pdfDoc.text("RESCATE Y SERVICIO", 12, rescueY);
+                rescueY += 6;
+                pdfDoc.setFont("helvetica", "normal");
+                pdfDoc.setFontSize(8);
+                pdfDoc.setTextColor(60, 60, 60);
+                
+                if (saleData.rescueCost) {
+                    pdfDoc.text(`Costo de rescate: $${saleData.rescueCost.toFixed(2)}`, 12, rescueY);
+                    rescueY += 5;
+                }
+                if (saleData.servicioNombre) {
+                    pdfDoc.text(`Servicio: ${saleData.servicioNombre}`, 12, rescueY);
+                    rescueY += 5;
+                }
+                if (saleData.descuento && saleData.descuento > 0) {
+                    pdfDoc.text(`Descuento aplicado: -$${saleData.descuento.toFixed(2)}`, 12, rescueY);
+                    rescueY += 5;
+                }
+                y = rescueY + 8;
+            }
+
+            // --- ARTÍCULOS ADQUIRIDOS (Productos + Cargos del mecánico) ---
             pdfDoc.setFont("helvetica", "bold");
             pdfDoc.setFontSize(10);
             pdfDoc.setTextColor(15, 23, 42);
-            
             pdfDoc.text("ARTÍCULOS ADQUIRIDOS:", 12, y);
             y += 4;
-            const body = saleData.ticket.map(item => [item.name, item.garantia || 'Sin garantía', `$${item.price.toFixed(2)}`]);
+            
+            // Crear el array de items para la tabla
+            let ticketItems = [];
+            if (saleData.ticket && saleData.ticket.length > 0) {
+                ticketItems = saleData.ticket.map(item => [
+                    item.name,
+                    item.garantia || 'Sin garantía',
+                    `$${item.price.toFixed(2)}`
+                ]);
+            } else {
+                ticketItems = [['Sin productos', 'N/A', '$0.00']];
+            }
+            
             pdfDoc.autoTable({
                 startY: y,
                 head: [['Descripción del Producto', 'Garantía Oficial', 'Precio Unitario']],
-                body: body,
+                body: ticketItems,
                 theme: 'grid',
                 styles: { fontSize: 8, cellPadding: 2.5, textColor: [30,41,59] },
                 headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
@@ -5820,57 +5896,21 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
                 margin: { left: 12, right: 12 }
             });
             y = pdfDoc.lastAutoTable.finalY + 10;
+            
+            // --- TOTAL ---
             pdfDoc.setFont("helvetica", "bold");
             pdfDoc.setFontSize(12);
+            pdfDoc.setTextColor(15, 23, 42);
             pdfDoc.text(`Total Neto: $${saleData.total.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-            y += 10;
-            // --- INFORMACIÓN ADICIONAL DEL SERVICIO ---
-let additionalInfoY = y + 5;
-pdfDoc.setFont("helvetica", "bold");
-pdfDoc.setFontSize(9);
-pdfDoc.setTextColor(255, 107, 0);
-pdfDoc.text("DETALLES DEL SERVICIO", 12, additionalInfoY);
-additionalInfoY += 6;
-pdfDoc.setFont("helvetica", "normal");
-pdfDoc.setFontSize(8);
-pdfDoc.setTextColor(60, 60, 60);
+            y += 15;
 
-// Costo del rescate (si existe)
-if (saleData.rescueCost) {
-    pdfDoc.text(`Costo de rescate: $${saleData.rescueCost.toFixed(2)}`, 12, additionalInfoY);
-    additionalInfoY += 5;
-}
-
-// Descuento aplicado
-if (saleData.descuento && saleData.descuento > 0) {
-    pdfDoc.text(`Descuento aplicado: -$${saleData.descuento.toFixed(2)}`, 12, additionalInfoY);
-    additionalInfoY += 5;
-}
-
-// Servicio específico (si está en el ticket)
-const servicioItem = saleData.ticket?.find(item => item.type === 'servicio' || item.type === 'rescate');
-if (servicioItem) {
-    pdfDoc.text(`Servicio: ${servicioItem.name}`, 12, additionalInfoY);
-    additionalInfoY += 5;
-}
-
-// Si hay información adicional en el rescate (marca, modelo, etc.)
-if (saleData.marca || saleData.modelo) {
-    pdfDoc.text(`Moto: ${saleData.marca || ''} ${saleData.modelo || ''}`, 12, additionalInfoY);
-    additionalInfoY += 5;
-}
-
-// Espacio antes del mapa
-y = additionalInfoY + 10;
-            
-
-            // --- 🔴 GENERACIÓN DEL MAPA EN EL TICKET DE VENTA ---
+            // --- 🔴 MAPA (después del total) ---
             if (saleData.sosId) {
                 console.log('🗺️ Generando mapa para SOS ID:', saleData.sosId);
                 let rutaPuntos = [];
                 let mechUid = null;
 
-                // Primero, intentar obtener el mech_uid del servicio desde la venta o desde el rescate
+                // Obtener mech_uid del servicio
                 if (saleData.sosId) {
                     try {
                         const sosSnap = await getDoc(doc(db, "rescates", saleData.sosId));
@@ -5883,12 +5923,11 @@ y = additionalInfoY + 10;
                     }
                 }
 
-                // Si no se encontró, usar el uid actual como fallback
                 if (!mechUid) {
                     mechUid = auth.currentUser?.uid || null;
                 }
 
-                // Obtener puntos de tracking usando el mechUid correcto
+                // Obtener puntos de tracking
                 if (mechUid) {
                     const trackingRef = dbRef(rtdb, `sos_tracking/${saleData.sosId}/${mechUid}/points`);
                     const trackSnap = await get(trackingRef);
@@ -5909,12 +5948,12 @@ y = additionalInfoY + 10;
                     }
                 }
 
-                // Si aún no hay puntos, usar la ubicación del taller
+                // Si no hay puntos, usar el taller
                 if (rutaPuntos.length === 0) {
                     rutaPuntos.push([TALLER_LAT, TALLER_LNG]);
                 }
 
-                console.log('📍 Puntos para el mapa (usando mech_uid:', mechUid, '):', rutaPuntos);
+                console.log('📍 Puntos para el mapa (mech_uid:', mechUid, '):', rutaPuntos);
 
                 let mapImage = null;
                 try {
@@ -5930,18 +5969,18 @@ y = additionalInfoY + 10;
                     pdfDoc.setLineWidth(0.5);
                     const mapX = 12;
                     const mapY = y;
-                    const mapWidth = 80;
-                    const mapHeight = 55;
+                    const mapWidth = 120;
+                    const mapHeight = 80;
                     pdfDoc.rect(mapX, mapY, mapWidth, mapHeight, 'S');
                     pdfDoc.addImage(mapImage, 'PNG', mapX, mapY, mapWidth, mapHeight);
-                    y += 60;
+                    y += 90;
                 } else {
                     pdfDoc.text("No se pudo generar el mapa", 12, y);
                     y += 10;
                 }
             }
-            // --- FIN DEL MAPA ---
 
+            // --- PIE DE PÁGINA ---
             pdfDoc.setFontSize(7);
             pdfDoc.setTextColor(148, 163, 184);
             pdfDoc.text("Gracias por su preferencia comercial. Conserve el presente ticket físico o digital para hacer válida cualquier reclamación de garantía en sucursal.", 12, y);
@@ -5949,7 +5988,7 @@ y = additionalInfoY + 10;
             const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE VENTA', logoImg);
             addFooter(pdfDoc);
             
-            // INTENTAR ABRIR EN NUEVA VENTANA CON IMPRESIÓN
+            // Guardar o imprimir
             try {
                 const blob = pdfDoc.output('blob');
                 const url = URL.createObjectURL(blob);
@@ -5965,7 +6004,6 @@ y = additionalInfoY + 10;
                     URL.revokeObjectURL(url); 
                 }, 100);
             } catch(e) {
-                // FALLBACK: GUARDAR DIRECTAMENTE
                 pdfDoc.save(`Venta_${saleData.shortId}.pdf`);
             }
             
@@ -5992,6 +6030,7 @@ y = additionalInfoY + 10;
         window.showToast('Error al generar el PDF. Intenta de nuevo.', true);
     }
 };
+        
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
     const cleanPhone = phone.replace(/[^0-9]/g, '');
