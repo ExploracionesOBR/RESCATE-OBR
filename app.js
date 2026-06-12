@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, where, limit, updateDoc, deleteDoc, orderBy, onSnapshot, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getDatabase, ref as dbRef, set, onValue, push, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref as dbRef, set, onValue, push, remove, update, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 // Cargar tema guardado localmente
 function cargarTemaLocal() {
@@ -1552,9 +1552,16 @@ window.updateEmergencyButtonState = (isOpen, sched) => {
     const emText = document.getElementById('emergency-closed-text');
     if (!emBtn) return;
 
+    // Resetear clases y estilo
+    emBtn.classList.remove(
+        'opacity-50', 'pointer-events-none', 'bg-gray-600',
+        'bg-gradient-to-r', 'from-red-600', 'to-naranja'
+    );
+    emBtn.style.display = 'flex';
+
     if (isOpen) {
-        emBtn.classList.remove('opacity-50', 'pointer-events-none', 'bg-gray-600');
         emBtn.classList.add('bg-gradient-to-r', 'from-red-600', 'to-naranja');
+        emBtn.classList.remove('opacity-50', 'pointer-events-none', 'bg-gray-600');
         if (emText) emText.classList.add('hidden');
         emBtn.onclick = () => window.startFlow('sos');
     } else {
@@ -1572,17 +1579,16 @@ window.updateEmergencyButtonState = (isOpen, sched) => {
         emBtn.onclick = () => window.showToast("Taller cerrado. Vuelve en horario laboral.", true);
     }
 };
-
 // === INICIO Y CONFIGURACIÓN GLOBAL ===
 async function loadGlobalSettings() {
     // Primero aplicar tema local
     cargarTemaLocal();
-    
+
     const snap = await getDoc(doc(db, 'settings', 'general'));
     if (snap.exists()) Object.assign(globalSettings, snap.data());
     globalSettings.centerLat = TALLER_LAT;
     globalSettings.centerLng = TALLER_LNG;
-    
+
     // Sincronizar: si es admin, guardar en Firestore; si no, prevalece local
     if (auth.currentUser && window.currentUserDoc?.role === 'admin') {
         const localMode = localStorage.getItem('obr_theme_mode');
@@ -1594,10 +1600,23 @@ async function loadGlobalSettings() {
         // Si no hay usuario, el tema local ya se aplicó
     }
     applyTheme();
+
+    // ✅ CORRECCIÓN: Forzar actualización del botón inmediatamente después de cargar ajustes
+    const now = new Date();
+    const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
+    const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
+    const [hOpen, mOpen] = sched.o.split(':').map(Number);
+    const [hClose, mClose] = sched.c.split(':').map(Number);
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const openMins = hOpen * 60 + mOpen;
+    const closeMins = hClose * 60 + mClose;
+    const isOpen = nowMins >= openMins && nowMins < closeMins;
+    window.updateEmergencyButtonState(isOpen, sched);
+
     updateLandingStatus();
     loadPublicStore();
     loadServicesCatalog();
-
+}
     // --- Listener en tiempo real ---
     if (window._settingsUnsubscribe) window._settingsUnsubscribe();
     window._settingsUnsubscribe = onSnapshot(doc(db, 'settings', 'general'), (docSnap) => {
@@ -1637,7 +1656,40 @@ async function loadGlobalSettings() {
             }
         }
     });
+// ... después de speakTTS
+function alertarGlobal(mensaje, tipo = 'notif') {
+    playSound(tipo);
+    speakTTS(mensaje);
+    // ...
 }
+// ... después de la definición de alertarGlobal
+function iniciarListenerGlobalSOS() {
+    let lastSOSCount = 0;
+    const q = query(collection(db, "rescates"), where("status", "==", "pending"));
+    onSnapshot(q, (snap) => {
+        const currentCount = snap.size;
+        if (lastSOSCount > 0 && currentCount > lastSOSCount) {
+            const nuevaSOS = currentCount - lastSOSCount;
+            if (nuevaSOS > 0) {
+                playSound('alert');
+                speakTTS('¡Nueva solicitud de auxilio entrante!');
+                if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+                    navigator.serviceWorker.ready.then(reg => {
+                        reg.showNotification('🚨 Nuevo SOS', {
+                            body: `Hay ${nuevaSOS} nueva(s) solicitud(es) de auxilio pendiente(s).`,
+                            icon: 'icono.png',
+                            vibrate: [200, 100, 200]
+                        });
+                    });
+                }
+                showToast(`🚨 ¡${nuevaSOS} nueva solicitud de auxilio entrante!`, false);
+            }
+        }
+        lastSOSCount = currentCount;
+    });
+}
+// ... luego sigue updateLandingStatus ...
+
 function updateLandingStatus() {
     const now = new Date();
     const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
@@ -1683,7 +1735,6 @@ function updateLandingStatus() {
         }
     });
 
-    // Mostrar fecha de lanzamiento si existe
     if (globalSettings.fechaLanzamiento) {
         const fechaEl = document.getElementById('fecha-lanzamiento');
         if (fechaEl) fechaEl.innerText = new Date(globalSettings.fechaLanzamiento).toLocaleDateString();
@@ -1877,6 +1928,7 @@ onAuthStateChanged(auth, async user => {
         globalSettings.centerLng = TALLER_LNG;
         showView('app-admin');
         document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
+         iniciarListenerGlobalSOS();
         setTimeout(() => {
             window.adminRefreshConfigUI();
             window.adminLoadInventory();
@@ -1906,8 +1958,11 @@ onAuthStateChanged(auth, async user => {
 }, 100);
         document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
         window.loadClientHistory(); 
-        listenToMySOS(); 
-        window.loadClientCitas(); 
+        listenToMySOS();
+        listenToMyDeliveries(); 
+        window.loadClientCitas();
+        console.log('Cargando tienda para usuario:', window.currentUserDoc?.phone);
+loadPublicStore();
         loadPublicStore();
         window.loadMyOrders();
         updateLandingStatus();
@@ -2032,15 +2087,42 @@ window.switchClientView = (id) => {
     if (id === 'c-view-rescate' && window.mechMapInst) {
         setTimeout(() => window.mechMapInst.invalidateSize(), 300);
     }
+    
     // Cargar video promocional solo en tienda
     if (id === 'c-view-tienda') window.loadPromoVideo();
+
+    // ✅ CARGAR DATOS SEGÚN LA VISTA SELECCIONADA
+    if (id === 'c-view-tienda') {
+        if (typeof loadPublicStore === 'function') {
+            loadPublicStore();
+        } else {
+            console.warn('loadPublicStore no está disponible');
+        }
+    }
+
+    if (id === 'c-view-citas') {
+        if (typeof window.loadClientCitas === 'function') {
+            window.loadClientCitas();
+        } else {
+            console.warn('loadClientCitas no está disponible');
+        }
+    }
+
+    if (id === 'c-view-historial') {
+        if (typeof window.loadClientHistory === 'function') {
+            window.loadClientHistory();
+        } else {
+            console.warn('loadClientHistory no está disponible');
+        }
+    }
+
     window.fixMaps?.();
 };
 
 window.switchAdminView = (id) => {
     toggleModal('modal-user-detail', false);
     
- // Mostrar/ocultar botón flotante del chat IA
+    // Mostrar/ocultar botón flotante del chat IA
     const chatAiBtn = document.getElementById('btn-chat-ai-float');
     if (chatAiBtn) {
         chatAiBtn.style.display = id === 'a-view-servicios' ? 'flex' : 'none';
@@ -2063,7 +2145,11 @@ window.switchAdminView = (id) => {
         window._servicesCatalogUnsubscribe = onSnapshot(collection(db, "servicios"), () => refreshCatalogUI());
     }
     if(id === 'a-view-usuarios') window.adminLoadUsers();
-    if(id === 'a-view-promos') { window.adminLoadLoyalty(); populatePromoProductSelect(); window.loadPromoPreview?.(); }
+    if(id === 'a-view-promos') { 
+        window.adminLoadLoyalty(); 
+        populatePromoProductSelect(); 
+        window.loadPromoPreview?.(); 
+    }
     if(id === 'a-view-stats') window.loadStats();
     if(id === 'a-view-citas') window.adminLoadCitas();
     if(id === 'a-view-alertas') window.renderSOSGlobalMap();
@@ -2085,6 +2171,7 @@ window.switchAdminView = (id) => {
     
     window.fixMaps?.();
 };
+
 window.applyViewPermissions = () => {
     const vistas = window.currentUserDoc?.vistasPermitidas;
     if (!vistas || !Array.isArray(vistas)) return;
@@ -2671,9 +2758,8 @@ function initClientMap() {
     setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
 }
 
-// ========== LISTEN TO MY SOS – VERSIÓN DEFINITIVA (RUTA EN TIEMPO REAL) ==========
+// ========== LISTEN TO MY SOS – VERSIÓN DEFINITIVA (CORREGIDA) ==========
 function listenToMySOS() {
-    // Limpiar listener anterior si existe
     if (window.mySOSListener && typeof window.mySOSListener === 'function') {
         window.mySOSListener();
         window.mySOSListener = null;
@@ -2682,6 +2768,9 @@ function listenToMySOS() {
 
     let mechPosUnsubscribe = null;
     let routingControl = null;
+    let deliveryMechPosUnsubscribe = null;
+    let deliveryRoutingControl = null;
+    let lastSOSStatus = null;
 
     window.mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), async (snap) => {
         const activeCard = document.getElementById('active-sos-card');
@@ -2691,20 +2780,64 @@ function listenToMySOS() {
         const wsCard = document.getElementById('active-workshop-card');
         const statusDesc = document.getElementById('sos-status-desc-client');
         const progressBar = document.getElementById('sos-progress-bar');
-        const stepLabels = ['step-1-label', 'step-2-label', 'step-3-label', 'step-4-label'];
-        const stepDots = ['step-dot-1', 'step-dot-2', 'step-dot-3', 'step-dot-4'];
         const emergencyBtn = document.getElementById('emergency-client-btn');
+        const chatBtn = document.getElementById('btn-chat-sos');
 
-        // Si no hay servicio activo
+        // CASO 1: El nodo fue eliminado (servicio finalizado o cancelado)
         if (!snap.exists()) {
+            if (lastSOSStatus === 'completed' || lastSOSStatus === 'cancelled') {
+                if (activeCard) activeCard.classList.add('hidden');
+                if (wsCard) wsCard.classList.add('hidden');
+                if (mechanicMapDiv) {
+                    mechanicMapDiv.classList.add('hidden');
+                    mechanicMapDiv.style.display = 'none';
+                }
+                if (chatBtn) chatBtn.classList.add('hidden');
+                if (emergencyBtn) emergencyBtn.style.display = 'flex';
+
+                if (routingControl) {
+                    routingControl.remove();
+                    routingControl = null;
+                }
+                if (window.clientMapInstance) {
+                    if (window.clientMapMarkers.mech) {
+                        window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+                        window.clientMapMarkers.mech = null;
+                    }
+                    if (window.clientMapMarkers.client) {
+                        window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                        window.clientMapMarkers.client = null;
+                    }
+                }
+
+                if (lastSOSStatus === 'completed') {
+                    const shortId = data.shortId || 'unknown';
+                    const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
+                    if (!yaCalifico) {
+                        if (survey) survey.classList.remove('hidden');
+                    } else {
+                        if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+                    }
+                    speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
+                    playSound('notif');
+                } else {
+                    speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
+                    playSound('notif');
+                    if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+                }
+
+                window.loadClientHistory();
+                lastSOSStatus = null;
+                return;
+            }
+
             if (activeCard) activeCard.classList.add('hidden');
-            if (noServicesMsg) noServicesMsg?.classList.remove('hidden');
-            if (survey) survey.classList.add('hidden');
+            if (wsCard) wsCard.classList.add('hidden');
             if (mechanicMapDiv) {
                 mechanicMapDiv.classList.add('hidden');
                 mechanicMapDiv.style.display = 'none';
             }
-            if (wsCard) wsCard.classList.add('hidden');
+            if (chatBtn) chatBtn.classList.add('hidden');
             if (emergencyBtn) emergencyBtn.style.display = 'flex';
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (routingControl) {
@@ -2712,67 +2845,73 @@ function listenToMySOS() {
                 routingControl = null;
             }
             if (window.clientMapInstance) {
-                window.clientMapInstance.remove();
-                window.clientMapInstance = null;
-                window.clientMapMarkers = { mech: null, client: null, taller: null };
+                if (window.clientMapMarkers.mech) {
+                    window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+                    window.clientMapMarkers.mech = null;
+                }
+                if (window.clientMapMarkers.client) {
+                    window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                    window.clientMapMarkers.client = null;
+                }
             }
             window.lastClientSOSStatus = null;
             return;
         }
 
         const data = snap.val();
+        lastSOSStatus = data.status;
 
-        // Actualizar tarjeta de taller (si la moto está en el taller)
-if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
-    const wsCard = document.getElementById('active-workshop-card');
-    if (wsCard) {
-        wsCard.classList.remove('hidden');
-        const steps = { 'recibida': 1, 'mecanica': 2, 'pruebas': 3, 'lista': 4 };
-        const currentStep = steps[data.tallerStatus] || 0;
-        const wsProgress = document.getElementById('client-ws-progress');
-        if (wsProgress) wsProgress.style.width = ((currentStep - 1) * 33.33) + '%';
-        const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
-        wsTexts.forEach((id, idx) => {
-            const el = document.getElementById(id);
-            if (el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
-        });
-    }
-} else {
-    const wsCard = document.getElementById('active-workshop-card');
-    if (wsCard) wsCard.classList.add('hidden');
-}
+        // CASO 2: Servicio completado o cancelado (aún en RTDB)
+        if (data.status === 'completed' || data.status === 'cancelled') {
+            if (activeCard) activeCard.classList.add('hidden');
+            if (wsCard) wsCard.classList.add('hidden');
+            if (mechanicMapDiv) {
+                mechanicMapDiv.classList.add('hidden');
+                mechanicMapDiv.style.display = 'none';
+            }
+            if (chatBtn) chatBtn.classList.add('hidden');
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
 
-        // Mostrar tarjeta activa y ocultar mensaje de "sin actividad"
+            if (data.status === 'completed') {
+                speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
+                playSound('notif');
+            } else {
+                speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
+                playSound('notif');
+            }
+
+            window.loadClientHistory();
+            return;
+        }
+
+        // --- SOS ACTIVO ---
         if (activeCard) activeCard.classList.remove('hidden');
-        if (noServicesMsg) noServicesMsg.classList.add('hidden');
-
-        // Asegurar que el contenedor del mapa sea visible y tenga altura
         if (mechanicMapDiv) {
             mechanicMapDiv.classList.remove('hidden');
             mechanicMapDiv.style.display = 'block';
             mechanicMapDiv.style.height = '250px';
             mechanicMapDiv.style.minHeight = '250px';
-            mechanicMapDiv.style.opacity = '1';
+        }
+        if (emergencyBtn) emergencyBtn.style.display = 'none';
+        if (data.mech_uid && data.chatId) {
+            if (chatBtn) chatBtn.classList.remove('hidden');
         }
 
-        // Ocultar botón de emergencia si el servicio está en curso
-        const estadosOcultarEmergencia = ['accepted', 'repairing', 'to_shop', 'ready'];
-        if (estadosOcultarEmergencia.includes(data.status)) {
-            if (emergencyBtn) emergencyBtn.style.display = 'none';
-        } else {
-            if (emergencyBtn) emergencyBtn.style.display = 'flex';
-        }
-
-        // Actualizar barra de progreso (pasos)
+        // Barra de progreso SOS
         let currentStep = 0, progressPercent = 0;
         if (data.status === 'accepted') { currentStep = 1; progressPercent = 25; }
         else if (data.status === 'repairing') { currentStep = 2; progressPercent = 50; }
         else if (data.status === 'to_shop' || data.status === 'ready') { currentStep = 3; progressPercent = 75; }
         else if (data.status === 'completed') { currentStep = 4; progressPercent = 100; }
 
-        for (let i = 0; i < stepLabels.length; i++) {
-            const labelEl = document.getElementById(stepLabels[i]);
-            const dotEl = document.getElementById(stepDots[i]);
+        for (let i = 0; i < 4; i++) {
+            const labelEl = document.getElementById('step-' + (i+1) + '-label');
+            const dotEl = document.getElementById('step-dot-' + (i+1));
             if (i < currentStep) {
                 labelEl?.classList.add('text-red-400', 'font-bold');
                 dotEl?.classList.remove('bg-asfalto', 'border-white/20');
@@ -2785,7 +2924,7 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
         }
         if (progressBar) progressBar.style.width = progressPercent + '%';
 
-        // Texto de estado
+        // Texto de estado SOS
         if (statusDesc) {
             let estadoTexto = "Esperando confirmación";
             if (data.status === 'accepted') estadoTexto = "Mecánico en camino";
@@ -2796,9 +2935,8 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
             statusDesc.innerText = estadoTexto;
         }
 
-        // === INICIALIZAR / ACTUALIZAR MAPA Y RUTA ===
+        // MAPA Y RUTA SOS
         if (data.status === 'accepted' || data.status === 'repairing') {
-            // Inicializar el mapa del cliente si es necesario
             const initClientMapIfNeeded = () => {
                 if (!mechanicMapDiv) return;
                 const rect = mechanicMapDiv.getBoundingClientRect();
@@ -2808,7 +2946,6 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                 }
                 if (!window.clientMapInstance) {
                     if (typeof initClientMap === 'function') initClientMap();
-                    else console.error('initClientMap no está definida');
                 } else {
                     window.clientMapInstance.invalidateSize();
                 }
@@ -2816,7 +2953,6 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
             initClientMapIfNeeded();
 
             if (window.clientMapInstance && data.lat && data.lng) {
-                // Marcador del cliente (ubicación de la avería)
                 if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
                 window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
                     icon: L.divIcon({
@@ -2827,10 +2963,8 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                     })
                 }).addTo(window.clientMapInstance).bindPopup("📍 Tu ubicación");
 
-                // Suscripción a la posición del mecánico
                 if (mechPosUnsubscribe) mechPosUnsubscribe();
                 if (data.mech_uid) {
-                    // Obtener datos del mecánico para el popup
                     const mechUserSnap = await getDoc(doc(db, "users", data.mech_uid));
                     const mechData = mechUserSnap.exists() ? mechUserSnap.data() : { name: 'Mecánico', phone: '' };
                     const calificacion = await obtenerPromedioCalificacion(data.mech_uid);
@@ -2855,7 +2989,6 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                         if (posSnap.exists() && window.clientMapInstance) {
                             const pos = posSnap.val();
                             if (pos.lat && pos.lng) {
-                                // Crear o actualizar marcador del mecánico
                                 if (window.clientMapMarkers.mech) {
                                     window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
                                     window.clientMapMarkers.mech.setPopupContent(popupContent);
@@ -2870,10 +3003,8 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                                     }).addTo(window.clientMapInstance).bindPopup(popupContent);
                                 }
 
-                                // Centrar el mapa en la posición del mecánico (o en ambos)
                                 window.clientMapInstance.setView([pos.lat, pos.lng], 14);
 
-                                // === CREAR O ACTUALIZAR RUTA EN TIEMPO REAL ===
                                 if (routingControl) {
                                     routingControl.setWaypoints([
                                         L.latLng(pos.lat, pos.lng),
@@ -2895,21 +3026,14 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                                             router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
                                             createMarker: () => null
                                         }).addTo(window.clientMapInstance);
-
-                                        // Forzar redibujo después de añadir la ruta
-                                        setTimeout(() => {
-                                            if (window.clientMapInstance) window.clientMapInstance.invalidateSize();
-                                        }, 200);
-                                    } catch (e) {
-                                        console.warn('Error al crear routing control:', e);
-                                    }
+                                        setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
+                                    } catch (e) { console.warn('Error al crear routing control:', e); }
                                 }
                             }
                         }
                     });
                 }
 
-                // Ajustar los límites del mapa para mostrar ambos puntos (cliente y mecánico si existe)
                 const bounds = [];
                 if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
                 if (window.clientMapMarkers.mech) {
@@ -2923,99 +3047,528 @@ if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
                 }
             }
         } else {
-            // Si el estado no es accepted/repairing, eliminar ruta y marcadores
             if (routingControl) {
                 routingControl.remove();
                 routingControl = null;
             }
-           if (window.clientMapInstance) {
-    if (window.clientMapMarkers.mech) window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
-    if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-    window.clientMapMarkers.mech = null;
-    window.clientMapMarkers.client = null;
-}
+            if (window.clientMapInstance) {
+                if (window.clientMapMarkers.mech) {
+                    window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+                    window.clientMapMarkers.mech = null;
+                }
+                if (window.clientMapMarkers.client) {
+                    window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                    window.clientMapMarkers.client = null;
+                }
+            }
             if (mechPosUnsubscribe) mechPosUnsubscribe();
         }
 
-        // Notificaciones y cambios de estado
-        if (data.status === 'accepted' && window.lastClientSOSStatus !== 'accepted') {
-            speakTTS('TU SOLICITUD HA SIDO ACEPTADA. ESPERA MIENTRAS LLEGA EL MECÁNICO.');
-            playSound('notif');
-            const chatBtn = document.getElementById('btn-chat-sos');
-            if (chatBtn && data.mech_uid) chatBtn.classList.remove('hidden');
-        }
-
-        if ((data.status === 'completed' || data.status === 'cancelled') && 
-    window.lastClientSOSStatus !== 'completed' && 
-    window.lastClientSOSStatus !== 'cancelled') {
-    
-    const chatBtn = document.getElementById('btn-chat-sos');
-    if (chatBtn) chatBtn.classList.add('hidden');
-    window._sosChatId = null;
-    
-    if (data.status === 'completed') {
-        speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
-        playSound('notif');
-        if (activeCard) activeCard.classList.add('hidden');
-        setTimeout(() => {
-            const surveyEl = document.getElementById('satisfaction-survey');
-            if (surveyEl) surveyEl.classList.remove('hidden');
-        }, 200);
-    } else {
-        speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
-        playSound('notif');
-        if (activeCard) activeCard.classList.add('hidden');
-    }
-    
-    remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
-    window.loadClientHistory();
-    
-    // 👇 **AQUÍ VA EL BLOQUE QUE ME DISTE PARA LA TARJETA DEL TALLER**
-    if (data.tallerStatus && !['entregada', 'pagado'].includes(data.tallerStatus)) {
-        const wsCard = document.getElementById('active-workshop-card');
-        if (wsCard) {
-            wsCard.classList.remove('hidden');
-            const steps = { 'recibida': 1, 'mecanica': 2, 'pruebas': 3, 'lista': 4 };
-            const currentStep = steps[data.tallerStatus] || 0;
-            const wsProgress = document.getElementById('client-ws-progress');
-            if (wsProgress) wsProgress.style.width = ((currentStep - 1) * 33.33) + '%';
-            const wsTexts = ['ws-text-1', 'ws-text-2', 'ws-text-3', 'ws-text-4'];
-            wsTexts.forEach((id, idx) => {
-                const el = document.getElementById(id);
-                if (el) el.style.color = idx < currentStep ? '#3b82f6' : '#666';
-            });
-        }
-    } else {
-        const wsCard = document.getElementById('active-workshop-card');
-        if (wsCard) wsCard.classList.add('hidden');
-    }
-    // 👆 HASTA AQUÍ
-
-    if (mechPosUnsubscribe) mechPosUnsubscribe();
-    if (routingControl) {
-        routingControl.remove();
-        routingControl = null;
-    }
-    if (window.clientMapInstance) {
-        window.clientMapInstance.remove();
-        window.clientMapInstance = null;
-        window.clientMapMarkers = { mech: null, client: null, taller: null };
-    }
-    
-    window.lastClientSOSStatus = data.status;
-    return;
-}
-
         window.lastClientSOSStatus = data.status;
+
+        // ========== VERIFICAR ENTREGA ACTIVA (pedidos_online) ==========
+        const deliverySnap = await get(dbRef(rtdb, 'pedidos_online/' + auth.currentUser.uid)).catch(() => null);
+        const deliveryCard = document.getElementById('active-delivery-card');
+        const deliveryMapDiv = document.getElementById('delivery-live-map');
+        const deliveryStatusDesc = document.getElementById('delivery-status-desc-client');
+        const deliveryProgressBar = document.getElementById('delivery-progress-bar');
+        const deliveryChatBtn = document.getElementById('btn-chat-delivery');
+        const separator = document.getElementById('delivery-separator');
+
+        if (deliverySnap && deliverySnap.exists()) {
+            const deliveryData = deliverySnap.val();
+            const estado = deliveryData.estado_entrega;
+
+            if (estado && estado !== 'entregado' && estado !== 'cancelado') {
+                if (deliveryCard) deliveryCard.classList.remove('hidden');
+                if (deliveryMapDiv) {
+                    deliveryMapDiv.classList.remove('hidden');
+                    deliveryMapDiv.style.display = 'block';
+                    deliveryMapDiv.style.height = '250px';
+                    deliveryMapDiv.style.minHeight = '250px';
+                }
+                if (deliveryChatBtn && deliveryData.chatId) {
+                    deliveryChatBtn.classList.remove('hidden');
+                }
+
+                let dStep = 0, dPercent = 0;
+                if (estado === 'pendiente') { dStep = 1; dPercent = 33; }
+                else if (estado === 'en_camino') { dStep = 2; dPercent = 66; }
+                if (deliveryProgressBar) deliveryProgressBar.style.width = dPercent + '%';
+
+                for (let i = 0; i < 3; i++) {
+                    const labelEl = document.getElementById('delivery-step-' + (i+1));
+                    const dotEl = document.getElementById('delivery-dot-' + (i+1));
+                    if (i < dStep) {
+                        labelEl?.classList.add('text-green-400', 'font-bold');
+                        dotEl?.classList.remove('bg-asfalto', 'border-white/20');
+                        dotEl?.classList.add('bg-green-500', 'border-asfalto');
+                    } else {
+                        labelEl?.classList.remove('text-green-400', 'font-bold');
+                        dotEl?.classList.remove('bg-green-500', 'border-asfalto');
+                        dotEl?.classList.add('bg-asfalto', 'border-white/20');
+                    }
+                }
+
+                if (deliveryStatusDesc) {
+                    if (estado === 'pendiente') deliveryStatusDesc.innerText = "Preparando entrega";
+                    else if (estado === 'en_camino') deliveryStatusDesc.innerText = "Repartidor en camino";
+                }
+
+                const isSOSVisible = activeCard && !activeCard.classList.contains('hidden');
+                if (isSOSVisible && separator) {
+                    separator.classList.remove('hidden');
+                } else if (separator) {
+                    separator.classList.add('hidden');
+                }
+
+                if (estado === 'pendiente' || estado === 'en_camino') {
+                    const initClientMapIfNeededDelivery = () => {
+                        if (!deliveryMapDiv) return;
+                        const rect = deliveryMapDiv.getBoundingClientRect();
+                        if (rect.height < 100) {
+                            setTimeout(initClientMapIfNeededDelivery, 300);
+                            return;
+                        }
+                        if (!window.clientMapInstance) {
+                            if (typeof initClientMap === 'function') initClientMap();
+                        } else {
+                            window.clientMapInstance.invalidateSize();
+                        }
+                    };
+                    initClientMapIfNeededDelivery();
+
+                    if (window.clientMapInstance && deliveryData.lat && deliveryData.lng) {
+                        if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                        window.clientMapMarkers.client = L.marker([deliveryData.lat, deliveryData.lng], {
+                            icon: L.divIcon({
+                                className: 'gps-pulse-marker',
+                                html: '<div class="pulse-inner" style="background:#FF6B00; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-map-marker-alt" style="color:white; font-size:14px;"></i></div>',
+                                iconSize: [28, 28],
+                                iconAnchor: [14, 28]
+                            })
+                        }).addTo(window.clientMapInstance).bindPopup("📍 Tu destino");
+
+                        if (deliveryMechPosUnsubscribe) deliveryMechPosUnsubscribe();
+                        if (deliveryData.repartidor_uid) {
+                            const repartidorSnap = await getDoc(doc(db, "users", deliveryData.repartidor_uid));
+                            const repartidorData = repartidorSnap.exists() ? repartidorSnap.data() : { name: 'Repartidor', phone: '' };
+                            const telefono = repartidorData.phone || '';
+                            const telefonoClean = telefono.replace('+52', '');
+                            const nombre = repartidorData.name || 'Repartidor';
+
+                            const popupContent = `
+                                <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${document.body.classList.contains('light-mode') ? '#ffffff' : '#1A1A1A'}; color:${document.body.classList.contains('light-mode') ? '#111111' : '#ffffff'}; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
+                                    <b>${escapeHtml(nombre)}</b><br>
+                                    ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+                                    <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                                        ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+                                        ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                                    </div>
+                                </div>
+                            `;
+
+                            deliveryMechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${deliveryData.repartidor_uid}`), (posSnap) => {
+                                if (posSnap.exists() && window.clientMapInstance) {
+                                    const pos = posSnap.val();
+                                    if (pos.lat && pos.lng) {
+                                        if (window.clientMapMarkers.mech) {
+                                            window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
+                                            window.clientMapMarkers.mech.setPopupContent(popupContent);
+                                        } else {
+                                            window.clientMapMarkers.mech = L.marker([pos.lat, pos.lng], {
+                                                icon: L.divIcon({
+                                                    className: 'mech-pulse-marker',
+                                                    html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-truck" style="color:white; font-size:16px;"></i></div>',
+                                                    iconSize: [32, 32],
+                                                    iconAnchor: [16, 32]
+                                                })
+                                            }).addTo(window.clientMapInstance).bindPopup(popupContent);
+                                        }
+
+                                        window.clientMapInstance.setView([pos.lat, pos.lng], 14);
+
+                                        if (deliveryRoutingControl) {
+                                            deliveryRoutingControl.setWaypoints([
+                                                L.latLng(pos.lat, pos.lng),
+                                                L.latLng(deliveryData.lat, deliveryData.lng)
+                                            ]);
+                                        } else {
+                                            try {
+                                                deliveryRoutingControl = L.Routing.control({
+                                                    waypoints: [
+                                                        L.latLng(pos.lat, pos.lng),
+                                                        L.latLng(deliveryData.lat, deliveryData.lng)
+                                                    ],
+                                                    routeWhileDragging: false,
+                                                    language: 'es',
+                                                    showAlternatives: false,
+                                                    show: false,
+                                                    collapsible: false,
+                                                    lineOptions: { styles: [{ color: '#22c55e', weight: 6, opacity: 0.9 }] },
+                                                    router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+                                                    createMarker: () => null
+                                                }).addTo(window.clientMapInstance);
+                                                setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
+                                            } catch (e) { console.warn('Error al crear routing control:', e); }
+                                        }
+                                    }
+                                }
+                            });
+                        }
+
+                        const bounds = [];
+                        if (deliveryData.lat && deliveryData.lng) bounds.push([deliveryData.lat, deliveryData.lng]);
+                        if (window.clientMapMarkers.mech) {
+                            const latlng = window.clientMapMarkers.mech.getLatLng();
+                            if (latlng) bounds.push([latlng.lat, latlng.lng]);
+                        }
+                        if (bounds.length >= 2) {
+                            window.clientMapInstance.fitBounds(bounds, { padding: [50, 50] });
+                        } else if (bounds.length === 1) {
+                            window.clientMapInstance.setView(bounds[0], 14);
+                        }
+                    }
+                } else {
+                    if (deliveryRoutingControl) {
+                        deliveryRoutingControl.remove();
+                        deliveryRoutingControl = null;
+                    }
+                    if (window.clientMapInstance) {
+                        if (window.clientMapMarkers.mech) {
+                            window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+                            window.clientMapMarkers.mech = null;
+                        }
+                        if (window.clientMapMarkers.client) {
+                            window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                            window.clientMapMarkers.client = null;
+                        }
+                    }
+                    if (deliveryMechPosUnsubscribe) deliveryMechPosUnsubscribe();
+                }
+            } else {
+                if (deliveryCard) deliveryCard.classList.add('hidden');
+                if (deliveryMapDiv) {
+                    deliveryMapDiv.classList.add('hidden');
+                    deliveryMapDiv.style.display = 'none';
+                }
+                if (deliveryChatBtn) deliveryChatBtn.classList.add('hidden');
+                if (separator) separator.classList.add('hidden');
+                if (deliveryMechPosUnsubscribe) deliveryMechPosUnsubscribe();
+                if (deliveryRoutingControl) {
+                    deliveryRoutingControl.remove();
+                    deliveryRoutingControl = null;
+                }
+            }
+        } else {
+            if (deliveryCard) deliveryCard.classList.add('hidden');
+            if (deliveryMapDiv) {
+                deliveryMapDiv.classList.add('hidden');
+                deliveryMapDiv.style.display = 'none';
+            }
+            if (deliveryChatBtn) deliveryChatBtn.classList.add('hidden');
+            if (separator) separator.classList.add('hidden');
+            if (deliveryMechPosUnsubscribe) deliveryMechPosUnsubscribe();
+            if (deliveryRoutingControl) {
+                deliveryRoutingControl.remove();
+                deliveryRoutingControl = null;
+            }
+        }
+
+        // ========== CONTROL DE MENSAJE "SIN ACTIVIDAD" ==========
+        const sosHidden = activeCard?.classList.contains('hidden') ?? true;
+        const deliveryHidden = deliveryCard?.classList.contains('hidden') ?? true;
+        if (sosHidden && deliveryHidden) {
+            if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+        } else {
+            if (noServicesMsg) noServicesMsg.classList.add('hidden');
+        }
     });
 }
+// ========== FIN DE listenToMySOS ==========
 
-// aqui finaliza listenToMySOS //
-window.abrirChatSOS = () => {
+// ========== LISTEN TO MY DELIVERIES – ENTREGAS ACTIVAS ==========
+function listenToMyDeliveries() {
+    if (window._deliveryListener && typeof window._deliveryListener === 'function') {
+        window._deliveryListener();
+        window._deliveryListener = null;
+    }
+    if (!auth.currentUser) return;
+
+    let mechPosUnsubscribe = null;
+    let routingControl = null;
+
+    window._deliveryListener = onValue(dbRef(rtdb, 'pedidos_online/' + auth.currentUser.uid), async (snap) => {
+        const activeCard = document.getElementById('active-delivery-card');
+        const noServicesMsg = document.getElementById('no-active-services-msg');
+        const mechanicMapDiv = document.getElementById('delivery-live-map');
+        const statusDesc = document.getElementById('delivery-status-desc-client');
+        const progressBar = document.getElementById('delivery-progress-bar');
+        const emergencyBtn = document.getElementById('emergency-client-btn');
+        const chatBtn = document.getElementById('btn-chat-delivery');
+        const deliveryBtn = document.querySelector('.c-nav-btn[onclick*="c-view-entregas"]');
+
+        // Ocultar botón de entregas si no hay entrega activa
+        if (!snap.exists() || !snap.val().estado_entrega || snap.val().estado_entrega === 'entregado') {
+            if (activeCard) activeCard.classList.add('hidden');
+            if (mechanicMapDiv) {
+                mechanicMapDiv.classList.add('hidden');
+                mechanicMapDiv.style.display = 'none';
+            }
+            if (chatBtn) chatBtn.classList.add('hidden');
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
+            if (deliveryBtn) deliveryBtn.style.display = 'none';
+            window._lastDeliveryStatus = null;
+            return;
+        }
+
+        // Mostrar botón de entregas
+        if (deliveryBtn) deliveryBtn.style.display = 'flex';
+
+        const data = snap.val();        
+        // SI LA ENTREGA ESTÁ COMPLETADA
+        if (data.estado_entrega === 'entregado') {
+            if (activeCard) activeCard.classList.add('hidden');
+            if (mechanicMapDiv) {
+                mechanicMapDiv.classList.add('hidden');
+                mechanicMapDiv.style.display = 'none';
+            }
+            if (chatBtn) chatBtn.classList.add('hidden');
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
+            if (window.clientMapInstance) {
+                window.clientMapInstance.remove();
+                window.clientMapInstance = null;
+                window.clientMapMarkers = { mech: null, client: null, taller: null };
+            }
+            // Si no hay rescate activo, mostrar "Sin actividad"
+            const sosActive = document.getElementById('active-sos-card');
+            if (!sosActive || sosActive.classList.contains('hidden')) {
+                if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+            }
+            return;
+        }
+
+        // --- ENTREGA ACTIVA ---
+        if (activeCard) activeCard.classList.remove('hidden');
+        if (noServicesMsg) noServicesMsg.classList.add('hidden');
+
+        // Mostrar mapa
+        if (mechanicMapDiv) {
+            mechanicMapDiv.classList.remove('hidden');
+            mechanicMapDiv.style.display = 'block';
+            mechanicMapDiv.style.height = '250px';
+            mechanicMapDiv.style.minHeight = '250px';
+        }
+
+        // Ocultar botón emergencia
+        if (emergencyBtn) emergencyBtn.style.display = 'none';
+
+        // Chat button
+        if (data.chatId) {
+            if (chatBtn) chatBtn.classList.remove('hidden');
+        } else {
+            if (chatBtn) chatBtn.classList.add('hidden');
+        }
+
+        // Progreso
+        let currentStep = 0, progressPercent = 0;
+        if (data.estado_entrega === 'pendiente') { currentStep = 1; progressPercent = 33; }
+        else if (data.estado_entrega === 'en_camino') { currentStep = 2; progressPercent = 66; }
+        if (progressBar) progressBar.style.width = progressPercent + '%';
+
+        // Actualizar pasos
+        for (let i = 0; i < 3; i++) {
+            const labelEl = document.getElementById('delivery-step-' + (i+1));
+            const dotEl = document.getElementById('delivery-dot-' + (i+1));
+            if (i < currentStep) {
+                labelEl?.classList.add('text-green-400', 'font-bold');
+                dotEl?.classList.remove('bg-asfalto', 'border-white/20');
+                dotEl?.classList.add('bg-green-500', 'border-asfalto');
+            } else {
+                labelEl?.classList.remove('text-green-400', 'font-bold');
+                dotEl?.classList.remove('bg-green-500', 'border-asfalto');
+                dotEl?.classList.add('bg-asfalto', 'border-white/20');
+            }
+        }
+
+        // Texto de estado
+        if (statusDesc) {
+            if (data.estado_entrega === 'pendiente') statusDesc.innerText = "Preparando entrega";
+            else if (data.estado_entrega === 'en_camino') statusDesc.innerText = "Repartidor en camino";
+            else statusDesc.innerText = "Estado desconocido";
+        }
+
+        // --- MAPA Y RUTA (similar a SOS pero con repartidor) ---
+        if (data.estado_entrega === 'pendiente' || data.estado_entrega === 'en_camino') {
+            const initClientMapIfNeeded = () => {
+                if (!mechanicMapDiv) return;
+                const rect = mechanicMapDiv.getBoundingClientRect();
+                if (rect.height < 100) {
+                    setTimeout(initClientMapIfNeeded, 300);
+                    return;
+                }
+                if (!window.clientMapInstance) {
+                    if (typeof initClientMap === 'function') initClientMap();
+                } else {
+                    window.clientMapInstance.invalidateSize();
+                }
+            };
+            initClientMapIfNeeded();
+
+            if (window.clientMapInstance && data.lat && data.lng) {
+                // Marcador del cliente (destino)
+                if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
+                    icon: L.divIcon({
+                        className: 'gps-pulse-marker',
+                        html: '<div class="pulse-inner" style="background:#FF6B00; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-map-marker-alt" style="color:white; font-size:14px;"></i></div>',
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 28]
+                    })
+                }).addTo(window.clientMapInstance).bindPopup("📍 Tu destino");
+
+                // Suscripción a la posición del repartidor
+                if (mechPosUnsubscribe) mechPosUnsubscribe();
+                if (data.repartidor_uid) {
+                    const repartidorSnap = await getDoc(doc(db, "users", data.repartidor_uid));
+                    const repartidorData = repartidorSnap.exists() ? repartidorSnap.data() : { name: 'Repartidor', phone: '' };
+                    const telefono = repartidorData.phone || '';
+                    const telefonoClean = telefono.replace('+52', '');
+                    const nombre = repartidorData.name || 'Repartidor';
+
+                    const popupContent = `
+                        <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${document.body.classList.contains('light-mode') ? '#ffffff' : '#1A1A1A'}; color:${document.body.classList.contains('light-mode') ? '#111111' : '#ffffff'}; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
+                            <b>${escapeHtml(nombre)}</b><br>
+                            ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+                            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                                ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+                                ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                            </div>
+                        </div>
+                    `;
+
+                    mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.repartidor_uid}`), (posSnap) => {
+                        if (posSnap.exists() && window.clientMapInstance) {
+                            const pos = posSnap.val();
+                            if (pos.lat && pos.lng) {
+                                if (window.clientMapMarkers.mech) {
+                                    window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
+                                    window.clientMapMarkers.mech.setPopupContent(popupContent);
+                                } else {
+                                    window.clientMapMarkers.mech = L.marker([pos.lat, pos.lng], {
+                                        icon: L.divIcon({
+                                            className: 'mech-pulse-marker',
+                                            html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-truck" style="color:white; font-size:16px;"></i></div>',
+                                            iconSize: [32, 32],
+                                            iconAnchor: [16, 32]
+                                        })
+                                    }).addTo(window.clientMapInstance).bindPopup(popupContent);
+                                }
+
+                                window.clientMapInstance.setView([pos.lat, pos.lng], 14);
+
+                                // Ruta
+                                if (routingControl) {
+                                    routingControl.setWaypoints([
+                                        L.latLng(pos.lat, pos.lng),
+                                        L.latLng(data.lat, data.lng)
+                                    ]);
+                                } else {
+                                    try {
+                                        routingControl = L.Routing.control({
+                                            waypoints: [
+                                                L.latLng(pos.lat, pos.lng),
+                                                L.latLng(data.lat, data.lng)
+                                            ],
+                                            routeWhileDragging: false,
+                                            language: 'es',
+                                            showAlternatives: false,
+                                            show: false,
+                                            collapsible: false,
+                                            lineOptions: { styles: [{ color: '#22c55e', weight: 6, opacity: 0.9 }] },
+                                            router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+                                            createMarker: () => null
+                                        }).addTo(window.clientMapInstance);
+                                        setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
+                                    } catch (e) { console.warn('Error al crear routing control:', e); }
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Ajustar límites
+                const bounds = [];
+                if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
+                if (window.clientMapMarkers.mech) {
+                    const latlng = window.clientMapMarkers.mech.getLatLng();
+                    if (latlng) bounds.push([latlng.lat, latlng.lng]);
+                }
+                if (bounds.length >= 2) {
+                    window.clientMapInstance.fitBounds(bounds, { padding: [50, 50] });
+                } else if (bounds.length === 1) {
+                    window.clientMapInstance.setView(bounds[0], 14);
+                }
+            }
+        }
+
+        window._lastDeliveryStatus = data.estado_entrega;
+    });
+}
+// ========== FIN DE listenToMyDeliveries ==========
+    window.submitDeliverySurvey = async () => {
+    // Similar a submitSurvey pero para entregas
+    const rating = window.currentDeliveryRating || 5;
+    const comments = document.getElementById('delivery-survey-comments')?.value.trim() || '';
+    // Guardar en Firestore con tipo 'entrega'
+    await addDoc(collection(db, "satisfaction"), {
+        uid: auth.currentUser.uid,
+        rating: rating,
+        comments: comments,
+        tipo: 'entrega',
+        timestamp: Date.now()
+    });
+    // Cerrar encuesta y mostrar mensaje
+};
+
+window.abrirChatSOS = async () => {
     if (window._sosChatId) {
         window.openChat(window._sosChatId);
+        return;
+    }
+    if (!window.currentSOSId) {
+        // Buscar el SOS activo del usuario
+        const snap = await getDocs(query(collection(db, "rescates"), where("uid", "==", auth.currentUser.uid), where("status", "in", ["accepted", "repairing", "to_shop", "ready"]), limit(1)));
+        if (snap.empty) {
+            window.showToast("No tienes un servicio activo con chat disponible.", true);
+            return;
+        }
+        const data = snap.docs[0].data();
+        window.currentSOSId = snap.docs[0].id;
+        if (data.chatId) {
+            window._sosChatId = data.chatId;
+            window.openChat(data.chatId);
+        } else {
+            window.showToast("Aún no hay chat disponible. Espera a que el taller asigne el servicio.", true);
+        }
     } else {
-        window.showToast("Aún no hay chat disponible. Espera a que el taller asigne el servicio.", true);
+        const snap = await getDoc(doc(db, "rescates", window.currentSOSId));
+        if (snap.exists() && snap.data().chatId) {
+            window._sosChatId = snap.data().chatId;
+            window.openChat(window._sosChatId);
+        } else {
+            window.showToast("Aún no hay chat disponible. Espera a que el taller asigne el servicio.", true);
+        }
     }
 };
 // ===== Funciones globales que estaban mal ubicadas dentro de listenToMySOS =====
@@ -3075,20 +3628,75 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 window.submitSurvey = async () => {
-    if(!window.currentRating) return showToast("Selecciona una calificación", true);
+    if (!window.currentRating) return showToast("Selecciona una calificación", true);
     const comments = document.getElementById('survey-comments').value.trim();
-    if(window.currentRating < 3 && !comments) return showToast("¿Qué mejorarías?", true);
-    await addDoc(collection(db, "satisfaction"), { 
-        uid: auth.currentUser.uid, 
-        rating: window.currentRating, 
-        comments, 
-        timestamp: Date.now(), 
-        mechName: window.currentUserDoc.name || 'Mecánico' 
+    if (window.currentRating < 3 && !comments) return showToast("¿Qué mejorarías?", true);
+
+    // Obtener shortId del servicio completado
+    const snap = await getDocs(query(collection(db, "rescates"), 
+        where("uid", "==", auth.currentUser.uid), 
+        where("status", "==", "completed"), 
+        orderBy("timestamp", "desc"), 
+        limit(1)
+    ));
+    let shortId = 'unknown';
+    if (!snap.empty) {
+        shortId = snap.docs[0].data().shortId || 'unknown';
+    }
+
+    // Guardar en Firestore
+    await addDoc(collection(db, "satisfaction"), {
+        uid: auth.currentUser.uid,
+        rating: window.currentRating,
+        comments,
+        timestamp: Date.now(),
+        shortId: shortId,
+        estado: 'completada',
+        mechName: window.currentUserDoc?.name || 'Mecánico'
     });
+
+    // ✅ Guardar en localStorage para NO mostrar la encuesta nuevamente
+    localStorage.setItem('calificado_' + shortId, 'true');
+    localStorage.removeItem('encuesta_cancelada_' + shortId);
+
     document.getElementById('satisfaction-survey').classList.add('hidden');
-document.getElementById('no-active-services-msg').classList.remove('hidden'); 
+    document.getElementById('no-active-services-msg').classList.remove('hidden');
     showToast("¡Gracias!");
 };
+
+window.cancelSurvey = async () => {
+    // Obtener shortId del servicio completado
+    const snap = await getDocs(query(collection(db, "rescates"), 
+        where("uid", "==", auth.currentUser.uid), 
+        where("status", "==", "completed"), 
+        orderBy("timestamp", "desc"), 
+        limit(1)
+    ));
+    let shortId = 'unknown';
+    if (!snap.empty) {
+        shortId = snap.docs[0].data().shortId || 'unknown';
+    }
+
+    // Guardar en Firestore con rating 5 y comentario de cancelación
+    await addDoc(collection(db, "satisfaction"), {
+        uid: auth.currentUser.uid,
+        rating: 5,
+        comments: 'El usuario canceló la encuesta. Se asigna calificación máxima automáticamente.',
+        timestamp: Date.now(),
+        shortId: shortId,
+        estado: 'cancelada',
+        mechName: window.currentUserDoc?.name || 'Mecánico'
+    });
+
+    // ✅ Guardar en localStorage para no volver a mostrar
+    localStorage.setItem('calificado_' + shortId, 'true');
+    localStorage.setItem('encuesta_cancelada_' + shortId, 'true');
+
+    document.getElementById('satisfaction-survey').classList.add('hidden');
+    document.getElementById('no-active-services-msg').classList.remove('hidden');
+    showToast("Encuesta cancelada. Se asignó calificación de 5 estrellas.");
+};
+
 // === ADMIN TALLER Y CITAS (organizado por bloques, solo "lista" es solo lectura) ===
 window.adminListenServices = () => {
     if (serviciosListener) serviciosListener();
@@ -3717,7 +4325,8 @@ window.openClientServiceDetail = async (id) => {
                     : (data.tallerStatus ? `<p class="text-xs">Taller: ${data.tallerStatus}</p>` : '')
                 }
                 <p class="text-xs text-gray-500">${new Date(data.timestamp).toLocaleString()}</p>
-                ${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('${id}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">Descargar Ticket PDF</button>` : ''}
+                <!-- En el detalle del servicio -->
+${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('${id}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">Descargar Ticket PDF</button>` : ''}
             </div>
         `;
         contentDiv.innerHTML = detailHTML;
@@ -3727,6 +4336,18 @@ window.openClientServiceDetail = async (id) => {
 };
 
 window.downloadClientTicket = async (serviceId) => {
+    // 1. Buscar la venta asociada al servicio
+    const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", serviceId), limit(1)));
+    
+    if (!ventasSnap.empty) {
+        // ✅ Si hay venta, generar el ticket completo de venta (con productos, garantías, etc.)
+        const ventaDoc = ventasSnap.docs[0];
+        const venta = ventaDoc.data();
+        window.imprimirTicketVenta(ventaDoc.id, venta);
+        return;
+    }
+    
+    // 2. Fallback: Si no hay venta, generar un ticket de admisión básico (solo para casos excepcionales)
     const docSnap = await getDoc(doc(db, "rescates", serviceId));
     if (!docSnap.exists()) return showToast("Servicio no encontrado", true);
     const data = docSnap.data();
@@ -3736,7 +4357,7 @@ window.downloadClientTicket = async (serviceId) => {
     const pageWidth = pdfDoc.internal.pageSize.getWidth();
     const logoImg = new Image();
     logoImg.src = 'logo_oscuro.png';
-    await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
+    await new Promise((resolve) => { logoImg.onload = resolve; if (logoImg.complete) resolve(); });
 
     // Encabezado
     pdfDoc.setFillColor(255, 107, 0);
@@ -3750,7 +4371,6 @@ window.downloadClientTicket = async (serviceId) => {
     pdfDoc.line(12, 29, pageWidth - 12, 29);
 
     let y = 40;
-    // Datos del servicio
     pdfDoc.setFontSize(10);
     pdfDoc.setFont("helvetica", "normal");
     pdfDoc.setTextColor(0, 0, 0);
@@ -3777,16 +4397,10 @@ window.downloadClientTicket = async (serviceId) => {
     pdfDoc.setFontSize(8);
     pdfDoc.setTextColor(100);
     pdfDoc.text("Este comprobante es de carácter informativo. Los costos finales pueden variar según refacciones.", 12, y);
-
+    
     // Footer
-    const totalPages = pdfDoc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-        pdfDoc.setPage(i);
-        pdfDoc.setFontSize(7);
-        pdfDoc.setTextColor(150);
-        pdfDoc.text(`Generado el ${new Date().toLocaleDateString()}`, 12, pdfDoc.internal.pageSize.getHeight() - 8);
-        pdfDoc.text(`Página ${i} de ${totalPages}`, pageWidth - 25, pdfDoc.internal.pageSize.getHeight() - 8);
-    }
+    const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE ADMISIÓN EN TALLER', logoImg);
+    addFooter(pdfDoc);
     pdfDoc.save(`Ticket_${data.shortId || serviceId}.pdf`);
 };
 // === CITAS DEL CLIENTE ===
@@ -4138,8 +4752,10 @@ function _addFooter(pdf, pageWidth, pageHeight) {
 
 async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     if (!puntos || puntos.length < 1) return null;
+    
+    // Crear un elemento div para el mapa
     const div = document.createElement('div');
-    div.style.width = '400px';
+    div.style.width = '500px';
     div.style.height = '400px';
     div.style.position = 'absolute';
     div.style.top = '-1000px';
@@ -4147,30 +4763,69 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     div.style.zIndex = '-1';
     document.body.appendChild(div);
     
-    const map = L.map(div).setView(puntos[0], 13);
-    const isLight = document.body.classList.contains('light-mode');
-    const layerUrl = isLight ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(map);
-    
-    if (puntos.length > 1) {
-        const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
-        L.polyline(latlngs, { color: '#FF6B00', weight: 5 }).addTo(map);
-        const bounds = L.latLngBounds(latlngs);
-        map.fitBounds(bounds, { padding: [30, 30] });
-    } else if (puntos.length === 1) {
-        map.setView(puntos[0], 14);
+    try {
+        // Inicializar el mapa con Leaflet
+        const isLight = document.body.classList.contains('light-mode');
+        const layerUrl = isLight 
+            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' 
+            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        
+        // Usar L.map dentro del div
+        const map = L.map(div).setView(puntos[0], 13);
+        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(map);
+        
+        // Dibujar la ruta (línea poligonal) si hay más de un punto
+        if (puntos.length > 1) {
+            const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
+            L.polyline(latlngs, { color: '#FF6B00', weight: 5, opacity: 0.8 }).addTo(map);
+            const bounds = L.latLngBounds(latlngs);
+            map.fitBounds(bounds, { padding: [30, 30] });
+        } else {
+            map.setView(puntos[0], 14);
+        }
+        
+        // Marcador del punto de inicio (mecánico)
+        if (puntos[0]) {
+            L.marker(puntos[0], {
+                icon: L.divIcon({
+                    className: 'mech-pulse-marker',
+                    html: '<div style="background:#22c55e; width:24px; height:24px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center;"><i class="fas fa-motorcycle" style="color:white; font-size:12px;"></i></div>',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                })
+            }).addTo(map).bindPopup("Inicio (Mecánico)");
+        }
+        
+        // Marcador del destino (cliente - color naranja)
+        if (clienteLat && clienteLng) {
+            L.marker([clienteLat, clienteLng], {
+                icon: L.divIcon({
+                    className: 'gps-pulse-marker',
+                    html: '<div style="background:#FF6B00; width:24px; height:24px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center;"><i class="fas fa-map-marker-alt" style="color:white; font-size:12px;"></i></div>',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                })
+            }).addTo(map).bindPopup("Destino (Cliente)");
+        }
+        
+        // Esperar a que el mapa se renderice
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Convertir el mapa a imagen usando html2canvas
+        await window.loadHtml2Canvas();
+        const canvas = await html2canvas(div, { scale: 2, backgroundColor: null, useCORS: true });
+        const imgData = canvas.toDataURL('image/png');
+        return imgData;
+    } catch (error) {
+        console.error('Error generando imagen del mapa:', error);
+        return null;
+    } finally {
+        // Eliminar el div del DOM
+        if (div.parentNode) {
+            document.body.removeChild(div);
+        }
     }
-    if (puntos[0]) L.marker(puntos[0], { icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div style="background:#22c55e; width:24px; height:24px; border-radius:50%; border:2px solid white;"></div>', iconSize: [24,24] }) }).addTo(map).bindPopup("Inicio (Mecánico)");
-    if (clienteLat && clienteLng) L.marker([clienteLat, clienteLng], { icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div style="background:#FF6B00; width:24px; height:24px; border-radius:50%; border:2px solid white;"></div>', iconSize: [24,24] }) }).addTo(map).bindPopup("Destino (Cliente)");
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    await window.loadHtml2Canvas();
-    const canvas = await html2canvas(div, { scale: 2, backgroundColor: null });
-    const imgData = canvas.toDataURL('image/png');
-    document.body.removeChild(div);
-    return imgData;
 }
-
 function _getRouteInstructions(puntos) {
     if (puntos.length < 2) return "Ruta no disponible";
     const distTotal = puntos.reduce((acc, p, i) => {
@@ -4860,19 +5515,21 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
                 estado: 'activa'
             }));
 
-        const saleData = {
-            shortId: sId,
-            desc: window.posTicket.map(i => i.name).join(", "),
-            total: totalToPay,
-            costo: window.posTotalCost,
-            metodoPago: paymentMethod,
-            clienteCel: phone ? "+52"+phone : null,
-            ticket: window.posTicket,
-            garantias: garantias.length ? garantias : null,
-            fecha: new Date().toISOString()
-        };
-
-        const docRef = await addDoc(collection(db, "ventas"), saleData);
+// Asegúrate de que esto esté dentro de la función finalizeCheckout
+const saleData = {
+    shortId: sId,
+    desc: window.posTicket.map(i => i.name).join(", "),
+    total: totalToPay,
+    costo: window.posTotalCost,
+    metodoPago: paymentMethod,
+    clienteCel: phone ? "+52"+phone : null,
+    ticket: window.posTicket,
+    garantias: garantias.length ? garantias : null,
+    fecha: new Date().toISOString(),
+    sosId: currentDetalleServicioId || null,  // ← AGREGAR ESTA LÍNEA
+    rescueCost: window.currentSOSCost || 0    // ← AGREGAR ESTA LÍNEA
+};
+await addDoc(collection(db, "ventas"), saleData);
 
         for (let g of garantias) {
             await addDoc(collection(db, "garantias"), {
@@ -6908,9 +7565,9 @@ window.addManualChargeToMechanicPOS = () => {
 // Finalizar cobro (guardar en cobros_pendientes, descontar stock y finalizar servicio para el cliente)
 window.finalizeMechanicCharge = async () => {
     if (!currentMechanicSOSId) return window.showToast("No hay servicio activo", true);
-    
+
     const total = mechanicRescueCost + mechanicTicket.reduce((s, i) => s + i.price, 0);
-    
+
     // 1. Descontar stock de productos
     for (let item of mechanicTicket) {
         if (item.type === 'producto' && item.id) {
@@ -6918,19 +7575,19 @@ window.finalizeMechanicCharge = async () => {
             const prodSnap = await getDoc(prodRef);
             if (prodSnap.exists()) {
                 const newStock = (prodSnap.data().stock || 0) - 1;
-                await updateDoc(prodRef, { stock: newStock });
+                await updateDoc(prodRef, { stock: Math.max(0, newStock) });
             }
         }
     }
-    
+
     // 2. Obtener datos del servicio
     const sosSnap = await getDoc(doc(db, "rescates", currentMechanicSOSId));
     if (!sosSnap.exists()) return window.showToast("Servicio no encontrado", true);
     const sosData = sosSnap.data();
     const clienteName = sosData.clientName || sosData.phone || "Cliente";
     const pendingId = generateShortId();
-    
-    // 3. Crear cobro pendiente solo si total > 0
+
+    // 3. Registrar la venta (si total > 0)
     if (total > 0) {
         await addDoc(collection(db, "cobros_pendientes"), {
             pendingId: pendingId,
@@ -6946,8 +7603,8 @@ window.finalizeMechanicCharge = async () => {
             timestamp: Date.now(),
             metodoPago: 'Pendiente'
         });
-        
-        await addDoc(collection(db, "ventas"), {
+
+        const ventaRef = await addDoc(collection(db, "ventas"), {
             shortId: pendingId,
             desc: mechanicTicket.map(i => i.name).join(", "),
             total: total,
@@ -6959,54 +7616,54 @@ window.finalizeMechanicCharge = async () => {
             fecha: new Date().toISOString(),
             estado: 'pendiente'
         });
-        
+
         await set(dbRef(rtdb, 'notificaciones_caja/cobro_' + Date.now()), {
             msg: `Nuevo cobro pendiente de ${clienteName} por $${total.toFixed(2)}`,
             type: 'cobro_mecanico',
             pendingId: pendingId,
             mech_name: window.currentUserDoc?.name
         });
-        
+
         window.showToast(`Cobro registrado por $${total.toFixed(2)}. Espera confirmación del administrador.`);
     } else {
-        // Si total es 0, marcar directamente como pagado
-        await updateDoc(doc(db, "rescates", currentMechanicSOSId), { 
+        await updateDoc(doc(db, "rescates", currentMechanicSOSId), {
             tallerStatus: 'pagado',
             status: 'completed',
             pagadoEn: Date.now()
         });
         window.showToast("Servicio finalizado sin costo adicional.");
     }
-    
-    // 4. Finalizar servicio para el cliente (marcar como completed y eliminar alerta)
+
+    // 4. Finalizar servicio para el cliente
     await finalizarServicioParaCliente(currentMechanicSOSId);
-    
-    // 5. Limpiar y cerrar modal
+
+    // 5. Limpiar
     toggleModal('modal-mechanic-pos', false);
     currentMechanicSOSId = null;
     mechanicTicket = [];
     mechanicRescueCost = 0;
 };
-
 // Función auxiliar para que el cliente vea el servicio finalizado (encuesta)
 async function finalizarServicioParaCliente(sosId) {
-    await updateDoc(doc(db, "rescates", sosId), { status: 'completed' });
+    // 1. Actualizar el servicio a completado y pagado
+    await updateDoc(doc(db, "rescates", sosId), { 
+        status: 'completed',
+        tallerStatus: 'pagado' 
+    });
+
+    // 2. Obtener datos para notificar al cliente
     const sosSnap = await getDoc(doc(db, "rescates", sosId));
     if (sosSnap.exists() && sosSnap.data().uid) {
-        await remove(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid));
-        await push(dbRef(rtdb, 'sos_alerts/' + sosSnap.data().uid + '/notifs'), {
-            msg: '✅ Servicio finalizado. ¡Califícanos!'
+        const uid = sosSnap.data().uid;
+        // Eliminar la alerta SOS para que el cliente ya no vea el seguimiento
+        await remove(dbRef(rtdb, 'sos_alerts/' + uid));
+        
+        // Notificar al cliente que finalizó (no "cobro pendiente")
+        await push(dbRef(rtdb, 'sos_alerts/' + uid + '/notifs'), {
+            msg: '✅ Tu servicio ha sido finalizado y pagado. ¡Califícanos!'
         });
     }
 }
-
-// Buscador de productos en tiempo real
-document.addEventListener('DOMContentLoaded', () => {
-    const searchInput = document.getElementById('mech-product-search');
-    if (searchInput) {
-        searchInput.addEventListener('input', () => renderMechanicProducts());
-    }
-});
 
 // ---------- Asignar mecánico y enviar WhatsApp ----------
 async function loadMecanicosActivosParaAsignar(sosId) {
@@ -7536,21 +8193,14 @@ window.marcarCobroPagado = async (cobroId) => {
                 </div>
             `;
             document.body.appendChild(modalEl);
-            document.getElementById('pay-efectivo').onclick = () => {
-                toggleModal(modalId, false);
-                resolve('Efectivo');
-            };
-            document.getElementById('pay-tarjeta').onclick = () => {
-                toggleModal(modalId, false);
-                resolve('Tarjeta/Transferencia');
-            };
+            document.getElementById('pay-efectivo').onclick = () => { toggleModal(modalId, false); resolve('Efectivo'); };
+            document.getElementById('pay-tarjeta').onclick = () => { toggleModal(modalId, false); resolve('Tarjeta/Transferencia'); };
         }
         toggleModal(modalId, true);
     });
     if (!metodo) return;
 
     try {
-        // Actualizar el cobro pendiente
         await updateDoc(cobroRef, {
             estado: 'pagado',
             metodoPago: metodo,
@@ -7562,10 +8212,12 @@ window.marcarCobroPagado = async (cobroId) => {
         // Descontar inventario
         if (cobro.ticket && cobro.ticket.length) {
             for (let item of cobro.ticket) {
-                if (item.type === 'almacen') {
-                    const pData = adminInventoryList.find(x => x.id === item.id);
-                    if (pData && pData.stock > 0) {
-                        await updateDoc(doc(db, "inventario", item.id), { stock: pData.stock - 1 });
+                if (item.type === 'almacen' && item.id) {
+                    const prodRef = doc(db, "inventario", item.id);
+                    const prodSnap = await getDoc(prodRef);
+                    if (prodSnap.exists()) {
+                        const newStock = (prodSnap.data().stock || 0) - 1;
+                        await updateDoc(prodRef, { stock: Math.max(0, newStock) });
                     }
                 }
             }
@@ -7588,17 +8240,17 @@ window.marcarCobroPagado = async (cobroId) => {
         }
 
         showToast(`Cobro de $${cobro.monto.toFixed(2)} marcado como pagado.`);
-        window.cargarCobrosMecanicosPanel(); // refrescar lista
-        
-        // Notificar al mecánico
+        window.cargarCobrosMecanicosPanel();
+
+        // Notificar al mecánico (CORREGIDO: usar set)
         if (cobro.mech_uid) {
-            rtdbSet(dbRef(rtdb, 'notificaciones/' + cobro.mech_uid), {
+            await set(dbRef(rtdb, 'notificaciones/' + cobro.mech_uid), {
                 msg: `💰 Tu cobro por $${cobro.monto.toFixed(2)} ha sido pagado por caja.`
             });
         }
     } catch (e) {
         console.error(e);
-        showToast("Error al procesar el pago", true);
+        showToast("Error al procesar el pago: " + e.message, true);
     }
 };
 // ======================================================
@@ -8166,9 +8818,6 @@ window.searchServiceStatus = async () => {
         `;
     }
 };
-// ======================================================
-// === ENTREGAS - VERSIÓN COMPLETA (con seguimiento mejorado y calificaciones) ===
-// ======================================================
 // ======================================================
 // === ENTREGAS - VERSIÓN COMPLETA (con rutas reales y routing machine) ===
 // ======================================================
@@ -9941,3 +10590,24 @@ window.ingresarATaller = async () => {
     window.renderSOSMapa();
     window.adminListenServices();
 };
+function crearListenerSeguro(query, callback) {
+    let unsubscribe = null;
+    let reconnectTimer = null;
+
+    function conectar() {
+        if (unsubscribe) unsubscribe();
+        unsubscribe = onSnapshot(query, 
+            (snap) => {
+                if (reconnectTimer) clearTimeout(reconnectTimer);
+                callback(snap);
+            },
+            (error) => {
+                console.warn('Firestore error, reconectando en 5s:', error);
+                if (reconnectTimer) clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(conectar, 5000);
+            }
+        );
+    }
+    conectar();
+    return () => { if (unsubscribe) unsubscribe(); if (reconnectTimer) clearTimeout(reconnectTimer); };
+}
