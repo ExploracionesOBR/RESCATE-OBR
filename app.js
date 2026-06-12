@@ -4,13 +4,7 @@ import { getFirestore, collection, addDoc, getDocs, doc, getDoc, setDoc, query, 
 import { getDatabase, ref as dbRef, set, onValue, push, remove, update, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getStorage, ref as sRef, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 // Cargar tema guardado localmente
-function cargarTemaLocal() {
-    const saved = localStorage.getItem('obr_theme_mode');
-    if (saved) {
-        globalSettings.themeMode = saved;
-        applyTheme();
-    }
-}
+
 const firebaseConfig = {
     apiKey: "AIzaSyCO5ngYh7JYlMJ-PnWqXq142Kj-Umylods",
     authDomain: "motocheck-15c61.firebaseapp.com",
@@ -1043,6 +1037,15 @@ let globalSettings = {
     themeMode: 'auto', videoSchedule: {}
 };
 window.globalSettings = globalSettings;
+
+function cargarTemaLocal() {
+    const saved = localStorage.getItem('obr_theme_mode');
+    if (saved) {
+        globalSettings.themeMode = saved;
+        applyTheme();
+    }
+}
+
 let sosMapInstance = null, mechMapInst = null, mechMarkerInst = null;
 let adminGeoMap = null, adminGeoCircle = null;
 let adminSOSGlobalMapInst = null, adminSOSMarkers = {};
@@ -2525,11 +2528,14 @@ window.filterServiceOptions = () => {
 };
 
 // Ocultar dropdown al hacer clic fuera
-document.addEventListener('click', (e) => {
+document.addEventListener('DOMContentLoaded', (e) => {
     const input = document.getElementById('sos-service-input');
     const dropdown = document.getElementById('sos-service-dropdown');
     if (input && dropdown && !input.contains(e.target) && !dropdown.contains(e.target)) {
         dropdown.classList.add('hidden');
+     } catch (error) {
+        console.error('Error en inicialización:', error);
+        window.showToast?.('Error al cargar la aplicación. Recarga la página.', true);
     }
 });
 window.clearServiceSelection = () => {
