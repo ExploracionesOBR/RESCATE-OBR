@@ -24,6 +24,7 @@ const rtdb = getDatabase(app);
 const storage = getStorage(app);
 window.setDoc = setDoc;
 window.doc = doc;
+window.dbRef = dbRef;
 
 // === CARGA DIFERIDA DE html2canvas ==
 window.loadHtml2Canvas = () => {
@@ -4819,49 +4820,65 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     console.log('🚀 INICIO _generateRouteMapImage');
     console.log('📌 Puntos:', puntos);
     
-    if (!puntos || puntos.length < 1) {
-        console.warn('⚠️ No hay puntos');
-        return null;
-    }
-    
+    // Crear un elemento div temporal
     const div = document.createElement('div');
-    div.style.width = '600px';
-    div.style.height = '500px';
+    div.style.width = '500px';
+    div.style.height = '400px';
     div.style.position = 'fixed';
-    div.style.top = '0';
-    div.style.left = '0';
-    div.style.zIndex = '999999';
-    div.style.visibility = 'visible';
-    div.style.backgroundColor = '#ffffff';
+    div.style.top = '-1000px';
+    div.style.left = '-1000px';
+    div.style.zIndex = '-1';
+    div.style.visibility = 'hidden';
     document.body.appendChild(div);
     
     try {
-        const isLight = document.body.classList.contains('light-mode');
-        const layerUrl = isLight 
-            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' 
-            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        // Determinar centro y capa del mapa
+        let centerLat = TALLER_LAT;
+        let centerLng = TALLER_LNG;
+        let zoom = 13;
+        let layerUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'; // Mapa gris por defecto
         
-        const map = L.map(div, { zoomControl: false, attributionControl: false });
-        L.tileLayer(layerUrl).addTo(map);
-        map.setView(puntos[0], 13);
+        // Si hay puntos, configurar para mostrar la ruta
+        if (puntos && puntos.length > 0) {
+            centerLat = puntos[0][0];
+            centerLng = puntos[0][1];
+            zoom = 13;
+            const isLight = document.body.classList.contains('light-mode');
+            layerUrl = isLight 
+                ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' 
+                : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+            console.log('🎨 Modo mapa:', isLight ? 'Claro' : 'Oscuro');
+        } else {
+            console.log('⚠️ Sin puntos de ruta, generando mapa gris de la ciudad');
+        }
         
+        // Crear mapa
+        const map = L.map(div, {
+            zoomControl: false,
+            attributionControl: false,
+            scrollWheelZoom: false
+        });
+        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(map);
+        map.setView([centerLat, centerLng], zoom);
+        
+        // Esperar a que el mapa esté listo
         await new Promise((resolve) => {
             map.whenReady(() => {
                 map.invalidateSize();
-                setTimeout(resolve, 500);
+                setTimeout(resolve, 600);
             });
         });
         
-        // Dibujar ruta
-        if (puntos.length > 1) {
+        // Dibujar ruta y marcadores solo si hay puntos
+        if (puntos && puntos.length > 1) {
             const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
-            L.polyline(latlngs, { color: '#FF6B00', weight: 5 }).addTo(map);
+            L.polyline(latlngs, { color: '#FF6B00', weight: 5, opacity: 0.8 }).addTo(map);
             const bounds = L.latLngBounds(latlngs);
             map.fitBounds(bounds, { padding: [40, 40] });
+            console.log('✅ Ruta dibujada');
         }
         
-        // Marcadores
-        if (puntos[0]) {
+        if (puntos && puntos.length > 0 && puntos[0]) {
             L.marker(puntos[0], {
                 icon: L.divIcon({
                     className: 'mech-pulse-marker',
@@ -4869,8 +4886,9 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
                     iconSize: [24, 24],
                     iconAnchor: [12, 12]
                 })
-            }).addTo(map);
+            }).addTo(map).bindPopup("Inicio (Mecánico)");
         }
+        
         if (clienteLat && clienteLng) {
             L.marker([clienteLat, clienteLng], {
                 icon: L.divIcon({
@@ -4879,22 +4897,20 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
                     iconSize: [24, 24],
                     iconAnchor: [12, 12]
                 })
-            }).addTo(map);
+            }).addTo(map).bindPopup("Destino (Cliente)");
         }
         
-        // ⏳ Esperar 3 segundos para carga de tiles
-        console.log('⏳ Esperando 3s para carga de tiles...');
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // Esperar para carga de tiles
+        await new Promise(resolve => setTimeout(resolve, 1200));
         
         // Capturar imagen
         await window.loadHtml2Canvas();
         const canvas = await html2canvas(div, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
         const imgData = canvas.toDataURL('image/png');
-        console.log('✅ Imagen generada, primeros 100 chars:', imgData.substring(0, 100));
-        
+        console.log('✅ Imagen generada (primeros 50 chars):', imgData.substring(0, 50));
         return imgData;
     } catch (error) {
-        console.error('❌ Error:', error);
+        console.error('❌ Error en _generateRouteMapImage:', error);
         return null;
     } finally {
         if (div.parentNode) document.body.removeChild(div);
@@ -5647,43 +5663,7 @@ await addDoc(collection(db, "ventas"), saleData);
 
         showToast("Venta Registrada y Pagada", false);
 
-        window.imprimirTicketVenta(docRef.id, saleData);
-
-        const ticketRespaldo = [...window.posTicket];
-        
-        window.posTicket = [];
-        window.posDescuento = 0;
-        const phoneInput = document.getElementById('pos-customer-phone');
-        const promoInput = document.getElementById('pos-promo-code');
-        const amountInput = document.getElementById('pos-amount-received');
-        if (phoneInput) phoneInput.value = '';
-        if (promoInput) promoInput.value = '';
-        if (amountInput) amountInput.value = '';
-
-        window.renderTicket();
-        window.adminLoadInventory();
-        window.adminLoadSales();
-        window.adminListenServices();
-        if (phone) {
-            try {
-                window.sendTicketWhatsAppAfterCheckout(phone, totalToPay, ticketRespaldo);
-            } catch (e) {
-                console.warn('Error al enviar WhatsApp:', e);
-            }
-        }
-        window.loadVentasRealizadas();
-
-    } catch (e) {
-        console.error('Error en finalizeCheckout:', e);
-        showToast("Error al procesar: " + (e.message || 'Error desconocido'), true);
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = `<span>Cobrar</span> <span id="pos-btn-total">$0.00</span>`;
-        }
-    }
-}
-window.imprimirTicketVenta = async (ventaId, saleData) => {
+        window.imprimirTicketVenta = async (ventaId, saleData) => {
     console.log('🧾 Imprimiendo ticket de venta:', ventaId);
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
@@ -5738,9 +5718,9 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
             console.log('🗺️ Generando mapa para SOS ID:', saleData.sosId);
             let rutaPuntos = [];
             try {
-                // Obtener puntos de tracking desde RTDB sin usar import
-                const { get, ref } = window;
-                const trackingRef = ref(rtdb, `sos_tracking/${saleData.sosId}/${window.auth.currentUser.uid}/points`);
+                // Obtener puntos de tracking usando window.dbRef
+                const { get } = window;
+                const trackingRef = window.dbRef(rtdb, `sos_tracking/${saleData.sosId}/${window.auth.currentUser.uid}/points`);
                 const trackSnap = await get(trackingRef);
                 if (trackSnap.exists()) {
                     trackSnap.forEach(child => {
@@ -5748,38 +5728,27 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
                         if (punto.lat && punto.lng) rutaPuntos.push([punto.lat, punto.lng]);
                     });
                 }
-                // Fallback: posición actual del mecánico
-                if (rutaPuntos.length === 0 && window.auth.currentUser) {
-                    const posMechSnap = await get(ref(rtdb, `mecanicos_activos/${window.auth.currentUser.uid}`));
-                    if (posMechSnap.exists()) {
-                        const pos = posMechSnap.val();
-                        if (pos.lat && pos.lng) rutaPuntos.push([pos.lat, pos.lng]);
-                    }
-                }
-                // Si aún no hay puntos, usar la ubicación del taller como referencia
-                if (rutaPuntos.length === 0) {
-                    rutaPuntos.push([TALLER_LAT, TALLER_LNG]);
-                }
-                console.log('📍 Puntos para el mapa:', rutaPuntos);
+                console.log('📍 Puntos de ruta recuperados:', rutaPuntos);
             } catch (err) {
                 console.warn('Error obteniendo puntos de tracking:', err);
             }
 
-            // Generar imagen del mapa
+            // Generar imagen del mapa (pasar lat/lng del cliente si existen)
             let mapImage = null;
             try {
-                mapImage = await _generateRouteMapImage(rutaPuntos, saleData.lat, saleData.lng);
+                const clienteLat = saleData.lat || null;
+                const clienteLng = saleData.lng || null;
+                mapImage = await _generateRouteMapImage(rutaPuntos, clienteLat, clienteLng);
                 console.log('🎨 Imagen de mapa generada:', mapImage ? 'SÍ' : 'NO');
             } catch (err) {
                 console.error('Error generando mapa:', err);
             }
 
             if (mapImage) {
-                // Añadir la imagen del mapa al PDF (ajusta posición y tamaño según tu diseño)
                 pdfDoc.addImage(mapImage, 'PNG', 12, y, 55, 55);
                 y += 60;
             } else {
-                pdfDoc.text("No se pudo generar el mapa", 12, y);
+                pdfDoc.text("Mapa no disponible", 12, y);
                 y += 10;
             }
         }
