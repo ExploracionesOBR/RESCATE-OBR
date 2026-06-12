@@ -5664,6 +5664,8 @@ window.confirmWhatsAppSend = async (confirmed) => {
 
 async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
     const btn = document.getElementById('btn-checkout-pos');
+    const originalBtnHTML = btn ? btn.innerHTML : '';
+    
     if (btn) {
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
@@ -5691,7 +5693,6 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
                 const docSnap = await getDoc(doc(db, "rescates", currentDetalleServicioId));
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    // Extraer nombre del servicio de la falla o del campo específico
                     if (data.falla) {
                         const match = data.falla.match(/\[(.*?)\]/);
                         if (match) {
@@ -5708,7 +5709,6 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
             }
         }
 
-        // Datos de la venta
         const saleData = {
             shortId: sId,
             desc: window.posTicket.map(i => i.name).join(", "),
@@ -5803,13 +5803,11 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = `<span>Cobrar</span> <span id="pos-btn-total">$0.00</span>`;
+            btn.innerHTML = originalBtnHTML; // ← RESTAURAR EL BOTÓN ORIGINAL
         }
     }
 }
-        showToast("Venta Registrada y Pagada", false);
-
-        window.imprimirTicketVenta = async (ventaId, saleData) => {
+ window.imprimirTicketVenta = async (ventaId, saleData) => {
     window.showPDFProgress(); 
     console.log('🧾 Imprimiendo ticket de venta:', ventaId);
     const { jsPDF } = window.jspdf;
