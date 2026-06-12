@@ -4343,9 +4343,6 @@ ${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('$
 
 let progressTimeout = null;
 
-// Control de barra de progreso para PDF
-let progressTimeout = null;
-
 function showPDFProgress() {
     const container = document.getElementById('pdf-progress-container');
     const bar = document.getElementById('pdf-progress-bar');
@@ -4372,26 +4369,6 @@ function showPDFProgress() {
         }
     }, 300);
 }
-
-function hidePDFProgress() {
-    if (progressTimeout) {
-        clearInterval(progressTimeout);
-        progressTimeout = null;
-    }
-    const container = document.getElementById('pdf-progress-container');
-    const bar = document.getElementById('pdf-progress-bar');
-    if (bar) bar.style.width = '100%';
-    if (container) {
-        setTimeout(() => {
-            container.classList.add('hidden');
-            if (bar) bar.style.width = '0%';
-        }, 500);
-    }
-}
-
-// Exponer globalmente
-window.showPDFProgress = showPDFProgress;
-window.hidePDFProgress = hidePDFProgress;
 
 function hidePDFProgress() {
     if (progressTimeout) {
@@ -5847,72 +5824,27 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
             pdfDoc.rect(0, 0, pageWidth, 28, 'F');
             if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
             pdfDoc.setFontSize(14);
-            // --- ARTÍCULOS ADQUIRIDOS (Productos + Cargos del mecánico) ---
-pdfDoc.setFont("helvetica", "bold");
-pdfDoc.setFontSize(10);
-pdfDoc.setTextColor(15, 23, 42);
-pdfDoc.text("ARTÍCULOS ADQUIRIDOS:", 12, y);
-y += 4;
+            pdfDoc.setFont("helvetica", "bold");
+            pdfDoc.setTextColor(255, 255, 255);
+            pdfDoc.text("COMPROBANTE DE VENTA", logoImg.complete ? 36 : 12, 17.5);
+            pdfDoc.setDrawColor(255, 107, 0);
+            pdfDoc.line(12, 29, pageWidth - 12, 29);
 
-// Crear el array de items para la tabla
-let ticketItems = [];
-if (saleData.ticket && saleData.ticket.length > 0) {
-    ticketItems = saleData.ticket.map(item => [
-        item.name,
-        item.garantia || 'Sin garantía',
-        `$${item.price.toFixed(2)}`
-    ]);
-} else {
-    ticketItems = [['Sin productos', 'N/A', '$0.00']];
-}
+            let y = 40; // ← DEFINICIÓN DE y
 
-pdfDoc.autoTable({
-    startY: y,
-    head: [['Descripción del Producto', 'Garantía Oficial', 'Precio Unitario']],
-    body: ticketItems,
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 2.5, textColor: [30,41,59] },
-    headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
-    columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 35 }, 2: { cellWidth: 30, halign: 'right' } },
-    margin: { left: 12, right: 12 }
-});
-y = pdfDoc.lastAutoTable.finalY + 10;
+            _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 25, 'Datos del Comprobante', [
+                { label: 'Ticket:', value: saleData.shortId, rightLabel: 'Método de Pago:', rightValue: saleData.metodoPago },
+                { label: 'Fecha:', value: new Date(saleData.fecha).toLocaleString(), rightLabel: 'Cliente:', rightValue: saleData.clienteCel || 'Mostrador' }
+            ]);
+            y += 32;
 
-// --- INFORMACIÓN DEL RESCATE (Después de ARTÍCULOS, antes del total) ---
-if (saleData.rescueCost || saleData.servicioNombre || saleData.descuento) {
-    let rescueY = y;
-    pdfDoc.setFont("helvetica", "bold");
-    pdfDoc.setFontSize(9);
-    pdfDoc.setTextColor(255, 107, 0);
-    pdfDoc.text("RESCATE Y SERVICIO", 12, rescueY);
-    rescueY += 6;
-    pdfDoc.setFont("helvetica", "normal");
-    pdfDoc.setFontSize(8);
-    pdfDoc.setTextColor(60, 60, 60);
-    
-    if (saleData.servicioNombre) {
-        pdfDoc.text(`Servicio: ${saleData.servicioNombre}`, 12, rescueY);
-        rescueY += 5;
-    }
-    if (saleData.rescueCost) {
-        pdfDoc.text(`Costo de rescate: $${saleData.rescueCost.toFixed(2)}`, 12, rescueY);
-        rescueY += 5;
-    }
-    if (saleData.descuento && saleData.descuento > 0) {
-        pdfDoc.text(`Descuento aplicado: -$${saleData.descuento.toFixed(2)}`, 12, rescueY);
-        rescueY += 5;
-    }
-    y = rescueY + 8;
-}
+            // --- ARTÍCULOS ADQUIRIDOS ---
+            pdfDoc.setFont("helvetica", "bold");
+            pdfDoc.setFontSize(10);
+            pdfDoc.setTextColor(15, 23, 42);
+            pdfDoc.text("ARTÍCULOS ADQUIRIDOS:", 12, y);
+            y += 4;
 
-// --- TOTAL ---
-pdfDoc.setFont("helvetica", "bold");
-pdfDoc.setFontSize(12);
-pdfDoc.setTextColor(15, 23, 42);
-pdfDoc.text(`Total Neto: $${saleData.total.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-y += 15;
-            
-            // Crear el array de items para la tabla
             let ticketItems = [];
             if (saleData.ticket && saleData.ticket.length > 0) {
                 ticketItems = saleData.ticket.map(item => [
@@ -5923,7 +5855,7 @@ y += 15;
             } else {
                 ticketItems = [['Sin productos', 'N/A', '$0.00']];
             }
-            
+
             pdfDoc.autoTable({
                 startY: y,
                 head: [['Descripción del Producto', 'Garantía Oficial', 'Precio Unitario']],
@@ -5935,7 +5867,34 @@ y += 15;
                 margin: { left: 12, right: 12 }
             });
             y = pdfDoc.lastAutoTable.finalY + 10;
-            
+
+            // --- INFORMACIÓN DEL RESCATE ---
+            if (saleData.rescueCost || saleData.servicioNombre || saleData.descuento) {
+                let rescueY = y;
+                pdfDoc.setFont("helvetica", "bold");
+                pdfDoc.setFontSize(9);
+                pdfDoc.setTextColor(255, 107, 0);
+                pdfDoc.text("RESCATE Y SERVICIO", 12, rescueY);
+                rescueY += 6;
+                pdfDoc.setFont("helvetica", "normal");
+                pdfDoc.setFontSize(8);
+                pdfDoc.setTextColor(60, 60, 60);
+                
+                if (saleData.servicioNombre) {
+                    pdfDoc.text(`Servicio: ${saleData.servicioNombre}`, 12, rescueY);
+                    rescueY += 5;
+                }
+                if (saleData.rescueCost) {
+                    pdfDoc.text(`Costo de rescate: $${saleData.rescueCost.toFixed(2)}`, 12, rescueY);
+                    rescueY += 5;
+                }
+                if (saleData.descuento && saleData.descuento > 0) {
+                    pdfDoc.text(`Descuento aplicado: -$${saleData.descuento.toFixed(2)}`, 12, rescueY);
+                    rescueY += 5;
+                }
+                y = rescueY + 8;
+            }
+
             // --- TOTAL ---
             pdfDoc.setFont("helvetica", "bold");
             pdfDoc.setFontSize(12);
@@ -5943,13 +5902,12 @@ y += 15;
             pdfDoc.text(`Total Neto: $${saleData.total.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
             y += 15;
 
-            // --- 🔴 MAPA (después del total) ---
+            // --- MAPA ---
             if (saleData.sosId) {
                 console.log('🗺️ Generando mapa para SOS ID:', saleData.sosId);
                 let rutaPuntos = [];
                 let mechUid = null;
 
-                // Obtener mech_uid del servicio
                 if (saleData.sosId) {
                     try {
                         const sosSnap = await getDoc(doc(db, "rescates", saleData.sosId));
@@ -5962,11 +5920,8 @@ y += 15;
                     }
                 }
 
-                if (!mechUid) {
-                    mechUid = auth.currentUser?.uid || null;
-                }
+                if (!mechUid) mechUid = auth.currentUser?.uid || null;
 
-                // Obtener puntos de tracking
                 if (mechUid) {
                     const trackingRef = dbRef(rtdb, `sos_tracking/${saleData.sosId}/${mechUid}/points`);
                     const trackSnap = await get(trackingRef);
@@ -5978,7 +5933,6 @@ y += 15;
                     }
                 }
 
-                // Fallback: posición actual del mecánico
                 if (rutaPuntos.length === 0 && mechUid) {
                     const posMechSnap = await get(dbRef(rtdb, `mecanicos_activos/${mechUid}`));
                     if (posMechSnap.exists()) {
@@ -5987,7 +5941,6 @@ y += 15;
                     }
                 }
 
-                // Si no hay puntos, usar el taller
                 if (rutaPuntos.length === 0) {
                     rutaPuntos.push([TALLER_LAT, TALLER_LNG]);
                 }
@@ -6002,21 +5955,21 @@ y += 15;
                     console.error('Error generando mapa:', err);
                 }
 
-               if (mapImage) {
-    // Marco naranja alrededor del mapa
-    pdfDoc.setDrawColor(255, 107, 0);
-    pdfDoc.setLineWidth(0.5);
-    const mapX = 50; // ← MOVER 15% A LA DERECHA (antes era 12)
-    const mapY = y;
-    const mapWidth = 120;
-    const mapHeight = 80;
-    pdfDoc.rect(mapX, mapY, mapWidth, mapHeight, 'S');
-    pdfDoc.addImage(mapImage, 'PNG', mapX, mapY, mapWidth, mapHeight);
-    y += 90;
-} else {
-    pdfDoc.text("No se pudo generar el mapa", 12, y);
-    y += 10;
-}            }
+                if (mapImage) {
+                    pdfDoc.setDrawColor(255, 107, 0);
+                    pdfDoc.setLineWidth(0.5);
+                    const mapX = 50;
+                    const mapY = y;
+                    const mapWidth = 120;
+                    const mapHeight = 80;
+                    pdfDoc.rect(mapX, mapY, mapWidth, mapHeight, 'S');
+                    pdfDoc.addImage(mapImage, 'PNG', mapX, mapY, mapWidth, mapHeight);
+                    y += 90;
+                } else {
+                    pdfDoc.text("No se pudo generar el mapa", 12, y);
+                    y += 10;
+                }
+            }
 
             // --- PIE DE PÁGINA ---
             pdfDoc.setFontSize(7);
@@ -6026,7 +5979,6 @@ y += 15;
             const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE VENTA', logoImg);
             addFooter(pdfDoc);
             
-            // Guardar o imprimir
             try {
                 const blob = pdfDoc.output('blob');
                 const url = URL.createObjectURL(blob);
@@ -6068,7 +6020,7 @@ y += 15;
         window.showToast('Error al generar el PDF. Intenta de nuevo.', true);
     }
 };
-        
+       
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
     const cleanPhone = phone.replace(/[^0-9]/g, '');
