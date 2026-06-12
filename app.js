@@ -4757,38 +4757,55 @@ function _addFooter(pdf, pageWidth, pageHeight) {
 async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     if (!puntos || puntos.length < 1) return null;
     
-    // Crear un elemento div para el mapa
+    // Crear un elemento div temporal
     const div = document.createElement('div');
     div.style.width = '500px';
     div.style.height = '400px';
-    div.style.position = 'absolute';
+    div.style.position = 'fixed';   // visible pero oculto
     div.style.top = '-1000px';
     div.style.left = '-1000px';
     div.style.zIndex = '-1';
+    div.style.visibility = 'hidden'; // oculto pero mantiene dimensiones
     document.body.appendChild(div);
     
     try {
-        // Inicializar el mapa con Leaflet
+        // Configurar el mapa con controles básicos
         const isLight = document.body.classList.contains('light-mode');
         const layerUrl = isLight 
             ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' 
             : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
         
-        // Usar L.map dentro del div
-        const map = L.map(div).setView(puntos[0], 13);
+        // Crear mapa sin controles
+        const map = L.map(div, {
+            zoomControl: false,
+            attributionControl: false,
+            scrollWheelZoom: false
+        });
+        
+        // Agregar capa de tiles
         L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(map);
         
-        // Dibujar la ruta (línea poligonal) si hay más de un punto
+        // Ajustar vista y esperar a que el mapa esté listo
+        map.setView(puntos[0], 13);
+        await new Promise((resolve) => {
+            map.whenReady(() => {
+                // FORZAR invalidateSize después de estar listo
+                map.invalidateSize();
+                setTimeout(resolve, 600);
+            });
+        });
+        
+        // Dibujar la ruta (línea poligonal)
         if (puntos.length > 1) {
             const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
             L.polyline(latlngs, { color: '#FF6B00', weight: 5, opacity: 0.8 }).addTo(map);
             const bounds = L.latLngBounds(latlngs);
-            map.fitBounds(bounds, { padding: [30, 30] });
+            map.fitBounds(bounds, { padding: [40, 40] });
         } else {
             map.setView(puntos[0], 14);
         }
         
-        // Marcador del punto de inicio (mecánico)
+        // Marcador de inicio (mecánico) – color verde
         if (puntos[0]) {
             L.marker(puntos[0], {
                 icon: L.divIcon({
@@ -4800,7 +4817,7 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
             }).addTo(map).bindPopup("Inicio (Mecánico)");
         }
         
-        // Marcador del destino (cliente - color naranja)
+        // Marcador de destino (cliente) – color naranja
         if (clienteLat && clienteLng) {
             L.marker([clienteLat, clienteLng], {
                 icon: L.divIcon({
@@ -4812,12 +4829,20 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
             }).addTo(map).bindPopup("Destino (Cliente)");
         }
         
-        // Esperar a que el mapa se renderice
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Esperar un poco más para que los tiles terminen de cargar
+        await new Promise(resolve => setTimeout(resolve, 1200));
         
-        // Convertir el mapa a imagen usando html2canvas
+        // Cargar html2canvas y tomar la captura
         await window.loadHtml2Canvas();
-        const canvas = await html2canvas(div, { scale: 2, backgroundColor: null, useCORS: true });
+        const canvas = await html2canvas(div, {
+            scale: 2,
+            backgroundColor: null,
+            useCORS: true,
+            allowTaint: false,
+            logging: false,
+            width: 500,
+            height: 400
+        });
         const imgData = canvas.toDataURL('image/png');
         return imgData;
     } catch (error) {
