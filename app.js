@@ -4755,58 +4755,76 @@ function _addFooter(pdf, pageWidth, pageHeight) {
 }
 
 async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
-    if (!puntos || puntos.length < 1) return null;
+    console.log('🚀 _generateRouteMapImage INICIO');
+    console.log('📌 Puntos recibidos:', puntos);
+    console.log(`📌 Cliente - Lat: ${clienteLat}, Lng: ${clienteLng}`);
+    
+    if (!puntos || puntos.length < 1) {
+        console.warn('⚠️ No hay puntos para dibujar el mapa');
+        return null;
+    }
     
     // Crear un elemento div temporal
+    console.log('📦 Creando div temporal');
     const div = document.createElement('div');
     div.style.width = '500px';
     div.style.height = '400px';
-    div.style.position = 'fixed';   // visible pero oculto
+    div.style.position = 'fixed';
     div.style.top = '-1000px';
     div.style.left = '-1000px';
     div.style.zIndex = '-1';
-    div.style.visibility = 'hidden'; // oculto pero mantiene dimensiones
+    div.style.visibility = 'hidden';
     document.body.appendChild(div);
     
     try {
-        // Configurar el mapa con controles básicos
+        console.log('🗺️ Configurando Leaflet...');
         const isLight = document.body.classList.contains('light-mode');
         const layerUrl = isLight 
             ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' 
             : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        console.log(`🎨 Modo: ${isLight ? 'Claro' : 'Oscuro'}`);
         
-        // Crear mapa sin controles
         const map = L.map(div, {
             zoomControl: false,
             attributionControl: false,
             scrollWheelZoom: false
         });
+        console.log('🔄 Mapa creado');
         
-        // Agregar capa de tiles
         L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(map);
+        console.log('🖼️ TileLayer agregado');
         
-        // Ajustar vista y esperar a que el mapa esté listo
         map.setView(puntos[0], 13);
+        console.log('📍 Vista inicial establecida');
+        
+        // Esperar a que el mapa esté listo
+        console.log('⏳ Esperando map.whenReady...');
         await new Promise((resolve) => {
             map.whenReady(() => {
-                // FORZAR invalidateSize después de estar listo
+                console.log('✅ Mapa listo (whenReady)');
                 map.invalidateSize();
+                console.log('🔄 invalidateSize ejecutado');
                 setTimeout(resolve, 600);
             });
         });
+        console.log('⏰ Primera espera completada');
         
         // Dibujar la ruta (línea poligonal)
         if (puntos.length > 1) {
+            console.log(`📐 Dibujando polilínea con ${puntos.length} puntos`);
             const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
             L.polyline(latlngs, { color: '#FF6B00', weight: 5, opacity: 0.8 }).addTo(map);
             const bounds = L.latLngBounds(latlngs);
             map.fitBounds(bounds, { padding: [40, 40] });
+            console.log('✅ Polilínea agregada y bounds ajustados');
         } else {
+            console.log('⚠️ Solo 1 punto, no hay ruta');
             map.setView(puntos[0], 14);
         }
         
-        // Marcador de inicio (mecánico) – color verde
+        // Marcador de inicio (mecánico)
         if (puntos[0]) {
+            console.log(`📍 Marcador de inicio: ${puntos[0]}`);
             L.marker(puntos[0], {
                 icon: L.divIcon({
                     className: 'mech-pulse-marker',
@@ -4817,8 +4835,9 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
             }).addTo(map).bindPopup("Inicio (Mecánico)");
         }
         
-        // Marcador de destino (cliente) – color naranja
+        // Marcador de destino (cliente)
         if (clienteLat && clienteLng) {
+            console.log(`📍 Marcador de destino: ${clienteLat}, ${clienteLng}`);
             L.marker([clienteLat, clienteLng], {
                 icon: L.divIcon({
                     className: 'gps-pulse-marker',
@@ -4829,11 +4848,15 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
             }).addTo(map).bindPopup("Destino (Cliente)");
         }
         
-        // Esperar un poco más para que los tiles terminen de cargar
+        console.log('⏳ Esperando 1200ms para carga de tiles...');
         await new Promise(resolve => setTimeout(resolve, 1200));
+        console.log('⏰ Segunda espera completada');
         
-        // Cargar html2canvas y tomar la captura
+        console.log('📸 Cargando html2canvas...');
         await window.loadHtml2Canvas();
+        console.log('✅ html2canvas cargado');
+        
+        console.log('📷 Tomando captura del mapa...');
         const canvas = await html2canvas(div, {
             scale: 2,
             backgroundColor: null,
@@ -4843,16 +4866,21 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
             width: 500,
             height: 400
         });
+        console.log('✅ Captura completada');
+        
         const imgData = canvas.toDataURL('image/png');
+        console.log('✅ Imagen generada (primeros 50 chars):', imgData.substring(0, 50));
         return imgData;
     } catch (error) {
-        console.error('Error generando imagen del mapa:', error);
+        console.error('❌ Error en _generateRouteMapImage:', error);
         return null;
     } finally {
-        // Eliminar el div del DOM
+        console.log('🧹 Limpiando div temporal');
         if (div.parentNode) {
             document.body.removeChild(div);
+            console.log('✅ Div temporal eliminado');
         }
+        console.log('🏁 Fin de _generateRouteMapImage');
     }
 }
 function _getRouteInstructions(puntos) {
