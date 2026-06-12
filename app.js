@@ -4721,8 +4721,10 @@ function _addFooter(pdf, pageWidth, pageHeight) {
 
 async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     if (!puntos || puntos.length < 1) return null;
+    
+    // Crear un elemento div para el mapa
     const div = document.createElement('div');
-    div.style.width = '400px';
+    div.style.width = '500px';
     div.style.height = '400px';
     div.style.position = 'absolute';
     div.style.top = '-1000px';
@@ -4730,30 +4732,69 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     div.style.zIndex = '-1';
     document.body.appendChild(div);
     
-    const map = L.map(div).setView(puntos[0], 13);
-    const isLight = document.body.classList.contains('light-mode');
-    const layerUrl = isLight ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(map);
-    
-    if (puntos.length > 1) {
-        const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
-        L.polyline(latlngs, { color: '#FF6B00', weight: 5 }).addTo(map);
-        const bounds = L.latLngBounds(latlngs);
-        map.fitBounds(bounds, { padding: [30, 30] });
-    } else if (puntos.length === 1) {
-        map.setView(puntos[0], 14);
+    try {
+        // Inicializar el mapa con Leaflet
+        const isLight = document.body.classList.contains('light-mode');
+        const layerUrl = isLight 
+            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' 
+            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        
+        // Usar L.map dentro del div
+        const map = L.map(div).setView(puntos[0], 13);
+        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(map);
+        
+        // Dibujar la ruta (línea poligonal) si hay más de un punto
+        if (puntos.length > 1) {
+            const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
+            L.polyline(latlngs, { color: '#FF6B00', weight: 5, opacity: 0.8 }).addTo(map);
+            const bounds = L.latLngBounds(latlngs);
+            map.fitBounds(bounds, { padding: [30, 30] });
+        } else {
+            map.setView(puntos[0], 14);
+        }
+        
+        // Marcador del punto de inicio (mecánico)
+        if (puntos[0]) {
+            L.marker(puntos[0], {
+                icon: L.divIcon({
+                    className: 'mech-pulse-marker',
+                    html: '<div style="background:#22c55e; width:24px; height:24px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center;"><i class="fas fa-motorcycle" style="color:white; font-size:12px;"></i></div>',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                })
+            }).addTo(map).bindPopup("Inicio (Mecánico)");
+        }
+        
+        // Marcador del destino (cliente - color naranja)
+        if (clienteLat && clienteLng) {
+            L.marker([clienteLat, clienteLng], {
+                icon: L.divIcon({
+                    className: 'gps-pulse-marker',
+                    html: '<div style="background:#FF6B00; width:24px; height:24px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center;"><i class="fas fa-map-marker-alt" style="color:white; font-size:12px;"></i></div>',
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                })
+            }).addTo(map).bindPopup("Destino (Cliente)");
+        }
+        
+        // Esperar a que el mapa se renderice
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Convertir el mapa a imagen usando html2canvas
+        await window.loadHtml2Canvas();
+        const canvas = await html2canvas(div, { scale: 2, backgroundColor: null, useCORS: true });
+        const imgData = canvas.toDataURL('image/png');
+        return imgData;
+    } catch (error) {
+        console.error('Error generando imagen del mapa:', error);
+        return null;
+    } finally {
+        // Eliminar el div del DOM
+        if (div.parentNode) {
+            document.body.removeChild(div);
+        }
     }
-    if (puntos[0]) L.marker(puntos[0], { icon: L.divIcon({ className: 'mech-pulse-marker', html: '<div style="background:#22c55e; width:24px; height:24px; border-radius:50%; border:2px solid white;"></div>', iconSize: [24,24] }) }).addTo(map).bindPopup("Inicio (Mecánico)");
-    if (clienteLat && clienteLng) L.marker([clienteLat, clienteLng], { icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div style="background:#FF6B00; width:24px; height:24px; border-radius:50%; border:2px solid white;"></div>', iconSize: [24,24] }) }).addTo(map).bindPopup("Destino (Cliente)");
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    await window.loadHtml2Canvas();
-    const canvas = await html2canvas(div, { scale: 2, backgroundColor: null });
-    const imgData = canvas.toDataURL('image/png');
-    document.body.removeChild(div);
-    return imgData;
 }
-
 function _getRouteInstructions(puntos) {
     if (puntos.length < 2) return "Ruta no disponible";
     const distTotal = puntos.reduce((acc, p, i) => {
