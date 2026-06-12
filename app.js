@@ -5836,9 +5836,29 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
             if (saleData.sosId) {
                 console.log('🗺️ Generando mapa para SOS ID:', saleData.sosId);
                 let rutaPuntos = [];
-                try {
-                    // Obtener puntos de tracking desde RTDB
-                    const trackingRef = dbRef(rtdb, `sos_tracking/${saleData.sosId}/${auth.currentUser.uid}/points`);
+                let mechUid = null;
+
+                // Primero, intentar obtener el mech_uid del servicio desde la venta o desde el rescate
+                if (saleData.sosId) {
+                    try {
+                        const sosSnap = await getDoc(doc(db, "rescates", saleData.sosId));
+                        if (sosSnap.exists()) {
+                            const sosData = sosSnap.data();
+                            mechUid = sosData.mech_uid || null;
+                        }
+                    } catch (err) {
+                        console.warn('Error obteniendo datos del servicio:', err);
+                    }
+                }
+
+                // Si no se encontró, usar el uid actual como fallback
+                if (!mechUid) {
+                    mechUid = auth.currentUser?.uid || null;
+                }
+
+                // Obtener puntos de tracking usando el mechUid correcto
+                if (mechUid) {
+                    const trackingRef = dbRef(rtdb, `sos_tracking/${saleData.sosId}/${mechUid}/points`);
                     const trackSnap = await get(trackingRef);
                     if (trackSnap.exists()) {
                         trackSnap.forEach(child => {
@@ -5846,22 +5866,23 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
                             if (punto.lat && punto.lng) rutaPuntos.push([punto.lat, punto.lng]);
                         });
                     }
-                    // Fallback: posición actual del mecánico
-                    if (rutaPuntos.length === 0 && auth.currentUser) {
-                        const posMechSnap = await get(dbRef(rtdb, `mecanicos_activos/${auth.currentUser.uid}`));
-                        if (posMechSnap.exists()) {
-                            const pos = posMechSnap.val();
-                            if (pos.lat && pos.lng) rutaPuntos.push([pos.lat, pos.lng]);
-                        }
-                    }
-                    // Si aún no hay puntos, usar la ubicación del taller
-                    if (rutaPuntos.length === 0) {
-                        rutaPuntos.push([TALLER_LAT, TALLER_LNG]);
-                    }
-                    console.log('📍 Puntos para el mapa:', rutaPuntos);
-                } catch (err) {
-                    console.warn('Error obteniendo puntos de tracking:', err);
                 }
+
+                // Fallback: posición actual del mecánico
+                if (rutaPuntos.length === 0 && mechUid) {
+                    const posMechSnap = await get(dbRef(rtdb, `mecanicos_activos/${mechUid}`));
+                    if (posMechSnap.exists()) {
+                        const pos = posMechSnap.val();
+                        if (pos.lat && pos.lng) rutaPuntos.push([pos.lat, pos.lng]);
+                    }
+                }
+
+                // Si aún no hay puntos, usar la ubicación del taller
+                if (rutaPuntos.length === 0) {
+                    rutaPuntos.push([TALLER_LAT, TALLER_LNG]);
+                }
+
+                console.log('📍 Puntos para el mapa (usando mech_uid:', mechUid, '):', rutaPuntos);
 
                 let mapImage = null;
                 try {
@@ -5918,7 +5939,7 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
             
         } catch (error) {
             console.error('❌ Error generando PDF:', error);
-            throw error; // Re-lanzar para que el catch externo lo maneje
+            throw error;
         }
     };
     
@@ -5932,10 +5953,10 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
             });
             await generar();
         }
-        window.hidePDFProgress(); // ← OCULTAR BARRA DE PROGRESO (éxito)
+        window.hidePDFProgress();
     } catch (error) {
         console.error('❌ Error generando PDF:', error);
-        window.hidePDFProgress(); // ← OCULTAR BARRA DE PROGRESO (error)
+        window.hidePDFProgress();
         window.showToast('Error al generar el PDF. Intenta de nuevo.', true);
     }
 };
