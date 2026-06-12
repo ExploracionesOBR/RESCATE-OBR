@@ -4820,46 +4820,55 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     console.log('🚀 INICIO _generateRouteMapImage');
     console.log('📌 Puntos:', puntos);
     
+    // Crear un div temporal pero visible para el navegador (fuera de la pantalla)
     const div = document.createElement('div');
-    div.style.width = '500px';
-    div.style.height = '400px';
+    div.style.width = '600px';
+    div.style.height = '500px';
     div.style.position = 'fixed';
-    div.style.top = '-1000px';
-    div.style.left = '-1000px';
+    div.style.left = '-9999px';    // Fuera de la pantalla
+    div.style.top = '-9999px';     // Fuera de la pantalla
     div.style.zIndex = '-1';
-    div.style.visibility = 'hidden';
+    div.style.backgroundColor = '#ffffff'; // Fondo blanco para el mapa
+    div.style.visibility = 'visible';      // Leaflet necesita visibilidad
     document.body.appendChild(div);
     
     try {
+        // Determinar centro del mapa
         let centerLat = TALLER_LAT;
         let centerLng = TALLER_LNG;
         let zoom = 13;
-        let layerUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
         
         if (puntos && puntos.length > 0) {
             centerLat = puntos[0][0];
             centerLng = puntos[0][1];
-            const isLight = document.body.classList.contains('light-mode');
-            layerUrl = isLight 
-                ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' 
-                : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
         }
         
+        // Usar tiles de OpenStreetMap (más confiables)
+        const layerUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        const attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+        
+        // Crear el mapa
         const map = L.map(div, {
             zoomControl: false,
             attributionControl: false,
             scrollWheelZoom: false
         });
-        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(map);
+        
+        // Añadir capa de tiles
+        L.tileLayer(layerUrl, { attribution }).addTo(map);
+        
+        // Establecer vista inicial
         map.setView([centerLat, centerLng], zoom);
         
+        // Esperar a que el mapa esté listo
         await new Promise((resolve) => {
             map.whenReady(() => {
                 map.invalidateSize();
-                setTimeout(resolve, 600);
+                setTimeout(resolve, 500);
             });
         });
         
+        // Dibujar la ruta (polilínea)
         if (puntos && puntos.length > 1) {
             const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
             L.polyline(latlngs, { color: '#FF6B00', weight: 5, opacity: 0.8 }).addTo(map);
@@ -4867,6 +4876,7 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
             map.fitBounds(bounds, { padding: [40, 40] });
         }
         
+        // Marcador de inicio (mecánico) – verde
         if (puntos && puntos.length > 0 && puntos[0]) {
             L.marker(puntos[0], {
                 icon: L.divIcon({
@@ -4878,6 +4888,7 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
             }).addTo(map);
         }
         
+        // Marcador de destino (cliente) – naranja
         if (clienteLat && clienteLng) {
             L.marker([clienteLat, clienteLng], {
                 icon: L.divIcon({
@@ -4889,17 +4900,31 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
             }).addTo(map);
         }
         
-        await new Promise(resolve => setTimeout(resolve, 1200));
+        // ⚠️ TIEMPO DE ESPERA LARGO (5 segundos) para que los tiles terminen de cargar
+        console.log('⏳ Esperando 5 segundos para carga completa de tiles...');
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        
+        // Tomar captura de pantalla con html2canvas
+        console.log('📸 Capturando el mapa...');
         await window.loadHtml2Canvas();
-        const canvas = await html2canvas(div, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+        const canvas = await html2canvas(div, {
+            scale: 2,
+            backgroundColor: '#ffffff',
+            useCORS: true,
+            allowTaint: false,
+            logging: false
+        });
         const imgData = canvas.toDataURL('image/png');
-        console.log('✅ Imagen generada (primeros 50 chars):', imgData.substring(0, 50));
+        console.log('✅ Imagen generada correctamente (primeros 50 chars):', imgData.substring(0, 50));
         return imgData;
     } catch (error) {
-        console.error('❌ Error en _generateRouteMapImage:', error);
+        console.error('❌ Error crítico al generar el mapa:', error);
         return null;
     } finally {
-        if (div.parentNode) document.body.removeChild(div);
+        // Limpiar el div del DOM
+        if (div.parentNode) {
+            document.body.removeChild(div);
+        }
     }
 }
 function _getRouteInstructions(puntos) {
