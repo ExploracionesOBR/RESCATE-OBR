@@ -5683,13 +5683,17 @@ await addDoc(collection(db, "ventas"), saleData);
         }
     }
 }
-window.imprimirTicketVenta = (ventaId, saleData) => {
+window.imprimirTicketVenta = async (ventaId, saleData) => {
+    console.log('🧾 Imprimiendo ticket de venta:', ventaId);
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
     const logoImg = new Image();
     logoImg.src = 'logo_oscuro.png';
-    const generar = () => {
+    const generar = async () => {
         const pageWidth = pdfDoc.internal.pageSize.getWidth();
+        const pageHeight = pdfDoc.internal.pageSize.getHeight();
+        
+        // Encabezado
         pdfDoc.setFillColor(255, 107, 0);
         pdfDoc.rect(0, 0, pageWidth, 28, 'F');
         if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
@@ -5728,6 +5732,59 @@ window.imprimirTicketVenta = (ventaId, saleData) => {
         pdfDoc.setFontSize(12);
         pdfDoc.text(`Total Neto: $${saleData.total.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
         y += 10;
+
+        // --- 🔴 GENERACIÓN DEL MAPA EN EL TICKET DE VENTA ---
+        if (saleData.sosId) {
+            console.log('🗺️ Generando mapa para SOS ID:', saleData.sosId);
+            let rutaPuntos = [];
+            try {
+                // Obtener puntos de tracking desde RTDB sin usar import
+                const { get, ref } = window;
+                const trackingRef = ref(rtdb, `sos_tracking/${saleData.sosId}/${window.auth.currentUser.uid}/points`);
+                const trackSnap = await get(trackingRef);
+                if (trackSnap.exists()) {
+                    trackSnap.forEach(child => {
+                        const punto = child.val();
+                        if (punto.lat && punto.lng) rutaPuntos.push([punto.lat, punto.lng]);
+                    });
+                }
+                // Fallback: posición actual del mecánico
+                if (rutaPuntos.length === 0 && window.auth.currentUser) {
+                    const posMechSnap = await get(ref(rtdb, `mecanicos_activos/${window.auth.currentUser.uid}`));
+                    if (posMechSnap.exists()) {
+                        const pos = posMechSnap.val();
+                        if (pos.lat && pos.lng) rutaPuntos.push([pos.lat, pos.lng]);
+                    }
+                }
+                // Si aún no hay puntos, usar la ubicación del taller como referencia
+                if (rutaPuntos.length === 0) {
+                    rutaPuntos.push([TALLER_LAT, TALLER_LNG]);
+                }
+                console.log('📍 Puntos para el mapa:', rutaPuntos);
+            } catch (err) {
+                console.warn('Error obteniendo puntos de tracking:', err);
+            }
+
+            // Generar imagen del mapa
+            let mapImage = null;
+            try {
+                mapImage = await _generateRouteMapImage(rutaPuntos, saleData.lat, saleData.lng);
+                console.log('🎨 Imagen de mapa generada:', mapImage ? 'SÍ' : 'NO');
+            } catch (err) {
+                console.error('Error generando mapa:', err);
+            }
+
+            if (mapImage) {
+                // Añadir la imagen del mapa al PDF (ajusta posición y tamaño según tu diseño)
+                pdfDoc.addImage(mapImage, 'PNG', 12, y, 55, 55);
+                y += 60;
+            } else {
+                pdfDoc.text("No se pudo generar el mapa", 12, y);
+                y += 10;
+            }
+        }
+        // --- FIN DEL MAPA ---
+
         pdfDoc.setFontSize(7);
         pdfDoc.setTextColor(148, 163, 184);
         pdfDoc.text("Gracias por su preferencia comercial. Conserve el presente ticket físico o digital para hacer válida cualquier reclamación de garantía en sucursal.", 12, y);
@@ -5747,9 +5804,10 @@ window.imprimirTicketVenta = (ventaId, saleData) => {
             setTimeout(() => { document.body.removeChild(link); URL.revokeObjectURL(url); }, 100);
         } catch(e) { pdfDoc.save(`Venta_${saleData.shortId}.pdf`); }
     };
-    if (logoImg.complete && logoImg.naturalWidth > 0) generar();
+    if (logoImg.complete && logoImg.naturalWidth > 0) await generar();
     else { logoImg.onload = generar; logoImg.onerror = generar; }
 };
+
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
     const cleanPhone = phone.replace(/[^0-9]/g, '');
