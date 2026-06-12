@@ -2083,63 +2083,43 @@ window.switchClientView = (id) => {
     const btn = Array.from(document.querySelectorAll('.c-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
     if (btn) btn.classList.add('tab-active');
 
-    // Si cambiamos a la pestaña de RESCATE, forzar redimensionamiento del mapa
+    // Cargar video promocional solo en tienda
+    if (id === 'c-view-tienda') {
+        window.loadPromoVideo();
+        // Cargar productos de la tienda al cambiar a la pestaña
+        if (typeof loadPublicStore === 'function') {
+            loadPublicStore();
+        } else {
+            console.warn('loadPublicStore no está disponible');
+        }
+    }
+
+    // Cargar citas al cambiar a la pestaña de citas
+    if (id === 'c-view-citas') {
+        if (typeof window.loadClientCitas === 'function') {
+            window.loadClientCitas();
+        } else {
+            console.warn('loadClientCitas no está disponible');
+        }
+    }
+
+    // Cargar historial al cambiar a la pestaña de historial
+    if (id === 'c-view-historial') {
+        if (typeof window.loadClientHistory === 'function') {
+            window.loadClientHistory();
+        } else {
+            console.warn('loadClientHistory no está disponible');
+        }
+    }
+
+    // Forzar redimensionamiento del mapa en Rescate
     if (id === 'c-view-rescate' && window.mechMapInst) {
         setTimeout(() => window.mechMapInst.invalidateSize(), 300);
     }
-    // Cargar video promocional solo en tienda
-    if (id === 'c-view-tienda') window.loadPromoVideo();
+
     window.fixMaps?.();
 };
 
-window.switchAdminView = (id) => {
-    toggleModal('modal-user-detail', false);
-    
- // Mostrar/ocultar botón flotante del chat IA
-    const chatAiBtn = document.getElementById('btn-chat-ai-float');
-    if (chatAiBtn) {
-        chatAiBtn.style.display = id === 'a-view-servicios' ? 'flex' : 'none';
-    }
-    
-    // Mostrar/ocultar botón de chat de soporte (solo en POS y Alertas)
-    const chatBtn = document.getElementById('admin-chat-float-btn');
-    if(chatBtn) chatBtn.classList.toggle('hidden', !['a-view-pos', 'a-view-alertas'].includes(id));
-    
-    document.querySelectorAll('.a-view').forEach(v => v.classList.add('hidden')); 
-    document.getElementById(id).classList.remove('hidden');
-    document.querySelectorAll('.a-nav-btn').forEach(b => b.classList.remove('tab-active'));
-    const btn = Array.from(document.querySelectorAll('.a-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
-    if(btn) btn.classList.add('tab-active');
-
-    if(id === 'a-view-config') {
-        window.adminRefreshConfigUI();
-        window.renderAdminMap();
-        if (window._servicesCatalogUnsubscribe) window._servicesCatalogUnsubscribe();
-        window._servicesCatalogUnsubscribe = onSnapshot(collection(db, "servicios"), () => refreshCatalogUI());
-    }
-    if(id === 'a-view-usuarios') window.adminLoadUsers();
-    if(id === 'a-view-promos') { window.adminLoadLoyalty(); populatePromoProductSelect(); window.loadPromoPreview?.(); }
-    if(id === 'a-view-stats') window.loadStats();
-    if(id === 'a-view-citas') window.adminLoadCitas();
-    if(id === 'a-view-alertas') window.renderSOSGlobalMap();
-    if(id === 'a-view-pos') { 
-        window.posFilterProducts(); 
-        window.cargarNotificacionesCitas(); 
-        window.cargarCobrosMecanicosPanel(); 
-        window.loadVentasRealizadas(); 
-        setTimeout(() => window.loadOnlineOrders?.(), 200);
-        window.cargarChatsPendientesAdmin();
-    }
-    if(id === 'a-view-entregas') { 
-        setTimeout(() => window.loadEntregas?.(), 300);
-        window.fixMaps?.();
-    }
-    
-    const entregaPanel = document.getElementById('entrega-actions-panel');
-    if (entregaPanel) entregaPanel.classList.add('hidden');
-    
-    window.fixMaps?.();
-};
 window.applyViewPermissions = () => {
     const vistas = window.currentUserDoc?.vistasPermitidas;
     if (!vistas || !Array.isArray(vistas)) return;
@@ -2727,6 +2707,7 @@ function initClientMap() {
 }
 
 // ========== LISTEN TO MY SOS – VERSIÓN DEFINITIVA (CORREGIDA) ==========
+
 function listenToMySOS() {
     if (window.mySOSListener && typeof window.mySOSListener === 'function') {
         window.mySOSListener();
@@ -2738,7 +2719,10 @@ function listenToMySOS() {
     let routingControl = null;
     let deliveryMechPosUnsubscribe = null;
     let deliveryRoutingControl = null;
-    let lastSOSStatus = null;
+
+    // Variable para recordar el último estado del servicio (persistente)
+    let lastSOSStatus = localStorage.getItem('lastSOSStatus') || null;
+    let lastSOSShortId = localStorage.getItem('lastSOSShortId') || null;
 
     window.mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), async (snap) => {
         const activeCard = document.getElementById('active-sos-card');
@@ -2753,7 +2737,9 @@ function listenToMySOS() {
 
         // CASO 1: El nodo fue eliminado (servicio finalizado o cancelado)
         if (!snap.exists()) {
+            // Si hay un estado final guardado en localStorage
             if (lastSOSStatus === 'completed' || lastSOSStatus === 'cancelled') {
+                // Ocultar tarjeta de SOS
                 if (activeCard) activeCard.classList.add('hidden');
                 if (wsCard) wsCard.classList.add('hidden');
                 if (mechanicMapDiv) {
@@ -2779,8 +2765,7 @@ function listenToMySOS() {
                 }
 
                 if (lastSOSStatus === 'completed') {
-                    const shortId = data.shortId || 'unknown';
-                    const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
+                    const yaCalifico = localStorage.getItem('calificado_' + lastSOSShortId) === 'true';
                     if (!yaCalifico) {
                         if (survey) survey.classList.remove('hidden');
                     } else {
@@ -2795,10 +2780,15 @@ function listenToMySOS() {
                 }
 
                 window.loadClientHistory();
+                // Limpiar localStorage después de mostrar la encuesta
+                localStorage.removeItem('lastSOSStatus');
+                localStorage.removeItem('lastSOSShortId');
                 lastSOSStatus = null;
+                lastSOSShortId = null;
                 return;
             }
 
+            // Si no hay estado guardado, solo ocultar tarjeta
             if (activeCard) activeCard.classList.add('hidden');
             if (wsCard) wsCard.classList.add('hidden');
             if (mechanicMapDiv) {
@@ -2827,10 +2817,15 @@ function listenToMySOS() {
         }
 
         const data = snap.val();
+        // Guardar estado actual en localStorage por si se elimina el nodo
         lastSOSStatus = data.status;
+        lastSOSShortId = data.shortId || 'unknown';
+        localStorage.setItem('lastSOSStatus', lastSOSStatus);
+        localStorage.setItem('lastSOSShortId', lastSOSShortId);
 
         // CASO 2: Servicio completado o cancelado (aún en RTDB)
         if (data.status === 'completed' || data.status === 'cancelled') {
+            // Ocultar tarjeta inmediatamente
             if (activeCard) activeCard.classList.add('hidden');
             if (wsCard) wsCard.classList.add('hidden');
             if (mechanicMapDiv) {
@@ -2845,6 +2840,7 @@ function listenToMySOS() {
                 routingControl = null;
             }
 
+            // Notificar al cliente
             if (data.status === 'completed') {
                 speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
                 playSound('notif');
@@ -2853,6 +2849,8 @@ function listenToMySOS() {
                 playSound('notif');
             }
 
+            // Eliminar el nodo de RTDB para que el listener se limpie
+            await remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid)).catch(console.warn);
             window.loadClientHistory();
             return;
         }
@@ -2921,6 +2919,7 @@ function listenToMySOS() {
             initClientMapIfNeeded();
 
             if (window.clientMapInstance && data.lat && data.lng) {
+                // Marcador del cliente (ubicación de la avería)
                 if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
                 window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
                     icon: L.divIcon({
@@ -2931,6 +2930,7 @@ function listenToMySOS() {
                     })
                 }).addTo(window.clientMapInstance).bindPopup("📍 Tu ubicación");
 
+                // Suscripción a la posición del mecánico
                 if (mechPosUnsubscribe) mechPosUnsubscribe();
                 if (data.mech_uid) {
                     const mechUserSnap = await getDoc(doc(db, "users", data.mech_uid));
@@ -3253,6 +3253,7 @@ function listenToMySOS() {
         }
     });
 }
+
 // ========== FIN DE listenToMySOS ==========
 
 // ========== LISTEN TO MY DELIVERIES – ENTREGAS ACTIVAS ==========
