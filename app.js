@@ -4820,7 +4820,6 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     console.log('🚀 INICIO _generateRouteMapImage');
     console.log('📌 Puntos:', puntos);
     
-    // Crear un elemento div temporal
     const div = document.createElement('div');
     div.style.width = '500px';
     div.style.height = '400px';
@@ -4832,27 +4831,20 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
     document.body.appendChild(div);
     
     try {
-        // Determinar centro y capa del mapa
         let centerLat = TALLER_LAT;
         let centerLng = TALLER_LNG;
         let zoom = 13;
-        let layerUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'; // Mapa gris por defecto
+        let layerUrl = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
         
-        // Si hay puntos, configurar para mostrar la ruta
         if (puntos && puntos.length > 0) {
             centerLat = puntos[0][0];
             centerLng = puntos[0][1];
-            zoom = 13;
             const isLight = document.body.classList.contains('light-mode');
             layerUrl = isLight 
                 ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' 
                 : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-            console.log('🎨 Modo mapa:', isLight ? 'Claro' : 'Oscuro');
-        } else {
-            console.log('⚠️ Sin puntos de ruta, generando mapa gris de la ciudad');
         }
         
-        // Crear mapa
         const map = L.map(div, {
             zoomControl: false,
             attributionControl: false,
@@ -4861,7 +4853,6 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
         L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(map);
         map.setView([centerLat, centerLng], zoom);
         
-        // Esperar a que el mapa esté listo
         await new Promise((resolve) => {
             map.whenReady(() => {
                 map.invalidateSize();
@@ -4869,13 +4860,11 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
             });
         });
         
-        // Dibujar ruta y marcadores solo si hay puntos
         if (puntos && puntos.length > 1) {
             const latlngs = puntos.map(p => L.latLng(p[0], p[1]));
             L.polyline(latlngs, { color: '#FF6B00', weight: 5, opacity: 0.8 }).addTo(map);
             const bounds = L.latLngBounds(latlngs);
             map.fitBounds(bounds, { padding: [40, 40] });
-            console.log('✅ Ruta dibujada');
         }
         
         if (puntos && puntos.length > 0 && puntos[0]) {
@@ -4886,7 +4875,7 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
                     iconSize: [24, 24],
                     iconAnchor: [12, 12]
                 })
-            }).addTo(map).bindPopup("Inicio (Mecánico)");
+            }).addTo(map);
         }
         
         if (clienteLat && clienteLng) {
@@ -4897,20 +4886,17 @@ async function _generateRouteMapImage(puntos, clienteLat, clienteLng) {
                     iconSize: [24, 24],
                     iconAnchor: [12, 12]
                 })
-            }).addTo(map).bindPopup("Destino (Cliente)");
+            }).addTo(map);
         }
         
-        // Esperar para carga de tiles
         await new Promise(resolve => setTimeout(resolve, 1200));
-        
-        // Capturar imagen
         await window.loadHtml2Canvas();
         const canvas = await html2canvas(div, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
         const imgData = canvas.toDataURL('image/png');
-        console.log('✅ Imagen generada (primeros 50 chars):', imgData.substring(0, 50));
+        console.log('✅ Imagen generada');
         return imgData;
     } catch (error) {
-        console.error('❌ Error en _generateRouteMapImage:', error);
+        console.error('❌ Error:', error);
         return null;
     } finally {
         if (div.parentNode) document.body.removeChild(div);
