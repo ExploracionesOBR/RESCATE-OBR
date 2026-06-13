@@ -10222,6 +10222,76 @@ window.closeChat = () => {
     toggleModal('modal-chat', false);
 };
 
+// ========== CHAT CON SOPORTE (ABRIR CHAT CON EL TALLER) ==========
+window.openChatWithTaller = async function() {
+    window.showToast("Contactando con el taller...", false);
+    
+    try {
+        const uid = auth.currentUser.uid;
+        if (!uid) {
+            window.showToast("Inicia sesión para usar el chat.", true);
+            return;
+        }
+
+        // 1. Buscar un chat existente entre el usuario y el taller (admin o taller)
+        const q = query(
+            collection(db, "chats"), 
+            where("participantes", "array-contains", uid)
+        );
+        const snap = await getDocs(q);
+        let chatId = null;
+
+        for (const doc of snap.docs) {
+            const data = doc.data();
+            // Verificar si el chat tiene un participante admin o taller
+            const otrosParticipantes = data.participantes.filter(id => id !== uid);
+            for (const otroId of otrosParticipantes) {
+                const userDoc = await getDoc(doc(db, "users", otroId));
+                if (userDoc.exists()) {
+                    const role = userDoc.data().role;
+                    if (role === 'admin' || role === 'taller' || role === 'socio') {
+                        chatId = doc.id;
+                        break;
+                    }
+                }
+            }
+            if (chatId) break;
+        }
+
+        // 2. Si no existe un chat con el taller, crear uno nuevo
+        if (!chatId) {
+            // Buscar un administrador o taller disponible
+            const adminSnap = await getDocs(query(collection(db, "users"), where("role", "in", ["admin", "taller", "socio"]), limit(1)));
+            if (adminSnap.empty) {
+                window.showToast("No hay personal disponible para atender tu solicitud.", true);
+                return;
+            }
+            const adminUid = adminSnap.docs[0].id;
+            const adminData = adminSnap.docs[0].data();
+
+            const nuevoChat = {
+                participantes: [uid, adminUid],
+                nombres: {
+                    [uid]: window.currentUserDoc?.name || 'Cliente',
+                    [adminUid]: adminData.name || 'Administrador'
+                },
+                titulo: 'Soporte OBR',
+                estado: 'pendiente',
+                creado: Date.now()
+            };
+            const docRef = await addDoc(collection(db, "chats"), nuevoChat);
+            chatId = docRef.id;
+        }
+
+        // 3. Abrir el chat
+        window.openChat(chatId);
+
+    } catch (error) {
+        console.error('Error al abrir chat con taller:', error);
+        window.showToast("No se pudo conectar con el soporte. Intenta de nuevo.", true);
+    }
+};
+
 window.cargarChatsPendientesAdmin = () => {
     const container = document.getElementById('admin-chats-pendientes-list');
     if (!container) return;
