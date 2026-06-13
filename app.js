@@ -5771,7 +5771,43 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
 
         showToast("Venta Registrada y Pagada", false);
 
-        window.imprimirTicketVenta = async (ventaId, saleData) => {
+        window.imprimirTicketVenta(docRef.id, saleData);
+
+        const ticketRespaldo = [...window.posTicket];
+        
+        window.posTicket = [];
+        window.posDescuento = 0;
+        const phoneInput = document.getElementById('pos-customer-phone');
+        const promoInput = document.getElementById('pos-promo-code');
+        const amountInput = document.getElementById('pos-amount-received');
+        if (phoneInput) phoneInput.value = '';
+        if (promoInput) promoInput.value = '';
+        if (amountInput) amountInput.value = '';
+
+        window.renderTicket();
+        window.adminLoadInventory();
+        window.adminLoadSales();
+        window.adminListenServices();
+        if (phone) {
+            try {
+                window.sendTicketWhatsAppAfterCheckout(phone, totalToPay, ticketRespaldo);
+            } catch (e) {
+                console.warn('Error al enviar WhatsApp:', e);
+            }
+        }
+        window.loadVentasRealizadas();
+
+    } catch (e) {
+        console.error('Error en finalizeCheckout:', e);
+        showToast("Error al procesar: " + (e.message || 'Error desconocido'), true);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalBtnHTML; // ← RESTAURAR EL BOTÓN ORIGINAL
+        }
+    }
+}
+ window.imprimirTicketVenta = async (ventaId, saleData) => {
     window.showPDFProgress(); 
     console.log('🧾 Imprimiendo ticket de venta:', ventaId);
     const { jsPDF } = window.jspdf;
@@ -5978,7 +6014,6 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
         window.showToast('Error al generar el PDF. Intenta de nuevo.', true);
     }
 };
-        
        
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
