@@ -1479,3 +1479,7 @@ body.light-mode #chat-ia-modal-dinamico {
     background: var(--chat-hover);
     opacity: 0.8;
 }
+/* Ocultar botón de emergencia cuando la tarjeta de rescate está visible */
+#active-sos-card:not(.hidden) ~ #emergency-client-btn {
+    display: none !important;
+}
