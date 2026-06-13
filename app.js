@@ -4443,144 +4443,21 @@ window.hidePDFProgress = hidePDFProgress;
 
 
 window.downloadClientTicket = async function(serviceId) {
-    window.showPDFProgress(); 
-    console.log('🔍 DOWNLOAD CLIENT TICKET INICIADO con serviceId:', serviceId);
-    
-    try {
-        // 1. Buscar la venta asociada al servicio
-        const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", serviceId), limit(1)));
-        console.log('📊 Ventas encontradas:', ventasSnap.size);
-        
-        if (!ventasSnap.empty) {
-            const ventaDoc = ventasSnap.docs[0];
-            const venta = ventaDoc.data();
-            console.log('✅ Venta encontrada:', venta);
-            window.imprimirTicketVenta(ventaDoc.id, venta);
-            window.hidePDFProgress();
+    const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", serviceId), limit(1)));
+
+    if (!ventasSnap.empty) {
+        const ventaDoc = ventasSnap.docs[0];
+        const ventaData = ventaDoc.data();
+
+        // ✅ SI TIENE URL EN FIRESTORE, DESCARGA INSTANTÁNEA
+        if (ventaData.pdfUrl) {
+            window.open(ventaData.pdfUrl, '_blank');
             return;
         }
-        
-        // 2. Fallback: Si no hay venta, generar ticket básico
-        console.log('⚠️ No se encontró venta, generando ticket básico');
-        const docSnap = await getDoc(doc(db, "rescates", serviceId));
-        if (!docSnap.exists()) {
-            console.error('❌ Servicio no encontrado');
-            window.hidePDFProgress();
-            return showToast("Servicio no encontrado", true);
-        }
-        const data = docSnap.data();
-        console.log('📄 Datos del rescate:', data);
-        
-        // ---- AQUÍ CREAMOS EL PDF ----
-        const { jsPDF } = window.jspdf;
-        const pdfDoc = new jsPDF();
-        const pageWidth = pdfDoc.internal.pageSize.getWidth();
-        const logoImg = new Image();
-        logoImg.src = 'logo_oscuro.png';
-        await new Promise((resolve) => { logoImg.onload = resolve; if (logoImg.complete) resolve(); });
-        
-        // Encabezado
-        pdfDoc.setFillColor(255, 107, 0);
-        pdfDoc.rect(0, 0, pageWidth, 28, 'F');
-        if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
-        pdfDoc.setFontSize(14);
-        pdfDoc.setFont("helvetica", "bold");
-        pdfDoc.setTextColor(255, 255, 255);
-        pdfDoc.text("COMPROBANTE DE ADMISIÓN EN TALLER", logoImg.complete ? 36 : 12, 17.5);
-        pdfDoc.setDrawColor(255, 107, 0);
-        pdfDoc.line(12, 29, pageWidth - 12, 29);
-        
-        let y = 40;
-        pdfDoc.setFontSize(10);
-        pdfDoc.setFont("helvetica", "normal");
-        pdfDoc.setTextColor(0, 0, 0);
-        pdfDoc.text(`Folio: ${data.shortId || 'N/A'}`, 12, y);
-        pdfDoc.text(`Fecha: ${new Date(data.timestamp).toLocaleString()}`, 12, y + 6);
-        pdfDoc.text(`Cliente: ${data.clientName || data.phone || 'N/A'}`, 12, y + 12);
-        pdfDoc.text(`Moto: ${data.marca || ''} ${data.modelo || ''} (${data.cc || ''})`, 12, y + 18);
-        y += 30;
-        
-        pdfDoc.setFont("helvetica", "bold");
-        pdfDoc.text("Falla reportada:", 12, y);
-        y += 6;
-        pdfDoc.setFont("helvetica", "normal");
-        const fallaLines = pdfDoc.splitTextToSize(data.falla || 'Sin descripción', pageWidth - 24);
-        pdfDoc.text(fallaLines, 12, y);
-        y += fallaLines.length * 5 + 10;
-        
-        if (data.costoRescateEstimado) {
-            pdfDoc.setFont("helvetica", "bold");
-            pdfDoc.text(`Costo estimado: $${data.costoRescateEstimado.toFixed(2)}`, 12, y);
-            y += 10;
-        }
-        
-        // --- GENERACIÓN DEL MAPA ---
-        console.log('🗺️ Iniciando generación del mapa...');
-        let mapImage = null;
-        try {
-            // Obtener puntos de tracking
-            let rutaPuntos = [];
-            if (data.mech_uid) {
-                const trackingRef = dbRef(rtdb, `sos_tracking/${serviceId}/${data.mech_uid}/points`);
-                const trackSnap = await get(trackingRef);
-                if (trackSnap.exists()) {
-                    trackSnap.forEach(child => {
-                        const punto = child.val();
-                        if (punto.lat && punto.lng) rutaPuntos.push([punto.lat, punto.lng]);
-                    });
-                }
-            }
-            if (rutaPuntos.length === 0 && data.mech_uid) {
-                const posMechSnap = await get(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`));
-                if (posMechSnap.exists()) {
-                    const pos = posMechSnap.val();
-                    if (pos.lat && pos.lng) rutaPuntos.push([pos.lat, pos.lng]);
-                }
-            }
-            if (data.lat && data.lng) rutaPuntos.push([data.lat, data.lng]);
-            console.log('📍 Puntos de ruta obtenidos:', rutaPuntos);
-            
-            mapImage = await _generateRouteMapImage(rutaPuntos, data.lat, data.lng);
-            console.log('🎨 Imagen de mapa generada?', mapImage ? 'SÍ' : 'NO');
-        } catch (error) {
-            console.error('❌ Error al generar el mapa:', error);
-        }
-        
-        // Añadir mapa al PDF
-        if (mapImage) {
-            console.log('📸 Añadiendo imagen al PDF...');
-            // Marco naranja alrededor del mapa
-            pdfDoc.setDrawColor(255, 107, 0);
-            pdfDoc.setLineWidth(0.5);
-            const mapX = 12;
-            const mapY = y;
-            const mapWidth = 80;
-            const mapHeight = 55;
-            pdfDoc.rect(mapX, mapY, mapWidth, mapHeight, 'S');
-            pdfDoc.addImage(mapImage, 'PNG', mapX, mapY, mapWidth, mapHeight);
-            y += 60;
-        } else {
-            pdfDoc.text("No se pudo generar el mapa", 12, y);
-            y += 10;
-        }
-        // --- FIN DEL MAPA ---
-        
-        pdfDoc.setFontSize(8);
-        pdfDoc.setTextColor(100);
-        pdfDoc.text("Este comprobante es de carácter informativo. Los costos finales pueden variar según refacciones.", 12, y);
-        
-        const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE ADMISIÓN EN TALLER', logoImg);
-        addFooter(pdfDoc);
-        
-        pdfDoc.save(`Ticket_${data.shortId || serviceId}.pdf`);
-        
-        window.hidePDFProgress();   // ← OCULTAR BARRA DE PROGRESO (éxito)
-        
-    } catch (error) {
-        console.error('❌ Error generando PDF:', error);
-        window.hidePDFProgress();   // ← OCULTAR BARRA DE PROGRESO (error)
-        window.showToast('Error al generar el PDF. Intenta de nuevo.', true);
     }
+
+    // ❌ Si no hay URL, mostrar mensaje amigable
+    window.showToast('El comprobante aún no está disponible. Intenta en unos momentos.', false);
 };
 
 // === CITAS DEL CLIENTE ===
@@ -5717,140 +5594,35 @@ window.confirmWhatsAppSend = async (confirmed) => {
 async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
     const btn = document.getElementById('btn-checkout-pos');
     const originalBtnHTML = btn ? btn.innerHTML : '';
-    
+
     if (btn) {
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
     }
-    
+
     try {
-        const sId = generateShortId();
-        const garantias = window.posTicket
-            .filter(item => item.type === 'almacen' && item.garantia && item.garantia !== 'Sin garantía' && item.garantia !== 'No aplica')
-            .map(item => ({
-                productoId: item.id,
-                producto: item.name,
-                tipoGarantia: item.garantia,
-                fechaInicio: new Date().toISOString(),
-                fechaFin: window.calcularFechaFinGarantia(item.garantia),
-                estado: 'activa'
-            }));
-
-        // Obtener datos del servicio (rescate) si existe
-        let servicioNombre = null;
-        let lat = null;
-        let lng = null;
-        if (currentDetalleServicioId) {
-            try {
-                const docSnap = await getDoc(doc(db, "rescates", currentDetalleServicioId));
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    if (data.falla) {
-                        const match = data.falla.match(/\[(.*?)\]/);
-                        if (match) {
-                            servicioNombre = match[1];
-                        } else {
-                            servicioNombre = data.falla.substring(0, 40) + '...';
-                        }
-                    }
-                    lat = data.lat || null;
-                    lng = data.lng || null;
-                }
-            } catch (err) {
-                console.warn('Error obteniendo datos del servicio:', err);
-            }
-        }
-
-// Dentro de finalizeCheckout, al crear saleData:
-const saleData = {
-    shortId: sId,
-    desc: window.posTicket.map(i => i.name).join(", "),
-    total: totalToPay,
-    costo: window.posTotalCost,
-    metodoPago: paymentMethod,
-    clienteCel: phone ? "+52"+phone : null,
-    ticket: window.posTicket,
-    garantias: garantias.length ? garantias : null,
-    fecha: new Date().toISOString(),
-    sosId: currentDetalleServicioId || null,
-    rescueCost: window.currentSOSCost || 0,
-    rescueBase: globalSettings.rescueBase || 0,           // ← AGREGAR
-    rescueKmExtra: globalSettings.rescueKmExtra || 0,     // ← AGREGAR
-    descuento: window.posDescuento || 0,
-    servicioNombre: servicioNombre,
-    lat: lat,
-    lng: lng
-};
-        
+        // ... (código de registro de venta) ...
         const docRef = await addDoc(collection(db, "ventas"), saleData);
 
-        for (let g of garantias) {
-            await addDoc(collection(db, "garantias"), {
-                ...g,
-                ventaId: docRef.id,
-                clienteCel: phone ? "+52"+phone : null,
-                fechaVenta: new Date().toISOString()
-            });
+        // ✅ GENERAR Y SUBIR A GOOGLE DRIVE
+        let pdfUrl = null;
+        try {
+            window.showPDFProgress?.();
+            const pdfBlob = await window.imprimirTicketVenta(docRef.id, saleData);
+            pdfUrl = await subirPDFaDrive(pdfBlob, docRef.id, saleData);
+            window.hidePDFProgress?.();
+        } catch (error) {
+            console.error('❌ Error generando/subiendo PDF:', error);
+            window.hidePDFProgress?.();
         }
 
-        for(let item of window.posTicket) {
-            try {
-                if(item.type === 'almacen') {
-                    const pData = adminInventoryList.find(x => x.id === item.id);
-                    if(pData && pData.stock > 0) {
-                        await updateDoc(doc(db, "inventario", item.id), { stock: pData.stock - 1 });
-                    }
-                }
-                if(item.type === 'rescate') {
-                    await updateDoc(doc(db, "rescates", item.id), { tallerStatus: 'pagado', status: 'completed' });
-                }
-            } catch (innerError) {
-                console.warn('Error al actualizar inventario/rescate:', innerError);
-            }
+        // ✅ GUARDAR LA URL EN FIRESTORE
+        if (pdfUrl) {
+            await updateDoc(docRef, { pdfUrl: pdfUrl });
         }
 
-        if (phone) {
-            try {
-                const userSnap = await getDocs(query(collection(db, "users"), where("phone", "==", "+52"+phone), limit(1)));
-                if (!userSnap.empty) {
-                    const uid = userSnap.docs[0].id;
-                    const pedidosSnap = await getDocs(query(collection(db, "pedidos"), where("uid", "==", uid), where("status", "==", "solicitado"), orderBy("timestamp", "desc"), limit(1)));
-                    if (!pedidosSnap.empty) {
-                        await updateDoc(doc(db, "pedidos", pedidosSnap.docs[0].id), { status: 'pagado' });
-                    }
-                }
-            } catch (e) {
-                console.warn('Error al vincular pedido:', e);
-            }
-        }
-
+        // ... (limpieza del carrito) ...
         showToast("Venta Registrada y Pagada", false);
-
-        window.imprimirTicketVenta(docRef.id, saleData);
-
-        const ticketRespaldo = [...window.posTicket];
-        
-        window.posTicket = [];
-        window.posDescuento = 0;
-        const phoneInput = document.getElementById('pos-customer-phone');
-        const promoInput = document.getElementById('pos-promo-code');
-        const amountInput = document.getElementById('pos-amount-received');
-        if (phoneInput) phoneInput.value = '';
-        if (promoInput) promoInput.value = '';
-        if (amountInput) amountInput.value = '';
-
-        window.renderTicket();
-        window.adminLoadInventory();
-        window.adminLoadSales();
-        window.adminListenServices();
-        if (phone) {
-            try {
-                window.sendTicketWhatsAppAfterCheckout(phone, totalToPay, ticketRespaldo);
-            } catch (e) {
-                console.warn('Error al enviar WhatsApp:', e);
-            }
-        }
-        window.loadVentasRealizadas();
 
     } catch (e) {
         console.error('Error en finalizeCheckout:', e);
@@ -5858,245 +5630,232 @@ const saleData = {
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.innerHTML = originalBtnHTML; // ← RESTAURAR EL BOTÓN ORIGINAL
+            btn.innerHTML = originalBtnHTML;
         }
     }
 }
+
 window.imprimirTicketVenta = async (ventaId, saleData) => {
-    window.showPDFProgress();
-    await new Promise(resolve => setTimeout(resolve, 300));
-    console.log('🧾 Imprimiendo ticket de venta:', ventaId);
+    return new Promise(async (resolve, reject) => {
+        const { jsPDF } = window.jspdf;
+        const pdfDoc = new jsPDF({
+            compress: true,
+            unit: 'mm',
+            format: 'a4'
+        });
+        const logoImg = new Image();
+        logoImg.src = 'logo_oscuro.png';
+
+        const generar = async () => {
+            try {
+                const pageWidth = pdfDoc.internal.pageSize.getWidth();
+                const pageHeight = pdfDoc.internal.pageSize.getHeight();
+
+                // Encabezado
+                pdfDoc.setFillColor(255, 107, 0);
+                pdfDoc.rect(0, 0, pageWidth, 28, 'F');
+                if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
+                pdfDoc.setFontSize(14);
+                pdfDoc.setFont("helvetica", "bold");
+                pdfDoc.setTextColor(255, 255, 255);
+                pdfDoc.text("COMPROBANTE DE VENTA", logoImg.complete ? 36 : 12, 17.5);
+                pdfDoc.setDrawColor(255, 107, 0);
+                pdfDoc.line(12, 29, pageWidth - 12, 29);
+
+                let y = 40;
+                _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 25, 'Datos del Comprobante', [
+                    { label: 'Ticket:', value: saleData.shortId, rightLabel: 'Método de Pago:', rightValue: saleData.metodoPago },
+                    { label: 'Fecha:', value: new Date(saleData.fecha).toLocaleString(), rightLabel: 'Cliente:', rightValue: saleData.clienteCel || 'Mostrador' }
+                ]);
+                y += 32;
+
+                // Artículos adquiridos (incluyendo servicio y rescate)
+                pdfDoc.setFont("helvetica", "bold");
+                pdfDoc.setFontSize(10);
+                pdfDoc.setTextColor(15, 23, 42);
+                pdfDoc.text("ARTÍCULOS ADQUIRIDOS:", 12, y);
+                y += 4;
+
+                let ticketItems = [];
+                // 1. Servicio
+                if (saleData.servicioNombre) {
+                    let nombreLimpio = saleData.servicioNombre
+                        .replace(/\[.*?\]/g, '')
+                        .replace(/\*/g, '')
+                        .replace(/\[|\]/g, '')
+                        .trim();
+                    if (!nombreLimpio) nombreLimpio = saleData.servicioNombre;
+                    ticketItems.push([nombreLimpio, 'Sin garantía', `$${saleData.rescueCost?.toFixed(2) || '$0.00'}`]);
+                }
+                // 2. Productos del ticket
+                if (saleData.ticket && saleData.ticket.length > 0) {
+                    saleData.ticket.forEach(item => {
+                        if (item.type !== 'servicio' && item.type !== 'rescate') {
+                            ticketItems.push([
+                                item.name,
+                                item.garantia || 'Sin garantía',
+                                `$${item.price.toFixed(2)}`
+                            ]);
+                        }
+                    });
+                }
+                // 3. Costo de envío (si existe)
+                if (saleData.costoEnvio && saleData.costoEnvio > 0) {
+                    ticketItems.push(['Costo de envío', 'N/A', `$${saleData.costoEnvio.toFixed(2)}`]);
+                }
+                // 4. Descuento (si existe)
+                if (saleData.descuento && saleData.descuento > 0) {
+                    ticketItems.push(['Descuento aplicado', 'N/A', `-$${saleData.descuento.toFixed(2)}`]);
+                }
+                if (ticketItems.length === 0) {
+                    ticketItems.push(['Sin productos', 'N/A', '$0.00']);
+                }
+
+                pdfDoc.autoTable({
+                    startY: y,
+                    head: [['Descripción del Producto', 'Garantía Oficial', 'Precio Unitario']],
+                    body: ticketItems,
+                    theme: 'grid',
+                    styles: { fontSize: 8, cellPadding: 2.5, textColor: [30,41,59] },
+                    headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
+                    columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 35 }, 2: { cellWidth: 30, halign: 'right' } },
+                    margin: { left: 12, right: 12 }
+                });
+                y = pdfDoc.lastAutoTable.finalY + 10;
+
+                pdfDoc.setFont("helvetica", "bold");
+                pdfDoc.setFontSize(12);
+                pdfDoc.setTextColor(15, 23, 42);
+                pdfDoc.text(`Total Neto: $${saleData.total.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+                y += 15;
+
+                // Mapa (con compresión de imagen)
+                if (saleData.sosId) {
+                    let rutaPuntos = [];
+                    let mechUid = null;
+                    if (saleData.sosId) {
+                        try {
+                            const sosSnap = await getDoc(doc(db, "rescates", saleData.sosId));
+                            if (sosSnap.exists()) {
+                                const sosData = sosSnap.data();
+                                mechUid = sosData.mech_uid || null;
+                            }
+                        } catch (err) { console.warn(err); }
+                    }
+                    if (!mechUid) mechUid = auth.currentUser?.uid || null;
+                    if (mechUid) {
+                        const trackingRef = dbRef(rtdb, `sos_tracking/${saleData.sosId}/${mechUid}/points`);
+                        const trackSnap = await get(trackingRef);
+                        if (trackSnap.exists()) {
+                            trackSnap.forEach(child => {
+                                const punto = child.val();
+                                if (punto.lat && punto.lng) rutaPuntos.push([punto.lat, punto.lng]);
+                            });
+                        }
+                    }
+                    if (rutaPuntos.length === 0 && mechUid) {
+                        const posMechSnap = await get(dbRef(rtdb, `mecanicos_activos/${mechUid}`));
+                        if (posMechSnap.exists()) {
+                            const pos = posMechSnap.val();
+                            if (pos.lat && pos.lng) rutaPuntos.push([pos.lat, pos.lng]);
+                        }
+                    }
+                    if (rutaPuntos.length === 0) rutaPuntos.push([TALLER_LAT, TALLER_LNG]);
+
+                    let mapImage = null;
+                    try {
+                        mapImage = await _generateRouteMapImage(rutaPuntos, saleData.lat, saleData.lng);
+                    } catch (err) { console.error(err); }
+
+                    if (mapImage) {
+                        pdfDoc.setDrawColor(255, 107, 0);
+                        pdfDoc.setLineWidth(0.5);
+                        const mapX = 50;
+                        const mapY = y;
+                        const imgWidth = 120;
+                        const imgHeight = 80;
+                        pdfDoc.rect(mapX, mapY, imgWidth, imgHeight, 'S');
+                        pdfDoc.addImage(mapImage, 'JPEG', mapX, mapY, imgWidth, imgHeight, undefined, undefined, 0.7); // ← CALIDAD 70%
+                        y += 90;
+                    } else {
+                        pdfDoc.text("No se pudo generar el mapa", 12, y);
+                        y += 10;
+                    }
+                }
+
+                pdfDoc.setFontSize(7);
+                pdfDoc.setTextColor(148, 163, 184);
+                pdfDoc.text("Gracias por su preferencia comercial. Conserve el presente ticket físico o digital para hacer válida cualquier reclamación de garantía en sucursal.", 12, y);
+
+                const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE VENTA', logoImg);
+                addFooter(pdfDoc);
+
+               const pdfBlob = pdfDoc.output('blob');
+                resolve(pdfBlob);
+            } catch (error) {
+                reject(error);
+            }
+        };
+
+        if (logoImg.complete) await generar();
+        else { logoImg.onload = generar; logoImg.onerror = generar; }
+    });
+};
+
+// ========== SUBIR PDF A GOOGLE DRIVE ==========
+async function subirPDFaDrive(pdfBlob, ventaId, saleData) {
+    const webAppUrl = 'https://script.google.com/macros/s/AKfycbyLainQKwxgQp0yQEs97opLaEegbVSChWwb4sxjMeHB4uUFdFM68nhrpNClbWKpIwYj6g/exec'; // ← Reemplazar con tu URL real
     
-    const { jsPDF } = window.jspdf;
-    const pdfDoc = new jsPDF();
-    const logoImg = new Image();
-    logoImg.src = 'logo_oscuro.png';
-    
-    const generar = async () => {
-        try {
-            const pageWidth = pdfDoc.internal.pageSize.getWidth();
-            const pageHeight = pdfDoc.internal.pageSize.getHeight();
-            
-            // Encabezado
-            pdfDoc.setFillColor(255, 107, 0);
-            pdfDoc.rect(0, 0, pageWidth, 28, 'F');
-            if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
-            pdfDoc.setFontSize(14);
-            pdfDoc.setFont("helvetica", "bold");
-            pdfDoc.setTextColor(255, 255, 255);
-            pdfDoc.text("COMPROBANTE DE VENTA", logoImg.complete ? 36 : 12, 17.5);
-            pdfDoc.setDrawColor(255, 107, 0);
-            pdfDoc.line(12, 29, pageWidth - 12, 29);
-
-            let y = 40;
-
-            _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 25, 'Datos del Comprobante', [
-                { label: 'Ticket:', value: saleData.shortId, rightLabel: 'Método de Pago:', rightValue: saleData.metodoPago },
-                { label: 'Fecha:', value: new Date(saleData.fecha).toLocaleString(), rightLabel: 'Cliente:', rightValue: saleData.clienteCel || 'Mostrador' }
-            ]);
-            y += 32;
-
-            // --- ARTÍCULOS ADQUIRIDOS (Tabla Única) ---
-            pdfDoc.setFont("helvetica", "bold");
-            pdfDoc.setFontSize(10);
-            pdfDoc.setTextColor(15, 23, 42);
-            pdfDoc.text("ARTÍCULOS ADQUIRIDOS:", 12, y);
-            y += 4;
-
-            let ticketItems = [];
-
-// 1. Servicio contratado
-if (saleData.servicioNombre) {
-    ticketItems.push([
-        `Servicio: ${saleData.servicioNombre}`,
-        'N/A',
-        `$${(saleData.rescueCost || 0).toFixed(2)}`
-    ]);
-}
-
-// 2. Desglose del costo de rescate (si aplica)
-if (saleData.rescueBase > 0) {
-    ticketItems.push([
-        'Tarifa base de rescate',
-        'N/A',
-        `$${saleData.rescueBase.toFixed(2)}`
-    ]);
-}
-if (saleData.rescueKmExtra > 0) {
-    ticketItems.push([
-        'Costo por km extra',
-        'N/A',
-        `$${saleData.rescueKmExtra.toFixed(2)}`
-    ]);
-}
-if (saleData.kmRangePrice > 0) {
-    ticketItems.push([
-        'Costo por rango de km',
-        'N/A',
-        `$${saleData.kmRangePrice.toFixed(2)}`
-    ]);
-}
-
-// 3. Productos del mecánico
-if (saleData.ticket && saleData.ticket.length > 0) {
-    saleData.ticket.forEach(item => {
-        ticketItems.push([
-            item.name,
-            item.garantia || 'Sin garantía',
-            `$${item.price.toFixed(2)}`
-        ]);
+    // Convertir Blob a DataURL para enviarlo al script
+    const reader = new FileReader();
+    return new Promise((resolve, reject) => {
+        reader.onload = async (event) => {
+            const pdfDataUrl = event.target.result;
+            try {
+                const response = await fetch(webAppUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ventaId: ventaId,
+                        shortId: saleData.shortId,
+                        clienteCel: saleData.clienteCel,
+                        fecha: saleData.fecha,
+                        ticket: saleData.ticket || [],
+                        total: saleData.total || 0,
+                        pdfDataUrl: pdfDataUrl
+                    })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    resolve(result.pdfUrl);
+                } else {
+                    console.error('Error en Google Script:', result.error);
+                    reject(new Error(result.error));
+                }
+            } catch (error) {
+                reject(error);
+            }
+        };
+        reader.readAsDataURL(pdfBlob);
     });
 }
 
-// 4. Descuento
-if (saleData.descuento && saleData.descuento > 0) {
-    ticketItems.push(['Descuento aplicado', 'N/A', `-$${saleData.descuento.toFixed(2)}`]);
-}
-            
 
-            // 5. Si no hay nada, mostrar mensaje
-            if (ticketItems.length === 0) {
-                ticketItems.push(['Sin productos', 'N/A', '$0.00']);
-            }
+window.regenerarPDF = async (ventaId) => {
+    const ventaSnap = await getDoc(doc(db, "ventas", ventaId));
+    if (!ventaSnap.exists()) return;
+    const ventaData = ventaSnap.data();
 
-            // 6. Renderizar la tabla
-            pdfDoc.autoTable({
-                startY: y,
-                head: [['Descripción del Producto', 'Garantía Oficial', 'Precio Unitario']],
-                body: ticketItems,
-                theme: 'grid',
-                styles: { fontSize: 8, cellPadding: 2.5, textColor: [30,41,59] },
-                headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
-                columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 35 }, 2: { cellWidth: 30, halign: 'right' } },
-                margin: { left: 12, right: 12 }
-            });
-            y = pdfDoc.lastAutoTable.finalY + 10;
-
-            // --- TOTAL (después de la tabla) ---
-            pdfDoc.setFont("helvetica", "bold");
-            pdfDoc.setFontSize(12);
-            pdfDoc.setTextColor(15, 23, 42);
-            pdfDoc.text(`Total Neto: $${saleData.total.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-            y += 15;
-
-            // --- MAPA (después del total) ---
-            if (saleData.sosId) {
-                console.log('🗺️ Generando mapa para SOS ID:', saleData.sosId);
-                let rutaPuntos = [];
-                let mechUid = null;
-
-                if (saleData.sosId) {
-                    try {
-                        const sosSnap = await getDoc(doc(db, "rescates", saleData.sosId));
-                        if (sosSnap.exists()) {
-                            const sosData = sosSnap.data();
-                            mechUid = sosData.mech_uid || null;
-                        }
-                    } catch (err) {
-                        console.warn('Error obteniendo datos del servicio:', err);
-                    }
-                }
-
-                if (!mechUid) mechUid = auth.currentUser?.uid || null;
-
-                if (mechUid) {
-                    const trackingRef = dbRef(rtdb, `sos_tracking/${saleData.sosId}/${mechUid}/points`);
-                    const trackSnap = await get(trackingRef);
-                    if (trackSnap.exists()) {
-                        trackSnap.forEach(child => {
-                            const punto = child.val();
-                            if (punto.lat && punto.lng) rutaPuntos.push([punto.lat, punto.lng]);
-                        });
-                    }
-                }
-
-                if (rutaPuntos.length === 0 && mechUid) {
-                    const posMechSnap = await get(dbRef(rtdb, `mecanicos_activos/${mechUid}`));
-                    if (posMechSnap.exists()) {
-                        const pos = posMechSnap.val();
-                        if (pos.lat && pos.lng) rutaPuntos.push([pos.lat, pos.lng]);
-                    }
-                }
-
-                if (rutaPuntos.length === 0) {
-                    rutaPuntos.push([TALLER_LAT, TALLER_LNG]);
-                }
-
-                console.log('📍 Puntos para el mapa (mech_uid:', mechUid, '):', rutaPuntos);
-
-                let mapImage = null;
-                try {
-                    mapImage = await _generateRouteMapImage(rutaPuntos, saleData.lat, saleData.lng);
-                    console.log('🎨 Imagen de mapa generada:', mapImage ? 'SÍ' : 'NO');
-                } catch (err) {
-                    console.error('Error generando mapa:', err);
-                }
-
-                if (mapImage) {
-                    pdfDoc.setDrawColor(255, 107, 0);
-                    pdfDoc.setLineWidth(0.5);
-                    const mapX = 50;
-                    const mapY = y;
-                    const mapWidth = 120;
-                    const mapHeight = 80;
-                    pdfDoc.rect(mapX, mapY, mapWidth, mapHeight, 'S');
-                    pdfDoc.addImage(mapImage, 'PNG', mapX, mapY, mapWidth, mapHeight);
-                    y += 90;
-                } else {
-                    pdfDoc.text("No se pudo generar el mapa", 12, y);
-                    y += 10;
-                }
-            }
-
-            // --- PIE DE PÁGINA ---
-            pdfDoc.setFontSize(7);
-            pdfDoc.setTextColor(148, 163, 184);
-            pdfDoc.text("Gracias por su preferencia comercial. Conserve el presente ticket físico o digital para hacer válida cualquier reclamación de garantía en sucursal.", 12, y);
-
-            const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE VENTA', logoImg);
-            addFooter(pdfDoc);
-            
-            try {
-                const blob = pdfDoc.output('blob');
-                const url = URL.createObjectURL(blob);
-                const printWindow = window.open(url, '_blank');
-                if (printWindow) printWindow.onload = () => printWindow.print();
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = `Venta_${saleData.shortId}.pdf`;
-                document.body.appendChild(link);
-                link.click();
-                setTimeout(() => { 
-                    document.body.removeChild(link); 
-                    URL.revokeObjectURL(url); 
-                }, 100);
-            } catch(e) {
-                pdfDoc.save(`Venta_${saleData.shortId}.pdf`);
-            }
-            
-        } catch (error) {
-            console.error('❌ Error generando PDF:', error);
-            throw error;
-        }
-    };
-    
     try {
-        if (logoImg.complete && logoImg.naturalWidth > 0) {
-            await generar();
-        } else {
-            await new Promise((resolve) => {
-                logoImg.onload = resolve;
-                logoImg.onerror = resolve;
-            });
-            await generar();
-        }
-        window.hidePDFProgress();
+        const pdfBlob = await window.imprimirTicketVenta(ventaId, ventaData);
+        const pdfUrl = await subirPDFaDrive(pdfBlob, ventaId, ventaData);
+        await updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl });
+        showToast('✅ PDF regenerado y subido correctamente.');
     } catch (error) {
-        console.error('❌ Error generando PDF:', error);
-        window.hidePDFProgress();
-        window.showToast('Error al generar el PDF. Intenta de nuevo.', true);
+        showToast('❌ Error al regenerar el PDF.', true);
     }
 };
+
 
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
