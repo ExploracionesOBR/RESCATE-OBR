@@ -3635,27 +3635,35 @@ window.setRating = (rating) => {
 };
 
 // Manejar hover y clic
+// Manejar hover y clic con división de media estrella
 document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('star-rating');
     if (!container) return;
+
+    // Mouseover: mostrar vista previa de la calificación
     container.addEventListener('mouseover', (e) => {
         const star = e.target.closest('i');
         if (!star) return;
+        const rect = star.getBoundingClientRect();
+        const x = e.clientX - rect.left;
         const val = parseFloat(star.getAttribute('data-value'));
+        // Si el mouse está en la mitad izquierda, contar como media estrella
+        const hoverRating = x < rect.width / 2 ? val - 0.5 : val;
+
         const stars = container.querySelectorAll('i');
         stars.forEach(s => {
             const sVal = parseFloat(s.getAttribute('data-value'));
-            if (sVal <= val) {
-                if (sVal === val && val % 1 !== 0) {
-                    s.className = 'fas fa-star-half-alt hover';
-                } else {
-                    s.className = 'fas fa-star hover';
-                }
+            if (sVal <= hoverRating) {
+                s.className = 'fas fa-star';
+            } else if (sVal - 0.5 === hoverRating) {
+                s.className = 'fas fa-star-half-alt';
             } else {
-                s.className = 'far fa-star hover';
+                s.className = 'far fa-star';
             }
         });
     });
+
+    // Mouseout: restaurar la calificación actual
     container.addEventListener('mouseout', () => {
         if (window.currentRating) {
             window.setRating(window.currentRating);
@@ -3663,11 +3671,17 @@ document.addEventListener('DOMContentLoaded', () => {
             container.querySelectorAll('i').forEach(s => s.className = 'far fa-star');
         }
     });
+
+    // Click: asignar la calificación definitiva
     container.addEventListener('click', (e) => {
         const star = e.target.closest('i');
         if (!star) return;
+        const rect = star.getBoundingClientRect();
+        const x = e.clientX - rect.left;
         const val = parseFloat(star.getAttribute('data-value'));
-        window.setRating(val);
+        // Si el clic es en la mitad izquierda, asignar media estrella
+        const newRating = x < rect.width / 2 ? val - 0.5 : val;
+        window.setRating(newRating);
     });
 });
 
