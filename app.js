@@ -4341,6 +4341,7 @@ ${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('$
     toggleModal(modalId, true);
 };
 
+// Control de barra de progreso para PDF
 let progressTimeout = null;
 
 function showPDFProgress() {
@@ -4350,7 +4351,7 @@ function showPDFProgress() {
     if (container) container.classList.remove('hidden');
     if (bar) bar.style.width = '0%';
     if (text) text.innerText = 'Preparando documento...';
-    // Simular progreso automático
+    
     let progress = 0;
     if (progressTimeout) clearInterval(progressTimeout);
     progressTimeout = setInterval(() => {
@@ -4379,16 +4380,17 @@ function hidePDFProgress() {
     const bar = document.getElementById('pdf-progress-bar');
     if (bar) bar.style.width = '100%';
     if (container) {
+        // Esperar 2 segundos antes de ocultar la barra
         setTimeout(() => {
             container.classList.add('hidden');
             if (bar) bar.style.width = '0%';
-        }, 500);
+        }, 2000);
     }
 }
 
-// Exponer globalmente
 window.showPDFProgress = showPDFProgress;
 window.hidePDFProgress = hidePDFProgress;
+
 
 window.downloadClientTicket = async function(serviceId) {
     window.showPDFProgress(); 
@@ -5809,13 +5811,16 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
         }
     }
 }
- window.imprimirTicketVenta = async (ventaId, saleData) => {
-    window.showPDFProgress(); 
+window.imprimirTicketVenta = async (ventaId, saleData) => {
+    window.showPDFProgress();
+    await new Promise(resolve => setTimeout(resolve, 300));
     console.log('🧾 Imprimiendo ticket de venta:', ventaId);
+    
     const { jsPDF } = window.jspdf;
     const pdfDoc = new jsPDF();
     const logoImg = new Image();
     logoImg.src = 'logo_oscuro.png';
+    
     const generar = async () => {
         try {
             const pageWidth = pdfDoc.internal.pageSize.getWidth();
@@ -6027,7 +6032,7 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
         window.showToast('Error al generar el PDF. Intenta de nuevo.', true);
     }
 };
-       
+
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
     const cleanPhone = phone.replace(/[^0-9]/g, '');
