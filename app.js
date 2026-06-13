@@ -3109,8 +3109,6 @@ function listenToMySOS() {
         }
 
         window.lastClientSOSStatus = data.status;
-    });
-}
 
         // ========== VERIFICAR ENTREGA ACTIVA (pedidos_online) ==========
         const deliverySnap = await get(dbRef(rtdb, 'pedidos_online/' + auth.currentUser.uid)).catch(() => null);
@@ -3329,6 +3327,7 @@ function listenToMySOS() {
         } else {
             if (noServicesMsg) noServicesMsg.classList.add('hidden');
         }
+    });
 }
 // ========== FIN DE listenToMySOS ==========
 
