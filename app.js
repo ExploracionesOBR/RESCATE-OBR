@@ -5771,43 +5771,7 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
 
         showToast("Venta Registrada y Pagada", false);
 
-        window.imprimirTicketVenta(docRef.id, saleData);
-
-        const ticketRespaldo = [...window.posTicket];
-        
-        window.posTicket = [];
-        window.posDescuento = 0;
-        const phoneInput = document.getElementById('pos-customer-phone');
-        const promoInput = document.getElementById('pos-promo-code');
-        const amountInput = document.getElementById('pos-amount-received');
-        if (phoneInput) phoneInput.value = '';
-        if (promoInput) promoInput.value = '';
-        if (amountInput) amountInput.value = '';
-
-        window.renderTicket();
-        window.adminLoadInventory();
-        window.adminLoadSales();
-        window.adminListenServices();
-        if (phone) {
-            try {
-                window.sendTicketWhatsAppAfterCheckout(phone, totalToPay, ticketRespaldo);
-            } catch (e) {
-                console.warn('Error al enviar WhatsApp:', e);
-            }
-        }
-        window.loadVentasRealizadas();
-
-    } catch (e) {
-        console.error('Error en finalizeCheckout:', e);
-        showToast("Error al procesar: " + (e.message || 'Error desconocido'), true);
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = originalBtnHTML; // ← RESTAURAR EL BOTÓN ORIGINAL
-        }
-    }
-}
- window.imprimirTicketVenta = async (ventaId, saleData) => {
+        window.imprimirTicketVenta = async (ventaId, saleData) => {
     window.showPDFProgress(); 
     console.log('🧾 Imprimiendo ticket de venta:', ventaId);
     const { jsPDF } = window.jspdf;
@@ -5830,7 +5794,7 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
             pdfDoc.setDrawColor(255, 107, 0);
             pdfDoc.line(12, 29, pageWidth - 12, 29);
 
-            let y = 40; // ← DEFINICIÓN DE y
+            let y = 40;
 
             _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 25, 'Datos del Comprobante', [
                 { label: 'Ticket:', value: saleData.shortId, rightLabel: 'Método de Pago:', rightValue: saleData.metodoPago },
@@ -5838,7 +5802,7 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
             ]);
             y += 32;
 
-            // --- ARTÍCULOS ADQUIRIDOS ---
+            // --- ARTÍCULOS ADQUIRIDOS (Incluye servicio, rescate, productos y descuento) ---
             pdfDoc.setFont("helvetica", "bold");
             pdfDoc.setFontSize(10);
             pdfDoc.setTextColor(15, 23, 42);
@@ -5846,14 +5810,35 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
             y += 4;
 
             let ticketItems = [];
-            if (saleData.ticket && saleData.ticket.length > 0) {
-                ticketItems = saleData.ticket.map(item => [
-                    item.name,
-                    item.garantia || 'Sin garantía',
-                    `$${item.price.toFixed(2)}`
+
+            // 1. Agregar el servicio (si existe)
+            if (saleData.servicioNombre) {
+                ticketItems.push([
+                    `Servicio: ${saleData.servicioNombre}`,
+                    'Sin garantía',
+                    `$${saleData.rescueCost ? saleData.rescueCost.toFixed(2) : '$0.00'}`
                 ]);
-            } else {
-                ticketItems = [['Sin productos', 'N/A', '$0.00']];
+            }
+
+            // 2. Agregar los productos del ticket (cargos del mecánico)
+            if (saleData.ticket && saleData.ticket.length > 0) {
+                saleData.ticket.forEach(item => {
+                    ticketItems.push([
+                        item.name,
+                        item.garantia || 'Sin garantía',
+                        `$${item.price.toFixed(2)}`
+                    ]);
+                });
+            }
+
+            // 3. Agregar descuento si existe (como fila con precio negativo)
+            if (saleData.descuento && saleData.descuento > 0) {
+                ticketItems.push(['Descuento aplicado', 'N/A', `-$${saleData.descuento.toFixed(2)}`]);
+            }
+
+            // 4. Si no hay nada, mostrar mensaje
+            if (ticketItems.length === 0) {
+                ticketItems.push(['Sin productos', 'N/A', '$0.00']);
             }
 
             pdfDoc.autoTable({
@@ -5867,33 +5852,6 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
                 margin: { left: 12, right: 12 }
             });
             y = pdfDoc.lastAutoTable.finalY + 10;
-
-            // --- INFORMACIÓN DEL RESCATE ---
-            if (saleData.rescueCost || saleData.servicioNombre || saleData.descuento) {
-                let rescueY = y;
-                pdfDoc.setFont("helvetica", "bold");
-                pdfDoc.setFontSize(9);
-                pdfDoc.setTextColor(255, 107, 0);
-                pdfDoc.text("RESCATE Y SERVICIO", 12, rescueY);
-                rescueY += 6;
-                pdfDoc.setFont("helvetica", "normal");
-                pdfDoc.setFontSize(8);
-                pdfDoc.setTextColor(60, 60, 60);
-                
-                if (saleData.servicioNombre) {
-                    pdfDoc.text(`Servicio: ${saleData.servicioNombre}`, 12, rescueY);
-                    rescueY += 5;
-                }
-                if (saleData.rescueCost) {
-                    pdfDoc.text(`Costo de rescate: $${saleData.rescueCost.toFixed(2)}`, 12, rescueY);
-                    rescueY += 5;
-                }
-                if (saleData.descuento && saleData.descuento > 0) {
-                    pdfDoc.text(`Descuento aplicado: -$${saleData.descuento.toFixed(2)}`, 12, rescueY);
-                    rescueY += 5;
-                }
-                y = rescueY + 8;
-            }
 
             // --- TOTAL ---
             pdfDoc.setFont("helvetica", "bold");
@@ -6020,6 +5978,7 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
         window.showToast('Error al generar el PDF. Intenta de nuevo.', true);
     }
 };
+        
        
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
