@@ -3329,7 +3329,6 @@ function listenToMySOS() {
         } else {
             if (noServicesMsg) noServicesMsg.classList.add('hidden');
         }
-    });
 }
 // ========== FIN DE listenToMySOS ==========
 
@@ -7902,15 +7901,6 @@ function renderMechanicTicket() {
             </div>
         `;
     });
-}
-
-// Actualizar totales (rescate + suma de ítems)
-function updateMechanicTotal() {
-    const itemsTotal = mechanicTicket.reduce((sum, i) => sum + i.price, 0);
-    const total = mechanicRescueCost + itemsTotal;
-    document.getElementById('mech-rescue-cost').innerText = `$${mechanicRescueCost.toFixed(2)}`;
-    document.getElementById('mech-items-subtotal').innerText = `$${itemsTotal.toFixed(2)}`;
-    document.getElementById('mech-total').innerText = `$${total.toFixed(2)}`;
 }
 
 // Agregar cargo manual
