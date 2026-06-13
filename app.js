@@ -8012,16 +8012,22 @@ async function finalizarServicioParaCliente(sosId) {
     const sosSnap = await getDoc(doc(db, "rescates", sosId));
     if (sosSnap.exists() && sosSnap.data().uid) {
         const uid = sosSnap.data().uid;
-        // Eliminar la alerta SOS para que el cliente ya no vea el seguimiento
-        await remove(dbRef(rtdb, 'sos_alerts/' + uid));
+        const data = sosSnap.data();
         
-        // Notificar al cliente que finalizó (no "cobro pendiente")
+        // ✅ ACTUALIZAR el nodo sos_alerts en lugar de eliminar
+        const sosAlertsRef = dbRef(rtdb, 'sos_alerts/' + uid);
+        await set(sosAlertsRef, { 
+            ...data, 
+            status: 'completed',
+            tallerStatus: 'pagado'
+        });
+        
+        // Enviar notificación al cliente
         await push(dbRef(rtdb, 'sos_alerts/' + uid + '/notifs'), {
             msg: '✅ Tu servicio ha sido finalizado y pagado. ¡Califícanos!'
         });
     }
 }
-
 // ---------- Asignar mecánico y enviar WhatsApp ----------
 async function loadMecanicosActivosParaAsignar(sosId) {
     const lista = document.getElementById('lista-mecanicos-asignar');
