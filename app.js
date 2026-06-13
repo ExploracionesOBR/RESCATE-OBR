@@ -2788,6 +2788,7 @@ function listenToMySOS() {
         const progressBar = document.getElementById('sos-progress-bar');
         const emergencyBtn = document.getElementById('emergency-client-btn');
         const chatBtn = document.getElementById('btn-chat-sos');
+        const videoContainer = document.getElementById('promo-video-container');
 
         // CASO 1: El nodo fue eliminado (servicio finalizado o cancelado)
         if (!snap.exists()) {
@@ -2800,6 +2801,7 @@ function listenToMySOS() {
                 }
                 if (chatBtn) chatBtn.classList.add('hidden');
                 if (emergencyBtn) emergencyBtn.style.display = 'flex';
+                if (videoContainer) videoContainer.style.display = 'block'; // Mostrar video si no hay mapa
 
                 if (routingControl) {
                     routingControl.remove();
@@ -2845,6 +2847,7 @@ function listenToMySOS() {
             }
             if (chatBtn) chatBtn.classList.add('hidden');
             if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (videoContainer) videoContainer.style.display = 'block';
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (routingControl) {
                 routingControl.remove();
@@ -2869,7 +2872,42 @@ function listenToMySOS() {
 
         // CASO 2: Servicio completado o cancelado (aún en RTDB)
         if (data.status === 'completed' || data.status === 'cancelled') {
-            if (activeCard) activeCard.classList.add('hidden');
+            const survey = document.getElementById('satisfaction-survey');
+            const activeCard = document.getElementById('active-sos-card');
+
+            if (data.status === 'completed') {
+                // Mostrar encuesta
+                if (survey) {
+                    survey.classList.remove('hidden');
+                }
+                // Ocultar tarjeta de rescate activo
+                if (activeCard) {
+                    activeCard.classList.add('hidden');
+                }
+                speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
+                playSound('notif');
+            } else if (data.status === 'cancelled') {
+                // Asegurar que la encuesta esté oculta en cancelación
+                if (survey) {
+                    survey.classList.add('hidden');
+                }
+                // Ocultar tarjeta de rescate activo (por si acaso)
+                if (activeCard) {
+                    activeCard.classList.add('hidden');
+                }
+                speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
+                playSound('notif');
+                if (document.getElementById('no-active-services-msg')) {
+                    document.getElementById('no-active-services-msg').classList.remove('hidden');
+                }
+            }
+
+            // Limpieza común (mapa, chat, etc.)
+            const wsCard = document.getElementById('active-workshop-card');
+            const mechanicMapDiv = document.getElementById('mechanic-live-map');
+            const chatBtn = document.getElementById('btn-chat-sos');
+            const emergencyBtn = document.getElementById('emergency-client-btn');
+
             if (wsCard) wsCard.classList.add('hidden');
             if (mechanicMapDiv) {
                 mechanicMapDiv.classList.add('hidden');
@@ -2883,15 +2921,8 @@ function listenToMySOS() {
                 routingControl = null;
             }
 
-            if (data.status === 'completed') {
-                speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
-                playSound('notif');
-            } else {
-                speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
-                playSound('notif');
-            }
-
             window.loadClientHistory();
+            lastSOSStatus = null;
             return;
         }
 
@@ -2959,6 +2990,11 @@ function listenToMySOS() {
             initClientMapIfNeeded();
 
             if (window.clientMapInstance && data.lat && data.lng) {
+                // ✅ Ocultar video y mostrar mapa
+                const videoContainer = document.getElementById('promo-video-container');
+                if (videoContainer) videoContainer.style.display = 'none';
+                if (mechanicMapDiv) mechanicMapDiv.style.display = 'block';
+
                 if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
                 window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
                     icon: L.divIcon({
@@ -3068,9 +3104,13 @@ function listenToMySOS() {
                 }
             }
             if (mechPosUnsubscribe) mechPosUnsubscribe();
+            // ✅ Mostrar video si no hay mapa
+            if (videoContainer) videoContainer.style.display = 'block';
         }
 
         window.lastClientSOSStatus = data.status;
+    });
+}
 
         // ========== VERIFICAR ENTREGA ACTIVA (pedidos_online) ==========
         const deliverySnap = await get(dbRef(rtdb, 'pedidos_online/' + auth.currentUser.uid)).catch(() => null);
@@ -3664,6 +3704,8 @@ window.submitSurvey = async () => {
     // ✅ Guardar en localStorage para NO mostrar la encuesta nuevamente
     localStorage.setItem('calificado_' + shortId, 'true');
     localStorage.removeItem('encuesta_cancelada_' + shortId);
+    
+     await remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
 
     document.getElementById('satisfaction-survey').classList.add('hidden');
     document.getElementById('no-active-services-msg').classList.remove('hidden');
@@ -3697,6 +3739,8 @@ window.cancelSurvey = async () => {
     // ✅ Guardar en localStorage para no volver a mostrar
     localStorage.setItem('calificado_' + shortId, 'true');
     localStorage.setItem('encuesta_cancelada_' + shortId, 'true');
+
+     await remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid));
 
     document.getElementById('satisfaction-survey').classList.add('hidden');
     document.getElementById('no-active-services-msg').classList.remove('hidden');
@@ -5711,24 +5755,21 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
             }
         }
 
-  const saleData = {
-    shortId: sId,
-    desc: window.posTicket.map(i => i.name).join(", "),
-    total: totalToPay,
-    costo: window.posTotalCost,
-    metodoPago: paymentMethod,
-    clienteCel: phone ? "+52"+phone : null,
-    ticket: window.posTicket,
-    garantias: garantias.length ? garantias : null,
-    fecha: new Date().toISOString(),
-    sosId: currentDetalleServicioId || null,
-    rescueCost: window.currentSOSCost || 0,
-    descuento: window.posDescuento || 0,
-    servicioNombre: servicioNombre,  // Nombre limpio del servicio (sin corchetes, asteriscos, etc.)
-    descripcionFalla: data.falla || null,  // Texto completo de la falla (para la sección de detalles)
-    costoEnvio: data.costoEnvio || 0,  // Costo de envío (si aplica)
-    lat: lat,
-    lng: lng
+const saleData = {
+    pendingId: pendingId,
+    sosId: currentMechanicSOSId,
+    cliente: clienteName,
+    mech_uid: auth.currentUser.uid,
+    mech_name: window.currentUserDoc?.name || 'Mecánico',
+    concepto: `Servicio ${sosData.shortId || currentMechanicSOSId}`,
+    monto: total,
+    ticket: mechanicTicket,
+    rescueCost: mechanicRescueCost,
+    descuento: window.mechanicPromoDiscount || 0,   // ← AGREGAR ESTA LÍNEA
+    codigoPromo: window.mechanicPromoCode || null, // ← AGREGAR ESTA LÍNEA
+    estado: 'pendiente',
+    timestamp: Date.now(),
+    metodoPago: 'Pendiente'
 };
         
         const docRef = await addDoc(collection(db, "ventas"), saleData);
@@ -8028,6 +8069,41 @@ async function finalizarServicioParaCliente(sosId) {
         });
     }
 }
+
+window.mechApplyPromo = async function() {
+    const code = document.getElementById('mech-promo-code')?.value.trim().toUpperCase();
+    if (!code) return window.showToast("Ingresa un código promocional", true);
+    
+    const snap = await getDocs(query(collection(db, "promociones"), where("codigo", "==", code), where("active", "==", true), limit(1)));
+    if (!snap.empty) {
+        const promo = snap.docs[0].data();
+        let discount = 0;
+        if (promo.tipoRecompensa === 'desc_fijo') {
+            discount = parseFloat(promo.valorRecompensa);
+        } else if (promo.tipoRecompensa === 'desc_porc') {
+            const total = mechanicRescueCost + mechanicTicket.reduce((s, i) => s + i.price, 0);
+            discount = total * (parseFloat(promo.valorRecompensa) / 100);
+        }
+        window.mechanicPromoDiscount = discount;
+        window.mechanicPromoCode = code;
+        updateMechanicTotal();
+        window.showToast(`Código ${code} aplicado. Descuento: $${discount.toFixed(2)}`);
+    } else {
+        window.showToast("Código inválido", true);
+    }
+};
+
+// Modifica updateMechanicTotal para incluir el descuento (reemplázala)
+function updateMechanicTotal() {
+    const itemsTotal = mechanicTicket.reduce((sum, i) => sum + i.price, 0);
+    let total = mechanicRescueCost + itemsTotal;
+    const discount = window.mechanicPromoDiscount || 0;
+    total = Math.max(0, total - discount);
+    document.getElementById('mech-rescue-cost').innerText = `$${mechanicRescueCost.toFixed(2)}`;
+    document.getElementById('mech-items-subtotal').innerText = `$${itemsTotal.toFixed(2)}`;
+    document.getElementById('mech-total').innerText = `$${total.toFixed(2)}`;
+}
+
 // ---------- Asignar mecánico y enviar WhatsApp ----------
 async function loadMecanicosActivosParaAsignar(sosId) {
     const lista = document.getElementById('lista-mecanicos-asignar');
