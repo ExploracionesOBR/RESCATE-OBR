@@ -1505,7 +1505,6 @@
 </div>
 
 <!-- Modal POS Mecánico (mejorado) -->
-<!-- Modal POS Mecánico (mejorado) -->
 <div id="modal-mechanic-pos" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
     <div class="bg-asfalto w-full max-w-5xl max-h-[90vh] rounded-[2rem] border border-indigo-500/30 shadow-2xl flex flex-col overflow-hidden">
         <!-- Cabecera -->
@@ -1527,26 +1526,30 @@
             </div>
 
             <!-- Panel derecho: ticket -->
-            <div class="lg:w-1/2 p-4 flex flex-col bg-white/5">
-                <h3 class="text-lg font-black text-white mb-3 border-b border-white/10 pb-2">Ticket de servicio</h3>
-                <div id="mech-ticket-items" class="flex-1 overflow-y-auto space-y-2 max-h-[50vh] mb-4"></div>
-                <div class="border-t border-white/10 pt-3 space-y-2">
-                    <div class="flex justify-between text-sm">
-                        <span>Rescate:</span>
-                        <span id="mech-rescue-cost" class="font-bold text-naranja">$0.00</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span>Productos / Cargos:</span>
-                        <span id="mech-items-subtotal" class="font-bold">$0.00</span>
-                    </div>
-                    <div class="flex justify-between text-xl font-black">
-                        <span>TOTAL:</span>
-                        <span id="mech-total" class="text-naranja">$0.00</span>
-                    </div>
-                    <button id="btn-finalize-mechanic-charge" onclick="window.finalizeMechanicCharge()" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase mt-4 transition-all">Cobrar y finalizar</button>
-                </div>
-            </div>
+<div class="lg:w-1/2 p-4 flex flex-col bg-white/5">
+    <h3 class="text-lg font-black text-white mb-3 border-b border-white/10 pb-2">Ticket de servicio</h3>
+    <div id="mech-ticket-items" class="flex-1 overflow-y-auto space-y-2 max-h-[50vh] mb-4"></div>
+    
+    <!-- ✅ CAMPO DE CÓDIGO PROMOCIONAL -->
+    <div class="flex space-x-2 mb-2">
+        <input id="mech-promo-code" type="text" placeholder="Código Promo" class="flex-grow bg-black/30 border border-white/10 p-2 rounded-lg text-white text-xs uppercase">
+        <button onclick="window.mechApplyPromo()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 rounded-lg text-xs font-bold uppercase transition-colors">Aplicar</button>
+    </div>
+
+    <div class="border-t border-white/10 pt-3 space-y-2">
+        <div class="flex justify-between text-sm">
+            <span>Rescate:</span>
+            <span id="mech-rescue-cost" class="font-bold text-naranja">$0.00</span>
         </div>
+        <div class="flex justify-between text-sm">
+            <span>Productos / Cargos:</span>
+            <span id="mech-items-subtotal" class="font-bold">$0.00</span>
+        </div>
+        <div class="flex justify-between text-xl font-black">
+            <span>TOTAL:</span>
+            <span id="mech-total" class="text-naranja">$0.00</span>
+        </div>
+        <button id="btn-finalize-mechanic-charge" onclick="window.finalizeMechanicCharge()" class="w-full bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase mt-4 transition-all">Cobrar y finalizar</button>
     </div>
 </div>
 <!-- Modal cobro de entrega -->
