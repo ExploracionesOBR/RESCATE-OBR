@@ -371,7 +371,7 @@
             </div>
 
             <!-- ====== TARJETA DE RESCATE ACTIVO ====== -->
-            <div id="active-sos-card" class="hidden bg-gradient-to-br from-red-900/40 to-asfalto border border-red-500 p-6 rounded-3xl shadow-xl">
+           <div id="active-sos-card" class="hidden bg-gradient-to-br from-red-900/40 to-asfalto border border-red-500 p-6 rounded-3xl shadow-xl">
     <div class="mb-6">
         <div class="flex justify-between text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
             <span id="step-1-label">Aceptado</span>
@@ -392,11 +392,25 @@
         <i class="fas fa-ambulance text-red-500 text-2xl animate-pulse"></i>
         <h3 class="font-black text-white uppercase italic">Rescate Solicitado</h3>
     </div>
-    <p id="sos-status-desc-client" class="text-xs text-gray-300 mb-4">Esperando confirmación</p>
+    <p id="sos-status-desc-client" class="text-xs text-gray-300 mb-4">Esperando confirmación...</p>
 
-    <!-- ✅ BANNER DE VIDEO PROMOCIONAL (visible mientras espera aceptación) -->
-    <div id="promo-video-container" class="h-64 w-full rounded-xl mb-4 border border-red-500/30 z-0 flex items-center justify-center bg-black/50" style="display: block;">
-        <video id="promo-video-player" controls autoplay muted loop class="w-full max-h-[250px] object-contain"></video>
+    <!-- ✅ BANNER DE VIDEO PROMOCIONAL (mismo que la tienda, con efecto de desenfoque) -->
+    <div id="promo-video-container" class="w-full rounded-xl mb-4 border border-red-500/30 overflow-hidden relative" style="display: block; height: 180px;">
+        <div style="pointer-events: none; user-select: none; width: 100%; margin: 0 auto;">
+            <video 
+                src="https://ik.imagekit.io/1usn8i4fi/b2db6519-e838-45bf-b076-1f12aa2728e5.mp4" 
+                autoplay 
+                muted 
+                loop 
+                playsinline 
+                controlslist="nodownload nofullscreen" 
+                class="w-full object-cover rounded-xl" 
+                style="height: 180px; width: 100%;" 
+                oncontextmenu="return false">
+            </video>
+        </div>
+        <!-- ✅ Efecto de desenfoque en el marco (se mezcla con la tarjeta) -->
+        <div class="absolute inset-0 border border-red-500/20 rounded-xl shadow-[0_0_30px_rgba(255,107,0,0.2)]"></div>
     </div>
 
     <!-- Contenedor del mapa (oculto por defecto, se muestra cuando el mecánico es aceptado) -->
