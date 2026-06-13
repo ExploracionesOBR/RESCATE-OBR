@@ -5709,23 +5709,25 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
             }
         }
 
-        const saleData = {
-            shortId: sId,
-            desc: window.posTicket.map(i => i.name).join(", "),
-            total: totalToPay,
-            costo: window.posTotalCost,
-            metodoPago: paymentMethod,
-            clienteCel: phone ? "+52"+phone : null,
-            ticket: window.posTicket,
-            garantias: garantias.length ? garantias : null,
-            fecha: new Date().toISOString(),
-            sosId: currentDetalleServicioId || null,
-            rescueCost: window.currentSOSCost || 0,
-            descuento: window.posDescuento || 0,
-            servicioNombre: servicioNombre,
-            lat: lat,
-            lng: lng
-        };
+  const saleData = {
+    shortId: sId,
+    desc: window.posTicket.map(i => i.name).join(", "),
+    total: totalToPay,
+    costo: window.posTotalCost,
+    metodoPago: paymentMethod,
+    clienteCel: phone ? "+52"+phone : null,
+    ticket: window.posTicket,
+    garantias: garantias.length ? garantias : null,
+    fecha: new Date().toISOString(),
+    sosId: currentDetalleServicioId || null,
+    rescueCost: window.currentSOSCost || 0,
+    descuento: window.posDescuento || 0,
+    servicioNombre: servicioNombre,  // Nombre limpio del servicio (sin corchetes, asteriscos, etc.)
+    descripcionFalla: data.falla || null,  // Texto completo de la falla (para la sección de detalles)
+    costoEnvio: data.costoEnvio || 0,  // Costo de envío (si aplica)
+    lat: lat,
+    lng: lng
+};
         
         const docRef = await addDoc(collection(db, "ventas"), saleData);
 
@@ -5838,7 +5840,7 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
             ]);
             y += 32;
 
-            // --- ARTÍCULOS ADQUIRIDOS (Incluye servicio, rescate, productos y descuento) ---
+            // --- ARTÍCULOS ADQUIRIDOS (Tabla Única) ---
             pdfDoc.setFont("helvetica", "bold");
             pdfDoc.setFontSize(10);
             pdfDoc.setTextColor(15, 23, 42);
@@ -5847,36 +5849,47 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
 
             let ticketItems = [];
 
-            // 1. Agregar el servicio (si existe)
-            if (saleData.servicioNombre) {
-                ticketItems.push([
-                    `Servicio: ${saleData.servicioNombre}`,
-                    'Sin garantía',
-                    `$${saleData.rescueCost ? saleData.rescueCost.toFixed(2) : '$0.00'}`
-                ]);
+            // 1. Limpiar y agregar el nombre del servicio
+            let nombreLimpio = (saleData.servicioNombre || '')
+                .replace(/\[.*?\]/g, '')          // Elimina contenido entre [ ]
+                .replace(/\*/g, '')               // Elimina asteriscos *
+                .replace(/\[|\]/g, '')            // Elimina corchetes sobrantes
+                .trim();
+            
+            if (nombreLimpio) {
+                ticketItems.push([nombreLimpio, 'Sin garantía', `$${saleData.rescueCost ? saleData.rescueCost.toFixed(2) : '$0.00'}`]);
             }
 
             // 2. Agregar los productos del ticket (cargos del mecánico)
             if (saleData.ticket && saleData.ticket.length > 0) {
                 saleData.ticket.forEach(item => {
-                    ticketItems.push([
-                        item.name,
-                        item.garantia || 'Sin garantía',
-                        `$${item.price.toFixed(2)}`
-                    ]);
+                    // Evitar duplicar el servicio si ya se agregó
+                    if (item.type !== 'servicio' && item.type !== 'rescate') {
+                        ticketItems.push([
+                            item.name,
+                            item.garantia || 'Sin garantía',
+                            `$${item.price.toFixed(2)}`
+                        ]);
+                    }
                 });
             }
 
-            // 3. Agregar descuento si existe (como fila con precio negativo)
+            // 3. Agregar costo de envío (si existe)
+            if (saleData.costoEnvio && saleData.costoEnvio > 0) {
+                ticketItems.push(['Costo de envío', 'N/A', `$${saleData.costoEnvio.toFixed(2)}`]);
+            }
+
+            // 4. Agregar descuento (si existe)
             if (saleData.descuento && saleData.descuento > 0) {
                 ticketItems.push(['Descuento aplicado', 'N/A', `-$${saleData.descuento.toFixed(2)}`]);
             }
 
-            // 4. Si no hay nada, mostrar mensaje
+            // 5. Si no hay nada, mostrar mensaje
             if (ticketItems.length === 0) {
                 ticketItems.push(['Sin productos', 'N/A', '$0.00']);
             }
 
+            // 6. Renderizar la tabla
             pdfDoc.autoTable({
                 startY: y,
                 head: [['Descripción del Producto', 'Garantía Oficial', 'Precio Unitario']],
@@ -5889,14 +5902,14 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
             });
             y = pdfDoc.lastAutoTable.finalY + 10;
 
-            // --- TOTAL ---
+            // --- TOTAL (después de la tabla) ---
             pdfDoc.setFont("helvetica", "bold");
             pdfDoc.setFontSize(12);
             pdfDoc.setTextColor(15, 23, 42);
             pdfDoc.text(`Total Neto: $${saleData.total.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
             y += 15;
 
-            // --- MAPA ---
+            // --- MAPA (después del total) ---
             if (saleData.sosId) {
                 console.log('🗺️ Generando mapa para SOS ID:', saleData.sosId);
                 let rutaPuntos = [];
