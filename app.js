@@ -2869,62 +2869,56 @@ function listenToMySOS() {
 
         const data = snap.val();
         lastSOSStatus = data.status;
+        
+       // CASO 2: Servicio completado o cancelado (aún en RTDB)
+if (data.status === 'completed' || data.status === 'cancelled') {
+    const survey = document.getElementById('satisfaction-survey');
+    const activeCard = document.getElementById('active-sos-card');
+    const emergencyBtn = document.getElementById('emergency-client-btn');
+    const wsCard = document.getElementById('active-workshop-card');
+    const mechanicMapDiv = document.getElementById('mechanic-live-map');
+    const chatBtn = document.getElementById('btn-chat-sos');
 
-        // CASO 2: Servicio completado o cancelado (aún en RTDB)
-        if (data.status === 'completed' || data.status === 'cancelled') {
-            const survey = document.getElementById('satisfaction-survey');
-            const activeCard = document.getElementById('active-sos-card');
-
-            if (data.status === 'completed') {
-                // Mostrar encuesta
-                if (survey) {
-                    survey.classList.remove('hidden');
-                }
-                // Ocultar tarjeta de rescate activo
-                if (activeCard) {
-                    activeCard.classList.add('hidden');
-                }
-                speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
-                playSound('notif');
-            } else if (data.status === 'cancelled') {
-                // Asegurar que la encuesta esté oculta en cancelación
-                if (survey) {
-                    survey.classList.add('hidden');
-                }
-                // Ocultar tarjeta de rescate activo (por si acaso)
-                if (activeCard) {
-                    activeCard.classList.add('hidden');
-                }
-                speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
-                playSound('notif');
-                if (document.getElementById('no-active-services-msg')) {
-                    document.getElementById('no-active-services-msg').classList.remove('hidden');
-                }
-            }
-
-            // Limpieza común (mapa, chat, etc.)
-            const wsCard = document.getElementById('active-workshop-card');
-            const mechanicMapDiv = document.getElementById('mechanic-live-map');
-            const chatBtn = document.getElementById('btn-chat-sos');
-            const emergencyBtn = document.getElementById('emergency-client-btn');
-
-            if (wsCard) wsCard.classList.add('hidden');
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.add('hidden');
-                mechanicMapDiv.style.display = 'none';
-            }
-            if (chatBtn) chatBtn.classList.add('hidden');
-            if (emergencyBtn) emergencyBtn.style.display = 'flex';
-            if (mechPosUnsubscribe) mechPosUnsubscribe();
-            if (routingControl) {
-                routingControl.remove();
-                routingControl = null;
-            }
-
-            window.loadClientHistory();
-            lastSOSStatus = null;
-            return;
+    if (data.status === 'completed') {
+        // Mostrar encuesta
+        if (survey) survey.classList.remove('hidden');
+        // Ocultar tarjeta de rescate activo
+        if (activeCard) activeCard.classList.add('hidden');
+        // Ocultar botón de emergencia
+        if (emergencyBtn) emergencyBtn.style.display = 'none';
+        speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
+        playSound('notif');
+    } else if (data.status === 'cancelled') {
+        // Asegurar que la encuesta esté oculta en cancelación
+        if (survey) survey.classList.add('hidden');
+        // Ocultar tarjeta de rescate activo
+        if (activeCard) activeCard.classList.add('hidden');
+        // Mostrar botón de emergencia nuevamente
+        if (emergencyBtn) emergencyBtn.style.display = 'flex';
+        speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
+        playSound('notif');
+        if (document.getElementById('no-active-services-msg')) {
+            document.getElementById('no-active-services-msg').classList.remove('hidden');
         }
+    }
+
+    // Limpieza común
+    if (wsCard) wsCard.classList.add('hidden');
+    if (mechanicMapDiv) {
+        mechanicMapDiv.classList.add('hidden');
+        mechanicMapDiv.style.display = 'none';
+    }
+    if (chatBtn) chatBtn.classList.add('hidden');
+    if (mechPosUnsubscribe) mechPosUnsubscribe();
+    if (routingControl) {
+        routingControl.remove();
+        routingControl = null;
+    }
+
+    window.loadClientHistory();
+    lastSOSStatus = null;
+    return;
+}
 
         // --- SOS ACTIVO ---
         if (activeCard) activeCard.classList.remove('hidden');
@@ -5767,21 +5761,25 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
             }
         }
 
+// Dentro de finalizeCheckout, al crear saleData:
 const saleData = {
-    pendingId: pendingId,
-    sosId: currentMechanicSOSId,
-    cliente: clienteName,
-    mech_uid: auth.currentUser.uid,
-    mech_name: window.currentUserDoc?.name || 'Mecánico',
-    concepto: `Servicio ${sosData.shortId || currentMechanicSOSId}`,
-    monto: total,
-    ticket: mechanicTicket,
-    rescueCost: mechanicRescueCost,
-    descuento: window.mechanicPromoDiscount || 0,   // ← AGREGAR ESTA LÍNEA
-    codigoPromo: window.mechanicPromoCode || null, // ← AGREGAR ESTA LÍNEA
-    estado: 'pendiente',
-    timestamp: Date.now(),
-    metodoPago: 'Pendiente'
+    shortId: sId,
+    desc: window.posTicket.map(i => i.name).join(", "),
+    total: totalToPay,
+    costo: window.posTotalCost,
+    metodoPago: paymentMethod,
+    clienteCel: phone ? "+52"+phone : null,
+    ticket: window.posTicket,
+    garantias: garantias.length ? garantias : null,
+    fecha: new Date().toISOString(),
+    sosId: currentDetalleServicioId || null,
+    rescueCost: window.currentSOSCost || 0,
+    rescueBase: globalSettings.rescueBase || 0,           // ← AGREGAR
+    rescueKmExtra: globalSettings.rescueKmExtra || 0,     // ← AGREGAR
+    descuento: window.posDescuento || 0,
+    servicioNombre: servicioNombre,
+    lat: lat,
+    lng: lng
 };
         
         const docRef = await addDoc(collection(db, "ventas"), saleData);
@@ -5907,40 +5905,54 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
 
             let ticketItems = [];
 
-            // 1. Limpiar y agregar el nombre del servicio
-            let nombreLimpio = (saleData.servicioNombre || '')
-                .replace(/\[.*?\]/g, '')          // Elimina contenido entre [ ]
-                .replace(/\*/g, '')               // Elimina asteriscos *
-                .replace(/\[|\]/g, '')            // Elimina corchetes sobrantes
-                .trim();
+// 1. Servicio contratado
+if (saleData.servicioNombre) {
+    ticketItems.push([
+        `Servicio: ${saleData.servicioNombre}`,
+        'N/A',
+        `$${(saleData.rescueCost || 0).toFixed(2)}`
+    ]);
+}
+
+// 2. Desglose del costo de rescate (si aplica)
+if (saleData.rescueBase > 0) {
+    ticketItems.push([
+        'Tarifa base de rescate',
+        'N/A',
+        `$${saleData.rescueBase.toFixed(2)}`
+    ]);
+}
+if (saleData.rescueKmExtra > 0) {
+    ticketItems.push([
+        'Costo por km extra',
+        'N/A',
+        `$${saleData.rescueKmExtra.toFixed(2)}`
+    ]);
+}
+if (saleData.kmRangePrice > 0) {
+    ticketItems.push([
+        'Costo por rango de km',
+        'N/A',
+        `$${saleData.kmRangePrice.toFixed(2)}`
+    ]);
+}
+
+// 3. Productos del mecánico
+if (saleData.ticket && saleData.ticket.length > 0) {
+    saleData.ticket.forEach(item => {
+        ticketItems.push([
+            item.name,
+            item.garantia || 'Sin garantía',
+            `$${item.price.toFixed(2)}`
+        ]);
+    });
+}
+
+// 4. Descuento
+if (saleData.descuento && saleData.descuento > 0) {
+    ticketItems.push(['Descuento aplicado', 'N/A', `-$${saleData.descuento.toFixed(2)}`]);
+}
             
-            if (nombreLimpio) {
-                ticketItems.push([nombreLimpio, 'Sin garantía', `$${saleData.rescueCost ? saleData.rescueCost.toFixed(2) : '$0.00'}`]);
-            }
-
-            // 2. Agregar los productos del ticket (cargos del mecánico)
-            if (saleData.ticket && saleData.ticket.length > 0) {
-                saleData.ticket.forEach(item => {
-                    // Evitar duplicar el servicio si ya se agregó
-                    if (item.type !== 'servicio' && item.type !== 'rescate') {
-                        ticketItems.push([
-                            item.name,
-                            item.garantia || 'Sin garantía',
-                            `$${item.price.toFixed(2)}`
-                        ]);
-                    }
-                });
-            }
-
-            // 3. Agregar costo de envío (si existe)
-            if (saleData.costoEnvio && saleData.costoEnvio > 0) {
-                ticketItems.push(['Costo de envío', 'N/A', `$${saleData.costoEnvio.toFixed(2)}`]);
-            }
-
-            // 4. Agregar descuento (si existe)
-            if (saleData.descuento && saleData.descuento > 0) {
-                ticketItems.push(['Descuento aplicado', 'N/A', `-$${saleData.descuento.toFixed(2)}`]);
-            }
 
             // 5. Si no hay nada, mostrar mensaje
             if (ticketItems.length === 0) {
