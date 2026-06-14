@@ -2790,99 +2790,64 @@ function listenToMySOS() {
         const chatBtn = document.getElementById('btn-chat-sos');
         const videoContainer = document.getElementById('promo-video-container');
 
-        // Estados que se consideran "activos" (muestran la tarjeta)
-        const activeStatuses = ['accepted', 'repairing', 'to_shop', 'ready'];
-
-        // -------------------------------------------------------------
-        // CASO 1: No hay nodo en RTDB (servicio eliminado o nunca existió)
-        // -------------------------------------------------------------
+        // CASO 1: El nodo fue eliminado (servicio finalizado o cancelado)
         if (!snap.exists()) {
-            // Ocultar todo lo relacionado con rescate activo
-            if (activeCard) activeCard.classList.add('hidden');
-            if (wsCard) wsCard.classList.add('hidden');
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.add('hidden');
-                mechanicMapDiv.style.display = 'none';
-            }
-            if (chatBtn) chatBtn.classList.add('hidden');
-            if (emergencyBtn) emergencyBtn.style.display = 'flex';
-            if (videoContainer) videoContainer.style.display = 'block';
-            if (noServicesMsg) noServicesMsg.classList.remove('hidden');
-
-            // Verificar si hay un servicio completado sin calificar para mostrar encuesta
-            const completedSnap = await getDocs(query(collection(db, "rescates"), 
-                where("uid", "==", auth.currentUser.uid), 
-                where("status", "==", "completed"), 
-                orderBy("timestamp", "desc"), 
-                limit(1)));
-            if (!completedSnap.empty) {
-                const shortId = completedSnap.docs[0].data().shortId || 'unknown';
-                const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
-                if (!yaCalifico) {
-                    if (survey) survey.classList.remove('hidden');
-                } else {
-                    if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+            if (lastSOSStatus === 'completed' || lastSOSStatus === 'cancelled') {
+                if (activeCard) activeCard.classList.add('hidden');
+                if (wsCard) wsCard.classList.add('hidden');
+                if (mechanicMapDiv) {
+                    mechanicMapDiv.classList.add('hidden');
+                    mechanicMapDiv.style.display = 'none';
                 }
-            } else {
-                if (noServicesMsg) noServicesMsg.classList.remove('hidden');
-            }
+                if (chatBtn) chatBtn.classList.add('hidden');
+                if (emergencyBtn) emergencyBtn.style.display = 'flex';
+                if (videoContainer) videoContainer.style.display = 'block'; // Mostrar video si no hay mapa
 
-            // Limpiar listeners y rutas del mapa
-            if (mechPosUnsubscribe) mechPosUnsubscribe();
-            if (routingControl) {
-                routingControl.remove();
-                routingControl = null;
-            }
-            if (window.clientMapInstance) {
-                if (window.clientMapMarkers.mech) {
-                    window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
-                    window.clientMapMarkers.mech = null;
+                if (routingControl) {
+                    routingControl.remove();
+                    routingControl = null;
                 }
-                if (window.clientMapMarkers.client) {
-                    window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                    window.clientMapMarkers.client = null;
+                if (window.clientMapInstance) {
+                    if (window.clientMapMarkers.mech) {
+                        window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+                        window.clientMapMarkers.mech = null;
+                    }
+                    if (window.clientMapMarkers.client) {
+                        window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                        window.clientMapMarkers.client = null;
+                    }
                 }
-            }
-            window.lastClientSOSStatus = null;
-            return;
-        }
 
-        // ----------------------------------------
-        // CASO 2: El nodo existe, obtenemos los datos
-        // ----------------------------------------
-        const data = snap.val();
-        lastSOSStatus = data.status;
-
-        // ---------- SI EL ESTADO NO ES ACTIVO ----------
-        if (!activeStatuses.includes(data.status)) {
-            // Ocultar tarjeta y elementos relacionados
-            if (activeCard) activeCard.classList.add('hidden');
-            if (wsCard) wsCard.classList.add('hidden');
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.add('hidden');
-                mechanicMapDiv.style.display = 'none';
-            }
-            if (chatBtn) chatBtn.classList.add('hidden');
-            if (emergencyBtn) emergencyBtn.style.display = 'flex';
-            if (videoContainer) videoContainer.style.display = 'block';
-            if (noServicesMsg) noServicesMsg.classList.remove('hidden');
-
-            // Si es completado, mostrar encuesta
-            if (data.status === 'completed') {
-                const shortId = data.shortId || 'unknown';
-                const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
-                if (!yaCalifico) {
-                    if (survey) survey.classList.remove('hidden');
+                if (lastSOSStatus === 'completed') {
+                    const shortId = data.shortId || 'unknown';
+                    const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
+                    if (!yaCalifico) {
+                        if (survey) survey.classList.remove('hidden');
+                    } else {
+                        if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+                    }
                     speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
                     playSound('notif');
+                } else {
+                    speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
+                    playSound('notif');
+                    if (noServicesMsg) noServicesMsg.classList.remove('hidden');
                 }
-            } else if (data.status === 'cancelled') {
-                if (survey) survey.classList.add('hidden');
-                speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
-                playSound('notif');
+
+                window.loadClientHistory();
+                lastSOSStatus = null;
+                return;
             }
 
-            // Limpiar mapa y rutas
+            if (activeCard) activeCard.classList.add('hidden');
+            if (wsCard) wsCard.classList.add('hidden');
+            if (mechanicMapDiv) {
+                mechanicMapDiv.classList.add('hidden');
+                mechanicMapDiv.style.display = 'none';
+            }
+            if (chatBtn) chatBtn.classList.add('hidden');
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (videoContainer) videoContainer.style.display = 'block';
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (routingControl) {
                 routingControl.remove();
@@ -2902,7 +2867,60 @@ function listenToMySOS() {
             return;
         }
 
-        // ---------- ESTADO ACTIVO: accepted, repairing, to_shop, ready ----------
+        const data = snap.val();
+        lastSOSStatus = data.status;
+        
+       // CASO 2: Servicio completado o cancelado (aún en RTDB)
+if (data.status === 'completed' || data.status === 'cancelled') {
+    const survey = document.getElementById('satisfaction-survey');
+    const activeCard = document.getElementById('active-sos-card');
+    const emergencyBtn = document.getElementById('emergency-client-btn');
+    const wsCard = document.getElementById('active-workshop-card');
+    const mechanicMapDiv = document.getElementById('mechanic-live-map');
+    const chatBtn = document.getElementById('btn-chat-sos');
+
+    if (data.status === 'completed') {
+        // Mostrar encuesta
+        if (survey) survey.classList.remove('hidden');
+        // Ocultar tarjeta de rescate activo
+        if (activeCard) activeCard.classList.add('hidden');
+        // Ocultar botón de emergencia
+        if (emergencyBtn) emergencyBtn.style.display = 'none';
+        speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
+        playSound('notif');
+    } else if (data.status === 'cancelled') {
+        // Asegurar que la encuesta esté oculta en cancelación
+        if (survey) survey.classList.add('hidden');
+        // Ocultar tarjeta de rescate activo
+        if (activeCard) activeCard.classList.add('hidden');
+        // Mostrar botón de emergencia nuevamente
+        if (emergencyBtn) emergencyBtn.style.display = 'flex';
+        speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
+        playSound('notif');
+        if (document.getElementById('no-active-services-msg')) {
+            document.getElementById('no-active-services-msg').classList.remove('hidden');
+        }
+    }
+
+    // Limpieza común
+    if (wsCard) wsCard.classList.add('hidden');
+    if (mechanicMapDiv) {
+        mechanicMapDiv.classList.add('hidden');
+        mechanicMapDiv.style.display = 'none';
+    }
+    if (chatBtn) chatBtn.classList.add('hidden');
+    if (mechPosUnsubscribe) mechPosUnsubscribe();
+    if (routingControl) {
+        routingControl.remove();
+        routingControl = null;
+    }
+if (emergencyBtn) emergencyBtn.style.display = 'flex'; 
+    window.loadClientHistory();
+    lastSOSStatus = null;
+    return;
+}
+
+        // --- SOS ACTIVO ---
         if (activeCard) activeCard.classList.remove('hidden');
         if (mechanicMapDiv) {
             mechanicMapDiv.classList.remove('hidden');
@@ -2948,7 +2966,7 @@ function listenToMySOS() {
             statusDesc.innerText = estadoTexto;
         }
 
-        // MAPA Y RUTA SOS (solo para estados accepted / repairing)
+        // MAPA Y RUTA SOS
         if (data.status === 'accepted' || data.status === 'repairing') {
             const initClientMapIfNeeded = () => {
                 if (!mechanicMapDiv) return;
@@ -2967,10 +2985,11 @@ function listenToMySOS() {
             if (emergencyBtn) emergencyBtn.style.display = 'none';
 
             if (window.clientMapInstance && data.lat && data.lng) {
+                // ✅ Ocultar video y mostrar mapa
+                const videoContainer = document.getElementById('promo-video-container');
                 if (videoContainer) videoContainer.style.display = 'none';
                 if (mechanicMapDiv) mechanicMapDiv.style.display = 'block';
 
-                // Marcador del cliente
                 if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
                 window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
                     icon: L.divIcon({
@@ -2981,7 +3000,6 @@ function listenToMySOS() {
                     })
                 }).addTo(window.clientMapInstance).bindPopup("📍 Tu ubicación");
 
-                // Marcador del mecánico y ruta
                 if (mechPosUnsubscribe) mechPosUnsubscribe();
                 if (data.mech_uid) {
                     const mechUserSnap = await getDoc(doc(db, "users", data.mech_uid));
@@ -3081,107 +3099,12 @@ function listenToMySOS() {
                 }
             }
             if (mechPosUnsubscribe) mechPosUnsubscribe();
+            // ✅ Mostrar video si no hay mapa
             if (videoContainer) videoContainer.style.display = 'block';
         }
 
         window.lastClientSOSStatus = data.status;
 
-        // ========== VERIFICAR ENTREGA ACTIVA (pedidos_online) ==========
-        const deliverySnap = await get(dbRef(rtdb, 'pedidos_online/' + auth.currentUser.uid)).catch(() => null);
-        const deliveryCard = document.getElementById('active-delivery-card');
-        const deliveryMapDiv = document.getElementById('delivery-live-map');
-        const deliveryStatusDesc = document.getElementById('delivery-status-desc-client');
-        const deliveryProgressBar = document.getElementById('delivery-progress-bar');
-        const deliveryChatBtn = document.getElementById('btn-chat-delivery');
-        const separator = document.getElementById('delivery-separator');
-
-        if (deliverySnap && deliverySnap.exists()) {
-            const deliveryData = deliverySnap.val();
-            const estado = deliveryData.estado_entrega;
-
-            if (estado && estado !== 'entregado' && estado !== 'cancelado') {
-                if (deliveryCard) deliveryCard.classList.remove('hidden');
-                if (deliveryMapDiv) {
-                    deliveryMapDiv.classList.remove('hidden');
-                    deliveryMapDiv.style.display = 'block';
-                    deliveryMapDiv.style.height = '250px';
-                    deliveryMapDiv.style.minHeight = '250px';
-                }
-                if (deliveryChatBtn && deliveryData.chatId) {
-                    deliveryChatBtn.classList.remove('hidden');
-                }
-
-                let dStep = 0, dPercent = 0;
-                if (estado === 'pendiente') { dStep = 1; dPercent = 33; }
-                else if (estado === 'en_camino') { dStep = 2; dPercent = 66; }
-                if (deliveryProgressBar) deliveryProgressBar.style.width = dPercent + '%';
-
-                for (let i = 0; i < 3; i++) {
-                    const labelEl = document.getElementById('delivery-step-' + (i+1));
-                    const dotEl = document.getElementById('delivery-dot-' + (i+1));
-                    if (i < dStep) {
-                        labelEl?.classList.add('text-green-400', 'font-bold');
-                        dotEl?.classList.remove('bg-asfalto', 'border-white/20');
-                        dotEl?.classList.add('bg-green-500', 'border-asfalto');
-                    } else {
-                        labelEl?.classList.remove('text-green-400', 'font-bold');
-                        dotEl?.classList.remove('bg-green-500', 'border-asfalto');
-                        dotEl?.classList.add('bg-asfalto', 'border-white/20');
-                    }
-                }
-
-                if (deliveryStatusDesc) {
-                    if (estado === 'pendiente') deliveryStatusDesc.innerText = "Preparando entrega";
-                    else if (estado === 'en_camino') deliveryStatusDesc.innerText = "Repartidor en camino";
-                }
-
-                const isSOSVisible = activeCard && !activeCard.classList.contains('hidden');
-                if (isSOSVisible && separator) {
-                    separator.classList.remove('hidden');
-                } else if (separator) {
-                    separator.classList.add('hidden');
-                }
-
-                // ... resto del código de entrega (mapa, ruta) ...
-            } else {
-                if (deliveryCard) deliveryCard.classList.add('hidden');
-                if (deliveryMapDiv) {
-                    deliveryMapDiv.classList.add('hidden');
-                    deliveryMapDiv.style.display = 'none';
-                }
-                if (deliveryChatBtn) deliveryChatBtn.classList.add('hidden');
-                if (separator) separator.classList.add('hidden');
-                if (deliveryMechPosUnsubscribe) deliveryMechPosUnsubscribe();
-                if (deliveryRoutingControl) {
-                    deliveryRoutingControl.remove();
-                    deliveryRoutingControl = null;
-                }
-            }
-        } else {
-            if (deliveryCard) deliveryCard.classList.add('hidden');
-            if (deliveryMapDiv) {
-                deliveryMapDiv.classList.add('hidden');
-                deliveryMapDiv.style.display = 'none';
-            }
-            if (deliveryChatBtn) deliveryChatBtn.classList.add('hidden');
-            if (separator) separator.classList.add('hidden');
-            if (deliveryMechPosUnsubscribe) deliveryMechPosUnsubscribe();
-            if (deliveryRoutingControl) {
-                deliveryRoutingControl.remove();
-                deliveryRoutingControl = null;
-            }
-        }
-
-        // ========== CONTROL DE MENSAJE "SIN ACTIVIDAD" ==========
-        const sosHidden = activeCard?.classList.contains('hidden') ?? true;
-        const deliveryHidden = deliveryCard?.classList.contains('hidden') ?? true;
-        if (sosHidden && deliveryHidden) {
-            if (noServicesMsg) noServicesMsg.classList.remove('hidden');
-        } else {
-            if (noServicesMsg) noServicesMsg.classList.add('hidden');
-        }
-    });
-}
         // ========== VERIFICAR ENTREGA ACTIVA (pedidos_online) ==========
         const deliverySnap = await get(dbRef(rtdb, 'pedidos_online/' + auth.currentUser.uid)).catch(() => null);
         const deliveryCard = document.getElementById('active-delivery-card');
@@ -3399,7 +3322,8 @@ function listenToMySOS() {
         } else {
             if (noServicesMsg) noServicesMsg.classList.add('hidden');
         }
-
+    });
+}
 // ========== FIN DE listenToMySOS ==========
 
 // ========== LISTEN TO MY DELIVERIES – ENTREGAS ACTIVAS ==========
@@ -4409,6 +4333,7 @@ window.loadClientHistory = () => {
 };
 
 window.openClientServiceDetail = async (id) => {
+    // Cerrar suscripción anterior si existe
     if (window._clientDetailUnsubscribe) {
         window._clientDetailUnsubscribe();
         window._clientDetailUnsubscribe = null;
@@ -4426,24 +4351,25 @@ window.openClientServiceDetail = async (id) => {
 
     const contentDiv = document.getElementById(`${modalId}-content`);
     
+    // ✅ AGREGAR 'async' AL CALLBACK DE onSnapshot
     window._clientDetailUnsubscribe = onSnapshot(doc(db, "rescates", id), async (docSnap) => {
         if (!docSnap.exists()) {
             contentDiv.innerHTML = '<p class="text-white">Servicio no encontrado</p>';
             return;
         }
         const data = docSnap.data();
+        
+        // Verificar permisos
         if (data.uid !== auth.currentUser.uid && data.phone !== window.currentUserDoc.phone) {
             contentDiv.innerHTML = '<p class="text-white">No tienes permiso para ver este servicio</p>';
             return;
         }
 
-        // Verificar si hay venta asociada
+        // ✅ VERIFICAR SI HAY VENTA ASOCIADA CON PDF
         let pdfUrl = null;
-        let ventaId = null;
         try {
             const ventaSnapshot = await getDocs(query(collection(db, "ventas"), where("sosId", "==", id), limit(1)));
             if (!ventaSnapshot.empty) {
-                ventaId = ventaSnapshot.docs[0].id;
                 const venta = ventaSnapshot.docs[0].data();
                 pdfUrl = venta.pdfUrl || null;
             }
@@ -4532,20 +4458,25 @@ window.hidePDFProgress = hidePDFProgress;
 
 
 window.downloadClientTicket = async function(serviceId) {
-    // Buscar la venta asociada
     const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", serviceId), limit(1)));
     if (!ventasSnap.empty) {
         const ventaDoc = ventasSnap.docs[0];
         const ventaData = ventaDoc.data();
         if (ventaData.pdfUrl) {
-            window.open(ventaData.pdfUrl, '_blank');
+            // Descargar directamente, sin ventana emergente
+            const link = document.createElement('a');
+            link.href = ventaData.pdfUrl;
+            link.download = `comprobante_${ventaData.shortId || ventaDoc.id}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
             return;
         }
-        // Si no hay URL, regenerar (esto subirá el PDF y guardará la URL)
+        // Si no hay URL, regenerar
         await window.reimprimirVenta(ventaDoc.id);
         return;
     }
-    window.showToast('No se encontró una venta asociada a este servicio. Contacta al taller.', true);
+    window.showToast('No se encontró una venta asociada a este servicio.', true);
 };
 
 // === CITAS DEL CLIENTE ===
@@ -5671,10 +5602,9 @@ window.checkoutTicket = async (isCard = false) => {
     await finalizeCheckout(isCard, totalToPay, paymentMethod, phone);
 };
 
-// ========== SUBIR PDF A CLOUDINARY ==========
 async function subirPDFaCloudinary(pdfBlob, ventaId) {
     const cloudName = 'dwcklmb4u';
-    const uploadPreset = 'pdf_upload'; // El nombre del preset que creaste
+    const uploadPreset = 'pdf_upload'; // Debes crear este preset unsigned en Cloudinary
 
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -5691,14 +5621,12 @@ async function subirPDFaCloudinary(pdfBlob, ventaId) {
                     method: 'POST',
                     body: formData
                 });
-
                 if (!response.ok) {
                     const errorText = await response.text();
                     throw new Error(`Cloudinary error ${response.status}: ${errorText}`);
                 }
-
                 const data = await response.json();
-                resolve(data.secure_url); // URL HTTPS del PDF
+                resolve(data.secure_url);
             } catch (error) {
                 reject(error);
             }
@@ -5706,7 +5634,6 @@ async function subirPDFaCloudinary(pdfBlob, ventaId) {
         reader.readAsDataURL(pdfBlob);
     });
 }
-
 window.imprimirTicketVenta = async (ventaId, saleData) => {
     return new Promise(async (resolve, reject) => {
         const { jsPDF } = window.jspdf;
@@ -5914,28 +5841,42 @@ window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
 window.loadVentasRealizadas = async () => {
     const container = document.getElementById('ventas-realizadas-list');
     if (!container) return;
+
+    // Limpiar eventos previos (opcional, para evitar duplicados)
+    const nuevoContainer = container.cloneNode(true);
+    container.parentNode.replaceChild(nuevoContainer, container);
+    const nuevoContainerRef = document.getElementById('ventas-realizadas-list');
+
     const snap = await getDocs(query(collection(db, "ventas"), orderBy("fecha", "desc"), limit(30)));
-    container.innerHTML = '';
+    nuevoContainerRef.innerHTML = '';
     
     snap.forEach(docSnap => {
         const v = docSnap.data();
         const itemsCount = v.ticket ? v.ticket.length : 0;
         const tienePDF = v.pdfUrl ? true : false;
-        
-        // Ícono según si tiene PDF o no
-        let iconoHTML = '';
-        let accionClick = '';
+
+        let accionHTML = '';
         if (tienePDF) {
-            // Ícono de descarga (círculo naranja con flecha)
-            iconoHTML = `<i class="fas fa-download text-white text-lg"></i>`;
-            accionClick = `window.open('${v.pdfUrl}', '_blank')`;
+            accionHTML = `
+                <button onclick="window.open('${v.pdfUrl}', '_blank')" 
+                        class="w-8 h-8 bg-naranja rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity"
+                        title="Descargar comprobante">
+                    <i class="fas fa-download"></i>
+                </button>
+            `;
         } else {
-            // Ícono de advertencia ⚠️ (triángulo amarillo)
-            iconoHTML = `<i class="fas fa-exclamation-triangle text-yellow-400 text-lg"></i>`;
-            accionClick = `window.reimprimirVenta('${docSnap.id}')`;
+            accionHTML = `
+                <div class="flex items-center gap-3">
+                    <button data-reimprimir data-venta-id="${docSnap.id}" 
+                            class="bg-blue-600 text-white px-2 py-1 rounded text-[9px] font-bold uppercase hover:bg-blue-500 transition-colors">
+                        Reimprimir
+                    </button>
+                    <i class="fas fa-exclamation-triangle text-yellow-400 text-lg" title="PDF no disponible, genera uno nuevo"></i>
+                </div>
+            `;
         }
 
-        container.innerHTML += `
+        nuevoContainerRef.innerHTML += `
             <div class="bg-white/5 border border-white/10 p-3 rounded-xl text-xs text-white">
                 <div class="flex justify-between">
                     <span class="font-bold">${v.shortId}</span>
@@ -5943,17 +5884,24 @@ window.loadVentasRealizadas = async () => {
                 </div>
                 <p class="text-gray-400">${v.desc?.substring(0, 50) || `${itemsCount} productos`}</p>
                 <p class="text-naranja font-black">$${v.total?.toFixed(2) || '0.00'}</p>
-                <div class="flex justify-between items-center mt-1">
-                    <button onclick="${accionClick}" class="bg-transparent border-none cursor-pointer p-1 rounded-full hover:bg-white/10 transition-colors">
-                        ${iconoHTML}
-                    </button>
-                    <span class="text-[9px] text-gray-500">${tienePDF ? 'PDF listo' : 'Pendiente'}</span>
+                <div class="flex justify-end mt-1">
+                    ${accionHTML}
                 </div>
             </div>
         `;
     });
-};
 
+    // Delegación de eventos
+    nuevoContainerRef.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-reimprimir]');
+        if (btn) {
+            const ventaId = btn.getAttribute('data-venta-id');
+            if (ventaId) {
+                window.reimprimirVenta(ventaId);
+            }
+        }
+    });
+};
 window.reimprimirVenta = async (ventaId) => {
     const snap = await getDoc(doc(db, "ventas", ventaId));
     if (!snap.exists()) return showToast("Venta no encontrada", true);
@@ -5963,17 +5911,17 @@ window.reimprimirVenta = async (ventaId) => {
         // 1. Generar PDF (local, rápido)
         const pdfBlob = await window.imprimirTicketVenta(ventaId, saleData);
 
-        // 2. Descargar/imprimir inmediatamente (sin esperar subida)
+        // 2. Descargar directamente sin abrir ventana emergente
         const urlLocal = URL.createObjectURL(pdfBlob);
-        const printWindow = window.open(urlLocal, '_blank');
-        if (printWindow) {
-            printWindow.onload = () => {
-                printWindow.print();
-                setTimeout(() => URL.revokeObjectURL(urlLocal), 1000);
-            };
-        }
+        const link = document.createElement('a');
+        link.href = urlLocal;
+        link.download = `${ventaId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(urlLocal), 5000);
 
-        // 3. Subir a Cloudinary en segundo plano (no await)
+        // 3. Subir a Cloudinary en segundo plano (sin await)
         subirPDFaCloudinary(pdfBlob, ventaId)
             .then(pdfUrl => {
                 updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl })
@@ -5982,10 +5930,10 @@ window.reimprimirVenta = async (ventaId) => {
             })
             .catch(err => {
                 console.warn('❌ Subida a Cloudinary falló (PDF ya descargado):', err);
-                // No mostramos toast al usuario porque ya tiene el PDF
+                // No mostramos toast al usuario porque ya tiene el PDF descargado
             });
 
-        showToast("✅ PDF generado y descargado. Se sube en segundo plano.");
+        showToast("✅ PDF generado y descargado.");
     } catch (error) {
         console.error('Error al generar PDF:', error);
         showToast("Error al generar el PDF.", true);
@@ -7912,6 +7860,7 @@ window.finalizeMechanicCharge = async () => {
     mechanicTicket = [];
     mechanicRescueCost = 0;
 };
+// Función auxiliar para que el cliente vea el servicio finalizado (encuesta)
 async function finalizarServicioParaCliente(sosId) {
     // 1. Actualizar el servicio a completado y pagado
     await updateDoc(doc(db, "rescates", sosId), { 
@@ -7933,7 +7882,7 @@ async function finalizarServicioParaCliente(sosId) {
             tallerStatus: 'pagado'
         });
         
-        // Enviar notificación al cliente (opcional, para que sepa que finalizó)
+        // Enviar notificación al cliente
         await push(dbRef(rtdb, 'sos_alerts/' + uid + '/notifs'), {
             msg: '✅ Tu servicio ha sido finalizado y pagado. ¡Califícanos!'
         });
