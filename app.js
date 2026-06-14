@@ -4382,8 +4382,8 @@ window.openClientServiceDetail = async (id) => {
 let btnDescarga = '';
 if (data.status === 'completed' || data.status === 'accepted' || data.status === 'repairing') {
     if (pdfUrl) {
-        btnDescarga = `<button onclick="window.open('${pdfUrl}', '_blank')" class="mt-2 bg-green-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">📥 Descargar Comprobante</button>`;
-    } else {
+    btnDescarga = `<button onclick="window.descargarPDF('${pdfUrl}', '${ventaData.shortId || ventaDoc.id}')" class="mt-2 bg-green-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">📥 Descargar Comprobante</button>`;
+}else {
         // NO mostrar botón de regenerar. Mostrar mensaje.
         btnDescarga = `<p class="mt-2 text-yellow-400 text-xs font-bold">⏳ Tu comprobante estará disponible pronto.</p>`;
     }
@@ -5748,25 +5748,24 @@ window.checkoutTicket = async (isCard = false) => {
 };
 
 
-window.descargarPDF = (url, nombreArchivo) => {
-    if (url.startsWith('data:application/pdf;base64,')) {
+window.descargarPDF = async (url, nombreArchivo) => {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Error al descargar el PDF');
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = url;
+        link.href = blobUrl;
         link.download = `comprobante_${nombreArchivo}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        showToast('✅ Comprobante descargado.');
-        return;
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+        showToast('✅ Comprobante descargado correctamente.');
+    } catch (error) {
+        console.error('Error al descargar PDF:', error);
+        showToast('No se pudo descargar el comprobante.', true);
     }
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `comprobante_${nombreArchivo}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('✅ Comprobante descargado.');
 };
 
 async function subirPDFaSupabase(pdfBlob, ventaId) {
@@ -5818,8 +5817,6 @@ window.reimprimirVenta = async (ventaId) => {
     try {
         const pdfBlob = await window.imprimirTicketVenta(ventaId, saleData);
         const urlLocal = URL.createObjectURL(pdfBlob);
-        
-        // Descarga inmediata del PDF local
         const link = document.createElement('a');
         link.href = urlLocal;
         link.download = `${ventaId}.pdf`;
@@ -5828,7 +5825,6 @@ window.reimprimirVenta = async (ventaId) => {
         document.body.removeChild(link);
         setTimeout(() => URL.revokeObjectURL(urlLocal), 5000);
 
-        // Subir a Supabase en segundo plano
         subirPDFaSupabase(pdfBlob, ventaId)
             .then(pdfUrl => {
                 if (pdfUrl.startsWith('https://')) {
@@ -5839,10 +5835,10 @@ window.reimprimirVenta = async (ventaId) => {
             })
             .catch(err => console.warn('Subida falló (PDF ya descargado):', err));
 
-        showToast("✅ PDF generado y descargado.");
+        showToast('✅ PDF generado y descargado.');
     } catch (error) {
         console.error('Error al generar PDF:', error);
-        showToast("Error al generar el PDF.", true);
+        showToast('Error al generar el PDF.', true);
     }
 };
 
@@ -5873,15 +5869,15 @@ window.loadVentasRealizadas = () => {
             const tienePDF = v.pdfUrl ? true : false;
 
             let accionHTML = '';
-            if (tienePDF) {
-                accionHTML = `
-                    <button onclick="window.descargarPDF('${v.pdfUrl}', '${v.shortId || docSnap.id}')" 
-                            class="w-8 h-8 bg-naranja rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity"
-                            title="Descargar comprobante">
-                        <i class="fas fa-download"></i>
-                    </button>
-                `;
-            } else {
+if (tienePDF) {
+    accionHTML = `
+        <button onclick="window.descargarPDF('${v.pdfUrl}', '${v.shortId || docSnap.id}')" 
+                class="w-8 h-8 bg-naranja rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity"
+                title="Descargar comprobante">
+            <i class="fas fa-download"></i>
+        </button>
+    `;
+} else {
                 accionHTML = `
                     <div class="flex items-center gap-3">
                         <button onclick="window.reimprimirVenta('${docSnap.id}')" 
