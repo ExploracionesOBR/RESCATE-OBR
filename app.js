@@ -5749,14 +5749,24 @@ window.checkoutTicket = async (isCard = false) => {
 
 
 window.descargarPDF = (url, nombreArchivo) => {
-    // Eliminar la validación que solo acepta Cloudinary
+    if (url.startsWith('data:application/pdf;base64,')) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `comprobante_${nombreArchivo}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast('✅ Comprobante descargado.');
+        return;
+    }
+    
     const link = document.createElement('a');
     link.href = url;
     link.download = `comprobante_${nombreArchivo}.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast('✅ Descargando comprobante...');
+    showToast('✅ Comprobante descargado.');
 };
 
 async function subirPDFaSupabase(pdfBlob, ventaId) {
@@ -5766,31 +5776,37 @@ async function subirPDFaSupabase(pdfBlob, ventaId) {
     const { createClient } = window.supabase;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    return new Promise(async (resolve, reject) => {
-        try {
-            const { data, error } = await supabase
-                .storage
-                .from('pdfs')
-                .upload(`venta_${ventaId}.pdf`, pdfBlob, {
-                    contentType: 'application/pdf',
-                    cacheControl: '3600',
-                    upsert: true
-                });
+    try {
+        // Usar el cliente oficial para subir el archivo
+        const { data, error } = await supabase
+            .storage
+            .from('pdfs')
+            .upload(`venta_${ventaId}.pdf`, pdfBlob, {
+                contentType: 'application/pdf',
+                upsert: true
+            });
 
-            if (error) {
-                throw error;
-            }
-
-            const { data: urlData } = supabase
-                .storage
-                .from('pdfs')
-                .getPublicUrl(`venta_${ventaId}.pdf`);
-
-            resolve(urlData.publicUrl);
-        } catch (error) {
-            reject(error);
+        if (error) {
+            throw error;
         }
-    });
+
+        // Obtener la URL pública
+        const { data: urlData } = supabase
+            .storage
+            .from('pdfs')
+            .getPublicUrl(`venta_${ventaId}.pdf`);
+
+        return urlData.publicUrl;
+    } catch (error) {
+        console.error('Error subiendo a Supabase:', error);
+        // Fallback a base64 (solo para descarga inmediata)
+        const base64 = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.readAsDataURL(pdfBlob);
+        });
+        return base64;
+    }
 }
 
 
@@ -5802,6 +5818,8 @@ window.reimprimirVenta = async (ventaId) => {
     try {
         const pdfBlob = await window.imprimirTicketVenta(ventaId, saleData);
         const urlLocal = URL.createObjectURL(pdfBlob);
+        
+        // Descarga inmediata del PDF local
         const link = document.createElement('a');
         link.href = urlLocal;
         link.download = `${ventaId}.pdf`;
@@ -5813,9 +5831,11 @@ window.reimprimirVenta = async (ventaId) => {
         // Subir a Supabase en segundo plano
         subirPDFaSupabase(pdfBlob, ventaId)
             .then(pdfUrl => {
-                updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl })
-                    .then(() => console.log('✅ PDF URL guardada en Firestore'))
-                    .catch(err => console.warn('Firestore update error:', err));
+                if (pdfUrl.startsWith('https://')) {
+                    updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl })
+                        .then(() => console.log('✅ PDF URL guardada en Firestore'))
+                        .catch(err => console.warn('Firestore update error:', err));
+                }
             })
             .catch(err => console.warn('Subida falló (PDF ya descargado):', err));
 
