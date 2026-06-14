@@ -4346,13 +4346,14 @@ window.openClientServiceDetail = async (id) => {
         window._clientDetailUnsubscribe = null;
     }
 
-    // 📌 Crear el modal dinámicamente si no existe
+    // 📌 Crear el modal dinámicamente si no existe (con display:flex forzado)
     const modalId = 'modal-client-service-detail';
     let modalEl = document.getElementById(modalId);
     if (!modalEl) {
         modalEl = document.createElement('div');
         modalEl.id = modalId;
-        modalEl.className = 'fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm';
+        modalEl.style.display = 'flex'; // ✅ Forzar flex desde el inicio
         modalEl.innerHTML = `
             <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl">
                 <button onclick="window.toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
@@ -4364,22 +4365,21 @@ window.openClientServiceDetail = async (id) => {
         document.body.appendChild(modalEl);
     }
 
+    // 📌 Forzar visibilidad inmediata (sin esperar datos)
+    modalEl.style.display = 'flex';
+    modalEl.classList.remove('hidden');
+
     const contentDiv = document.getElementById(`${modalId}-content`);
 
-    // 📌 Escuchar cambios en el documento de rescate
+    // 📌 Escuchar cambios en el documento de rescate (actualizar contenido sin ocultar el modal)
     window._clientDetailUnsubscribe = onSnapshot(doc(db, "rescates", id), async (docSnap) => {
         if (!docSnap.exists()) {
             contentDiv.innerHTML = '<p class="text-white">Servicio no encontrado</p>';
-            // Forzar apertura
-            modalEl.style.display = 'flex';
-            modalEl.classList.remove('hidden');
             return;
         }
         const data = docSnap.data();
         if (data.uid !== auth.currentUser.uid && data.phone !== window.currentUserDoc.phone) {
             contentDiv.innerHTML = '<p class="text-white">No tienes permiso para ver este servicio</p>';
-            modalEl.style.display = 'flex';
-            modalEl.classList.remove('hidden');
             return;
         }
 
@@ -4413,7 +4413,7 @@ window.openClientServiceDetail = async (id) => {
             }
         }
 
-        // 📌 Actualizar contenido
+        // 📌 Actualizar contenido (sin tocar la visibilidad del modal)
         contentDiv.innerHTML = `
             <div class="text-white space-y-2">
                 <h3 class="font-black text-lg">Servicio: ${data.shortId || 'Sin ID'}</h3>
@@ -4424,10 +4424,6 @@ window.openClientServiceDetail = async (id) => {
                 <p class="text-xs text-gray-500">${new Date(data.timestamp).toLocaleString()}</p>
             </div>
         `;
-
-        // ✅ FORZAR APERTURA DIRECTA (sin toggleModal)
-        modalEl.style.display = 'flex';
-        modalEl.classList.remove('hidden');
     });
 };
 
