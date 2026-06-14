@@ -6055,15 +6055,36 @@ window.reimprimirVenta = async (ventaId) => {
     const snap = await getDoc(doc(db, "ventas", ventaId));
     if (!snap.exists()) return showToast("Venta no encontrada", true);
     const saleData = snap.data();
+
     try {
+        // 1. Generar el PDF
+        console.log('🔄 Regenerando PDF para venta:', ventaId);
         const pdfBlob = await window.imprimirTicketVenta(ventaId, saleData);
+        
+        // 2. Subir a Google Drive
+        console.log('🔄 Subiendo PDF a Google Drive...');
+        const pdfUrl = await subirPDFaDrive(pdfBlob, ventaId, saleData);
+        console.log('✅ PDF subido correctamente, URL:', pdfUrl);
+
+        // 3. Actualizar la URL en Firestore
+        await updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl });
+        console.log('✅ URL del PDF actualizada en Firestore');
+
+        // 4. Descargar/imprimir el PDF localmente
         const url = URL.createObjectURL(pdfBlob);
         const printWindow = window.open(url, '_blank');
-        if (printWindow) printWindow.onload = () => printWindow.print();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        if (printWindow) {
+            printWindow.onload = () => {
+                printWindow.print();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            };
+        }
+
+        showToast("✅ PDF regenerado y subido correctamente.");
+
     } catch (error) {
-        console.error('Error al reimprimir:', error);
-        showToast("Error al reimprimir", true);
+        console.error('❌ Error al reimprimir y subir PDF:', error);
+        showToast("Error al reimprimir y subir el PDF.", true);
     }
 };
 
