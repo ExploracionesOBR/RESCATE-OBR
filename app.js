@@ -5749,12 +5749,18 @@ window.checkoutTicket = async (isCard = false) => {
 
 
 window.descargarPDF = (url, nombreArchivo) => {
+    if (!url.startsWith('https://res.cloudinary.com')) {
+        console.error('URL no válida para descarga pública:', url);
+        showToast('El enlace no es accesible públicamente.', true);
+        return;
+    }
     const link = document.createElement('a');
     link.href = url;
     link.download = `comprobante_${nombreArchivo}.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    showToast('✅ Descargando comprobante...');
 };
 
 async function subirPDFaCloudinary(pdfBlob, ventaId) {
@@ -5770,7 +5776,7 @@ async function subirPDFaCloudinary(pdfBlob, ventaId) {
             formData.append('upload_preset', uploadPreset);
             formData.append('public_id', `venta_${ventaId}`);
             formData.append('folder', 'tickets_pdf');
-            formData.append('access_mode', 'public'); // ✅ FORZA PÚBLICO
+            formData.append('access_mode', 'public'); // 🔥 FORZAR PÚBLICO
 
             try {
                 const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/upload`, {
@@ -5782,6 +5788,7 @@ async function subirPDFaCloudinary(pdfBlob, ventaId) {
                     throw new Error(`Cloudinary error ${response.status}: ${errorText}`);
                 }
                 const data = await response.json();
+                // data.secure_url ya será la URL pública directa
                 resolve(data.secure_url);
             } catch (error) {
                 reject(error);
@@ -5790,6 +5797,7 @@ async function subirPDFaCloudinary(pdfBlob, ventaId) {
         reader.readAsDataURL(pdfBlob);
     });
 }
+
 window.reimprimirVenta = async (ventaId) => {
     const snap = await getDoc(doc(db, "ventas", ventaId));
     if (!snap.exists()) return showToast("Venta no encontrada", true);
@@ -5799,34 +5807,28 @@ window.reimprimirVenta = async (ventaId) => {
         const pdfBlob = await window.imprimirTicketVenta(ventaId, saleData);
         const urlLocal = URL.createObjectURL(pdfBlob);
 
-        // ✅ Descarga directa (sin ventana emergente)
+        // ✅ Descarga directa del PDF local (sin ventana)
         const link = document.createElement('a');
         link.href = urlLocal;
         link.download = `${ventaId}.pdf`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-
-        // ✅ Impresión inmediata (abre diálogo de impresión nativo)
-        const printWindow = window.open('');
-        if (printWindow) {
-            printWindow.document.write('<iframe src="' + urlLocal + '" style="width:100%;height:100%;border:0;"></iframe>');
-            setTimeout(() => {
-                printWindow.print();
-            }, 1000);
-        }
-
         setTimeout(() => URL.revokeObjectURL(urlLocal), 5000);
 
+        // ✅ Subida en segundo plano
         subirPDFaCloudinary(pdfBlob, ventaId)
             .then(pdfUrl => {
                 updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl })
-                    .then(() => console.log('✅ PDF URL guardada en Firestore'))
+                    .then(() => {
+                        console.log('✅ PDF URL guardada en Firestore');
+                        // Opcional: actualizar el botón en la lista (onSnapshot lo hará automáticamente)
+                    })
                     .catch(err => console.warn('Firestore update error:', err));
             })
             .catch(err => console.warn('Subida falló (PDF ya descargado):', err));
 
-        showToast("✅ PDF generado, descargado y preparado para impresión.");
+        showToast("✅ PDF generado y descargado.");
     } catch (error) {
         console.error('Error al generar PDF:', error);
         showToast("Error al generar el PDF.", true);
