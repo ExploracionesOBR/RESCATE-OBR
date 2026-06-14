@@ -5797,7 +5797,7 @@ window.confirmWhatsAppSend = async (confirmed) => {
 
 // ========== SUBIR PDF A GOOGLE DRIVE ==========
 async function subirPDFaDrive(pdfBlob, ventaId, saleData) {
-    const webAppUrl = 'https://script.google.com/macros/s/AKfycbyLainQKwxgQp0yQEs97opLaEegbVSChWwb4sxjMeHB4uUFdFM68nhrpNClbWKpIwYj6g/exec';
+    const webAppUrl = 'https://script.google.com/macros/s/AKfycbw2kOy-vNX9yl2UIBPBadoDR8hcqv4FG9u4mQ3S9CI7WlQiMeep4zGdW0pRTzOqRjy6aQ/exec';
     
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
