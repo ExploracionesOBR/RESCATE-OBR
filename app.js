@@ -4455,20 +4455,16 @@ window.hidePDFProgress = hidePDFProgress;
 
 window.downloadClientTicket = async function(serviceId) {
     const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", serviceId), limit(1)));
-
     if (!ventasSnap.empty) {
-        const ventaDoc = ventasSnap.docs[0];
-        const ventaData = ventaDoc.data();
-
-        // ✅ SI TIENE URL EN FIRESTORE, DESCARGA INSTANTÁNEA
+        const ventaData = ventasSnap.docs[0].data();
         if (ventaData.pdfUrl) {
             window.open(ventaData.pdfUrl, '_blank');
             return;
         }
     }
-
-    // ❌ Si no hay URL, mostrar mensaje amigable
+    // Si no hay URL, ofrecer regenerar
     window.showToast('El comprobante aún no está disponible.', false);
+    // Opcional: botón para regenerar
 };
 
 // === CITAS DEL CLIENTE ===
@@ -5594,53 +5590,13 @@ window.checkoutTicket = async (isCard = false) => {
     await finalizeCheckout(isCard, totalToPay, paymentMethod, phone);
 };
 
-// ========== SUBIR PDF A JSONBIN.IO (con nueva clave) ==========
-async function subirPDFaJSONBin(pdfBlob, ventaId, saleData) {
-    const apiKey = '$2a$10$R81gyckUFpjVYCbx1hOUJOS6vkJHZdFGHQ5rowFDOcXHLgRTylhwu'; // ← NUEVA CLAVE
-
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const fullDataUrl = event.target.result;
-                const base64Data = fullDataUrl.split(',')[1].replace(/\s/g, '').trim();
-
-                const data = {
-                    ventaId: ventaId,
-                    shortId: saleData.shortId,
-                    clienteCel: saleData.clienteCel,
-                    fecha: saleData.fecha,
-                    ticket: saleData.ticket || [],
-                    total: saleData.total || 0,
-                    pdfDataUrl: base64Data,
-                    timestamp: Date.now()
-                };
-
-                const response = await fetch('https://api.jsonbin.io/v3/b', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Master-Key': apiKey   // ← SE ENVÍA ESTE ENCABEZADO
-                    },
-                    body: JSON.stringify(data)
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    const binId = result.metadata.id;
-                    const binUrl = `https://api.jsonbin.io/v3/b/${binId}/latest`;
-                    resolve(binUrl);
-                } else {
-                    const errorText = await response.text();
-                    console.error('Error JSONBin:', errorText);
-                    reject(new Error(`Error al guardar en JSONBin.io: ${response.status} - ${errorText}`));
-                }
-            } catch (error) {
-                reject(error);
-            }
-        };
-        reader.readAsDataURL(pdfBlob);
-    });
+// ========== SUBIR PDF A FIREBASE STORAGE (reemplaza JSONBin) ==========
+async function subirPDFaStorage(pdfBlob, ventaId, saleData) {
+    const path = `ventas_pdf/${ventaId}.pdf`;
+    const file = new File([pdfBlob], `${ventaId}.pdf`, { type: 'application/pdf' });
+    // Usamos uploadWithTimeout (ya existe en tu código) para subir el archivo
+    const url = await uploadWithTimeout(file, path);
+    return url; // URL pública de Firebase Storage
 }
 
 window.confirmWhatsAppSend = async (confirmed) => {
@@ -5650,6 +5606,8 @@ window.confirmWhatsAppSend = async (confirmed) => {
         await finalizeCheckout(isCard, totalToPay, paymentMethod, phone);
     }
 };
+
+
 
 window.imprimirTicketVenta = async (ventaId, saleData) => {
     return new Promise(async (resolve, reject) => {
@@ -5825,7 +5783,7 @@ window.regenerarPDF = async (ventaId) => {
 
     try {
         const pdfBlob = await window.imprimirTicketVenta(ventaId, ventaData);
-        const pdfUrl = await subirPDFaDrive(pdfBlob, ventaId, ventaData);
+        const pdfUrl = await subirPDFaStorage(pdfBlob, ventaId, ventaData);
         await updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl });
         showToast('✅ PDF regenerado y subido correctamente.');
     } catch (error) {
@@ -5868,36 +5826,33 @@ window.reimprimirVenta = async (ventaId) => {
     const snap = await getDoc(doc(db, "ventas", ventaId));
     if (!snap.exists()) return showToast("Venta no encontrada", true);
     const saleData = snap.data();
-
     try {
-        // 1. Generar el PDF
-        console.log('🔄 Regenerando PDF para venta:', ventaId);
+        // 1. Generar PDF (rápido, local)
         const pdfBlob = await window.imprimirTicketVenta(ventaId, saleData);
-
-        // 2. Subir a JSONBin (crea un nuevo bin)
-        console.log('🔄 Subiendo PDF a JSONBin...');
-        const pdfUrl = await subirPDFaJSONBin(pdfBlob, ventaId, saleData);
-        console.log('✅ PDF subido correctamente, URL:', pdfUrl);
-
-        // 3. Actualizar la URL en Firestore
-        await updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl });
-        console.log('✅ URL del PDF actualizada en Firestore');
-
-        // 4. Descargar/imprimir el PDF localmente (opcional)
-        const url = URL.createObjectURL(pdfBlob);
-        const printWindow = window.open(url, '_blank');
+        
+        // 2. Descargar inmediatamente para el usuario (no esperar subida)
+        const urlLocal = URL.createObjectURL(pdfBlob);
+        const printWindow = window.open(urlLocal, '_blank');
         if (printWindow) {
             printWindow.onload = () => {
                 printWindow.print();
-                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                setTimeout(() => URL.revokeObjectURL(urlLocal), 1000);
             };
         }
 
-        showToast("✅ PDF regenerado y subido correctamente.");
+        // 3. Subir a Firebase Storage en segundo plano (sin await)
+        subirPDFaStorage(pdfBlob, ventaId, saleData)
+            .then(pdfUrl => {
+                updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl })
+                    .then(() => console.log('✅ PDF URL guardada en Firestore'))
+                    .catch(err => console.warn('Firestore update error:', err));
+            })
+            .catch(err => console.warn('Subida en segundo plano falló (PDF ya descargado):', err));
 
+        showToast("✅ PDF generado. Se está subiendo en segundo plano.");
     } catch (error) {
-        console.error('❌ Error al reimprimir y subir PDF:', error);
-        showToast("Error al reimprimir y subir el PDF.", true);
+        console.error('Error al generar PDF:', error);
+        showToast("Error al generar el PDF.", true);
     }
 };
 
