@@ -5763,33 +5763,38 @@ window.descargarPDF = (url, nombreArchivo) => {
     showToast('✅ Descargando comprobante...');
 };
 
-async function subirPDFaCloudinary(pdfBlob, ventaId) {
-    const cloudName = 'dwcklmb4u';
-    const uploadPreset = 'pdf_upload';
+async function subirPDFaSupabase(pdfBlob, ventaId) {
+    const supabaseUrl = 'https://kdwoflalureesxmvbonf.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtkd29mbGFsdXJlZXN4bXZib25mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0MDEzNDcsImV4cCI6MjA5Njk3NzM0N30.o7dt0lmFAFKgIie5q6Ryvjf-OcNc_WeoCAMcAlgdm9c';
 
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = async (e) => {
             const base64 = e.target.result.split(',')[1];
-            const formData = new FormData();
-            formData.append('file', `data:application/pdf;base64,${base64}`);
-            formData.append('upload_preset', uploadPreset);
-            formData.append('public_id', `venta_${ventaId}`);
-            formData.append('folder', 'tickets_pdf');
-            formData.append('access_mode', 'public'); // 🔥 FORZAR PÚBLICO
+            const fileName = `venta_${ventaId}.pdf`;
 
             try {
-                const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/upload`, {
+                const response = await fetch(`${supabaseUrl}/storage/v1/object/pdfs/${fileName}`, {
                     method: 'POST',
-                    body: formData
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': supabaseKey,
+                        'Authorization': `Bearer ${supabaseKey}`
+                    },
+                    body: JSON.stringify({
+                        base64: base64,
+                        path: fileName
+                    })
                 });
+
                 if (!response.ok) {
                     const errorText = await response.text();
-                    throw new Error(`Cloudinary error ${response.status}: ${errorText}`);
+                    throw new Error(`Supabase error ${response.status}: ${errorText}`);
                 }
+
                 const data = await response.json();
-                // data.secure_url ya será la URL pública directa
-                resolve(data.secure_url);
+                const publicUrl = `${supabaseUrl}/storage/v1/object/public/pdfs/${fileName}`;
+                resolve(publicUrl);
             } catch (error) {
                 reject(error);
             }
@@ -5806,8 +5811,6 @@ window.reimprimirVenta = async (ventaId) => {
     try {
         const pdfBlob = await window.imprimirTicketVenta(ventaId, saleData);
         const urlLocal = URL.createObjectURL(pdfBlob);
-
-        // ✅ Descarga directa del PDF local (sin ventana)
         const link = document.createElement('a');
         link.href = urlLocal;
         link.download = `${ventaId}.pdf`;
@@ -5816,14 +5819,11 @@ window.reimprimirVenta = async (ventaId) => {
         document.body.removeChild(link);
         setTimeout(() => URL.revokeObjectURL(urlLocal), 5000);
 
-        // ✅ Subida en segundo plano
-        subirPDFaCloudinary(pdfBlob, ventaId)
+        // Subir a Supabase en segundo plano
+        subirPDFaSupabase(pdfBlob, ventaId)
             .then(pdfUrl => {
                 updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl })
-                    .then(() => {
-                        console.log('✅ PDF URL guardada en Firestore');
-                        // Opcional: actualizar el botón en la lista (onSnapshot lo hará automáticamente)
-                    })
+                    .then(() => console.log('✅ PDF URL guardada en Firestore'))
                     .catch(err => console.warn('Firestore update error:', err));
             })
             .catch(err => console.warn('Subida falló (PDF ya descargado):', err));
