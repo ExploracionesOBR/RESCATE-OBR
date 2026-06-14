@@ -4456,15 +4456,18 @@ window.hidePDFProgress = hidePDFProgress;
 window.downloadClientTicket = async function(serviceId) {
     const ventasSnap = await getDocs(query(collection(db, "ventas"), where("sosId", "==", serviceId), limit(1)));
     if (!ventasSnap.empty) {
-        const ventaData = ventasSnap.docs[0].data();
+        const ventaDoc = ventasSnap.docs[0];
+        const ventaData = ventaDoc.data();
+        // Si ya tenemos URL en Firestore, abrir directamente
         if (ventaData.pdfUrl) {
             window.open(ventaData.pdfUrl, '_blank');
             return;
         }
+        // Si no hay URL, regenerar (esto lo subirá y guardará)
+        await window.reimprimirVenta(ventaDoc.id);
+        return;
     }
-    // Si no hay URL, ofrecer regenerar
-    window.showToast('El comprobante aún no está disponible.', false);
-    // Opcional: botón para regenerar
+    window.showToast('No se encontró una venta asociada a este servicio.', true);
 };
 
 // === CITAS DEL CLIENTE ===
@@ -5590,35 +5593,34 @@ window.checkoutTicket = async (isCard = false) => {
     await finalizeCheckout(isCard, totalToPay, paymentMethod, phone);
 };
 
-// ========== SUBIR PDF A IMAGEKIT.IO (sin CORS, con publicKey en URL) ==========
-async function subirPDFaImageKit(pdfBlob, ventaId) {
-    const publicKey = 'public_U5oyGU0mCdvGaQVOWImFP6er6E8=';
-    const uploadUrl = `https://upload.imagekit.io/api/v1/files/upload?publicKey=${publicKey}`;
+// ========== SUBIR PDF A CLOUDINARY ==========
+async function subirPDFaCloudinary(pdfBlob, ventaId) {
+    const cloudName = 'dwcklmb4u';
+    const uploadPreset = 'pdf_upload'; // El nombre del preset que creaste
 
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = async (e) => {
             const base64 = e.target.result.split(',')[1];
             const formData = new FormData();
-            formData.append('file', base64);
-            formData.append('fileName', `${ventaId}.pdf`);
-            formData.append('useUniqueFileName', 'false');
-            formData.append('folder', '/Tickets_PDF_app_taller/');
-            formData.append('publicKey', publicKey);  // ✅ Public Key como parámetro
+            formData.append('file', `data:application/pdf;base64,${base64}`);
+            formData.append('upload_preset', uploadPreset);
+            formData.append('public_id', `venta_${ventaId}`);
+            formData.append('folder', 'tickets_pdf');
 
             try {
-                const response = await fetch(uploadUrl, {
+                const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/upload`, {
                     method: 'POST',
-                    body: formData  // ✅ No se necesita Authorization header
+                    body: formData
                 });
 
                 if (!response.ok) {
                     const errorText = await response.text();
-                    throw new Error(`ImageKit error ${response.status}: ${errorText}`);
+                    throw new Error(`Cloudinary error ${response.status}: ${errorText}`);
                 }
 
                 const data = await response.json();
-                resolve(data.url);
+                resolve(data.secure_url); // URL HTTPS del PDF
             } catch (error) {
                 reject(error);
             }
@@ -5626,7 +5628,6 @@ async function subirPDFaImageKit(pdfBlob, ventaId) {
         reader.readAsDataURL(pdfBlob);
     });
 }
-
 
 window.imprimirTicketVenta = async (ventaId, saleData) => {
     return new Promise(async (resolve, reject) => {
@@ -5802,14 +5803,26 @@ window.regenerarPDF = async (ventaId) => {
 
     try {
         const pdfBlob = await window.imprimirTicketVenta(ventaId, ventaData);
-        const pdfUrl = await subirPDFaImageKit(pdfBlob, ventaId, ventaData);
-        await updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl });
-        showToast('✅ PDF regenerado y subido correctamente.');
+
+        // Descarga inmediata para el usuario
+        const urlLocal = URL.createObjectURL(pdfBlob);
+        window.open(urlLocal, '_blank');
+        setTimeout(() => URL.revokeObjectURL(urlLocal), 5000);
+
+        // Subir a Cloudinary en segundo plano
+        subirPDFaCloudinary(pdfBlob, ventaId)
+            .then(pdfUrl => {
+                updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl })
+                    .then(() => showToast('✅ PDF regenerado y subido correctamente.'))
+                    .catch(err => console.warn(err));
+            })
+            .catch(err => console.warn(err));
+
+        showToast('✅ PDF regenerado y descargado.');
     } catch (error) {
         showToast('❌ Error al regenerar el PDF.', true);
     }
 };
-
 
 window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     if (!ticketItems || !ticketItems.length) return;
@@ -5845,11 +5858,12 @@ window.reimprimirVenta = async (ventaId) => {
     const snap = await getDoc(doc(db, "ventas", ventaId));
     if (!snap.exists()) return showToast("Venta no encontrada", true);
     const saleData = snap.data();
+
     try {
-        // 1. Generar PDF (rápido, local)
+        // 1. Generar PDF (local, rápido)
         const pdfBlob = await window.imprimirTicketVenta(ventaId, saleData);
-        
-        // 2. Descargar inmediatamente para el usuario (no esperar subida)
+
+        // 2. Descargar/imprimir inmediatamente (sin esperar subida)
         const urlLocal = URL.createObjectURL(pdfBlob);
         const printWindow = window.open(urlLocal, '_blank');
         if (printWindow) {
@@ -5859,16 +5873,19 @@ window.reimprimirVenta = async (ventaId) => {
             };
         }
 
-        // 3. Subir a Firebase Storage en segundo plano (sin await)
-        subirPDFaImageKit(pdfBlob, ventaId, saleData)
+        // 3. Subir a Cloudinary en segundo plano (no await)
+        subirPDFaCloudinary(pdfBlob, ventaId)
             .then(pdfUrl => {
                 updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl })
                     .then(() => console.log('✅ PDF URL guardada en Firestore'))
                     .catch(err => console.warn('Firestore update error:', err));
             })
-            .catch(err => console.warn('Subida en segundo plano falló (PDF ya descargado):', err));
+            .catch(err => {
+                console.warn('❌ Subida a Cloudinary falló (PDF ya descargado):', err);
+                // No mostramos toast al usuario porque ya tiene el PDF
+            });
 
-        showToast("✅ PDF generado. Se está subiendo en segundo plano.");
+        showToast("✅ PDF generado y descargado. Se sube en segundo plano.");
     } catch (error) {
         console.error('Error al generar PDF:', error);
         showToast("Error al generar el PDF.", true);
