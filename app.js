@@ -1308,20 +1308,30 @@ window.promptModal = (message, defaultValue, callback) => {
 
 window.toggleModal = (id, show) => {
     const m = document.getElementById(id);
-    if(m) {
-        m.classList.toggle('hidden', !show);
-        if(show && id === 'modal-video-schedule') window.renderVideoScheduleDays?.();
-        if(show && id === 'modal-garantias') window.loadGarantias?.();
-        if(show && id === 'modal-nueva-cita') {
-            const fechaInput = document.getElementById('cita-fecha');
-            if(fechaInput) fechaInput.min = new Date().toISOString().split('T')[0];
-        }
-        if(show && id === 'modal-edit-cita') {
-            const fechaInput = document.getElementById('edit-cita-fecha');
-            if(fechaInput) fechaInput.min = new Date().toISOString().split('T')[0];
+    if (m) {
+        if (show) {
+            m.classList.remove('hidden');
+            m.style.display = 'flex'; // ✅ FORZAR FLEX
+            m.style.pointerEvents = 'auto';
+            // Eventos específicos de cada modal (sin cambios)
+            if (id === 'modal-video-schedule') window.renderVideoScheduleDays?.();
+            if (id === 'modal-garantias') window.loadGarantias?.();
+            if (id === 'modal-nueva-cita') {
+                const fechaInput = document.getElementById('cita-fecha');
+                if (fechaInput) fechaInput.min = new Date().toISOString().split('T')[0];
+            }
+            if (id === 'modal-edit-cita') {
+                const fechaInput = document.getElementById('edit-cita-fecha');
+                if (fechaInput) fechaInput.min = new Date().toISOString().split('T')[0];
+            }
+        } else {
+            m.classList.add('hidden');
+            m.style.display = 'none';
+            m.style.pointerEvents = 'none';
         }
     }
 };
+
 window.getStatusInfo = (status) => {
     const map = {
         'pending':    { text: 'Pendiente',  color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' },
@@ -1835,7 +1845,7 @@ window.mostrarOpcionesContacto = async () => {
     if (!modalEl) {
         modalEl = document.createElement('div');
         modalEl.id = modalId;
-        modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+modalEl.className = 'fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center p-4 hidden backdrop-blur-sm';
         modalEl.innerHTML = `
             <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-blue-500/30 text-center">
                 <i class="fas fa-headset text-4xl text-blue-400 mb-4"></i>
