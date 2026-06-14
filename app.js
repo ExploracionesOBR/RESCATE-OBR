@@ -5747,9 +5747,19 @@ window.checkoutTicket = async (isCard = false) => {
     await finalizeCheckout(isCard, totalToPay, paymentMethod, phone);
 };
 
+
+window.descargarPDF = (url, nombreArchivo) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `comprobante_${nombreArchivo}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
 async function subirPDFaCloudinary(pdfBlob, ventaId) {
     const cloudName = 'dwcklmb4u';
-    const uploadPreset = 'pdf_upload'; // Debes crear este preset UNSIGNED en Cloudinary
+    const uploadPreset = 'pdf_upload';
 
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -5760,6 +5770,7 @@ async function subirPDFaCloudinary(pdfBlob, ventaId) {
             formData.append('upload_preset', uploadPreset);
             formData.append('public_id', `venta_${ventaId}`);
             formData.append('folder', 'tickets_pdf');
+            formData.append('access_mode', 'public'); // ✅ FORZA PÚBLICO
 
             try {
                 const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/upload`, {
@@ -5771,7 +5782,6 @@ async function subirPDFaCloudinary(pdfBlob, ventaId) {
                     throw new Error(`Cloudinary error ${response.status}: ${errorText}`);
                 }
                 const data = await response.json();
-                // Asegurar que la URL sea pública (por defecto lo es con upload_preset unsigned)
                 resolve(data.secure_url);
             } catch (error) {
                 reject(error);
@@ -5780,32 +5790,46 @@ async function subirPDFaCloudinary(pdfBlob, ventaId) {
         reader.readAsDataURL(pdfBlob);
     });
 }
-
-window.regenerarPDF = async (ventaId) => {
-    const ventaSnap = await getDoc(doc(db, "ventas", ventaId));
-    if (!ventaSnap.exists()) return;
-    const ventaData = ventaSnap.data();
+window.reimprimirVenta = async (ventaId) => {
+    const snap = await getDoc(doc(db, "ventas", ventaId));
+    if (!snap.exists()) return showToast("Venta no encontrada", true);
+    const saleData = snap.data();
 
     try {
-        const pdfBlob = await window.imprimirTicketVenta(ventaId, ventaData);
-
-        // Descarga inmediata para el usuario
+        const pdfBlob = await window.imprimirTicketVenta(ventaId, saleData);
         const urlLocal = URL.createObjectURL(pdfBlob);
-        window.open(urlLocal, '_blank');
+
+        // ✅ Descarga directa (sin ventana emergente)
+        const link = document.createElement('a');
+        link.href = urlLocal;
+        link.download = `${ventaId}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // ✅ Impresión inmediata (abre diálogo de impresión nativo)
+        const printWindow = window.open('');
+        if (printWindow) {
+            printWindow.document.write('<iframe src="' + urlLocal + '" style="width:100%;height:100%;border:0;"></iframe>');
+            setTimeout(() => {
+                printWindow.print();
+            }, 1000);
+        }
+
         setTimeout(() => URL.revokeObjectURL(urlLocal), 5000);
 
-        // Subir a Cloudinary en segundo plano
         subirPDFaCloudinary(pdfBlob, ventaId)
             .then(pdfUrl => {
                 updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl })
-                    .then(() => showToast('✅ PDF regenerado y subido correctamente.'))
-                    .catch(err => console.warn(err));
+                    .then(() => console.log('✅ PDF URL guardada en Firestore'))
+                    .catch(err => console.warn('Firestore update error:', err));
             })
-            .catch(err => console.warn(err));
+            .catch(err => console.warn('Subida falló (PDF ya descargado):', err));
 
-        showToast('✅ PDF regenerado y descargado.');
+        showToast("✅ PDF generado, descargado y preparado para impresión.");
     } catch (error) {
-        showToast('❌ Error al regenerar el PDF.', true);
+        console.error('Error al generar PDF:', error);
+        showToast("Error al generar el PDF.", true);
     }
 };
 
@@ -5871,53 +5895,6 @@ window.loadVentasRealizadas = () => {
             `;
         });
     });
-};
-
-window.descargarPDF = (url, nombreArchivo) => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `comprobante_${nombreArchivo}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-};
-
-window.reimprimirVenta = async (ventaId) => {
-    const snap = await getDoc(doc(db, "ventas", ventaId));
-    if (!snap.exists()) return showToast("Venta no encontrada", true);
-    const saleData = snap.data();
-
-    try {
-        // 1. Generar PDF (local, rápido)
-        const pdfBlob = await window.imprimirTicketVenta(ventaId, saleData);
-
-        // 2. Descargar directamente sin ventana emergente
-        const urlLocal = URL.createObjectURL(pdfBlob);
-        const link = document.createElement('a');
-        link.href = urlLocal;
-        link.download = `${ventaId}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(urlLocal), 5000);
-
-        // 3. Subir a Cloudinary en segundo plano (sin await)
-        subirPDFaCloudinary(pdfBlob, ventaId)
-            .then(pdfUrl => {
-                updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl })
-                    .then(() => console.log('✅ PDF URL guardada en Firestore'))
-                    .catch(err => console.warn('Firestore update error:', err));
-            })
-            .catch(err => {
-                console.warn('❌ Subida a Cloudinary falló (PDF ya descargado):', err);
-                // No mostramos toast al usuario porque ya tiene el PDF descargado
-            });
-
-        showToast("✅ PDF generado y descargado.");
-    } catch (error) {
-        console.error('Error al generar PDF:', error);
-        showToast("Error al generar el PDF.", true);
-    }
 };
 
 window.verGarantiasVenta = async (ventaId) => {
