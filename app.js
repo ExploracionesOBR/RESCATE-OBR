@@ -4452,16 +4452,16 @@ window.openClientServiceDetail = async (id) => {
         }
 
         const statusInfo = window.getStatusInfo(data.status);
-        let btnDescarga = '';
-        // Siempre mostrar un botón para descargar/regenerar si el servicio está completado o aceptado
-        if (data.status === 'completed' || data.status === 'accepted' || data.status === 'repairing') {
-            if (pdfUrl) {
-                btnDescarga = `<button onclick="window.open('${pdfUrl}', '_blank')" class="mt-2 bg-green-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">📥 Descargar Comprobante</button>`;
-            } else {
-                // Si no hay URL, ofrecer regenerar (y descargar)
-                btnDescarga = `<button onclick="window.reimprimirVenta('${ventaId}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">🔄 Generar y descargar</button>`;
-            }
-        }
+
+let btnDescarga = '';
+if (data.status === 'completed' || data.status === 'accepted' || data.status === 'repairing') {
+    if (pdfUrl) {
+        btnDescarga = `<button onclick="window.open('${pdfUrl}', '_blank')" class="mt-2 bg-green-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">📥 Descargar Comprobante</button>`;
+    } else {
+        // NO mostrar botón de regenerar. Mostrar mensaje.
+        btnDescarga = `<p class="mt-2 text-yellow-400 text-xs font-bold">⏳ Tu comprobante estará disponible pronto.</p>`;
+    }
+}
 
         const detailHTML = `
             <button onclick="toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
@@ -5916,9 +5916,25 @@ window.loadVentasRealizadas = async () => {
     if (!container) return;
     const snap = await getDocs(query(collection(db, "ventas"), orderBy("fecha", "desc"), limit(30)));
     container.innerHTML = '';
+    
     snap.forEach(docSnap => {
         const v = docSnap.data();
         const itemsCount = v.ticket ? v.ticket.length : 0;
+        const tienePDF = v.pdfUrl ? true : false;
+        
+        // Ícono según si tiene PDF o no
+        let iconoHTML = '';
+        let accionClick = '';
+        if (tienePDF) {
+            // Ícono de descarga (círculo naranja con flecha)
+            iconoHTML = `<i class="fas fa-download text-white text-lg"></i>`;
+            accionClick = `window.open('${v.pdfUrl}', '_blank')`;
+        } else {
+            // Ícono de advertencia ⚠️ (triángulo amarillo)
+            iconoHTML = `<i class="fas fa-exclamation-triangle text-yellow-400 text-lg"></i>`;
+            accionClick = `window.reimprimirVenta('${docSnap.id}')`;
+        }
+
         container.innerHTML += `
             <div class="bg-white/5 border border-white/10 p-3 rounded-xl text-xs text-white">
                 <div class="flex justify-between">
@@ -5927,11 +5943,17 @@ window.loadVentasRealizadas = async () => {
                 </div>
                 <p class="text-gray-400">${v.desc?.substring(0, 50) || `${itemsCount} productos`}</p>
                 <p class="text-naranja font-black">$${v.total?.toFixed(2) || '0.00'}</p>
-                <button onclick="window.reimprimirVenta('${docSnap.id}')" class="mt-1 bg-blue-600 text-white px-2 py-1 rounded text-[9px] font-bold uppercase">Reimprimir</button>
+                <div class="flex justify-between items-center mt-1">
+                    <button onclick="${accionClick}" class="bg-transparent border-none cursor-pointer p-1 rounded-full hover:bg-white/10 transition-colors">
+                        ${iconoHTML}
+                    </button>
+                    <span class="text-[9px] text-gray-500">${tienePDF ? 'PDF listo' : 'Pendiente'}</span>
+                </div>
             </div>
         `;
     });
 };
+
 window.reimprimirVenta = async (ventaId) => {
     const snap = await getDoc(doc(db, "ventas", ventaId));
     if (!snap.exists()) return showToast("Venta no encontrada", true);
