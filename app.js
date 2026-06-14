@@ -5791,14 +5791,19 @@ window.confirmWhatsAppSend = async (confirmed) => {
 
 // ========== SUBIR PDF A GOOGLE DRIVE ==========
 async function subirPDFaDrive(pdfBlob, ventaId, saleData) {
-    const webAppUrl = 'https://script.google.com/macros/s/AKfycbyLainQKwxgQp0yQEs97opLaEegbVSChWwb4sxjMeHB4uUFdFM68nhrpNClbWKpIwYj6g/exec'; // ← REEMPLAZAR CON TU URL REAL
+    const webAppUrl = 'https://script.google.com/macros/s/AKfycbyLainQKwxgQp0yQEs97opLaEegbVSChWwb4sxjMeHB4uUFdFM68nhrpNClbWKpIwYj6g/exec';
     
-    // Convertir Blob a DataURL para enviarlo al script
-    const reader = new FileReader();
     return new Promise((resolve, reject) => {
+        const reader = new FileReader();
         reader.onload = async (event) => {
-            const pdfDataUrl = event.target.result;
             try {
+                const fullDataUrl = event.target.result; // Ejemplo: "data:application/pdf;base64,JVBERi0..."
+                // ✅ ELIMINAR PREFIJO Y ESPACIOS/SALTOS DE LÍNEA
+                const base64Data = fullDataUrl
+                    .split(',')[1]                     // Quitar "data:...;base64,"
+                    .replace(/\s/g, '')                 // Quitar espacios, saltos de línea
+                    .trim();
+                
                 const response = await fetch(webAppUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -5809,7 +5814,7 @@ async function subirPDFaDrive(pdfBlob, ventaId, saleData) {
                         fecha: saleData.fecha,
                         ticket: saleData.ticket || [],
                         total: saleData.total || 0,
-                        pdfDataUrl: pdfDataUrl
+                        pdfDataUrl: base64Data        // ← ENVIAR SOLO EL BASE64 LIMPIO
                     })
                 });
                 const result = await response.json();
@@ -5826,7 +5831,6 @@ async function subirPDFaDrive(pdfBlob, ventaId, saleData) {
         reader.readAsDataURL(pdfBlob);
     });
 }
-
 
 window.imprimirTicketVenta = async (ventaId, saleData) => {
     return new Promise(async (resolve, reject) => {
