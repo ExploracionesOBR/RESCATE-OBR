@@ -577,103 +577,113 @@
                     <p class="text-xs font-black text-green-400 uppercase tracking-widest">Caja Abierta</p>
                 </div>
 
-                <div class="flex flex-col lg:grid lg:grid-cols-12 custom-grid-16 lg:gap-4 h-auto min-h-[600px]">
-                    <!-- Compras en línea (3 columnas) -->
-                    <div class="lg:col-span-2 w-full bg-white/5 border border-white/10 rounded-3xl p-4 flex flex-col shadow-xl h-auto space-y-4 lg:col-span-3" id="panel-compras-online">
-                        <h4 class="text-white font-black text-sm uppercase mb-2 flex items-center">
-                            <i class="fas fa-shopping-bag text-green-400 mr-2"></i> Compras en línea
-                        </h4>
-                        <div id="compras-online-list" class="space-y-2 max-h-60 overflow-y-auto hide-scroll flex-grow">
-                            <p class="text-xs text-gray-500 italic">Sin pedidos pendientes</p>
-                        </div>
-                    </div>
-                    <!-- Panel de Notificaciones (3 columnas) -->
-                    <div class="lg:col-span-2 w-full bg-white/5 border border-white/10 rounded-3xl p-4 flex flex-col shadow-xl h-auto space-y-4 lg:col-span-3" id="panel-notificaciones">
-                        <!-- Citas pendientes -->
-                        <div>
-                            <h4 class="text-white font-black text-sm uppercase mb-2 flex items-center">
-                                <i class="fas fa-calendar-check text-green-400 mr-2"></i> Citas pendientes
-                            </h4>
-                            <div id="citas-pendientes-list" class="space-y-2 max-h-60 overflow-y-auto hide-scroll"></div>
-                            <div id="citas-resumen" class="text-xs text-gray-400 mt-2"></div>
-                        </div>
-                        <!-- Cobros pendientes de mecánicos -->
-                        <div class="border-t border-white/10 pt-3">
-                            <h4 class="text-white font-black text-sm uppercase mb-2 flex items-center">
-                                <i class="fas fa-hand-holding-usd text-yellow-400 mr-2"></i> Cobros por mecánicos
-                            </h4>
-                            <div id="cobros-mecanicos-list" class="space-y-2 max-h-40 overflow-y-auto hide-scroll"></div>
-                        </div>
-                    </div>
-
-                    <!-- Terminal POS (5 columnas) -->
-                    <div class="lg:col-span-4 flex-1 bg-white/5 border border-white/10 rounded-3xl p-4 flex flex-col shadow-xl overflow-hidden lg:col-span-6">
-                        <div class="flex space-x-2 mb-4 shrink-0">
-                            <div class="relative flex-grow">
-                                <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                                <input id="pos-search-input" type="text" placeholder="Buscar producto por nombre o SKU..." oninput="window.posFilterProducts?.()" class="w-full bg-asfalto p-3 pl-10 rounded-xl text-white text-sm focus:border-naranja border border-transparent transition-colors">
-                            </div>
-                            <button onclick="toggleModal('modal-scanner-input', true)" class="bg-blue-600 text-white px-4 rounded-xl flex items-center justify-center hover:bg-blue-500 transition-colors shadow-lg"><i class="fas fa-qrcode"></i></button>
-                        </div>
-                        <div class="flex space-x-2 overflow-x-auto hide-scroll mb-4 pb-2 border-b border-white/10 shrink-0">
-                            <button onclick="window.activePosFilter='todos'; window.posFilterProducts()" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold shrink-0 shadow-md">Todos</button>
-                            <button onclick="window.activePosFilter='aceite'; window.posFilterProducts()" class="bg-white/10 text-gray-300 hover:text-white hover:bg-white/20 px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition-colors">Aceite</button>
-                            <button onclick="window.activePosFilter='repuesto'; window.posFilterProducts()" class="bg-white/10 text-gray-300 hover:text-white hover:bg-white/20 px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition-colors">Repuesto</button>
-                            <button onclick="window.activePosFilter='accesorios'; window.posFilterProducts()" class="bg-white/10 text-gray-300 hover:text-white hover:bg-white/20 px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition-colors">Accesorios</button>
-                            <button onclick="window.activePosFilter='servicios'; window.posFilterProducts()" class="bg-white/10 text-gray-300 hover:text-white hover:bg-white/20 px-4 py-2 rounded-xl text-xs font-bold shrink-0 transition-colors">Servicios</button>
-                        </div>
-                        <div id="pos-product-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 overflow-y-auto flex-grow hide-scroll pb-4 min-h-[300px]"></div>
-                    </div>
-
-                    <!-- Ticket de venta (4 columnas) -->
-                    <div class="ticket-container lg:col-span-4 w-full rounded-3xl p-6 flex flex-col shadow-2xl relative border-t-8 border-naranja shrink-0 h-auto order-4 lg:order-4" style="background-color: var(--bg); color: var(--text);">
-                        <div class="flex space-x-2 mb-4 shrink-0">
-                            <div class="relative flex-grow">
-                                <i class="fas fa-user absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs"></i>
-                                <input id="pos-customer-phone" type="tel" maxlength="10" placeholder="Celular Cliente" class="w-full bg-gray-100 p-2 pl-8 rounded-lg text-black text-xs font-bold border border-gray-300 focus:outline-none focus:border-naranja">
-                            </div>
-                            <button onclick="toggleModal('modal-manual-charge', true)" class="bg-gray-200 text-gray-700 px-3 rounded-lg hover:bg-gray-300 transition-colors text-xs font-bold shadow-sm" title="Añadir Cargo Manual"><i class="fas fa-plus"></i></button>
-                        </div>
-                        
-                        <div id="pos-ticket-list" class="flex-grow overflow-y-auto hide-scroll space-y-2 border-b border-dashed border-gray-300 pb-4 mb-4 min-h-[150px]">
-                            <p class="text-gray-400 text-xs italic text-center mt-10">Agrega productos al ticket</p>
-                        </div>
-
-                        <div class="flex space-x-2 mb-4 shrink-0 border-b border-gray-200 pb-4">
-                            <input id="pos-promo-code" type="text" placeholder="Código de Descuento" class="flex-grow bg-gray-100 p-2 rounded-lg text-black text-xs border border-gray-300 focus:outline-none uppercase">
-                            <button onclick="window.applyPosPromoCode?.()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 rounded-lg text-xs font-bold transition-colors">Canjear</button>
-                        </div>
-
-                        <div class="text-black space-y-2 mb-4 shrink-0">
-                            <div class="flex justify-between text-xs font-bold text-gray-600"><span>Subtotal</span><span id="pos-subtotal">$0.00</span></div>
-                            <div id="pos-discount-row" class="flex justify-between text-xs font-bold text-purple-600 hidden"><span>Descuento Promo</span><span id="pos-discount-amount">-$0.00</span></div>
-                            <div class="flex justify-between text-xs font-bold text-gray-600"><span>IVA (16%)</span><span id="pos-iva">$0.00</span></div>
-                            <div class="flex justify-between text-xl font-black mt-2 border-t border-gray-300 pt-2"><span>Total</span><span id="pos-ticket-total">$0.00</span></div>
-                        </div>
-                        
-                        <select id="pos-payment-method" onchange="window.togglePosReceivedInput?.()" class="w-full bg-gray-100 border border-gray-300 text-black p-3 rounded-xl font-bold mb-3 text-sm focus:outline-none shrink-0">
-                            <option value="Efectivo">Efectivo</option>
-                            <option value="Tarjeta">Tarjeta/Transferencia</option>
-                        </select>
-
-                        <div id="pos-received-container" class="flex justify-between items-center bg-gray-100 p-2 rounded-xl mb-2 border border-gray-300 shrink-0">
-                            <span class="text-xs font-bold text-gray-600 pl-2">¿Con cuánto paga?</span>
-                            <input type="number" id="pos-amount-received" placeholder="$0.00" oninput="window.calcPosChange?.()" class="w-24 bg-transparent text-right font-black text-black outline-none">
-                        </div>
-                        <div class="flex justify-between items-center mb-4 px-2 shrink-0">
-                            <span class="text-xs font-bold text-gray-600">Cambio:</span>
-                            <span id="pos-change" class="font-black text-green-600 text-lg">$0.00</span>
-                        </div>
-
-                        <div class="flex space-x-2 mb-2 shrink-0">
-                            <button id="btn-checkout-pos" onclick="window.checkoutTicket?.()" class="flex-1 bg-green-500 hover:bg-green-400 text-white font-black text-xl py-4 rounded-xl shadow-lg active:scale-95 transition-transform flex justify-between px-6 items-center">
-                                <span>Cobrar</span> <span id="pos-btn-total">$0.00</span>
-                            </button>
-                            <button onclick="window.printTicket?.()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 py-4 px-4 rounded-xl shadow-lg font-black uppercase text-xs" title="Imprimir ticket"><i class="fas fa-print"></i></button>
-                            <button id="wa-ticket-btn" onclick="window.sendTicketWhatsApp?.()" class="bg-green-500 hover:bg-green-400 text-white py-4 px-4 rounded-xl shadow-lg font-black uppercase text-xs hidden" title="Enviar por WhatsApp"><i class="fab fa-whatsapp"></i></button>
-                        </div>
-                    </div>
+               <div class="w-full max-w-full px-2 lg:px-4">
+    <div class="flex flex-col lg:grid lg:grid-cols-12 lg:gap-2 h-auto">
+        <!-- COLUMNA IZQUIERDA (3 columnas): Compras + Citas + Cobros -->
+        <div class="lg:col-span-3 flex flex-col space-y-2 h-full">
+            <div class="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col shadow-xl flex-grow">
+                <h4 class="text-white font-black text-xs uppercase mb-1 flex items-center">
+                    <i class="fas fa-shopping-bag text-green-400 mr-2"></i> Compras en línea
+                </h4>
+                <div id="compras-online-list" class="space-y-1 max-h-32 overflow-y-auto hide-scroll flex-grow">
+                    <p class="text-xs text-gray-500 italic">Sin pedidos pendientes</p>
                 </div>
+            </div>
+            <div class="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col shadow-xl flex-grow">
+                <div>
+                    <h4 class="text-white font-black text-xs uppercase mb-1 flex items-center">
+                        <i class="fas fa-calendar-check text-green-400 mr-2"></i> Citas pendientes
+                    </h4>
+                    <div id="citas-pendientes-list" class="space-y-1 max-h-20 overflow-y-auto hide-scroll"></div>
+                    <div id="citas-resumen" class="text-xs text-gray-400 mt-1"></div>
+                </div>
+                <div class="border-t border-white/10 pt-2 mt-2">
+                    <h4 class="text-white font-black text-xs uppercase mb-1 flex items-center">
+                        <i class="fas fa-hand-holding-usd text-yellow-400 mr-2"></i> Cobros por mecánicos
+                    </h4>
+                    <div id="cobros-mecanicos-list" class="space-y-1 max-h-20 overflow-y-auto hide-scroll"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- COLUMNA CENTRAL (6 columnas): Productos -->
+        <div class="lg:col-span-6 flex flex-col space-y-2 h-full">
+            <div class="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col shadow-xl flex-grow">
+                <div class="flex space-x-2 mb-2 shrink-0">
+                    <div class="relative flex-grow">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        <input id="pos-search-input" type="text" placeholder="Buscar..." oninput="window.posFilterProducts?.()" class="w-full bg-asfalto p-2 pl-9 rounded-lg text-white text-sm focus:border-naranja border border-transparent transition-colors">
+                    </div>
+                    <button onclick="toggleModal('modal-scanner-input', true)" class="bg-blue-600 text-white px-3 rounded-lg hover:bg-blue-500 transition-colors shadow-lg"><i class="fas fa-qrcode"></i></button>
+                </div>
+                <div class="flex space-x-1 overflow-x-auto hide-scroll mb-2 pb-1 border-b border-white/10 shrink-0">
+                    <button onclick="window.activePosFilter='todos'; window.posFilterProducts()" class="bg-blue-600 text-white px-3 py-1 rounded-lg text-[9px] font-bold shrink-0 shadow-md">Todos</button>
+                    <button onclick="window.activePosFilter='aceite'; window.posFilterProducts()" class="bg-white/10 text-gray-300 hover:text-white hover:bg-white/20 px-3 py-1 rounded-lg text-[9px] font-bold shrink-0 transition-colors">Aceite</button>
+                    <button onclick="window.activePosFilter='repuesto'; window.posFilterProducts()" class="bg-white/10 text-gray-300 hover:text-white hover:bg-white/20 px-3 py-1 rounded-lg text-[9px] font-bold shrink-0 transition-colors">Repuesto</button>
+                    <button onclick="window.activePosFilter='accesorios'; window.posFilterProducts()" class="bg-white/10 text-gray-300 hover:text-white hover:bg-white/20 px-3 py-1 rounded-lg text-[9px] font-bold shrink-0 transition-colors">Accesorios</button>
+                    <button onclick="window.activePosFilter='servicios'; window.posFilterProducts()" class="bg-white/10 text-gray-300 hover:text-white hover:bg-white/20 px-3 py-1 rounded-lg text-[9px] font-bold shrink-0 transition-colors">Servicios</button>
+                </div>
+                <div id="pos-product-grid" class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 overflow-y-auto flex-grow hide-scroll pb-2 min-h-[250px]"></div>
+            </div>
+        </div>
+
+        <!-- COLUMNA DERECHA (3 columnas): Ticket + Acciones -->
+        <div class="lg:col-span-3 flex flex-col space-y-2 h-full">
+            <div class="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col shadow-xl flex-grow border-t-4 border-naranja">
+                <div class="flex space-x-2 mb-2 shrink-0">
+                    <div class="relative flex-grow">
+                        <i class="fas fa-user absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-[10px]"></i>
+                        <input id="pos-customer-phone" type="tel" maxlength="10" placeholder="Celular" class="w-full bg-gray-100 p-1.5 pl-7 rounded-lg text-black text-[10px] font-bold border border-gray-300 focus:outline-none focus:border-naranja">
+                    </div>
+                    <button onclick="toggleModal('modal-manual-charge', true)" class="bg-gray-200 text-gray-700 px-2 rounded-lg hover:bg-gray-300 transition-colors text-[10px] font-bold shadow-sm"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="pos-ticket-list" class="flex-grow overflow-y-auto hide-scroll space-y-1 border-b border-dashed border-gray-300 pb-2 mb-2 min-h-[100px]">
+                    <p class="text-gray-400 text-[10px] italic text-center mt-4">Agrega productos al ticket</p>
+                </div>
+                <div class="flex space-x-2 mb-2 shrink-0 border-b border-gray-200 pb-2">
+                    <input id="pos-promo-code" type="text" placeholder="Código Promo" class="flex-grow bg-gray-100 p-1.5 rounded-lg text-black text-[10px] border border-gray-300 focus:outline-none uppercase">
+                    <button onclick="window.applyPosPromoCode?.()" class="bg-purple-600 hover:bg-purple-500 text-white px-2 rounded-lg text-[10px] font-bold transition-colors">Canjear</button>
+                </div>
+                <div class="flex space-x-2 mb-2 shrink-0 border-b border-gray-200 pb-2">
+                    <select id="pos-cotizacion-promo" class="w-1/2 bg-gray-100 border border-gray-300 text-black p-1.5 rounded-lg text-[10px] font-bold">
+                        <option value="">Sin promoción</option>
+                    </select>
+                    <button onclick="window.cargarPromocionesCotizacion()" class="w-1/2 bg-purple-600 hover:bg-purple-500 text-white px-2 rounded-lg text-[10px] font-bold transition-colors">Cargar promociones</button>
+                </div>
+                <div class="text-black space-y-1 mb-2 shrink-0">
+                    <div class="flex justify-between text-[10px] font-bold text-gray-600"><span>Subtotal</span><span id="pos-subtotal">$0.00</span></div>
+                    <div id="pos-discount-row" class="flex justify-between text-[10px] font-bold text-purple-600 hidden"><span>Descuento</span><span id="pos-discount-amount">-$0.00</span></div>
+                    <div class="flex justify-between text-[10px] font-bold text-gray-600"><span>IVA</span><span id="pos-iva">$0.00</span></div>
+                    <div class="flex justify-between text-lg font-black mt-1 border-t border-gray-300 pt-1"><span>Total</span><span id="pos-ticket-total">$0.00</span></div>
+                </div>
+                <select id="pos-payment-method" onchange="window.togglePosReceivedInput?.()" class="w-full bg-gray-100 border border-gray-300 text-black p-2 rounded-lg font-bold mb-2 text-sm focus:outline-none shrink-0">
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Tarjeta">Tarjeta/Transferencia</option>
+                </select>
+                <div id="pos-received-container" class="flex justify-between items-center bg-gray-100 p-2 rounded-lg mb-2 border border-gray-300 shrink-0">
+                    <span class="text-xs font-bold text-gray-600 pl-2">¿Con cuánto paga?</span>
+                    <input type="number" id="pos-amount-received" placeholder="$0.00" oninput="window.calcPosChange?.()" class="w-full bg-transparent text-right font-black text-black outline-none text-lg">
+                </div>
+                <div class="flex justify-between items-center mb-2 px-2 shrink-0">
+                    <span class="text-xs font-bold text-gray-600">Cambio:</span>
+                    <span id="pos-change" class="font-black text-green-600 text-lg">$0.00</span>
+                </div>
+                <div class="flex space-x-2 mb-2 shrink-0">
+<button id="btn-cotizacion-pos" onclick="window.generarCotizacionPDF()" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-black text-sm py-2 rounded-lg shadow-lg active:scale-95 transition-transform">
+    📄 Cotización
+</button>
+                    <button id="btn-checkout-pos" class="flex-1 bg-green-500 hover:bg-green-400 text-white font-black text-lg py-2 rounded-lg shadow-lg active:scale-95 transition-transform flex justify-between px-4 items-center">
+                        <span>Cobrar</span> <span id="pos-btn-total">$0.00</span>
+                    </button>
+                </div>
+                <div class="flex space-x-2 shrink-0">
+                    <button onclick="window.printTicket?.()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-1.5 rounded-lg shadow-lg font-black uppercase text-xs" title="Imprimir"><i class="fas fa-print"></i></button>
+                    <button id="wa-ticket-btn" class="flex-1 bg-green-500 hover:bg-green-400 text-white py-1.5 rounded-lg shadow-lg font-black uppercase text-xs hidden" title="WhatsApp"><i class="fab fa-whatsapp"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
                 <div class="bg-white/5 border border-white/10 rounded-3xl p-4 mt-4">
                     <div class="flex justify-between items-center mb-3">
