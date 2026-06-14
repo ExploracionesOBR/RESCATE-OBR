@@ -4346,32 +4346,26 @@ window.openClientServiceDetail = async (id) => {
         window._clientDetailUnsubscribe = null;
     }
 
-    // 📌 Crear el modal dinámicamente si no existe (con display:flex forzado)
     const modalId = 'modal-client-service-detail';
-    let modalEl = document.getElementById(modalId);
+    const modalEl = document.getElementById(modalId);
     if (!modalEl) {
-        modalEl = document.createElement('div');
-        modalEl.id = modalId;
-        modalEl.className = 'fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center p-4 backdrop-blur-sm';
-        modalEl.style.display = 'flex'; // ✅ Forzar flex desde el inicio
-        modalEl.innerHTML = `
-            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl">
-                <button onclick="window.toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
-                <div id="${modalId}-content" class="text-white">
-                    <p class="text-center text-gray-400">Cargando detalles...</p>
-                </div>
-            </div>
-        `;
-        document.body.appendChild(modalEl);
+        console.error('Modal no encontrado en el DOM');
+        return;
     }
 
-    // 📌 Forzar visibilidad inmediata (sin esperar datos)
+    const contentDiv = document.getElementById(`${modalId}-content`);
+    if (!contentDiv) {
+        console.error('Contenido del modal no encontrado');
+        return;
+    }
+
+    // ✅ Forzar visibilidad y centrado (flex) inmediatamente
     modalEl.style.display = 'flex';
     modalEl.classList.remove('hidden');
 
-    const contentDiv = document.getElementById(`${modalId}-content`);
+    // ✅ Actualizar contenido mientras el modal ya está visible
+    contentDiv.innerHTML = '<p class="text-center text-gray-400">Cargando detalles...</p>';
 
-    // 📌 Escuchar cambios en el documento de rescate (actualizar contenido sin ocultar el modal)
     window._clientDetailUnsubscribe = onSnapshot(doc(db, "rescates", id), async (docSnap) => {
         if (!docSnap.exists()) {
             contentDiv.innerHTML = '<p class="text-white">Servicio no encontrado</p>';
@@ -4400,7 +4394,6 @@ window.openClientServiceDetail = async (id) => {
             console.error('Error al obtener venta asociada:', error);
         }
 
-        // 📌 Generar botones según estado
         const statusInfo = window.getStatusInfo(data.status);
         let btnDescarga = '';
         if (data.status === 'completed' || data.status === 'accepted' || data.status === 'repairing') {
@@ -4413,7 +4406,7 @@ window.openClientServiceDetail = async (id) => {
             }
         }
 
-        // 📌 Actualizar contenido (sin tocar la visibilidad del modal)
+        // 📌 Actualizar contenido (sin modificar visibilidad)
         contentDiv.innerHTML = `
             <div class="text-white space-y-2">
                 <h3 class="font-black text-lg">Servicio: ${data.shortId || 'Sin ID'}</h3>
@@ -4426,7 +4419,6 @@ window.openClientServiceDetail = async (id) => {
         `;
     });
 };
-
 
 // Control de barra de progreso para PDF
 let progressTimeout = null;
