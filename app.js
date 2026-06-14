@@ -4463,16 +4463,9 @@ window.downloadClientTicket = async function(serviceId) {
         const ventaDoc = ventasSnap.docs[0];
         const ventaData = ventaDoc.data();
         if (ventaData.pdfUrl) {
-            // Descargar directamente, sin ventana emergente
-            const link = document.createElement('a');
-            link.href = ventaData.pdfUrl;
-            link.download = `comprobante_${ventaData.shortId || ventaDoc.id}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            window.descargarPDF(ventaData.pdfUrl, ventaData.shortId || ventaDoc.id);
             return;
         }
-        // Si no hay URL, regenerar
         await window.reimprimirVenta(ventaDoc.id);
         return;
     }
@@ -5498,6 +5491,158 @@ window.togglePosReceivedInput = () => {
     }
 };
 
+// ========== IMPRIMIR TICKET VENTA (función global) ==========
+window.imprimirTicketVenta = async (ventaId, saleData) => {
+    return new Promise(async (resolve, reject) => {
+        const { jsPDF } = window.jspdf;
+        const pdfDoc = new jsPDF({
+            compress: true,
+            unit: 'mm',
+            format: 'a4'
+        });
+        const logoImg = new Image();
+        logoImg.src = 'logo_oscuro.png';
+
+        const generar = async () => {
+            try {
+                const pageWidth = pdfDoc.internal.pageSize.getWidth();
+                const pageHeight = pdfDoc.internal.pageSize.getHeight();
+
+                // Encabezado
+                pdfDoc.setFillColor(255, 107, 0);
+                pdfDoc.rect(0, 0, pageWidth, 28, 'F');
+                if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
+                pdfDoc.setFontSize(14);
+                pdfDoc.setFont("helvetica", "bold");
+                pdfDoc.setTextColor(255, 255, 255);
+                pdfDoc.text("COMPROBANTE DE VENTA", logoImg.complete ? 36 : 12, 17.5);
+                pdfDoc.setDrawColor(255, 107, 0);
+                pdfDoc.line(12, 29, pageWidth - 12, 29);
+
+                let y = 40;
+                _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 25, 'Datos del Comprobante', [
+                    { label: 'Ticket:', value: saleData.shortId, rightLabel: 'Método de Pago:', rightValue: saleData.metodoPago },
+                    { label: 'Fecha:', value: new Date(saleData.fecha).toLocaleString(), rightLabel: 'Cliente:', rightValue: saleData.clienteCel || 'Mostrador' }
+                ]);
+                y += 32;
+
+                // Artículos
+                pdfDoc.setFont("helvetica", "bold");
+                pdfDoc.setFontSize(10);
+                pdfDoc.setTextColor(15, 23, 42);
+                pdfDoc.text("ARTÍCULOS ADQUIRIDOS:", 12, y);
+                y += 4;
+
+                let ticketItems = [];
+                if (saleData.servicioNombre) {
+                    let nombreLimpio = saleData.servicioNombre.replace(/\[.*?\]/g, '').replace(/\*/g, '').replace(/\[|\]/g, '').trim();
+                    if (!nombreLimpio) nombreLimpio = saleData.servicioNombre;
+                    ticketItems.push([nombreLimpio, 'Sin garantía', `$${saleData.rescueCost?.toFixed(2) || '$0.00'}`]);
+                }
+                if (saleData.ticket && saleData.ticket.length > 0) {
+                    saleData.ticket.forEach(item => {
+                        if (item.type !== 'servicio' && item.type !== 'rescate') {
+                            ticketItems.push([item.name, item.garantia || 'Sin garantía', `$${item.price.toFixed(2)}`]);
+                        }
+                    });
+                }
+                if (saleData.costoEnvio && saleData.costoEnvio > 0) {
+                    ticketItems.push(['Costo de envío', 'N/A', `$${saleData.costoEnvio.toFixed(2)}`]);
+                }
+                if (saleData.descuento && saleData.descuento > 0) {
+                    ticketItems.push(['Descuento aplicado', 'N/A', `-$${saleData.descuento.toFixed(2)}`]);
+                }
+                if (ticketItems.length === 0) ticketItems.push(['Sin productos', 'N/A', '$0.00']);
+
+                pdfDoc.autoTable({
+                    startY: y,
+                    head: [['Descripción del Producto', 'Garantía Oficial', 'Precio Unitario']],
+                    body: ticketItems,
+                    theme: 'grid',
+                    styles: { fontSize: 8, cellPadding: 2.5, textColor: [30,41,59] },
+                    headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
+                    columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 35 }, 2: { cellWidth: 30, halign: 'right' } },
+                    margin: { left: 12, right: 12 }
+                });
+                y = pdfDoc.lastAutoTable.finalY + 10;
+
+                pdfDoc.setFont("helvetica", "bold");
+                pdfDoc.setFontSize(12);
+                pdfDoc.setTextColor(15, 23, 42);
+                pdfDoc.text(`Total Neto: $${saleData.total.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+                y += 15;
+
+                // Mapa (opcional)
+                if (saleData.sosId) {
+                    let rutaPuntos = [];
+                    let mechUid = null;
+                    try {
+                        const sosSnap = await getDoc(doc(db, "rescates", saleData.sosId));
+                        if (sosSnap.exists()) {
+                            const sosData = sosSnap.data();
+                            mechUid = sosData.mech_uid || null;
+                        }
+                    } catch (err) { console.warn(err); }
+                    if (!mechUid) mechUid = auth.currentUser?.uid || null;
+                    if (mechUid) {
+                        const trackingRef = dbRef(rtdb, `sos_tracking/${saleData.sosId}/${mechUid}/points`);
+                        const trackSnap = await get(trackingRef);
+                        if (trackSnap.exists()) {
+                            trackSnap.forEach(child => {
+                                const punto = child.val();
+                                if (punto.lat && punto.lng) rutaPuntos.push([punto.lat, punto.lng]);
+                            });
+                        }
+                    }
+                    if (rutaPuntos.length === 0 && mechUid) {
+                        const posMechSnap = await get(dbRef(rtdb, `mecanicos_activos/${mechUid}`));
+                        if (posMechSnap.exists()) {
+                            const pos = posMechSnap.val();
+                            if (pos.lat && pos.lng) rutaPuntos.push([pos.lat, pos.lng]);
+                        }
+                    }
+                    if (rutaPuntos.length === 0) rutaPuntos.push([TALLER_LAT, TALLER_LNG]);
+
+                    let mapImage = null;
+                    try {
+                        mapImage = await _generateRouteMapImage(rutaPuntos, saleData.lat, saleData.lng);
+                    } catch (err) { console.error(err); }
+
+                    if (mapImage) {
+                        pdfDoc.setDrawColor(255, 107, 0);
+                        pdfDoc.setLineWidth(0.5);
+                        const mapX = 50;
+                        const mapY = y;
+                        const imgWidth = 120;
+                        const imgHeight = 80;
+                        pdfDoc.rect(mapX, mapY, imgWidth, imgHeight, 'S');
+                        pdfDoc.addImage(mapImage, 'JPEG', mapX, mapY, imgWidth, imgHeight, undefined, undefined, 0.7);
+                        y += 90;
+                    } else {
+                        pdfDoc.text("No se pudo generar el mapa", 12, y);
+                        y += 10;
+                    }
+                }
+
+                pdfDoc.setFontSize(7);
+                pdfDoc.setTextColor(148, 163, 184);
+                pdfDoc.text("Gracias por su preferencia comercial. Conserve el presente ticket físico o digital para hacer válida cualquier reclamación de garantía en sucursal.", 12, y);
+
+                const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE VENTA', logoImg);
+                addFooter(pdfDoc);
+
+                const pdfBlob = pdfDoc.output('blob');
+                resolve(pdfBlob);
+            } catch (error) {
+                reject(error);
+            }
+        };
+
+        if (logoImg.complete) await generar();
+        else { logoImg.onload = generar; logoImg.onerror = generar; }
+    });
+};
+
 window.renderTicket = () => {
     const list = document.getElementById('pos-ticket-list');
     if (!list) return;
@@ -5604,7 +5749,7 @@ window.checkoutTicket = async (isCard = false) => {
 
 async function subirPDFaCloudinary(pdfBlob, ventaId) {
     const cloudName = 'dwcklmb4u';
-    const uploadPreset = 'pdf_upload'; // Debe ser un preset UNSIGNED en Cloudinary
+    const uploadPreset = 'pdf_upload'; // Debes crear este preset UNSIGNED en Cloudinary
 
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -5626,6 +5771,7 @@ async function subirPDFaCloudinary(pdfBlob, ventaId) {
                     throw new Error(`Cloudinary error ${response.status}: ${errorText}`);
                 }
                 const data = await response.json();
+                // Asegurar que la URL sea pública (por defecto lo es con upload_preset unsigned)
                 resolve(data.secure_url);
             } catch (error) {
                 reject(error);
@@ -5634,6 +5780,7 @@ async function subirPDFaCloudinary(pdfBlob, ventaId) {
         reader.readAsDataURL(pdfBlob);
     });
 }
+
 window.regenerarPDF = async (ventaId) => {
     const ventaSnap = await getDoc(doc(db, "ventas", ventaId));
     if (!ventaSnap.exists()) return;
@@ -5677,13 +5824,9 @@ window.loadVentasRealizadas = () => {
     const container = document.getElementById('ventas-realizadas-list');
     if (!container) return;
 
-    // Cancelar listener anterior si existe
-    if (ventasRealizadasUnsubscribe) {
-        ventasRealizadasUnsubscribe();
-        ventasRealizadasUnsubscribe = null;
-    }
+    if (ventasRealizadasUnsubscribe) ventasRealizadasUnsubscribe();
+    ventasRealizadasUnsubscribe = null;
 
-    // Escuchar cambios en tiempo real
     const q = query(collection(db, "ventas"), orderBy("fecha", "desc"), limit(30));
     ventasRealizadasUnsubscribe = onSnapshot(q, (snap) => {
         container.innerHTML = '';
@@ -5694,7 +5837,6 @@ window.loadVentasRealizadas = () => {
 
             let accionHTML = '';
             if (tienePDF) {
-                // Ícono de descarga (círculo naranja con flecha)
                 accionHTML = `
                     <button onclick="window.descargarPDF('${v.pdfUrl}', '${v.shortId || docSnap.id}')" 
                             class="w-8 h-8 bg-naranja rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity"
@@ -5703,9 +5845,8 @@ window.loadVentasRealizadas = () => {
                     </button>
                 `;
             } else {
-                // Botón Reimprimir a la izquierda, ⚠️ a la derecha con espacio
                 accionHTML = `
-                    <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-3">
                         <button onclick="window.reimprimirVenta('${docSnap.id}')" 
                                 class="bg-blue-600 text-white px-3 py-1 rounded text-[9px] font-bold uppercase hover:bg-blue-500 transition-colors">
                             Reimprimir
