@@ -4354,11 +4354,13 @@ window.openClientServiceDetail = async (id) => {
     if (!modalEl) {
         modalEl = document.createElement('div');
         modalEl.id = modalId;
-        modalEl.className = 'fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center p-4 hidden backdrop-blur-sm';
         modalEl.innerHTML = `
             <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl">
                 <button onclick="window.toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
-                <div id="${modalId}-content" class="text-white"></div>
+                <div id="${modalId}-content" class="text-white">
+                    <p class="text-center text-gray-400">Cargando detalles...</p>
+                </div>
             </div>
         `;
         document.body.appendChild(modalEl);
@@ -4422,10 +4424,14 @@ window.openClientServiceDetail = async (id) => {
             </div>
         `;
 
-        // 📌 Mostrar el modal
-        window.toggleModal(modalId, true);
+        // 📌 Mostrar el modal DESPUÉS de actualizar el contenido
+        // Usamos setTimeout para asegurar que el DOM se haya actualizado
+        setTimeout(() => {
+            window.toggleModal(modalId, true);
+        }, 100);
     });
 };
+
 
 // Control de barra de progreso para PDF
 let progressTimeout = null;
