@@ -2914,7 +2914,7 @@ if (data.status === 'completed' || data.status === 'cancelled') {
         routingControl.remove();
         routingControl = null;
     }
-
+if (emergencyBtn) emergencyBtn.style.display = 'flex'; 
     window.loadClientHistory();
     lastSOSStatus = null;
     return;
@@ -2982,6 +2982,7 @@ if (data.status === 'completed' || data.status === 'cancelled') {
                 }
             };
             initClientMapIfNeeded();
+            if (emergencyBtn) emergencyBtn.style.display = 'none';
 
             if (window.clientMapInstance && data.lat && data.lng) {
                 // ✅ Ocultar video y mostrar mapa
@@ -4332,38 +4333,29 @@ window.loadClientHistory = () => {
 };
 
 window.openClientServiceDetail = async (id) => {
-    // Cerrar suscripción anterior si existe
-    if (window._clientDetailUnsubscribe) {
-        window._clientDetailUnsubscribe();
-        window._clientDetailUnsubscribe = null;
-    }
-
-    const modalId = 'modal-client-service-detail';
-    let modalEl = document.getElementById(modalId);
-    if (!modalEl) {
-        modalEl = document.createElement('div');
-        modalEl.id = modalId;
-        modalEl.className = 'fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-        modalEl.innerHTML = `<div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl" id="${modalId}-content"></div>`;
-        document.body.appendChild(modalEl);
-    }
-
+    // ... código existente ...
     const contentDiv = document.getElementById(`${modalId}-content`);
     
-    // Suscribirse a cambios en tiempo real del documento
     window._clientDetailUnsubscribe = onSnapshot(doc(db, "rescates", id), (docSnap) => {
-        if (!docSnap.exists()) {
-            contentDiv.innerHTML = '<p class="text-white">Servicio no encontrado</p>';
-            return;
-        }
+        // ... validaciones ...
         const data = docSnap.data();
-        // Verificar permisos
-        if (data.uid !== auth.currentUser.uid && data.phone !== window.currentUserDoc.phone) {
-            contentDiv.innerHTML = '<p class="text-white">No tienes permiso para ver este servicio</p>';
-            return;
+
+        // Verificar si hay venta asociada con PDF
+        let pdfUrl = null;
+        const ventaSnapshot = await getDocs(query(collection(db, "ventas"), where("sosId", "==", id), limit(1)));
+        if (!ventaSnapshot.empty) {
+            const venta = ventaSnapshot.docs[0].data();
+            pdfUrl = venta.pdfUrl || null;
         }
 
         const statusInfo = window.getStatusInfo(data.status);
+        let btnDescarga = '';
+        if (pdfUrl) {
+            btnDescarga = `<button onclick="window.open('${pdfUrl}', '_blank')" class="mt-2 bg-green-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">📥 Descargar Comprobante</button>`;
+        } else if (data.status === 'completed') {
+            btnDescarga = `<button onclick="window.downloadClientTicket('${id}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">Descargar Ticket PDF</button>`;
+        }
+
         const detailHTML = `
             <button onclick="toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
             <div class="text-white space-y-2">
@@ -4371,23 +4363,12 @@ window.openClientServiceDetail = async (id) => {
                 <p class="text-xs text-gray-400">Moto: ${data.marca || ''} ${data.modelo || ''} (${data.cc || ''})</p>
                 <p class="text-sm">${data.falla}</p>
                 <p class="text-xs">Estado: <span class="font-bold ${statusInfo.color.replace('bg-', 'text-').replace(/\/\d+/, '')}">${statusInfo.text}</span></p>
-                ${data.status === 'cancelled' 
-                    ? `<div class="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
-                        <p class="text-xs text-yellow-300 italic leading-relaxed">💡 Un cambio oportuno de aceite puede hacer la diferencia en la vida de tu motor.</p>
-                        <button onclick="event.stopPropagation(); window.startFlow?.('tienda_publica')" class="mt-2 bg-naranja hover:bg-orange-600 text-white text-xs px-4 py-2 rounded-full font-black uppercase transition-colors w-full">
-                            <i class="fas fa-shopping-bag mr-1"></i> Cotizalo ahora
-                        </button>
-                    </div>`
-                    : (data.tallerStatus ? `<p class="text-xs">Taller: ${data.tallerStatus}</p>` : '')
-                }
+                ${btnDescarga}
                 <p class="text-xs text-gray-500">${new Date(data.timestamp).toLocaleString()}</p>
-                <!-- En el detalle del servicio -->
-${data.status === 'completed' ? `<button onclick="window.downloadClientTicket('${id}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">Descargar Ticket PDF</button>` : ''}
             </div>
         `;
         contentDiv.innerHTML = detailHTML;
     });
-
     toggleModal(modalId, true);
 };
 
@@ -5591,49 +5572,44 @@ window.confirmWhatsAppSend = async (confirmed) => {
     }
 };
 
-async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
-    const btn = document.getElementById('btn-checkout-pos');
-    const originalBtnHTML = btn ? btn.innerHTML : '';
-
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
-    }
-
-    try {
-        // ... (código de registro de venta) ...
-        const docRef = await addDoc(collection(db, "ventas"), saleData);
-
-        // ✅ GENERAR Y SUBIR A GOOGLE DRIVE
-        let pdfUrl = null;
-        try {
-            window.showPDFProgress?.();
-            const pdfBlob = await window.imprimirTicketVenta(docRef.id, saleData);
-            pdfUrl = await subirPDFaDrive(pdfBlob, docRef.id, saleData);
-            window.hidePDFProgress?.();
-        } catch (error) {
-            console.error('❌ Error generando/subiendo PDF:', error);
-            window.hidePDFProgress?.();
-        }
-
-        // ✅ GUARDAR LA URL EN FIRESTORE
-        if (pdfUrl) {
-            await updateDoc(docRef, { pdfUrl: pdfUrl });
-        }
-
-        // ... (limpieza del carrito) ...
-        showToast("Venta Registrada y Pagada", false);
-
-    } catch (e) {
-        console.error('Error en finalizeCheckout:', e);
-        showToast("Error al procesar: " + (e.message || 'Error desconocido'), true);
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = originalBtnHTML;
-        }
-    }
+// ========== SUBIR PDF A GOOGLE DRIVE ==========
+async function subirPDFaDrive(pdfBlob, ventaId, saleData) {
+    const webAppUrl = 'URL_DEL_WEB_APP_GOOGLE_SCRIPT'; // ← REEMPLAZAR CON TU URL REAL
+    
+    // Convertir Blob a DataURL para enviarlo al script
+    const reader = new FileReader();
+    return new Promise((resolve, reject) => {
+        reader.onload = async (event) => {
+            const pdfDataUrl = event.target.result;
+            try {
+                const response = await fetch(webAppUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ventaId: ventaId,
+                        shortId: saleData.shortId,
+                        clienteCel: saleData.clienteCel,
+                        fecha: saleData.fecha,
+                        ticket: saleData.ticket || [],
+                        total: saleData.total || 0,
+                        pdfDataUrl: pdfDataUrl
+                    })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    resolve(result.pdfUrl);
+                } else {
+                    console.error('Error en Google Script:', result.error);
+                    reject(new Error(result.error));
+                }
+            } catch (error) {
+                reject(error);
+            }
+        };
+        reader.readAsDataURL(pdfBlob);
+    });
 }
+
 
 window.imprimirTicketVenta = async (ventaId, saleData) => {
     return new Promise(async (resolve, reject) => {
@@ -5891,8 +5867,16 @@ window.reimprimirVenta = async (ventaId) => {
     const snap = await getDoc(doc(db, "ventas", ventaId));
     if (!snap.exists()) return showToast("Venta no encontrada", true);
     const saleData = snap.data();
-    // Llama a la misma función de impresión (que ahora imprime automáticamente)
-    window.imprimirTicketVenta(ventaId, saleData);
+    try {
+        const pdfBlob = await window.imprimirTicketVenta(ventaId, saleData);
+        const url = URL.createObjectURL(pdfBlob);
+        const printWindow = window.open(url, '_blank');
+        if (printWindow) printWindow.onload = () => printWindow.print();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+        console.error('Error al reimprimir:', error);
+        showToast("Error al reimprimir", true);
+    }
 };
 
 window.verGarantiasVenta = async (ventaId) => {
