@@ -2773,51 +2773,312 @@ function initClientMap() {
 }
 
 // ========== LISTEN TO MY SOS – VERSIÓN DEFINITIVA (CORREGIDA) ==========
-window.asignarMecanicoASOS = async (mechUid, sosId) => {
-    const mechSnap = await getDoc(doc(db, "users", mechUid));
-    if (!mechSnap.exists()) return showToast("Mecánico no encontrado", true);
-    const mech = mechSnap.data();
-    const sosSnap = await getDoc(doc(db, "rescates", sosId));
-    if (!sosSnap.exists()) return showToast("SOS no encontrado", true);
-    const sosData = sosSnap.data();
-
-    await updateDoc(doc(db, "rescates", sosId), { 
-        status: 'accepted', 
-        mech_uid: mechUid, 
-        mech_name: mech.name,
-        acceptedAt: Date.now()
-    });
-    window.activeMechanicSOSId = sosId;
-
-    const chatRef = await addDoc(collection(db, "chats"), {
-        participantes: [sosData.uid, mechUid],
-        nombres: { [sosData.uid]: sosData.clientName || "Cliente", [mechUid]: mech.name },
-        titulo: `Servicio ${sosData.shortId}`,
-        estado: 'activo',
-        creado: Date.now()
-    });
-    window._sosChatId = chatRef.id;
-    await updateDoc(doc(db, "rescates", sosId), { chatId: chatRef.id });
-
-    if (sosData.uid) {
-        await set(dbRef(rtdb, 'sos_alerts/' + sosData.uid), { 
-            ...sosData, 
-            status: 'accepted', 
-            mech_uid: mechUid, 
-            mech_name: mech.name,
-            chatId: chatRef.id
-        });
-        await push(dbRef(rtdb, 'sos_alerts/' + sosData.uid + '/notifs'), { 
-            msg: '✅ ¡Tu solicitud fue aceptada! El mecánico está en camino.' 
-        });
-        speakTTS('Tu solicitud fue aceptada. El mecánico está en camino.');
+function listenToMySOS() {
+    if (window.mySOSListener && typeof window.mySOSListener === 'function') {
+        window.mySOSListener();
+        window.mySOSListener = null;
     }
+    if (!auth.currentUser) return;
 
-    toggleModal('modal-asignar-mecanico', false);
-    showToast(`✅ Mecánico ${mech.name} asignado correctamente.`);
-    window.renderSOSGlobalMap?.();
-    window.cargarListadoSOS?.();
-};
+    let mechPosUnsubscribe = null;
+    let routingControl = null;
+    let centrarMapaInterval = null;
+
+    window.mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), async (snap) => {
+        const activeCard = document.getElementById('active-sos-card');
+        const noServicesMsg = document.getElementById('no-active-services-msg');
+        const survey = document.getElementById('satisfaction-survey');
+        const mechanicMapDiv = document.getElementById('mechanic-live-map');
+        const statusDesc = document.getElementById('sos-status-desc-client');
+        const progressBar = document.getElementById('sos-progress-bar');
+        const emergencyBtn = document.getElementById('emergency-client-btn');
+        const chatBtn = document.getElementById('btn-chat-sos');
+        const videoContainer = document.getElementById('promo-video-container');
+
+        // 📌 Limpiar intervalos anteriores
+        if (centrarMapaInterval) {
+            clearInterval(centrarMapaInterval);
+            centrarMapaInterval = null;
+        }
+
+        // 📌 CASO 1: No hay nodo RTDB (servicio eliminado o finalizado)
+        if (!snap.exists()) {
+            if (activeCard) activeCard.classList.add('hidden');
+            if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (videoContainer) videoContainer.style.display = 'block';
+
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
+            if (window.clientMapInstance) {
+                if (window.clientMapMarkers.mech) {
+                    window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+                    window.clientMapMarkers.mech = null;
+                }
+                if (window.clientMapMarkers.client) {
+                    window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                    window.clientMapMarkers.client = null;
+                }
+            }
+            window.lastClientSOSStatus = null;
+            return;
+        }
+
+        const data = snap.val();
+
+        // 📌 CASO 2: Servicio completado o cancelado
+        if (data.status === 'completed' || data.status === 'cancelled') {
+            if (activeCard) activeCard.classList.add('hidden');
+            if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (videoContainer) videoContainer.style.display = 'block';
+
+            if (data.status === 'completed') {
+                const shortId = data.shortId || 'unknown';
+                const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
+                if (!yaCalifico) {
+                    if (survey) survey.classList.remove('hidden');
+                    speakTTS('Servicio finalizado. ¡Califica a tu mecánico!');
+                }
+            }
+
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
+            window.loadClientHistory();
+            return;
+        }
+
+        // 📌 CASO 3: Servicio activo (pending, accepted, repairing, to_shop, ready)
+        if (activeCard) activeCard.classList.remove('hidden');
+        if (noServicesMsg) noServicesMsg.classList.add('hidden');
+        if (emergencyBtn) emergencyBtn.style.display = 'none';
+
+        // 📌 Barra de progreso según estado
+        let currentStep = 0, progressPercent = 0;
+        if (data.status === 'pending') { currentStep = 0; progressPercent = 0; }
+        else if (data.status === 'accepted') { currentStep = 1; progressPercent = 25; }
+        else if (data.status === 'repairing') { currentStep = 2; progressPercent = 50; }
+        else if (data.status === 'to_shop' || data.status === 'ready') { currentStep = 3; progressPercent = 75; }
+        else if (data.status === 'completed') { currentStep = 4; progressPercent = 100; }
+
+        if (progressBar) progressBar.style.width = progressPercent + '%';
+
+        // 📌 Actualizar pasos visuales
+        for (let i = 0; i < 4; i++) {
+            const labelEl = document.getElementById('step-' + (i+1) + '-label');
+            const dotEl = document.getElementById('step-dot-' + (i+1));
+            if (i < currentStep) {
+                labelEl?.classList.add('text-red-400', 'font-bold');
+                dotEl?.classList.remove('bg-asfalto', 'border-white/20');
+                dotEl?.classList.add('bg-red-500', 'border-asfalto');
+            } else {
+                labelEl?.classList.remove('text-red-400', 'font-bold');
+                dotEl?.classList.remove('bg-red-500', 'border-asfalto');
+                dotEl?.classList.add('bg-asfalto', 'border-white/20');
+            }
+        }
+
+        // 📌 Texto de estado
+        if (statusDesc) {
+            const estados = {
+                'pending': 'Buscando mecánico...',
+                'accepted': '✅ Mecánico asignado, en camino',
+                'repairing': '🔧 Mecánico reparando tu moto',
+                'to_shop': '🚚 En camino al taller',
+                'ready': '✅ Listo para entrega',
+                'completed': '✅ Servicio finalizado'
+            };
+            statusDesc.innerText = estados[data.status] || 'Esperando confirmación';
+        }
+
+        // 📌 Chat button
+        if (data.mech_uid && data.chatId) {
+            chatBtn.classList.remove('hidden');
+        } else {
+            chatBtn.classList.add('hidden');
+        }
+
+        // 📌 CONTROL DE VIDEO vs MAPA
+        if (data.status === 'pending' || !data.mech_uid) {
+            // Sin mecánico asignado → mostrar video
+            if (videoContainer) videoContainer.style.display = 'block';
+            if (mechanicMapDiv) {
+                mechanicMapDiv.style.display = 'none';
+                mechanicMapDiv.style.zIndex = '0';
+            }
+            // Limpiar mapa si existía
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
+            if (window.clientMapInstance) {
+                if (window.clientMapMarkers.mech) {
+                    window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
+                    window.clientMapMarkers.mech = null;
+                }
+                if (window.clientMapMarkers.client) {
+                    window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                    window.clientMapMarkers.client = null;
+                }
+            }
+        } else if (data.status === 'accepted' || data.status === 'repairing' || data.status === 'to_shop' || data.status === 'ready') {
+            // Mecánico asignado → ocultar video, mostrar mapa
+            if (videoContainer) videoContainer.style.display = 'none';
+            if (mechanicMapDiv) {
+                mechanicMapDiv.style.display = 'block';
+                mechanicMapDiv.style.height = '250px';
+                mechanicMapDiv.style.minHeight = '250px';
+            }
+
+            // 📌 Inicializar mapa si no existe
+            if (!window.clientMapInstance) {
+                if (typeof initClientMap === 'function') initClientMap();
+            } else {
+                window.clientMapInstance.invalidateSize();
+            }
+
+            // 📌 Mostrar ubicación del cliente
+            if (window.clientMapInstance && data.lat && data.lng) {
+                if (window.clientMapMarkers.client) {
+                    window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
+                }
+                window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
+                    icon: L.divIcon({
+                        className: 'gps-pulse-marker',
+                        html: '<div class="pulse-inner" style="background:#FF6B00; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-map-marker-alt" style="color:white; font-size:14px;"></i></div>',
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 28]
+                    })
+                }).addTo(window.clientMapInstance).bindPopup("📍 Tu ubicación");
+            }
+
+            // 📌 Suscribir a la posición del mecánico
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (data.mech_uid) {
+                const mechUserSnap = await getDoc(doc(db, "users", data.mech_uid));
+                const mechData = mechUserSnap.exists() ? mechUserSnap.data() : { name: 'Mecánico', phone: '' };
+                const calificacion = await obtenerPromedioCalificacion(data.mech_uid);
+                const stars = calificacion ? '★'.repeat(Math.round(calificacion.promedio)) + '☆'.repeat(5 - Math.round(calificacion.promedio)) : '☆☆☆☆☆';
+                const ratingText = calificacion ? `${calificacion.promedio} ⭐ (${calificacion.total} reseñas)` : 'Sin reseñas';
+                const telefono = mechData.phone || '';
+                const telefonoClean = telefono.replace('+52', '');
+                const nombre = mechData.name || 'Mecánico';
+                const popupContent = `
+                    <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${document.body.classList.contains('light-mode') ? '#ffffff' : '#1A1A1A'}; color:${document.body.classList.contains('light-mode') ? '#111111' : '#ffffff'}; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
+                        <b>${escapeHtml(nombre)}</b><br>
+                        <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
+                        ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+                        <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                            ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+                            ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                        </div>
+                    </div>
+                `;
+
+                mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
+                    if (posSnap.exists() && window.clientMapInstance) {
+                        const pos = posSnap.val();
+                        if (pos.lat && pos.lng) {
+                            // 📌 Actualizar marcador del mecánico
+                            if (window.clientMapMarkers.mech) {
+                                window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
+                                window.clientMapMarkers.mech.setPopupContent(popupContent);
+                            } else {
+                                window.clientMapMarkers.mech = L.marker([pos.lat, pos.lng], {
+                                    icon: L.divIcon({
+                                        className: 'mech-pulse-marker',
+                                        html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-motorcycle" style="color:white; font-size:16px;"></i></div>',
+                                        iconSize: [32, 32],
+                                        iconAnchor: [16, 32]
+                                    })
+                                }).addTo(window.clientMapInstance).bindPopup(popupContent);
+                            }
+
+                            // 📌 Centrar el mapa dinámicamente en ambos
+                            const bounds = [];
+                            if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
+                            if (pos.lat && pos.lng) bounds.push([pos.lat, pos.lng]);
+                            if (bounds.length >= 2) {
+                                window.clientMapInstance.fitBounds(bounds, { padding: [50, 50] });
+                            } else if (bounds.length === 1) {
+                                window.clientMapInstance.setView(bounds[0], 14);
+                            }
+
+                            // 📌 Actualizar ruta
+                            if (routingControl) {
+                                routingControl.setWaypoints([
+                                    L.latLng(pos.lat, pos.lng),
+                                    L.latLng(data.lat, data.lng)
+                                ]);
+                            } else {
+                                try {
+                                    routingControl = L.Routing.control({
+                                        waypoints: [
+                                            L.latLng(pos.lat, pos.lng),
+                                            L.latLng(data.lat, data.lng)
+                                        ],
+                                        routeWhileDragging: false,
+                                        language: 'es',
+                                        showAlternatives: false,
+                                        show: false,
+                                        collapsible: false,
+                                        lineOptions: { styles: [{ color: '#440dfa', weight: 6, opacity: 0.9 }] },
+                                        router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+                                        createMarker: () => null
+                                    }).addTo(window.clientMapInstance);
+                                } catch (e) {
+                                    console.warn('Error al crear routing control:', e);
+                                }
+                            }
+
+                            // 📌 (Opcional) Calcular distancia y avanzar barra de progreso
+                            const dist = getDistanceKm(pos.lat, pos.lng, data.lat, data.lng);
+                            if (dist < 1 && data.status === 'accepted') {
+                                // Si está muy cerca y aún no está en repairing, notificar
+                                // (pero no cambiamos estado automáticamente, solo avanzamos barra visual)
+                            }
+                        }
+                    }
+                });
+            }
+
+            // 📌 Iniciar intervalo para centrar el mapa periódicamente
+            if (window.clientMapInstance) {
+                centrarMapaInterval = setInterval(() => {
+                    if (window.clientMapInstance) {
+                        const bounds = [];
+                        if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
+                        if (window.clientMapMarkers.mech) {
+                            const latlng = window.clientMapMarkers.mech.getLatLng();
+                            if (latlng) bounds.push([latlng.lat, latlng.lng]);
+                        }
+                        if (bounds.length >= 2) {
+                            window.clientMapInstance.fitBounds(bounds, { padding: [50, 50] });
+                        } else if (bounds.length === 1) {
+                            window.clientMapInstance.setView(bounds[0], 14);
+                        }
+                    }
+                }, 3000); // Cada 3 segundos
+            }
+        } else {
+            // Estados no mapeados
+            if (mechanicMapDiv) mechanicMapDiv.style.display = 'none';
+            if (videoContainer) videoContainer.style.display = 'block';
+            if (mechPosUnsubscribe) mechPosUnsubscribe();
+            if (routingControl) {
+                routingControl.remove();
+                routingControl = null;
+            }
+        }
+    });
+}
 // ========== FIN DE listenToMySOS ==========
 
 // ========== LISTEN TO MY DELIVERIES – ENTREGAS ACTIVAS ==========
