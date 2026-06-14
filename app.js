@@ -1312,8 +1312,7 @@ window.toggleModal = (id, show) => {
         if (show) {
             m.classList.remove('hidden');
             m.style.display = 'flex'; // ✅ FORZAR FLEX
-            m.style.pointerEvents = 'auto';
-            // Eventos específicos de cada modal (sin cambios)
+            // Eventos específicos
             if (id === 'modal-video-schedule') window.renderVideoScheduleDays?.();
             if (id === 'modal-garantias') window.loadGarantias?.();
             if (id === 'modal-nueva-cita') {
@@ -1327,7 +1326,6 @@ window.toggleModal = (id, show) => {
         } else {
             m.classList.add('hidden');
             m.style.display = 'none';
-            m.style.pointerEvents = 'none';
         }
     }
 };
