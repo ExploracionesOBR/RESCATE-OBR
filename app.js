@@ -5594,10 +5594,9 @@ window.checkoutTicket = async (isCard = false) => {
     await finalizeCheckout(isCard, totalToPay, paymentMethod, phone);
 };
 
-// ========== FINALIZAR CHECKOUT (VERSIÓN COMPLETA) ==========
-// ========== SUBIR PDF A JSONBIN.IO ==========
+// ========== SUBIR PDF A JSONBIN.IO (con nueva clave) ==========
 async function subirPDFaJSONBin(pdfBlob, ventaId, saleData) {
-    const apiKey = '$2a$10$p29LaetXmPeUGzVObV4b9OZRl4dmhxCcloTIVUsBLQ32bFgRSPtnm'; // ← Tu API Key
+    const apiKey = '$2a$10$R81gyckUFpjVYCbx1hOUJOS6vkJHZdFGHQ5rowFDOcXHLgRTylhwu'; // ← NUEVA CLAVE
 
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -5617,12 +5616,11 @@ async function subirPDFaJSONBin(pdfBlob, ventaId, saleData) {
                     timestamp: Date.now()
                 };
 
-                // ✅ CREAR UN NUEVO BIN (POST) - CADA VENTA TIENE SU PROPIO BIN
-                const response = await fetch(`https://api.jsonbin.io/v3/b`, {
+                const response = await fetch('https://api.jsonbin.io/v3/b', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Master-Key': apiKey
+                        'X-Master-Key': apiKey   // ← SE ENVÍA ESTE ENCABEZADO
                     },
                     body: JSON.stringify(data)
                 });
@@ -5633,7 +5631,9 @@ async function subirPDFaJSONBin(pdfBlob, ventaId, saleData) {
                     const binUrl = `https://api.jsonbin.io/v3/b/${binId}/latest`;
                     resolve(binUrl);
                 } else {
-                    reject(new Error('Error al guardar en JSONBin.io'));
+                    const errorText = await response.text();
+                    console.error('Error JSONBin:', errorText);
+                    reject(new Error(`Error al guardar en JSONBin.io: ${response.status} - ${errorText}`));
                 }
             } catch (error) {
                 reject(error);
