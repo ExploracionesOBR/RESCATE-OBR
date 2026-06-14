@@ -4333,7 +4333,6 @@ window.loadClientHistory = () => {
 };
 
 window.openClientServiceDetail = async (id) => {
-    // Cerrar suscripción anterior si existe
     if (window._clientDetailUnsubscribe) {
         window._clientDetailUnsubscribe();
         window._clientDetailUnsubscribe = null;
@@ -4351,43 +4350,49 @@ window.openClientServiceDetail = async (id) => {
 
     const contentDiv = document.getElementById(`${modalId}-content`);
     
-    // ✅ AGREGAR 'async' AL CALLBACK DE onSnapshot
     window._clientDetailUnsubscribe = onSnapshot(doc(db, "rescates", id), async (docSnap) => {
         if (!docSnap.exists()) {
             contentDiv.innerHTML = '<p class="text-white">Servicio no encontrado</p>';
             return;
         }
         const data = docSnap.data();
-        
-        // Verificar permisos
         if (data.uid !== auth.currentUser.uid && data.phone !== window.currentUserDoc.phone) {
             contentDiv.innerHTML = '<p class="text-white">No tienes permiso para ver este servicio</p>';
             return;
         }
 
-        // ✅ VERIFICAR SI HAY VENTA ASOCIADA CON PDF
+        // Verificar si hay venta asociada
         let pdfUrl = null;
+        let ventaId = null;
+        let ventaShortId = null;
         try {
             const ventaSnapshot = await getDocs(query(collection(db, "ventas"), where("sosId", "==", id), limit(1)));
             if (!ventaSnapshot.empty) {
-                const venta = ventaSnapshot.docs[0].data();
-                pdfUrl = venta.pdfUrl || null;
+                const ventaDoc = ventaSnapshot.docs[0];
+                ventaId = ventaDoc.id;
+                const ventaData = ventaDoc.data();
+                pdfUrl = ventaData.pdfUrl || null;
+                ventaShortId = ventaData.shortId || ventaId;
             }
         } catch (error) {
             console.error('Error al obtener venta asociada:', error);
         }
 
         const statusInfo = window.getStatusInfo(data.status);
-
-let btnDescarga = '';
-if (data.status === 'completed' || data.status === 'accepted' || data.status === 'repairing') {
-    if (pdfUrl) {
-    btnDescarga = `<button onclick="window.descargarPDF('${pdfUrl}', '${ventaData.shortId || ventaDoc.id}')" class="mt-2 bg-green-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">📥 Descargar Comprobante</button>`;
-}else {
-        // NO mostrar botón de regenerar. Mostrar mensaje.
-        btnDescarga = `<p class="mt-2 text-yellow-400 text-xs font-bold">⏳ Tu comprobante estará disponible pronto.</p>`;
-    }
-}
+        let btnDescarga = '';
+        // Siempre mostrar un botón para descargar/regenerar si el servicio está completado o aceptado
+        if (data.status === 'completed' || data.status === 'accepted' || data.status === 'repairing') {
+            if (pdfUrl) {
+                btnDescarga = `<button onclick="window.descargarPDF('${pdfUrl}', '${ventaShortId || id}')" class="mt-2 bg-green-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">📥 Descargar Comprobante</button>`;
+            } else {
+                // Si no hay URL, ofrecer regenerar (y descargar)
+                if (ventaId) {
+                    btnDescarga = `<button onclick="window.reimprimirVenta('${ventaId}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">🔄 Generar y descargar</button>`;
+                } else {
+                    btnDescarga = `<p class="mt-2 text-yellow-400 text-xs font-bold">⏳ Tu comprobante estará disponible pronto.</p>`;
+                }
+            }
+        }
 
         const detailHTML = `
             <button onclick="toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
