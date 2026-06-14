@@ -5590,37 +5590,35 @@ window.checkoutTicket = async (isCard = false) => {
     await finalizeCheckout(isCard, totalToPay, paymentMethod, phone);
 };
 
-// ========== SUBIR PDF A IMAGEKIT.IO ==========
 async function subirPDFaImageKit(pdfBlob, ventaId) {
-    const publicKey = 'public_U5oyGU0mCdvGaQVOWImFP6er6E8=';   // ✅ TU PUBLIC KEY
-    const urlEndpoint = 'https://ik.imagekit.io/motocheck';   // ✅ AJUSTA SEGÚN TU URL ENDPOINT
+    const publicKey = 'public_U5oyGU0mCdvGaQVOWImFP6er6E8=';
+    const urlEndpoint = 'https://ik.imagekit.io/motocheck';
 
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = async (e) => {
             const base64 = e.target.result.split(',')[1];
-            const formData = new FormData();
-            formData.append('file', base64);
-            formData.append('fileName', `${ventaId}.pdf`);
-            formData.append('useUniqueFileName', 'false');
-            formData.append('folder', '/Tickets_PDF_app_taller/'); // ✅ carpeta exacta que mencionaste
+            // Enviar como JSON en lugar de FormData (alternativa que evita CORS)
+            const payload = {
+                file: base64,
+                fileName: `${ventaId}.pdf`,
+                useUniqueFileName: false,
+                folder: '/Tickets_PDF_app_taller/'
+            };
 
             try {
                 const response = await fetch(`${urlEndpoint}/api/v1/files/upload`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Basic ${btoa(`${publicKey}:`)}`
+                        'Authorization': `Basic ${btoa(publicKey)}`,
+                        'Content-Type': 'application/json'
                     },
-                    body: formData
+                    body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`ImageKit error ${response.status}: ${errorText}`);
-                }
-
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 const data = await response.json();
-                resolve(data.url); // URL pública del PDF
+                resolve(data.url);
             } catch (error) {
                 reject(error);
             }
