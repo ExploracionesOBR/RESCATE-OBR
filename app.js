@@ -4333,19 +4333,48 @@ window.loadClientHistory = () => {
 };
 
 window.openClientServiceDetail = async (id) => {
-    // ... código existente ...
+    // Cerrar suscripción anterior si existe
+    if (window._clientDetailUnsubscribe) {
+        window._clientDetailUnsubscribe();
+        window._clientDetailUnsubscribe = null;
+    }
+
+    const modalId = 'modal-client-service-detail';
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.innerHTML = `<div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl" id="${modalId}-content"></div>`;
+        document.body.appendChild(modalEl);
+    }
+
     const contentDiv = document.getElementById(`${modalId}-content`);
     
-    window._clientDetailUnsubscribe = onSnapshot(doc(db, "rescates", id), (docSnap) => {
-        // ... validaciones ...
+    // ✅ AGREGAR 'async' AL CALLBACK DE onSnapshot
+    window._clientDetailUnsubscribe = onSnapshot(doc(db, "rescates", id), async (docSnap) => {
+        if (!docSnap.exists()) {
+            contentDiv.innerHTML = '<p class="text-white">Servicio no encontrado</p>';
+            return;
+        }
         const data = docSnap.data();
+        
+        // Verificar permisos
+        if (data.uid !== auth.currentUser.uid && data.phone !== window.currentUserDoc.phone) {
+            contentDiv.innerHTML = '<p class="text-white">No tienes permiso para ver este servicio</p>';
+            return;
+        }
 
-        // Verificar si hay venta asociada con PDF
+        // ✅ VERIFICAR SI HAY VENTA ASOCIADA CON PDF
         let pdfUrl = null;
-        const ventaSnapshot = await getDocs(query(collection(db, "ventas"), where("sosId", "==", id), limit(1)));
-        if (!ventaSnapshot.empty) {
-            const venta = ventaSnapshot.docs[0].data();
-            pdfUrl = venta.pdfUrl || null;
+        try {
+            const ventaSnapshot = await getDocs(query(collection(db, "ventas"), where("sosId", "==", id), limit(1)));
+            if (!ventaSnapshot.empty) {
+                const venta = ventaSnapshot.docs[0].data();
+                pdfUrl = venta.pdfUrl || null;
+            }
+        } catch (error) {
+            console.error('Error al obtener venta asociada:', error);
         }
 
         const statusInfo = window.getStatusInfo(data.status);
@@ -4369,6 +4398,7 @@ window.openClientServiceDetail = async (id) => {
         `;
         contentDiv.innerHTML = detailHTML;
     });
+
     toggleModal(modalId, true);
 };
 
@@ -5564,6 +5594,193 @@ window.checkoutTicket = async (isCard = false) => {
     await finalizeCheckout(isCard, totalToPay, paymentMethod, phone);
 };
 
+// ========== FINALIZAR CHECKOUT (VERSIÓN COMPLETA) ==========
+async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
+    const btn = document.getElementById('btn-checkout-pos');
+    const originalBtnHTML = btn ? btn.innerHTML : '';
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
+    }
+
+    try {
+        const sId = generateShortId();
+        const garantias = window.posTicket
+            .filter(item => item.type === 'almacen' && item.garantia && item.garantia !== 'Sin garantía' && item.garantia !== 'No aplica')
+            .map(item => ({
+                productoId: item.id,
+                producto: item.name,
+                tipoGarantia: item.garantia,
+                fechaInicio: new Date().toISOString(),
+                fechaFin: window.calcularFechaFinGarantia(item.garantia),
+                estado: 'activa'
+            }));
+
+        // ✅ OBTENER DATOS DEL SERVICIO (RESCATE) Y COSTO DEL SERVICIO SELECCIONADO
+        let servicioNombre = null;
+        let servicioCosto = 0;
+        let lat = null;
+        let lng = null;
+
+        if (currentDetalleServicioId) {
+            try {
+                const docSnap = await getDoc(doc(db, "rescates", currentDetalleServicioId));
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.falla) {
+                        const match = data.falla.match(/\[(.*?)\]/);
+                        if (match) {
+                            servicioNombre = match[1].replace(/[*]/g, '').trim();
+                        } else {
+                            servicioNombre = data.falla.substring(0, 40).replace(/[*]/g, '').trim();
+                        }
+                    }
+                    servicioCosto = data.servicioCosto || data.costoRescateEstimado || 0;
+                    lat = data.lat || null;
+                    lng = data.lng || null;
+                }
+            } catch (err) {
+                console.warn('Error obteniendo datos del servicio:', err);
+            }
+        }
+
+        // ✅ CONSTRUIR SALE DATA CON TODOS LOS CAMPOS
+        const saleData = {
+            shortId: sId,
+            desc: window.posTicket.map(i => i.name).join(", "),
+            total: totalToPay,
+            costo: window.posTotalCost,
+            metodoPago: paymentMethod,
+            clienteCel: phone ? "+52"+phone : null,
+            ticket: window.posTicket,
+            garantias: garantias.length ? garantias : null,
+            fecha: new Date().toISOString(),
+            sosId: currentDetalleServicioId || null,
+            rescueCost: window.currentSOSCost || 0,
+            servicioCosto: servicioCosto,
+            descuento: window.posDescuento || 0,
+            servicioNombre: servicioNombre,
+            lat: lat,
+            lng: lng
+        };
+
+        const docRef = await addDoc(collection(db, "ventas"), saleData);
+
+        // ✅ GENERAR PDF EN LA CAJA (si se requiere)
+        let pdfBlob = null;
+        let pdfUrl = null;
+        try {
+            window.showPDFProgress?.();
+            pdfBlob = await window.imprimirTicketVenta(docRef.id, saleData);
+            pdfUrl = await subirPDFaDrive(pdfBlob, docRef.id, saleData);
+            window.hidePDFProgress?.();
+        } catch (error) {
+            console.error('❌ Error generando/subiendo PDF:', error);
+            window.hidePDFProgress?.();
+        }
+
+        // ✅ GUARDAR URL EN FIRESTORE
+        if (pdfUrl) {
+            await updateDoc(docRef, { pdfUrl: pdfUrl });
+        } else {
+            await updateDoc(docRef, { pdfStatus: 'pending' });
+        }
+
+        // ✅ MOSTRAR VENTANA DE IMPRESIÓN EN CAJA
+        if (pdfBlob) {
+            const url = URL.createObjectURL(pdfBlob);
+            const printWindow = window.open(url, '_blank');
+            if (printWindow) {
+                printWindow.onload = () => {
+                    printWindow.print();
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                };
+            }
+        }
+
+        // ✅ GUARDAR GARANTÍAS (si las hay)
+        for (let g of garantias) {
+            await addDoc(collection(db, "garantias"), {
+                ...g,
+                ventaId: docRef.id,
+                clienteCel: phone ? "+52"+phone : null,
+                fechaVenta: new Date().toISOString()
+            });
+        }
+
+        // ✅ DESCONTAR STOCK Y ACTUALIZAR RESCATE
+        for (let item of window.posTicket) {
+            try {
+                if (item.type === 'almacen') {
+                    const pData = adminInventoryList.find(x => x.id === item.id);
+                    if (pData && pData.stock > 0) {
+                        await updateDoc(doc(db, "inventario", item.id), { stock: pData.stock - 1 });
+                    }
+                }
+                if (item.type === 'rescate') {
+                    await updateDoc(doc(db, "rescates", item.id), { tallerStatus: 'pagado', status: 'completed' });
+                }
+            } catch (innerError) {
+                console.warn('Error al actualizar inventario/rescate:', innerError);
+            }
+        }
+
+        // ✅ VINCULAR PEDIDO (si existe)
+        if (phone) {
+            try {
+                const userSnap = await getDocs(query(collection(db, "users"), where("phone", "==", "+52"+phone), limit(1)));
+                if (!userSnap.empty) {
+                    const uid = userSnap.docs[0].id;
+                    const pedidosSnap = await getDocs(query(collection(db, "pedidos"), where("uid", "==", uid), where("status", "==", "solicitado"), orderBy("timestamp", "desc"), limit(1)));
+                    if (!pedidosSnap.empty) {
+                        await updateDoc(doc(db, "pedidos", pedidosSnap.docs[0].id), { status: 'pagado' });
+                    }
+                }
+            } catch (e) {
+                console.warn('Error al vincular pedido:', e);
+            }
+        }
+
+        // ✅ LIMPIEZA DE CARRITO Y UI
+        const ticketRespaldo = [...window.posTicket];
+        window.posTicket = [];
+        window.posDescuento = 0;
+        const phoneInput = document.getElementById('pos-customer-phone');
+        const promoInput = document.getElementById('pos-promo-code');
+        const amountInput = document.getElementById('pos-amount-received');
+        if (phoneInput) phoneInput.value = '';
+        if (promoInput) promoInput.value = '';
+        if (amountInput) amountInput.value = '';
+
+        window.renderTicket();
+        window.adminLoadInventory();
+        window.adminLoadSales();
+        window.adminListenServices();
+        window.loadVentasRealizadas();
+
+        // ✅ ENVIAR WHATSAPP AL CLIENTE (si tiene teléfono)
+        if (phone) {
+            try {
+                window.sendTicketWhatsAppAfterCheckout(phone, totalToPay, ticketRespaldo);
+            } catch (e) {
+                console.warn('Error al enviar WhatsApp:', e);
+            }
+        }
+
+        showToast("Venta Registrada y Pagada", false);
+
+    } catch (e) {
+        console.error('Error en finalizeCheckout:', e);
+        showToast("Error al procesar: " + (e.message || 'Error desconocido'), true);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalBtnHTML;
+        }
+    }
+}
+
 window.confirmWhatsAppSend = async (confirmed) => {
     toggleModal('modal-whatsapp-confirm', false);
     if (confirmed && window._pendingCheckout) {
@@ -5574,7 +5791,7 @@ window.confirmWhatsAppSend = async (confirmed) => {
 
 // ========== SUBIR PDF A GOOGLE DRIVE ==========
 async function subirPDFaDrive(pdfBlob, ventaId, saleData) {
-    const webAppUrl = 'URL_DEL_WEB_APP_GOOGLE_SCRIPT'; // ← REEMPLAZAR CON TU URL REAL
+    const webAppUrl = 'https://script.google.com/macros/s/AKfycbyLainQKwxgQp0yQEs97opLaEegbVSChWwb4sxjMeHB4uUFdFM68nhrpNClbWKpIwYj6g/exec'; // ← REEMPLAZAR CON TU URL REAL
     
     // Convertir Blob a DataURL para enviarlo al script
     const reader = new FileReader();
@@ -5777,45 +5994,6 @@ window.imprimirTicketVenta = async (ventaId, saleData) => {
         else { logoImg.onload = generar; logoImg.onerror = generar; }
     });
 };
-
-// ========== SUBIR PDF A GOOGLE DRIVE ==========
-async function subirPDFaDrive(pdfBlob, ventaId, saleData) {
-    const webAppUrl = 'https://script.google.com/macros/s/AKfycbyLainQKwxgQp0yQEs97opLaEegbVSChWwb4sxjMeHB4uUFdFM68nhrpNClbWKpIwYj6g/exec'; // ← Reemplazar con tu URL real
-    
-    // Convertir Blob a DataURL para enviarlo al script
-    const reader = new FileReader();
-    return new Promise((resolve, reject) => {
-        reader.onload = async (event) => {
-            const pdfDataUrl = event.target.result;
-            try {
-                const response = await fetch(webAppUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        ventaId: ventaId,
-                        shortId: saleData.shortId,
-                        clienteCel: saleData.clienteCel,
-                        fecha: saleData.fecha,
-                        ticket: saleData.ticket || [],
-                        total: saleData.total || 0,
-                        pdfDataUrl: pdfDataUrl
-                    })
-                });
-                const result = await response.json();
-                if (result.success) {
-                    resolve(result.pdfUrl);
-                } else {
-                    console.error('Error en Google Script:', result.error);
-                    reject(new Error(result.error));
-                }
-            } catch (error) {
-                reject(error);
-            }
-        };
-        reader.readAsDataURL(pdfBlob);
-    });
-}
-
 
 window.regenerarPDF = async (ventaId) => {
     const ventaSnap = await getDoc(doc(db, "ventas", ventaId));
