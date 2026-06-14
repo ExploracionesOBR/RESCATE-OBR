@@ -5593,7 +5593,7 @@ window.checkoutTicket = async (isCard = false) => {
 // ========== SUBIR PDF A IMAGEKIT.IO (sin CORS, con publicKey en URL) ==========
 async function subirPDFaImageKit(pdfBlob, ventaId) {
     const publicKey = 'public_U5oyGU0mCdvGaQVOWImFP6er6E8=';
-    const uploadUrl = 'https://upload.imagekit.io/api/v1/files/upload';
+    const uploadUrl = `https://upload.imagekit.io/api/v1/files/upload?publicKey=${publicKey}`;
 
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
