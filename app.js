@@ -5604,7 +5604,7 @@ window.checkoutTicket = async (isCard = false) => {
 
 async function subirPDFaCloudinary(pdfBlob, ventaId) {
     const cloudName = 'dwcklmb4u';
-    const uploadPreset = 'pdf_upload'; // Debes crear este preset unsigned en Cloudinary
+    const uploadPreset = 'pdf_upload'; // Debe ser un preset UNSIGNED en Cloudinary
 
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -5634,173 +5634,6 @@ async function subirPDFaCloudinary(pdfBlob, ventaId) {
         reader.readAsDataURL(pdfBlob);
     });
 }
-window.imprimirTicketVenta = async (ventaId, saleData) => {
-    return new Promise(async (resolve, reject) => {
-        const { jsPDF } = window.jspdf;
-        const pdfDoc = new jsPDF({
-            compress: true,
-            unit: 'mm',
-            format: 'a4'
-        });
-        const logoImg = new Image();
-        logoImg.src = 'logo_oscuro.png';
-
-        const generar = async () => {
-            try {
-                const pageWidth = pdfDoc.internal.pageSize.getWidth();
-                const pageHeight = pdfDoc.internal.pageSize.getHeight();
-
-                // Encabezado
-                pdfDoc.setFillColor(255, 107, 0);
-                pdfDoc.rect(0, 0, pageWidth, 28, 'F');
-                if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
-                pdfDoc.setFontSize(14);
-                pdfDoc.setFont("helvetica", "bold");
-                pdfDoc.setTextColor(255, 255, 255);
-                pdfDoc.text("COMPROBANTE DE VENTA", logoImg.complete ? 36 : 12, 17.5);
-                pdfDoc.setDrawColor(255, 107, 0);
-                pdfDoc.line(12, 29, pageWidth - 12, 29);
-
-                let y = 40;
-                _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 25, 'Datos del Comprobante', [
-                    { label: 'Ticket:', value: saleData.shortId, rightLabel: 'Método de Pago:', rightValue: saleData.metodoPago },
-                    { label: 'Fecha:', value: new Date(saleData.fecha).toLocaleString(), rightLabel: 'Cliente:', rightValue: saleData.clienteCel || 'Mostrador' }
-                ]);
-                y += 32;
-
-                // Artículos adquiridos (incluyendo servicio y rescate)
-                pdfDoc.setFont("helvetica", "bold");
-                pdfDoc.setFontSize(10);
-                pdfDoc.setTextColor(15, 23, 42);
-                pdfDoc.text("ARTÍCULOS ADQUIRIDOS:", 12, y);
-                y += 4;
-
-                let ticketItems = [];
-                // 1. Servicio
-                if (saleData.servicioNombre) {
-                    let nombreLimpio = saleData.servicioNombre
-                        .replace(/\[.*?\]/g, '')
-                        .replace(/\*/g, '')
-                        .replace(/\[|\]/g, '')
-                        .trim();
-                    if (!nombreLimpio) nombreLimpio = saleData.servicioNombre;
-                    ticketItems.push([nombreLimpio, 'Sin garantía', `$${saleData.rescueCost?.toFixed(2) || '$0.00'}`]);
-                }
-                // 2. Productos del ticket
-                if (saleData.ticket && saleData.ticket.length > 0) {
-                    saleData.ticket.forEach(item => {
-                        if (item.type !== 'servicio' && item.type !== 'rescate') {
-                            ticketItems.push([
-                                item.name,
-                                item.garantia || 'Sin garantía',
-                                `$${item.price.toFixed(2)}`
-                            ]);
-                        }
-                    });
-                }
-                // 3. Costo de envío (si existe)
-                if (saleData.costoEnvio && saleData.costoEnvio > 0) {
-                    ticketItems.push(['Costo de envío', 'N/A', `$${saleData.costoEnvio.toFixed(2)}`]);
-                }
-                // 4. Descuento (si existe)
-                if (saleData.descuento && saleData.descuento > 0) {
-                    ticketItems.push(['Descuento aplicado', 'N/A', `-$${saleData.descuento.toFixed(2)}`]);
-                }
-                if (ticketItems.length === 0) {
-                    ticketItems.push(['Sin productos', 'N/A', '$0.00']);
-                }
-
-                pdfDoc.autoTable({
-                    startY: y,
-                    head: [['Descripción del Producto', 'Garantía Oficial', 'Precio Unitario']],
-                    body: ticketItems,
-                    theme: 'grid',
-                    styles: { fontSize: 8, cellPadding: 2.5, textColor: [30,41,59] },
-                    headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
-                    columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 35 }, 2: { cellWidth: 30, halign: 'right' } },
-                    margin: { left: 12, right: 12 }
-                });
-                y = pdfDoc.lastAutoTable.finalY + 10;
-
-                pdfDoc.setFont("helvetica", "bold");
-                pdfDoc.setFontSize(12);
-                pdfDoc.setTextColor(15, 23, 42);
-                pdfDoc.text(`Total Neto: $${saleData.total.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-                y += 15;
-
-                // Mapa (con compresión de imagen)
-                if (saleData.sosId) {
-                    let rutaPuntos = [];
-                    let mechUid = null;
-                    if (saleData.sosId) {
-                        try {
-                            const sosSnap = await getDoc(doc(db, "rescates", saleData.sosId));
-                            if (sosSnap.exists()) {
-                                const sosData = sosSnap.data();
-                                mechUid = sosData.mech_uid || null;
-                            }
-                        } catch (err) { console.warn(err); }
-                    }
-                    if (!mechUid) mechUid = auth.currentUser?.uid || null;
-                    if (mechUid) {
-                        const trackingRef = dbRef(rtdb, `sos_tracking/${saleData.sosId}/${mechUid}/points`);
-                        const trackSnap = await get(trackingRef);
-                        if (trackSnap.exists()) {
-                            trackSnap.forEach(child => {
-                                const punto = child.val();
-                                if (punto.lat && punto.lng) rutaPuntos.push([punto.lat, punto.lng]);
-                            });
-                        }
-                    }
-                    if (rutaPuntos.length === 0 && mechUid) {
-                        const posMechSnap = await get(dbRef(rtdb, `mecanicos_activos/${mechUid}`));
-                        if (posMechSnap.exists()) {
-                            const pos = posMechSnap.val();
-                            if (pos.lat && pos.lng) rutaPuntos.push([pos.lat, pos.lng]);
-                        }
-                    }
-                    if (rutaPuntos.length === 0) rutaPuntos.push([TALLER_LAT, TALLER_LNG]);
-
-                    let mapImage = null;
-                    try {
-                        mapImage = await _generateRouteMapImage(rutaPuntos, saleData.lat, saleData.lng);
-                    } catch (err) { console.error(err); }
-
-                    if (mapImage) {
-                        pdfDoc.setDrawColor(255, 107, 0);
-                        pdfDoc.setLineWidth(0.5);
-                        const mapX = 50;
-                        const mapY = y;
-                        const imgWidth = 120;
-                        const imgHeight = 80;
-                        pdfDoc.rect(mapX, mapY, imgWidth, imgHeight, 'S');
-                        pdfDoc.addImage(mapImage, 'JPEG', mapX, mapY, imgWidth, imgHeight, undefined, undefined, 0.7); // ← CALIDAD 70%
-                        y += 90;
-                    } else {
-                        pdfDoc.text("No se pudo generar el mapa", 12, y);
-                        y += 10;
-                    }
-                }
-
-                pdfDoc.setFontSize(7);
-                pdfDoc.setTextColor(148, 163, 184);
-                pdfDoc.text("Gracias por su preferencia comercial. Conserve el presente ticket físico o digital para hacer válida cualquier reclamación de garantía en sucursal.", 12, y);
-
-                const addFooter = window._setupProfessionalPDF(pdfDoc, 'COMPROBANTE DE VENTA', logoImg);
-                addFooter(pdfDoc);
-
-               const pdfBlob = pdfDoc.output('blob');
-                resolve(pdfBlob);
-            } catch (error) {
-                reject(error);
-            }
-        };
-
-        if (logoImg.complete) await generar();
-        else { logoImg.onload = generar; logoImg.onerror = generar; }
-    });
-};
-
 window.regenerarPDF = async (ventaId) => {
     const ventaSnap = await getDoc(doc(db, "ventas", ventaId));
     if (!ventaSnap.exists()) return;
@@ -5838,70 +5671,76 @@ window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
     window.open(url, '_blank');
 };
 
-window.loadVentasRealizadas = async () => {
+let ventasRealizadasUnsubscribe = null;
+
+window.loadVentasRealizadas = () => {
     const container = document.getElementById('ventas-realizadas-list');
     if (!container) return;
 
-    // Limpiar eventos previos (opcional, para evitar duplicados)
-    const nuevoContainer = container.cloneNode(true);
-    container.parentNode.replaceChild(nuevoContainer, container);
-    const nuevoContainerRef = document.getElementById('ventas-realizadas-list');
+    // Cancelar listener anterior si existe
+    if (ventasRealizadasUnsubscribe) {
+        ventasRealizadasUnsubscribe();
+        ventasRealizadasUnsubscribe = null;
+    }
 
-    const snap = await getDocs(query(collection(db, "ventas"), orderBy("fecha", "desc"), limit(30)));
-    nuevoContainerRef.innerHTML = '';
-    
-    snap.forEach(docSnap => {
-        const v = docSnap.data();
-        const itemsCount = v.ticket ? v.ticket.length : 0;
-        const tienePDF = v.pdfUrl ? true : false;
+    // Escuchar cambios en tiempo real
+    const q = query(collection(db, "ventas"), orderBy("fecha", "desc"), limit(30));
+    ventasRealizadasUnsubscribe = onSnapshot(q, (snap) => {
+        container.innerHTML = '';
+        snap.forEach(docSnap => {
+            const v = docSnap.data();
+            const itemsCount = v.ticket ? v.ticket.length : 0;
+            const tienePDF = v.pdfUrl ? true : false;
 
-        let accionHTML = '';
-        if (tienePDF) {
-            accionHTML = `
-                <button onclick="window.open('${v.pdfUrl}', '_blank')" 
-                        class="w-8 h-8 bg-naranja rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity"
-                        title="Descargar comprobante">
-                    <i class="fas fa-download"></i>
-                </button>
-            `;
-        } else {
-            accionHTML = `
-                <div class="flex items-center gap-3">
-                    <button data-reimprimir data-venta-id="${docSnap.id}" 
-                            class="bg-blue-600 text-white px-2 py-1 rounded text-[9px] font-bold uppercase hover:bg-blue-500 transition-colors">
-                        Reimprimir
+            let accionHTML = '';
+            if (tienePDF) {
+                // Ícono de descarga (círculo naranja con flecha)
+                accionHTML = `
+                    <button onclick="window.descargarPDF('${v.pdfUrl}', '${v.shortId || docSnap.id}')" 
+                            class="w-8 h-8 bg-naranja rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity"
+                            title="Descargar comprobante">
+                        <i class="fas fa-download"></i>
                     </button>
-                    <i class="fas fa-exclamation-triangle text-yellow-400 text-lg" title="PDF no disponible, genera uno nuevo"></i>
+                `;
+            } else {
+                // Botón Reimprimir a la izquierda, ⚠️ a la derecha con espacio
+                accionHTML = `
+                    <div class="flex items-center gap-4">
+                        <button onclick="window.reimprimirVenta('${docSnap.id}')" 
+                                class="bg-blue-600 text-white px-3 py-1 rounded text-[9px] font-bold uppercase hover:bg-blue-500 transition-colors">
+                            Reimprimir
+                        </button>
+                        <i class="fas fa-exclamation-triangle text-yellow-400 text-lg" title="PDF no disponible, genera uno nuevo"></i>
+                    </div>
+                `;
+            }
+
+            container.innerHTML += `
+                <div class="bg-white/5 border border-white/10 p-3 rounded-xl text-xs text-white">
+                    <div class="flex justify-between">
+                        <span class="font-bold">${v.shortId}</span>
+                        <span>${new Date(v.fecha).toLocaleDateString()}</span>
+                    </div>
+                    <p class="text-gray-400">${v.desc?.substring(0, 50) || `${itemsCount} productos`}</p>
+                    <p class="text-naranja font-black">$${v.total?.toFixed(2) || '0.00'}</p>
+                    <div class="flex justify-end mt-1">
+                        ${accionHTML}
+                    </div>
                 </div>
             `;
-        }
-
-        nuevoContainerRef.innerHTML += `
-            <div class="bg-white/5 border border-white/10 p-3 rounded-xl text-xs text-white">
-                <div class="flex justify-between">
-                    <span class="font-bold">${v.shortId}</span>
-                    <span>${new Date(v.fecha).toLocaleDateString()}</span>
-                </div>
-                <p class="text-gray-400">${v.desc?.substring(0, 50) || `${itemsCount} productos`}</p>
-                <p class="text-naranja font-black">$${v.total?.toFixed(2) || '0.00'}</p>
-                <div class="flex justify-end mt-1">
-                    ${accionHTML}
-                </div>
-            </div>
-        `;
-    });
-
-    // Delegación de eventos
-    nuevoContainerRef.addEventListener('click', function(e) {
-        const btn = e.target.closest('[data-reimprimir]');
-        if (btn) {
-            const ventaId = btn.getAttribute('data-venta-id');
-            if (ventaId) {
-                window.reimprimirVenta(ventaId);
-            }
-        }
+        });
     });
 };
+
+window.descargarPDF = (url, nombreArchivo) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `comprobante_${nombreArchivo}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
 window.reimprimirVenta = async (ventaId) => {
     const snap = await getDoc(doc(db, "ventas", ventaId));
     if (!snap.exists()) return showToast("Venta no encontrada", true);
@@ -5911,7 +5750,7 @@ window.reimprimirVenta = async (ventaId) => {
         // 1. Generar PDF (local, rápido)
         const pdfBlob = await window.imprimirTicketVenta(ventaId, saleData);
 
-        // 2. Descargar directamente sin abrir ventana emergente
+        // 2. Descargar directamente sin ventana emergente
         const urlLocal = URL.createObjectURL(pdfBlob);
         const link = document.createElement('a');
         link.href = urlLocal;
