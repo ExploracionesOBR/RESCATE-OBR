@@ -5590,23 +5590,44 @@ window.checkoutTicket = async (isCard = false) => {
     await finalizeCheckout(isCard, totalToPay, paymentMethod, phone);
 };
 
-// ========== SUBIR PDF A FIREBASE STORAGE (reemplaza JSONBin) ==========
-async function subirPDFaStorage(pdfBlob, ventaId, saleData) {
-    const path = `ventas_pdf/${ventaId}.pdf`;
-    const file = new File([pdfBlob], `${ventaId}.pdf`, { type: 'application/pdf' });
-    // Usamos uploadWithTimeout (ya existe en tu código) para subir el archivo
-    const url = await uploadWithTimeout(file, path);
-    return url; // URL pública de Firebase Storage
+// ========== SUBIR PDF A IMAGEKIT.IO ==========
+async function subirPDFaImageKit(pdfBlob, ventaId) {
+    const publicKey = 'public_U5oyGU0mCdvGaQVOWImFP6er6E8=';   // ✅ TU PUBLIC KEY
+    const urlEndpoint = 'https://ik.imagekit.io/motocheck';   // ✅ AJUSTA SEGÚN TU URL ENDPOINT
+
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const base64 = e.target.result.split(',')[1];
+            const formData = new FormData();
+            formData.append('file', base64);
+            formData.append('fileName', `${ventaId}.pdf`);
+            formData.append('useUniqueFileName', 'false');
+            formData.append('folder', '/Tickets_PDF_app_taller/'); // ✅ carpeta exacta que mencionaste
+
+            try {
+                const response = await fetch(`${urlEndpoint}/api/v1/files/upload`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Basic ${btoa(`${publicKey}:`)}`
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`ImageKit error ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+                resolve(data.url); // URL pública del PDF
+            } catch (error) {
+                reject(error);
+            }
+        };
+        reader.readAsDataURL(pdfBlob);
+    });
 }
-
-window.confirmWhatsAppSend = async (confirmed) => {
-    toggleModal('modal-whatsapp-confirm', false);
-    if (confirmed && window._pendingCheckout) {
-        const { isCard, totalToPay, paymentMethod, phone } = window._pendingCheckout;
-        await finalizeCheckout(isCard, totalToPay, paymentMethod, phone);
-    }
-};
-
 
 
 window.imprimirTicketVenta = async (ventaId, saleData) => {
