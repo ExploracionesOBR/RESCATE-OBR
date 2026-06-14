@@ -5673,7 +5673,13 @@ async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
         try {
             window.showPDFProgress?.();
             pdfBlob = await window.imprimirTicketVenta(docRef.id, saleData);
+            
+           console.log('🔄 Iniciando subida a Google Drive...');
+
             pdfUrl = await subirPDFaDrive(pdfBlob, docRef.id, saleData);
+
+            console.log('✅ Subida completada, URL:', pdfUrl);
+            
             window.hidePDFProgress?.();
         } catch (error) {
             console.error('❌ Error generando/subiendo PDF:', error);
