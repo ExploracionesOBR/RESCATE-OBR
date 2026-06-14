@@ -3399,8 +3399,7 @@ function listenToMySOS() {
         } else {
             if (noServicesMsg) noServicesMsg.classList.add('hidden');
         }
-    });
-}
+
 // ========== FIN DE listenToMySOS ==========
 
 // ========== LISTEN TO MY DELIVERIES – ENTREGAS ACTIVAS ==========
