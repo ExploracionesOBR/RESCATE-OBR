@@ -4468,7 +4468,7 @@ window.downloadClientTicket = async function(serviceId) {
     }
 
     // ❌ Si no hay URL, mostrar mensaje amigable
-    window.showToast('El comprobante aún no está disponible. Intenta en unos momentos.', false);
+    window.showToast('El comprobante aún no está disponible.', false);
 };
 
 // === CITAS DEL CLIENTE ===
@@ -5595,196 +5595,52 @@ window.checkoutTicket = async (isCard = false) => {
 };
 
 // ========== FINALIZAR CHECKOUT (VERSIÓN COMPLETA) ==========
-async function finalizeCheckout(isCard, totalToPay, paymentMethod, phone) {
-    const btn = document.getElementById('btn-checkout-pos');
-    const originalBtnHTML = btn ? btn.innerHTML : '';
+// ========== SUBIR PDF A JSONBIN.IO ==========
+async function subirPDFaJSONBin(pdfBlob, ventaId, saleData) {
+    const apiKey = '$2a$10$p29LaetXmPeUGzVObV4b9OZRl4dmhxCcloTIVUsBLQ32bFgRSPtnm'; // ← Tu API Key
 
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
-    }
-
-    try {
-        const sId = generateShortId();
-        const garantias = window.posTicket
-            .filter(item => item.type === 'almacen' && item.garantia && item.garantia !== 'Sin garantía' && item.garantia !== 'No aplica')
-            .map(item => ({
-                productoId: item.id,
-                producto: item.name,
-                tipoGarantia: item.garantia,
-                fechaInicio: new Date().toISOString(),
-                fechaFin: window.calcularFechaFinGarantia(item.garantia),
-                estado: 'activa'
-            }));
-
-        // ✅ OBTENER DATOS DEL SERVICIO (RESCATE) Y COSTO DEL SERVICIO SELECCIONADO
-        let servicioNombre = null;
-        let servicioCosto = 0;
-        let lat = null;
-        let lng = null;
-
-        if (currentDetalleServicioId) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
             try {
-                const docSnap = await getDoc(doc(db, "rescates", currentDetalleServicioId));
-                if (docSnap.exists()) {
-                    const data = docSnap.data();
-                    if (data.falla) {
-                        const match = data.falla.match(/\[(.*?)\]/);
-                        if (match) {
-                            servicioNombre = match[1].replace(/[*]/g, '').trim();
-                        } else {
-                            servicioNombre = data.falla.substring(0, 40).replace(/[*]/g, '').trim();
-                        }
-                    }
-                    servicioCosto = data.servicioCosto || data.costoRescateEstimado || 0;
-                    lat = data.lat || null;
-                    lng = data.lng || null;
-                }
-            } catch (err) {
-                console.warn('Error obteniendo datos del servicio:', err);
-            }
-        }
+                const fullDataUrl = event.target.result;
+                const base64Data = fullDataUrl.split(',')[1].replace(/\s/g, '').trim();
 
-        // ✅ CONSTRUIR SALE DATA CON TODOS LOS CAMPOS
-        const saleData = {
-            shortId: sId,
-            desc: window.posTicket.map(i => i.name).join(", "),
-            total: totalToPay,
-            costo: window.posTotalCost,
-            metodoPago: paymentMethod,
-            clienteCel: phone ? "+52"+phone : null,
-            ticket: window.posTicket,
-            garantias: garantias.length ? garantias : null,
-            fecha: new Date().toISOString(),
-            sosId: currentDetalleServicioId || null,
-            rescueCost: window.currentSOSCost || 0,
-            servicioCosto: servicioCosto,
-            descuento: window.posDescuento || 0,
-            servicioNombre: servicioNombre,
-            lat: lat,
-            lng: lng
-        };
-
-        const docRef = await addDoc(collection(db, "ventas"), saleData);
-
-        // ✅ GENERAR PDF EN LA CAJA (si se requiere)
-        let pdfBlob = null;
-        let pdfUrl = null;
-        try {
-            window.showPDFProgress?.();
-            pdfBlob = await window.imprimirTicketVenta(docRef.id, saleData);
-            
-           console.log('🔄 Iniciando subida a Google Drive...');
-
-            pdfUrl = await subirPDFaDrive(pdfBlob, docRef.id, saleData);
-
-            console.log('✅ Subida completada, URL:', pdfUrl);
-            
-            window.hidePDFProgress?.();
-        } catch (error) {
-            console.error('❌ Error generando/subiendo PDF:', error);
-            window.hidePDFProgress?.();
-        }
-
-        // ✅ GUARDAR URL EN FIRESTORE
-        if (pdfUrl) {
-            await updateDoc(docRef, { pdfUrl: pdfUrl });
-        } else {
-            await updateDoc(docRef, { pdfStatus: 'pending' });
-        }
-
-        // ✅ MOSTRAR VENTANA DE IMPRESIÓN EN CAJA
-        if (pdfBlob) {
-            const url = URL.createObjectURL(pdfBlob);
-            const printWindow = window.open(url, '_blank');
-            if (printWindow) {
-                printWindow.onload = () => {
-                    printWindow.print();
-                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                const data = {
+                    ventaId: ventaId,
+                    shortId: saleData.shortId,
+                    clienteCel: saleData.clienteCel,
+                    fecha: saleData.fecha,
+                    ticket: saleData.ticket || [],
+                    total: saleData.total || 0,
+                    pdfDataUrl: base64Data,
+                    timestamp: Date.now()
                 };
-            }
-        }
 
-        // ✅ GUARDAR GARANTÍAS (si las hay)
-        for (let g of garantias) {
-            await addDoc(collection(db, "garantias"), {
-                ...g,
-                ventaId: docRef.id,
-                clienteCel: phone ? "+52"+phone : null,
-                fechaVenta: new Date().toISOString()
-            });
-        }
+                // ✅ CREAR UN NUEVO BIN (POST) - CADA VENTA TIENE SU PROPIO BIN
+                const response = await fetch(`https://api.jsonbin.io/v3/b`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Master-Key': apiKey
+                    },
+                    body: JSON.stringify(data)
+                });
 
-        // ✅ DESCONTAR STOCK Y ACTUALIZAR RESCATE
-        for (let item of window.posTicket) {
-            try {
-                if (item.type === 'almacen') {
-                    const pData = adminInventoryList.find(x => x.id === item.id);
-                    if (pData && pData.stock > 0) {
-                        await updateDoc(doc(db, "inventario", item.id), { stock: pData.stock - 1 });
-                    }
+                if (response.ok) {
+                    const result = await response.json();
+                    const binId = result.metadata.id;
+                    const binUrl = `https://api.jsonbin.io/v3/b/${binId}/latest`;
+                    resolve(binUrl);
+                } else {
+                    reject(new Error('Error al guardar en JSONBin.io'));
                 }
-                if (item.type === 'rescate') {
-                    await updateDoc(doc(db, "rescates", item.id), { tallerStatus: 'pagado', status: 'completed' });
-                }
-            } catch (innerError) {
-                console.warn('Error al actualizar inventario/rescate:', innerError);
+            } catch (error) {
+                reject(error);
             }
-        }
-
-        // ✅ VINCULAR PEDIDO (si existe)
-        if (phone) {
-            try {
-                const userSnap = await getDocs(query(collection(db, "users"), where("phone", "==", "+52"+phone), limit(1)));
-                if (!userSnap.empty) {
-                    const uid = userSnap.docs[0].id;
-                    const pedidosSnap = await getDocs(query(collection(db, "pedidos"), where("uid", "==", uid), where("status", "==", "solicitado"), orderBy("timestamp", "desc"), limit(1)));
-                    if (!pedidosSnap.empty) {
-                        await updateDoc(doc(db, "pedidos", pedidosSnap.docs[0].id), { status: 'pagado' });
-                    }
-                }
-            } catch (e) {
-                console.warn('Error al vincular pedido:', e);
-            }
-        }
-
-        // ✅ LIMPIEZA DE CARRITO Y UI
-        const ticketRespaldo = [...window.posTicket];
-        window.posTicket = [];
-        window.posDescuento = 0;
-        const phoneInput = document.getElementById('pos-customer-phone');
-        const promoInput = document.getElementById('pos-promo-code');
-        const amountInput = document.getElementById('pos-amount-received');
-        if (phoneInput) phoneInput.value = '';
-        if (promoInput) promoInput.value = '';
-        if (amountInput) amountInput.value = '';
-
-        window.renderTicket();
-        window.adminLoadInventory();
-        window.adminLoadSales();
-        window.adminListenServices();
-        window.loadVentasRealizadas();
-
-        // ✅ ENVIAR WHATSAPP AL CLIENTE (si tiene teléfono)
-        if (phone) {
-            try {
-                window.sendTicketWhatsAppAfterCheckout(phone, totalToPay, ticketRespaldo);
-            } catch (e) {
-                console.warn('Error al enviar WhatsApp:', e);
-            }
-        }
-
-        showToast("Venta Registrada y Pagada", false);
-
-    } catch (e) {
-        console.error('Error en finalizeCheckout:', e);
-        showToast("Error al procesar: " + (e.message || 'Error desconocido'), true);
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = originalBtnHTML;
-        }
-    }
+        };
+        reader.readAsDataURL(pdfBlob);
+    });
 }
 
 window.confirmWhatsAppSend = async (confirmed) => {
@@ -5794,49 +5650,6 @@ window.confirmWhatsAppSend = async (confirmed) => {
         await finalizeCheckout(isCard, totalToPay, paymentMethod, phone);
     }
 };
-
-// ========== SUBIR PDF A GOOGLE DRIVE ==========
-async function subirPDFaDrive(pdfBlob, ventaId, saleData) {
-    const webAppUrl = 'https://script.google.com/macros/s/AKfycbw2kOy-vNX9yl2UIBPBadoDR8hcqv4FG9u4mQ3S9CI7WlQiMeep4zGdW0pRTzOqRjy6aQ/exec';
-    
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const fullDataUrl = event.target.result; // Ejemplo: "data:application/pdf;base64,JVBERi0..."
-                // ✅ ELIMINAR PREFIJO Y ESPACIOS/SALTOS DE LÍNEA
-                const base64Data = fullDataUrl
-                    .split(',')[1]                     // Quitar "data:...;base64,"
-                    .replace(/\s/g, '')                 // Quitar espacios, saltos de línea
-                    .trim();
-                
-                const response = await fetch(webAppUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        ventaId: ventaId,
-                        shortId: saleData.shortId,
-                        clienteCel: saleData.clienteCel,
-                        fecha: saleData.fecha,
-                        ticket: saleData.ticket || [],
-                        total: saleData.total || 0,
-                        pdfDataUrl: base64Data        // ← ENVIAR SOLO EL BASE64 LIMPIO
-                    })
-                });
-                const result = await response.json();
-                if (result.success) {
-                    resolve(result.pdfUrl);
-                } else {
-                    console.error('Error en Google Script:', result.error);
-                    reject(new Error(result.error));
-                }
-            } catch (error) {
-                reject(error);
-            }
-        };
-        reader.readAsDataURL(pdfBlob);
-    });
-}
 
 window.imprimirTicketVenta = async (ventaId, saleData) => {
     return new Promise(async (resolve, reject) => {
@@ -6060,17 +5873,17 @@ window.reimprimirVenta = async (ventaId) => {
         // 1. Generar el PDF
         console.log('🔄 Regenerando PDF para venta:', ventaId);
         const pdfBlob = await window.imprimirTicketVenta(ventaId, saleData);
-        
-        // 2. Subir a Google Drive
-        console.log('🔄 Subiendo PDF a Google Drive...');
-        const pdfUrl = await subirPDFaDrive(pdfBlob, ventaId, saleData);
+
+        // 2. Subir a JSONBin (crea un nuevo bin)
+        console.log('🔄 Subiendo PDF a JSONBin...');
+        const pdfUrl = await subirPDFaJSONBin(pdfBlob, ventaId, saleData);
         console.log('✅ PDF subido correctamente, URL:', pdfUrl);
 
         // 3. Actualizar la URL en Firestore
         await updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl });
         console.log('✅ URL del PDF actualizada en Firestore');
 
-        // 4. Descargar/imprimir el PDF localmente
+        // 4. Descargar/imprimir el PDF localmente (opcional)
         const url = URL.createObjectURL(pdfBlob);
         const printWindow = window.open(url, '_blank');
         if (printWindow) {
