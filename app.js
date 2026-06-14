@@ -5749,11 +5749,7 @@ window.checkoutTicket = async (isCard = false) => {
 
 
 window.descargarPDF = (url, nombreArchivo) => {
-    if (!url.startsWith('https://res.cloudinary.com')) {
-        console.error('URL no válida para descarga pública:', url);
-        showToast('El enlace no es accesible públicamente.', true);
-        return;
-    }
+    // Eliminar la validación que solo acepta Cloudinary
     const link = document.createElement('a');
     link.href = url;
     link.download = `comprobante_${nombreArchivo}.pdf`;
@@ -5767,41 +5763,36 @@ async function subirPDFaSupabase(pdfBlob, ventaId) {
     const supabaseUrl = 'https://kdwoflalureesxmvbonf.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtkd29mbGFsdXJlZXN4bXZib25mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0MDEzNDcsImV4cCI6MjA5Njk3NzM0N30.o7dt0lmFAFKgIie5q6Ryvjf-OcNc_WeoCAMcAlgdm9c';
 
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            const base64 = e.target.result.split(',')[1];
-            const fileName = `venta_${ventaId}.pdf`;
+    const { createClient } = window.supabase;
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-            try {
-                const response = await fetch(`${supabaseUrl}/storage/v1/object/pdfs/${fileName}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': supabaseKey,
-                        'Authorization': `Bearer ${supabaseKey}`
-                    },
-                    body: JSON.stringify({
-                        base64: base64,
-                        path: fileName
-                    })
+    return new Promise(async (resolve, reject) => {
+        try {
+            const { data, error } = await supabase
+                .storage
+                .from('pdfs')
+                .upload(`venta_${ventaId}.pdf`, pdfBlob, {
+                    contentType: 'application/pdf',
+                    cacheControl: '3600',
+                    upsert: true
                 });
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Supabase error ${response.status}: ${errorText}`);
-                }
-
-                const data = await response.json();
-                const publicUrl = `${supabaseUrl}/storage/v1/object/public/pdfs/${fileName}`;
-                resolve(publicUrl);
-            } catch (error) {
-                reject(error);
+            if (error) {
+                throw error;
             }
-        };
-        reader.readAsDataURL(pdfBlob);
+
+            const { data: urlData } = supabase
+                .storage
+                .from('pdfs')
+                .getPublicUrl(`venta_${ventaId}.pdf`);
+
+            resolve(urlData.publicUrl);
+        } catch (error) {
+            reject(error);
+        }
     });
 }
+
 
 window.reimprimirVenta = async (ventaId) => {
     const snap = await getDoc(doc(db, "ventas", ventaId));
