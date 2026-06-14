@@ -4372,13 +4372,16 @@ window.openClientServiceDetail = async (id) => {
     window._clientDetailUnsubscribe = onSnapshot(doc(db, "rescates", id), async (docSnap) => {
         if (!docSnap.exists()) {
             contentDiv.innerHTML = '<p class="text-white">Servicio no encontrado</p>';
-            window.toggleModal(modalId, true);
+            // Forzar apertura
+            modalEl.style.display = 'flex';
+            modalEl.classList.remove('hidden');
             return;
         }
         const data = docSnap.data();
         if (data.uid !== auth.currentUser.uid && data.phone !== window.currentUserDoc.phone) {
             contentDiv.innerHTML = '<p class="text-white">No tienes permiso para ver este servicio</p>';
-            window.toggleModal(modalId, true);
+            modalEl.style.display = 'flex';
+            modalEl.classList.remove('hidden');
             return;
         }
 
@@ -4424,11 +4427,9 @@ window.openClientServiceDetail = async (id) => {
             </div>
         `;
 
-        // 📌 Mostrar el modal DESPUÉS de actualizar el contenido
-        // Usamos setTimeout para asegurar que el DOM se haya actualizado
-        setTimeout(() => {
-            window.toggleModal(modalId, true);
-        }, 100);
+        // ✅ FORZAR APERTURA DIRECTA (sin toggleModal)
+        modalEl.style.display = 'flex';
+        modalEl.classList.remove('hidden');
     });
 };
 
