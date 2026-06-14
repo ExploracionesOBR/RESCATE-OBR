@@ -5804,7 +5804,7 @@ window.regenerarPDF = async (ventaId) => {
 
     try {
         const pdfBlob = await window.imprimirTicketVenta(ventaId, ventaData);
-        const pdfUrl = await subirPDFaStorage(pdfBlob, ventaId, ventaData);
+        const pdfUrl = await subirPDFaImageKit(pdfBlob, ventaId, ventaData);
         await updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl });
         showToast('✅ PDF regenerado y subido correctamente.');
     } catch (error) {
@@ -5862,7 +5862,7 @@ window.reimprimirVenta = async (ventaId) => {
         }
 
         // 3. Subir a Firebase Storage en segundo plano (sin await)
-        subirPDFaStorage(pdfBlob, ventaId, saleData)
+        subirPDFaImageKit(pdfBlob, ventaId, saleData)
             .then(pdfUrl => {
                 updateDoc(doc(db, "ventas", ventaId), { pdfUrl: pdfUrl })
                     .then(() => console.log('✅ PDF URL guardada en Firestore'))
