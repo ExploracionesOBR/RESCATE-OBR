@@ -4338,30 +4338,39 @@ window.openClientServiceDetail = async (id) => {
         window._clientDetailUnsubscribe = null;
     }
 
+    // 📌 Crear el modal dinámicamente si no existe
     const modalId = 'modal-client-service-detail';
     let modalEl = document.getElementById(modalId);
     if (!modalEl) {
         modalEl = document.createElement('div');
         modalEl.id = modalId;
         modalEl.className = 'fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-        modalEl.innerHTML = `<div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl" id="${modalId}-content"></div>`;
+        modalEl.innerHTML = `
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-blue-500/30 shadow-2xl">
+                <button onclick="window.toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+                <div id="${modalId}-content" class="text-white"></div>
+            </div>
+        `;
         document.body.appendChild(modalEl);
     }
 
     const contentDiv = document.getElementById(`${modalId}-content`);
-    
+
+    // 📌 Escuchar cambios en el documento de rescate
     window._clientDetailUnsubscribe = onSnapshot(doc(db, "rescates", id), async (docSnap) => {
         if (!docSnap.exists()) {
             contentDiv.innerHTML = '<p class="text-white">Servicio no encontrado</p>';
+            window.toggleModal(modalId, true);
             return;
         }
         const data = docSnap.data();
         if (data.uid !== auth.currentUser.uid && data.phone !== window.currentUserDoc.phone) {
             contentDiv.innerHTML = '<p class="text-white">No tienes permiso para ver este servicio</p>';
+            window.toggleModal(modalId, true);
             return;
         }
 
-        // Verificar si hay venta asociada
+        // 📌 Buscar venta asociada
         let pdfUrl = null;
         let ventaId = null;
         let ventaShortId = null;
@@ -4378,24 +4387,21 @@ window.openClientServiceDetail = async (id) => {
             console.error('Error al obtener venta asociada:', error);
         }
 
+        // 📌 Generar botones según estado
         const statusInfo = window.getStatusInfo(data.status);
         let btnDescarga = '';
-        // Siempre mostrar un botón para descargar/regenerar si el servicio está completado o aceptado
         if (data.status === 'completed' || data.status === 'accepted' || data.status === 'repairing') {
             if (pdfUrl) {
                 btnDescarga = `<button onclick="window.descargarPDF('${pdfUrl}', '${ventaShortId || id}')" class="mt-2 bg-green-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">📥 Descargar Comprobante</button>`;
+            } else if (ventaId) {
+                btnDescarga = `<button onclick="window.reimprimirVenta('${ventaId}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">🔄 Generar y descargar</button>`;
             } else {
-                // Si no hay URL, ofrecer regenerar (y descargar)
-                if (ventaId) {
-                    btnDescarga = `<button onclick="window.reimprimirVenta('${ventaId}')" class="mt-2 bg-blue-600 text-white text-xs px-3 py-2 rounded-xl font-black uppercase">🔄 Generar y descargar</button>`;
-                } else {
-                    btnDescarga = `<p class="mt-2 text-yellow-400 text-xs font-bold">⏳ Tu comprobante estará disponible pronto.</p>`;
-                }
+                btnDescarga = `<p class="mt-2 text-yellow-400 text-xs font-bold">⏳ Tu comprobante estará disponible pronto.</p>`;
             }
         }
 
-        const detailHTML = `
-            <button onclick="toggleModal('${modalId}', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        // 📌 Actualizar contenido
+        contentDiv.innerHTML = `
             <div class="text-white space-y-2">
                 <h3 class="font-black text-lg">Servicio: ${data.shortId || 'Sin ID'}</h3>
                 <p class="text-xs text-gray-400">Moto: ${data.marca || ''} ${data.modelo || ''} (${data.cc || ''})</p>
@@ -4405,10 +4411,10 @@ window.openClientServiceDetail = async (id) => {
                 <p class="text-xs text-gray-500">${new Date(data.timestamp).toLocaleString()}</p>
             </div>
         `;
-        contentDiv.innerHTML = detailHTML;
-    });
 
-    toggleModal(modalId, true);
+        // 📌 Mostrar el modal
+        window.toggleModal(modalId, true);
+    });
 };
 
 // Control de barra de progreso para PDF
