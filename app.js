@@ -2773,565 +2773,51 @@ function initClientMap() {
 }
 
 // ========== LISTEN TO MY SOS – VERSIÓN DEFINITIVA (CORREGIDA) ==========
-function listenToMySOS() {
-    if (window.mySOSListener && typeof window.mySOSListener === 'function') {
-        window.mySOSListener();
-        window.mySOSListener = null;
-    }
-    if (!auth.currentUser) return;
+window.asignarMecanicoASOS = async (mechUid, sosId) => {
+    const mechSnap = await getDoc(doc(db, "users", mechUid));
+    if (!mechSnap.exists()) return showToast("Mecánico no encontrado", true);
+    const mech = mechSnap.data();
+    const sosSnap = await getDoc(doc(db, "rescates", sosId));
+    if (!sosSnap.exists()) return showToast("SOS no encontrado", true);
+    const sosData = sosSnap.data();
 
-    let mechPosUnsubscribe = null;
-    let routingControl = null;
-    let deliveryMechPosUnsubscribe = null;
-    let deliveryRoutingControl = null;
-    let lastSOSStatus = null;
-
-    window.mySOSListener = onValue(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), async (snap) => {
-        const activeCard = document.getElementById('active-sos-card');
-        const noServicesMsg = document.getElementById('no-active-services-msg');
-        const survey = document.getElementById('satisfaction-survey');
-        const mechanicMapDiv = document.getElementById('mechanic-live-map');
-        const wsCard = document.getElementById('active-workshop-card');
-        const statusDesc = document.getElementById('sos-status-desc-client');
-        const progressBar = document.getElementById('sos-progress-bar');
-        const emergencyBtn = document.getElementById('emergency-client-btn');
-        const chatBtn = document.getElementById('btn-chat-sos');
-        const videoContainer = document.getElementById('promo-video-container');
-
-        // CASO 1: El nodo fue eliminado (servicio finalizado o cancelado)
-        if (!snap.exists()) {
-            if (lastSOSStatus === 'completed' || lastSOSStatus === 'cancelled') {
-                if (activeCard) activeCard.classList.add('hidden');
-                if (wsCard) wsCard.classList.add('hidden');
-                if (mechanicMapDiv) {
-                    mechanicMapDiv.classList.add('hidden');
-                    mechanicMapDiv.style.display = 'none';
-                }
-                if (chatBtn) chatBtn.classList.add('hidden');
-                if (emergencyBtn) emergencyBtn.style.display = 'flex';
-                if (videoContainer) videoContainer.style.display = 'block'; // Mostrar video si no hay mapa
-
-                if (routingControl) {
-                    routingControl.remove();
-                    routingControl = null;
-                }
-                if (window.clientMapInstance) {
-                    if (window.clientMapMarkers.mech) {
-                        window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
-                        window.clientMapMarkers.mech = null;
-                    }
-                    if (window.clientMapMarkers.client) {
-                        window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                        window.clientMapMarkers.client = null;
-                    }
-                }
-
-                if (lastSOSStatus === 'completed') {
-                    const shortId = data.shortId || 'unknown';
-                    const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
-                    if (!yaCalifico) {
-                        if (survey) survey.classList.remove('hidden');
-                    } else {
-                        if (noServicesMsg) noServicesMsg.classList.remove('hidden');
-                    }
-                    speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
-                    playSound('notif');
-                } else {
-                    speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
-                    playSound('notif');
-                    if (noServicesMsg) noServicesMsg.classList.remove('hidden');
-                }
-
-                window.loadClientHistory();
-                lastSOSStatus = null;
-                return;
-            }
-
-            if (activeCard) activeCard.classList.add('hidden');
-            if (wsCard) wsCard.classList.add('hidden');
-            if (mechanicMapDiv) {
-                mechanicMapDiv.classList.add('hidden');
-                mechanicMapDiv.style.display = 'none';
-            }
-            if (chatBtn) chatBtn.classList.add('hidden');
-            if (emergencyBtn) emergencyBtn.style.display = 'flex';
-            if (videoContainer) videoContainer.style.display = 'block';
-            if (mechPosUnsubscribe) mechPosUnsubscribe();
-            if (routingControl) {
-                routingControl.remove();
-                routingControl = null;
-            }
-            if (window.clientMapInstance) {
-                if (window.clientMapMarkers.mech) {
-                    window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
-                    window.clientMapMarkers.mech = null;
-                }
-                if (window.clientMapMarkers.client) {
-                    window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                    window.clientMapMarkers.client = null;
-                }
-            }
-            window.lastClientSOSStatus = null;
-            return;
-        }
-
-        const data = snap.val();
-        lastSOSStatus = data.status;
-        
-       // CASO 2: Servicio completado o cancelado (aún en RTDB)
-if (data.status === 'completed' || data.status === 'cancelled') {
-    const survey = document.getElementById('satisfaction-survey');
-    const activeCard = document.getElementById('active-sos-card');
-    const emergencyBtn = document.getElementById('emergency-client-btn');
-    const wsCard = document.getElementById('active-workshop-card');
-    const mechanicMapDiv = document.getElementById('mechanic-live-map');
-    const chatBtn = document.getElementById('btn-chat-sos');
-
-    if (data.status === 'completed') {
-        // Mostrar encuesta
-        if (survey) survey.classList.remove('hidden');
-        // Ocultar tarjeta de rescate activo
-        if (activeCard) activeCard.classList.add('hidden');
-        // Ocultar botón de emergencia
-        if (emergencyBtn) emergencyBtn.style.display = 'none';
-        speakTTS('AUXILIO FINALIZADO. GRACIAS POR CONFIAR EN OBR.');
-        playSound('notif');
-    } else if (data.status === 'cancelled') {
-        // Asegurar que la encuesta esté oculta en cancelación
-        if (survey) survey.classList.add('hidden');
-        // Ocultar tarjeta de rescate activo
-        if (activeCard) activeCard.classList.add('hidden');
-        // Mostrar botón de emergencia nuevamente
-        if (emergencyBtn) emergencyBtn.style.display = 'flex';
-        speakTTS('TU SOLICITUD HA SIDO CANCELADA. PUEDES GENERAR UNA NUEVA SOLICITUD.');
-        playSound('notif');
-        if (document.getElementById('no-active-services-msg')) {
-            document.getElementById('no-active-services-msg').classList.remove('hidden');
-        }
-    }
-
-    // Limpieza común
-    if (wsCard) wsCard.classList.add('hidden');
-    if (mechanicMapDiv) {
-        mechanicMapDiv.classList.add('hidden');
-        mechanicMapDiv.style.display = 'none';
-    }
-    if (chatBtn) chatBtn.classList.add('hidden');
-    if (mechPosUnsubscribe) mechPosUnsubscribe();
-    if (routingControl) {
-        routingControl.remove();
-        routingControl = null;
-    }
-if (emergencyBtn) emergencyBtn.style.display = 'flex'; 
-    window.loadClientHistory();
-    lastSOSStatus = null;
-    return;
-}
-
-        // --- SOS ACTIVO ---
-        if (activeCard) activeCard.classList.remove('hidden');
-        if (mechanicMapDiv) {
-            mechanicMapDiv.classList.remove('hidden');
-            mechanicMapDiv.style.display = 'block';
-            mechanicMapDiv.style.height = '250px';
-            mechanicMapDiv.style.minHeight = '250px';
-        }
-        if (emergencyBtn) emergencyBtn.style.display = 'none';
-        if (data.mech_uid && data.chatId) {
-            if (chatBtn) chatBtn.classList.remove('hidden');
-        }
-
-        // Barra de progreso SOS
-        let currentStep = 0, progressPercent = 0;
-        if (data.status === 'accepted') { currentStep = 1; progressPercent = 25; }
-        else if (data.status === 'repairing') { currentStep = 2; progressPercent = 50; }
-        else if (data.status === 'to_shop' || data.status === 'ready') { currentStep = 3; progressPercent = 75; }
-        else if (data.status === 'completed') { currentStep = 4; progressPercent = 100; }
-
-        for (let i = 0; i < 4; i++) {
-            const labelEl = document.getElementById('step-' + (i+1) + '-label');
-            const dotEl = document.getElementById('step-dot-' + (i+1));
-            if (i < currentStep) {
-                labelEl?.classList.add('text-red-400', 'font-bold');
-                dotEl?.classList.remove('bg-asfalto', 'border-white/20');
-                dotEl?.classList.add('bg-red-500', 'border-asfalto');
-            } else {
-                labelEl?.classList.remove('text-red-400', 'font-bold');
-                dotEl?.classList.remove('bg-red-500', 'border-asfalto');
-                dotEl?.classList.add('bg-asfalto', 'border-white/20');
-            }
-        }
-        if (progressBar) progressBar.style.width = progressPercent + '%';
-
-        // Texto de estado SOS
-        if (statusDesc) {
-            let estadoTexto = "Esperando confirmación";
-            if (data.status === 'accepted') estadoTexto = "Mecánico en camino";
-            else if (data.status === 'repairing') estadoTexto = "Reparando";
-            else if (data.status === 'to_shop' || data.status === 'ready') estadoTexto = "Finalizado";
-            else if (data.status === 'completed') estadoTexto = "Servicio finalizado";
-            else if (data.status === 'cancelled') estadoTexto = "Cancelado";
-            statusDesc.innerText = estadoTexto;
-        }
-
-        // MAPA Y RUTA SOS
-        if (data.status === 'accepted' || data.status === 'repairing') {
-            const initClientMapIfNeeded = () => {
-                if (!mechanicMapDiv) return;
-                const rect = mechanicMapDiv.getBoundingClientRect();
-                if (rect.height < 100) {
-                    setTimeout(initClientMapIfNeeded, 300);
-                    return;
-                }
-                if (!window.clientMapInstance) {
-                    if (typeof initClientMap === 'function') initClientMap();
-                } else {
-                    window.clientMapInstance.invalidateSize();
-                }
-            };
-            initClientMapIfNeeded();
-            if (emergencyBtn) emergencyBtn.style.display = 'none';
-
-            if (window.clientMapInstance && data.lat && data.lng) {
-                // ✅ Ocultar video y mostrar mapa
-                const videoContainer = document.getElementById('promo-video-container');
-                if (videoContainer) videoContainer.style.display = 'none';
-                if (mechanicMapDiv) mechanicMapDiv.style.display = 'block';
-
-                if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                window.clientMapMarkers.client = L.marker([data.lat, data.lng], {
-                    icon: L.divIcon({
-                        className: 'gps-pulse-marker',
-                        html: '<div class="pulse-inner" style="background:#FF6B00; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-map-marker-alt" style="color:white; font-size:14px;"></i></div>',
-                        iconSize: [28, 28],
-                        iconAnchor: [14, 28]
-                    })
-                }).addTo(window.clientMapInstance).bindPopup("📍 Tu ubicación");
-
-                if (mechPosUnsubscribe) mechPosUnsubscribe();
-                if (data.mech_uid) {
-                    const mechUserSnap = await getDoc(doc(db, "users", data.mech_uid));
-                    const mechData = mechUserSnap.exists() ? mechUserSnap.data() : { name: 'Mecánico', phone: '' };
-                    const calificacion = await obtenerPromedioCalificacion(data.mech_uid);
-                    const stars = calificacion ? '★'.repeat(Math.round(calificacion.promedio)) + '☆'.repeat(5 - Math.round(calificacion.promedio)) : '☆☆☆☆☆';
-                    const ratingText = calificacion ? `${calificacion.promedio} ⭐ (${calificacion.total} reseñas)` : 'Sin reseñas';
-                    const telefono = mechData.phone || '';
-                    const telefonoClean = telefono.replace('+52', '');
-                    const nombre = mechData.name || 'Mecánico';
-                    const popupContent = `
-                        <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${document.body.classList.contains('light-mode') ? '#ffffff' : '#1A1A1A'}; color:${document.body.classList.contains('light-mode') ? '#111111' : '#ffffff'}; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
-                            <b>${escapeHtml(nombre)}</b><br>
-                            <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
-                            ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
-                            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-                                ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
-                                ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
-                            </div>
-                        </div>
-                    `;
-
-                    mechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${data.mech_uid}`), (posSnap) => {
-                        if (posSnap.exists() && window.clientMapInstance) {
-                            const pos = posSnap.val();
-                            if (pos.lat && pos.lng) {
-                                if (window.clientMapMarkers.mech) {
-                                    window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
-                                    window.clientMapMarkers.mech.setPopupContent(popupContent);
-                                } else {
-                                    window.clientMapMarkers.mech = L.marker([pos.lat, pos.lng], {
-                                        icon: L.divIcon({
-                                            className: 'mech-pulse-marker',
-                                            html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-motorcycle" style="color:white; font-size:16px;"></i></div>',
-                                            iconSize: [32, 32],
-                                            iconAnchor: [16, 32]
-                                        })
-                                    }).addTo(window.clientMapInstance).bindPopup(popupContent);
-                                }
-
-                                window.clientMapInstance.setView([pos.lat, pos.lng], 14);
-
-                                if (routingControl) {
-                                    routingControl.setWaypoints([
-                                        L.latLng(pos.lat, pos.lng),
-                                        L.latLng(data.lat, data.lng)
-                                    ]);
-                                } else {
-                                    try {
-                                        routingControl = L.Routing.control({
-                                            waypoints: [
-                                                L.latLng(pos.lat, pos.lng),
-                                                L.latLng(data.lat, data.lng)
-                                            ],
-                                            routeWhileDragging: false,
-                                            language: 'es',
-                                            showAlternatives: false,
-                                            show: false,
-                                            collapsible: false,
-                                            lineOptions: { styles: [{ color: '#440dfa', weight: 6, opacity: 0.9 }] },
-                                            router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
-                                            createMarker: () => null
-                                        }).addTo(window.clientMapInstance);
-                                        setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
-                                    } catch (e) { console.warn('Error al crear routing control:', e); }
-                                }
-                            }
-                        }
-                    });
-                }
-
-                const bounds = [];
-                if (data.lat && data.lng) bounds.push([data.lat, data.lng]);
-                if (window.clientMapMarkers.mech) {
-                    const latlng = window.clientMapMarkers.mech.getLatLng();
-                    if (latlng) bounds.push([latlng.lat, latlng.lng]);
-                }
-                if (bounds.length >= 2) {
-                    window.clientMapInstance.fitBounds(bounds, { padding: [50, 50] });
-                } else if (bounds.length === 1) {
-                    window.clientMapInstance.setView(bounds[0], 14);
-                }
-            }
-        } else {
-            if (routingControl) {
-                routingControl.remove();
-                routingControl = null;
-            }
-            if (window.clientMapInstance) {
-                if (window.clientMapMarkers.mech) {
-                    window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
-                    window.clientMapMarkers.mech = null;
-                }
-                if (window.clientMapMarkers.client) {
-                    window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                    window.clientMapMarkers.client = null;
-                }
-            }
-            if (mechPosUnsubscribe) mechPosUnsubscribe();
-            // ✅ Mostrar video si no hay mapa
-            if (videoContainer) videoContainer.style.display = 'block';
-        }
-
-        window.lastClientSOSStatus = data.status;
-
-        // ========== VERIFICAR ENTREGA ACTIVA (pedidos_online) ==========
-        const deliverySnap = await get(dbRef(rtdb, 'pedidos_online/' + auth.currentUser.uid)).catch(() => null);
-        const deliveryCard = document.getElementById('active-delivery-card');
-        const deliveryMapDiv = document.getElementById('delivery-live-map');
-        const deliveryStatusDesc = document.getElementById('delivery-status-desc-client');
-        const deliveryProgressBar = document.getElementById('delivery-progress-bar');
-        const deliveryChatBtn = document.getElementById('btn-chat-delivery');
-        const separator = document.getElementById('delivery-separator');
-
-        if (deliverySnap && deliverySnap.exists()) {
-            const deliveryData = deliverySnap.val();
-            const estado = deliveryData.estado_entrega;
-
-            if (estado && estado !== 'entregado' && estado !== 'cancelado') {
-                if (deliveryCard) deliveryCard.classList.remove('hidden');
-                if (deliveryMapDiv) {
-                    deliveryMapDiv.classList.remove('hidden');
-                    deliveryMapDiv.style.display = 'block';
-                    deliveryMapDiv.style.height = '250px';
-                    deliveryMapDiv.style.minHeight = '250px';
-                }
-                if (deliveryChatBtn && deliveryData.chatId) {
-                    deliveryChatBtn.classList.remove('hidden');
-                }
-
-                let dStep = 0, dPercent = 0;
-                if (estado === 'pendiente') { dStep = 1; dPercent = 33; }
-                else if (estado === 'en_camino') { dStep = 2; dPercent = 66; }
-                if (deliveryProgressBar) deliveryProgressBar.style.width = dPercent + '%';
-
-                for (let i = 0; i < 3; i++) {
-                    const labelEl = document.getElementById('delivery-step-' + (i+1));
-                    const dotEl = document.getElementById('delivery-dot-' + (i+1));
-                    if (i < dStep) {
-                        labelEl?.classList.add('text-green-400', 'font-bold');
-                        dotEl?.classList.remove('bg-asfalto', 'border-white/20');
-                        dotEl?.classList.add('bg-green-500', 'border-asfalto');
-                    } else {
-                        labelEl?.classList.remove('text-green-400', 'font-bold');
-                        dotEl?.classList.remove('bg-green-500', 'border-asfalto');
-                        dotEl?.classList.add('bg-asfalto', 'border-white/20');
-                    }
-                }
-
-                if (deliveryStatusDesc) {
-                    if (estado === 'pendiente') deliveryStatusDesc.innerText = "Preparando entrega";
-                    else if (estado === 'en_camino') deliveryStatusDesc.innerText = "Repartidor en camino";
-                }
-
-                const isSOSVisible = activeCard && !activeCard.classList.contains('hidden');
-                if (isSOSVisible && separator) {
-                    separator.classList.remove('hidden');
-                } else if (separator) {
-                    separator.classList.add('hidden');
-                }
-
-                if (estado === 'pendiente' || estado === 'en_camino') {
-                    const initClientMapIfNeededDelivery = () => {
-                        if (!deliveryMapDiv) return;
-                        const rect = deliveryMapDiv.getBoundingClientRect();
-                        if (rect.height < 100) {
-                            setTimeout(initClientMapIfNeededDelivery, 300);
-                            return;
-                        }
-                        if (!window.clientMapInstance) {
-                            if (typeof initClientMap === 'function') initClientMap();
-                        } else {
-                            window.clientMapInstance.invalidateSize();
-                        }
-                    };
-                    initClientMapIfNeededDelivery();
-
-                    if (window.clientMapInstance && deliveryData.lat && deliveryData.lng) {
-                        if (window.clientMapMarkers.client) window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                        window.clientMapMarkers.client = L.marker([deliveryData.lat, deliveryData.lng], {
-                            icon: L.divIcon({
-                                className: 'gps-pulse-marker',
-                                html: '<div class="pulse-inner" style="background:#FF6B00; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-map-marker-alt" style="color:white; font-size:14px;"></i></div>',
-                                iconSize: [28, 28],
-                                iconAnchor: [14, 28]
-                            })
-                        }).addTo(window.clientMapInstance).bindPopup("📍 Tu destino");
-
-                        if (deliveryMechPosUnsubscribe) deliveryMechPosUnsubscribe();
-                        if (deliveryData.repartidor_uid) {
-                            const repartidorSnap = await getDoc(doc(db, "users", deliveryData.repartidor_uid));
-                            const repartidorData = repartidorSnap.exists() ? repartidorSnap.data() : { name: 'Repartidor', phone: '' };
-                            const telefono = repartidorData.phone || '';
-                            const telefonoClean = telefono.replace('+52', '');
-                            const nombre = repartidorData.name || 'Repartidor';
-
-                            const popupContent = `
-                                <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${document.body.classList.contains('light-mode') ? '#ffffff' : '#1A1A1A'}; color:${document.body.classList.contains('light-mode') ? '#111111' : '#ffffff'}; border-radius:16px; padding:10px; border:1px solid #FF6B00;">
-                                    <b>${escapeHtml(nombre)}</b><br>
-                                    ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
-                                    <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-                                        ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
-                                        ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
-                                    </div>
-                                </div>
-                            `;
-
-                            deliveryMechPosUnsubscribe = onValue(dbRef(rtdb, `mecanicos_activos/${deliveryData.repartidor_uid}`), (posSnap) => {
-                                if (posSnap.exists() && window.clientMapInstance) {
-                                    const pos = posSnap.val();
-                                    if (pos.lat && pos.lng) {
-                                        if (window.clientMapMarkers.mech) {
-                                            window.clientMapMarkers.mech.setLatLng([pos.lat, pos.lng]);
-                                            window.clientMapMarkers.mech.setPopupContent(popupContent);
-                                        } else {
-                                            window.clientMapMarkers.mech = L.marker([pos.lat, pos.lng], {
-                                                icon: L.divIcon({
-                                                    className: 'mech-pulse-marker',
-                                                    html: '<div class="pulse-inner" style="background:#22c55e; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid white;"><i class="fas fa-truck" style="color:white; font-size:16px;"></i></div>',
-                                                    iconSize: [32, 32],
-                                                    iconAnchor: [16, 32]
-                                                })
-                                            }).addTo(window.clientMapInstance).bindPopup(popupContent);
-                                        }
-
-                                        window.clientMapInstance.setView([pos.lat, pos.lng], 14);
-
-                                        if (deliveryRoutingControl) {
-                                            deliveryRoutingControl.setWaypoints([
-                                                L.latLng(pos.lat, pos.lng),
-                                                L.latLng(deliveryData.lat, deliveryData.lng)
-                                            ]);
-                                        } else {
-                                            try {
-                                                deliveryRoutingControl = L.Routing.control({
-                                                    waypoints: [
-                                                        L.latLng(pos.lat, pos.lng),
-                                                        L.latLng(deliveryData.lat, deliveryData.lng)
-                                                    ],
-                                                    routeWhileDragging: false,
-                                                    language: 'es',
-                                                    showAlternatives: false,
-                                                    show: false,
-                                                    collapsible: false,
-                                                    lineOptions: { styles: [{ color: '#22c55e', weight: 6, opacity: 0.9 }] },
-                                                    router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
-                                                    createMarker: () => null
-                                                }).addTo(window.clientMapInstance);
-                                                setTimeout(() => { if (window.clientMapInstance) window.clientMapInstance.invalidateSize(); }, 200);
-                                            } catch (e) { console.warn('Error al crear routing control:', e); }
-                                        }
-                                    }
-                                }
-                            });
-                        }
-
-                        const bounds = [];
-                        if (deliveryData.lat && deliveryData.lng) bounds.push([deliveryData.lat, deliveryData.lng]);
-                        if (window.clientMapMarkers.mech) {
-                            const latlng = window.clientMapMarkers.mech.getLatLng();
-                            if (latlng) bounds.push([latlng.lat, latlng.lng]);
-                        }
-                        if (bounds.length >= 2) {
-                            window.clientMapInstance.fitBounds(bounds, { padding: [50, 50] });
-                        } else if (bounds.length === 1) {
-                            window.clientMapInstance.setView(bounds[0], 14);
-                        }
-                    }
-                } else {
-                    if (deliveryRoutingControl) {
-                        deliveryRoutingControl.remove();
-                        deliveryRoutingControl = null;
-                    }
-                    if (window.clientMapInstance) {
-                        if (window.clientMapMarkers.mech) {
-                            window.clientMapInstance.removeLayer(window.clientMapMarkers.mech);
-                            window.clientMapMarkers.mech = null;
-                        }
-                        if (window.clientMapMarkers.client) {
-                            window.clientMapInstance.removeLayer(window.clientMapMarkers.client);
-                            window.clientMapMarkers.client = null;
-                        }
-                    }
-                    if (deliveryMechPosUnsubscribe) deliveryMechPosUnsubscribe();
-                }
-            } else {
-                if (deliveryCard) deliveryCard.classList.add('hidden');
-                if (deliveryMapDiv) {
-                    deliveryMapDiv.classList.add('hidden');
-                    deliveryMapDiv.style.display = 'none';
-                }
-                if (deliveryChatBtn) deliveryChatBtn.classList.add('hidden');
-                if (separator) separator.classList.add('hidden');
-                if (deliveryMechPosUnsubscribe) deliveryMechPosUnsubscribe();
-                if (deliveryRoutingControl) {
-                    deliveryRoutingControl.remove();
-                    deliveryRoutingControl = null;
-                }
-            }
-        } else {
-            if (deliveryCard) deliveryCard.classList.add('hidden');
-            if (deliveryMapDiv) {
-                deliveryMapDiv.classList.add('hidden');
-                deliveryMapDiv.style.display = 'none';
-            }
-            if (deliveryChatBtn) deliveryChatBtn.classList.add('hidden');
-            if (separator) separator.classList.add('hidden');
-            if (deliveryMechPosUnsubscribe) deliveryMechPosUnsubscribe();
-            if (deliveryRoutingControl) {
-                deliveryRoutingControl.remove();
-                deliveryRoutingControl = null;
-            }
-        }
-
-        // ========== CONTROL DE MENSAJE "SIN ACTIVIDAD" ==========
-        const sosHidden = activeCard?.classList.contains('hidden') ?? true;
-        const deliveryHidden = deliveryCard?.classList.contains('hidden') ?? true;
-        if (sosHidden && deliveryHidden) {
-            if (noServicesMsg) noServicesMsg.classList.remove('hidden');
-        } else {
-            if (noServicesMsg) noServicesMsg.classList.add('hidden');
-        }
+    await updateDoc(doc(db, "rescates", sosId), { 
+        status: 'accepted', 
+        mech_uid: mechUid, 
+        mech_name: mech.name,
+        acceptedAt: Date.now()
     });
-}
+    window.activeMechanicSOSId = sosId;
+
+    const chatRef = await addDoc(collection(db, "chats"), {
+        participantes: [sosData.uid, mechUid],
+        nombres: { [sosData.uid]: sosData.clientName || "Cliente", [mechUid]: mech.name },
+        titulo: `Servicio ${sosData.shortId}`,
+        estado: 'activo',
+        creado: Date.now()
+    });
+    window._sosChatId = chatRef.id;
+    await updateDoc(doc(db, "rescates", sosId), { chatId: chatRef.id });
+
+    if (sosData.uid) {
+        await set(dbRef(rtdb, 'sos_alerts/' + sosData.uid), { 
+            ...sosData, 
+            status: 'accepted', 
+            mech_uid: mechUid, 
+            mech_name: mech.name,
+            chatId: chatRef.id
+        });
+        await push(dbRef(rtdb, 'sos_alerts/' + sosData.uid + '/notifs'), { 
+            msg: '✅ ¡Tu solicitud fue aceptada! El mecánico está en camino.' 
+        });
+        speakTTS('Tu solicitud fue aceptada. El mecánico está en camino.');
+    }
+
+    toggleModal('modal-asignar-mecanico', false);
+    showToast(`✅ Mecánico ${mech.name} asignado correctamente.`);
+    window.renderSOSGlobalMap?.();
+    window.cargarListadoSOS?.();
+};
 // ========== FIN DE listenToMySOS ==========
 
 // ========== LISTEN TO MY DELIVERIES – ENTREGAS ACTIVAS ==========
@@ -8073,39 +7559,42 @@ window.asignarMecanicoASOS = async (mechUid, sosId) => {
     if (!sosSnap.exists()) return showToast("SOS no encontrado", true);
     const sosData = sosSnap.data();
 
-    let servicioSeleccionado = sosData.falla || "servicio de auxilio";
-    const match = servicioSeleccionado.match(/\[(.*?)\]/);
-    if (match) servicioSeleccionado = match[1];
-
-    await updateDoc(doc(db, "rescates", sosId), { status: 'accepted', mech_uid: mechUid, mech_name: mech.name });
+    await updateDoc(doc(db, "rescates", sosId), { 
+        status: 'accepted', 
+        mech_uid: mechUid, 
+        mech_name: mech.name,
+        acceptedAt: Date.now()
+    });
     window.activeMechanicSOSId = sosId;
-    // Crear chat entre cliente y mecánico
-const chatRef = await addDoc(collection(db, "chats"), {
-    participantes: [sosData.uid, mechUid],
-    nombres: { [sosData.uid]: sosData.clientName || "Cliente", [mechUid]: mech.name },
-    titulo: `Servicio ${sosData.shortId}`,
-    estado: 'activo',
-    creado: Date.now()
-});
-window._sosChatId = chatRef.id;
-await updateDoc(doc(db, "rescates", sosId), { chatId: chatRef.id });
+
+    const chatRef = await addDoc(collection(db, "chats"), {
+        participantes: [sosData.uid, mechUid],
+        nombres: { [sosData.uid]: sosData.clientName || "Cliente", [mechUid]: mech.name },
+        titulo: `Servicio ${sosData.shortId}`,
+        estado: 'activo',
+        creado: Date.now()
+    });
+    window._sosChatId = chatRef.id;
+    await updateDoc(doc(db, "rescates", sosId), { chatId: chatRef.id });
 
     if (sosData.uid) {
-        rtdbSet(dbRef(rtdb, 'sos_alerts/' + sosData.uid), { ...sosData, status: 'accepted' });
-        push(dbRef(rtdb, 'sos_alerts/' + sosData.uid + '/notifs'), { msg: 'Mecánico asignado, en camino.' });
-        speakTTS("Mecánico asignado, en camino.");
-        if (sosData.phone) {
-            await enviarWhatsAppPersonalizado(
-                sosData.phone,
-                sosData.clientName || "cliente",
-                mech.name,
-                servicioSeleccionado
-            );
-        }
+        await set(dbRef(rtdb, 'sos_alerts/' + sosData.uid), { 
+            ...sosData, 
+            status: 'accepted', 
+            mech_uid: mechUid, 
+            mech_name: mech.name,
+            chatId: chatRef.id
+        });
+        await push(dbRef(rtdb, 'sos_alerts/' + sosData.uid + '/notifs'), { 
+            msg: '✅ ¡Tu solicitud fue aceptada! El mecánico está en camino.' 
+        });
+        speakTTS('Tu solicitud fue aceptada. El mecánico está en camino.');
     }
-    showToast(`Asignado a ${mech.name}`);
+
     toggleModal('modal-asignar-mecanico', false);
-    window.renderSOSGlobalMap();
+    showToast(`✅ Mecánico ${mech.name} asignado correctamente.`);
+    window.renderSOSGlobalMap?.();
+    window.cargarListadoSOS?.();
 };
 
 window.tomarCasoDirecto = async () => {
