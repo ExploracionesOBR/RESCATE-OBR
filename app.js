@@ -2129,8 +2129,14 @@ window.switchClientView = (id) => {
         }
     }
 if (id === 'c-view-retenes') {
-        setTimeout(() => window.renderRetenMap(false), 300);
-    }
+    document.getElementById('c-view-retenes').classList.remove('hidden');
+    setTimeout(() => {
+        window.renderRetenMap(false);
+        if (retenesMapInstance) retenesMapInstance.invalidateSize();
+    }, 300);
+} else {
+    document.getElementById('c-view-retenes').classList.add('hidden');
+}
     window.fixMaps?.();
 };
 
@@ -3326,6 +3332,430 @@ function listenToMyDeliveries() {
     });
 }
 // ========== FIN DE listenToMyDeliveries ==========
+
+// ============================================================
+//  SECCIÓN RETENES (mapa colaborativo con votación)
+// ============================================================
+
+// Variables globales de la sección RETENES
+let retenesMapInstance = null;
+let retenesMarkers = {};
+let retenesUnsubscribe = null;
+
+// Variables para la selección de ubicación en el mapa (modal)
+let seleccionLat = null;
+let seleccionLng = null;
+let mapaSeleccion = null;
+let marcadorSeleccion = null;
+
+// ---------- RENDERIZADO DEL MAPA ----------
+window.renderRetenMap = async (isAdmin = false) => {
+    const containerId = isAdmin ? 'admin-retenes-map-container' : 'retenes-map-container';
+    const mapEl = document.getElementById(containerId);
+    if (!mapEl) {
+        console.error('❌ Contenedor del mapa no encontrado:', containerId);
+        return;
+    }
+
+    // Asegurar altura mínima
+    mapEl.style.height = isAdmin ? '500px' : 'calc(100vh - 140px)';
+    mapEl.style.width = '100%';
+    
+
+    const isLight = document.body.classList.contains('light-mode');
+    const layerUrl = isLight
+        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+
+    if (!retenesMapInstance) {
+        retenesMapInstance = L.map(mapEl, { 
+            zoomControl: true, 
+            attributionControl: false 
+        }).setView([TALLER_LAT, TALLER_LNG], 14);
+        
+        L.tileLayer(layerUrl, { 
+            attribution: '&copy; <a href="https://carto.com/">CARTO</a>' 
+        }).addTo(retenesMapInstance);
+
+        // Control de ubicación (mira para centrar)
+        const locateControl = L.control.locate({
+            position: 'bottomright',
+            strings: { title: 'Centrar en mi ubicación' },
+            locateOptions: { enableHighAccuracy: true, maxZoom: 16, timeout: 10000 }
+        }).addTo(retenesMapInstance);
+        
+        locateControl.on('locationfound', (e) => {
+            retenesMapInstance.setView(e.latlng, 16);
+        });
+        
+        setTimeout(() => { 
+            locateControl.start(); 
+        }, 500);
+    } else {
+        // Actualizar capa base
+        retenesMapInstance.eachLayer(layer => {
+            if (layer instanceof L.TileLayer) retenesMapInstance.removeLayer(layer);
+        });
+        L.tileLayer(layerUrl, { 
+            attribution: '&copy; <a href="https://carto.com/">CARTO</a>' 
+        }).addTo(retenesMapInstance);
+        retenesMapInstance.invalidateSize();
+        retenesMapInstance.setView([TALLER_LAT, TALLER_LNG], 14);
+    }
+
+    // Limpiar marcadores anteriores
+    Object.values(retenesMarkers).forEach(m => {
+        if (retenesMapInstance && m && m.remove) m.remove();
+    });
+    retenesMarkers = {};
+
+    // Cargar datos de Firestore (solo activos)
+    if (retenesUnsubscribe) retenesUnsubscribe();
+    const q = query(collection(db, "retenes"), where("status", "==", "active"), orderBy("timestamp", "desc"));
+    retenesUnsubscribe = onSnapshot(q, (snap) => {
+        const allBounds = [];
+        snap.forEach(doc => {
+            const data = doc.data();
+            data.id = doc.id;
+            allBounds.push([data.lat, data.lng]);
+            crearMarcadorReten(data, isAdmin);
+        });
+
+        // Ajustar límites del mapa para ver todos los retenes
+        if (allBounds.length > 0 && !retenesMapInstance._locate) {
+            const bounds = L.latLngBounds(allBounds);
+            retenesMapInstance.fitBounds(bounds, { padding: [50, 50] });
+        }
+
+        if (isAdmin) cargarListaRetenesAdmin();
+    });
+};
+
+// ---------- CREAR MARCADOR CON TORRETA POLICIAL ----------
+function crearMarcadorReten(data, isAdmin) {
+    const marker = L.marker([data.lat, data.lng], {
+        icon: L.divIcon({
+            className: 'police-siren-icon',
+            html: `
+                <img src="https://www.gifsanimados.org/data/media/930/luz-y-sirena-de-policia-imagen-animada-0008.gif" 
+                     alt="Torreta policial" 
+                     style="width:50px; height:50px; object-fit:contain; display:block;"
+                     onerror="this.src='https://via.placeholder.com/50/FF6B00/FFFFFF?text=🚨'">
+            `
+        })
+    }).addTo(retenesMapInstance);
+
+    let popupContent = `
+        <div style="min-width:200px; text-align:center; font-family:sans-serif;">
+            <p class="font-bold text-naranja" style="font-weight:800; color:#FF6B00;">🚨 Retén</p>
+            <p class="text-xs text-gray-500" style="font-size:12px; color:#888;">${new Date(data.timestamp).toLocaleString()}</p>`;
+
+    if (data.descripcionUbicacion) {
+        popupContent += `<p class="text-xs font-semibold text-white" style="font-size:12px;">📍 ${escapeHtml(data.descripcionUbicacion)}</p>`;
+    }
+
+    if (data.imageUrl) {
+        popupContent += `
+            <div class="police-light-box" style="margin:10px auto;">
+                <img src="${data.imageUrl}" style="max-width:180px; max-height:180px; border-radius:8px; display:block; margin:0 auto;">
+            </div>`;
+    } else {
+        popupContent += `<p class="text-xs text-gray-400 italic" style="font-size:12px; color:#aaa;">Sin imagen</p>`;
+    }
+
+    // Si es admin: botones eliminar/editar
+    if (isAdmin) {
+        popupContent += `
+            <div class="flex gap-2 mt-2" style="display:flex; gap:8px; margin-top:8px;">
+                <button onclick="window.eliminarReten('${data.id}')" 
+                        style="background:#dc2626; color:white; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:bold; cursor:pointer;">
+                    Eliminar
+                </button>
+                <button onclick="window.editarReten('${data.id}')" 
+                        style="background:#2563eb; color:white; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:bold; cursor:pointer;">
+                    Editar
+                </button>
+            </div>`;
+    } else {
+        // Cliente: verificar si ha pasado 1 hora y votación
+        const elapsed = Date.now() - data.timestamp;
+        if (elapsed > 3600000) { // 1 hora
+            const uid = auth.currentUser.uid;
+            const yaVotoNO = data.negativeVotes && data.negativeVotes.includes(uid);
+            if (!yaVotoNO) {
+                popupContent += `
+                    <p class="text-xs text-red-500 font-bold mt-2" style="font-size:12px; color:#ef4444; font-weight:700; margin-top:8px;">
+                        ⚠️ Este retén tiene más de 1 hora.
+                    </p>
+                    <p class="text-xs font-bold mt-1" style="font-size:12px; font-weight:700;">¿El retén continúa?</p>
+                    <div class="flex gap-2 mt-2" style="display:flex; gap:8px; margin-top:8px;">
+                        <button onclick="window.votarReten('${data.id}', 'si')" 
+                                style="background:#22c55e; color:white; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:bold; cursor:pointer;">
+                            SI
+                        </button>
+                        <button onclick="window.votarReten('${data.id}', 'no')" 
+                                style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:bold; cursor:pointer;">
+                            NO
+                        </button>
+                        <button onclick="window.votarReten('${data.id}', 'desconozco')" 
+                                style="background:#9ca3af; color:white; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:bold; cursor:pointer;">
+                            DESCONOZCO
+                        </button>
+                    </div>`;
+            } else {
+                popupContent += `<p class="text-xs text-gray-400 mt-2" style="font-size:12px; color:#aaa; margin-top:8px;">✅ Ya votaste NO en este retén.</p>`;
+            }
+        }
+    }
+
+    marker.bindPopup(popupContent);
+    retenesMarkers[data.id] = marker;
+}
+
+// ---------- VOTACIÓN ----------
+window.votarReten = async (retenId, voto) => {
+    const snap = await getDoc(doc(db, "retenes", retenId));
+    if (!snap.exists()) return showToast("Retén no encontrado", true);
+    const data = snap.data();
+    const uid = auth.currentUser.uid;
+
+    if (voto === 'si') {
+        // Renovar retén (actualizar timestamp)
+        await updateDoc(doc(db, "retenes", retenId), { timestamp: Date.now() });
+        showToast("✅ Retén renovado por 1 hora más.");
+    } else if (voto === 'no') {
+        const votes = data.negativeVotes || [];
+        if (votes.includes(uid)) return showToast("Ya votaste NO", true);
+        votes.push(uid);
+        // Si alcanza 4 o más NO, eliminar el retén
+        if (votes.length >= 4) {
+            // Eliminar imagen de Storage si existe
+            if (data.imageUrl) {
+                try {
+                    const imageRef = sRef(storage, data.imageUrl);
+                    await deleteObject(imageRef);
+                } catch (e) { console.warn("No se pudo eliminar la imagen:", e); }
+            }
+            await deleteDoc(doc(db, "retenes", retenId));
+            showToast("🚫 Retén eliminado por múltiples votos NO.");
+        } else {
+            await updateDoc(doc(db, "retenes", retenId), { negativeVotes: votes });
+            showToast(`🚫 Voto NO registrado (${votes.length}/4)`);
+        }
+    } else if (voto === 'desconozco') {
+        showToast("⚠️ Retén sin cambios. Seguirá visible.");
+    }
+    // Refrescar el mapa
+    renderRetenMap(false);
+};
+
+// ---------- CREAR RETÉN (MODAL) ----------
+window.abrirFormularioReten = () => {
+    const modal = document.getElementById('modal-crear-reten');
+    if (!modal) return;
+    document.getElementById('reten-evidencia').value = '';
+    document.getElementById('reten-descripcion-ubicacion').value = '';
+    // Reiniciar variables de selección
+    seleccionLat = null;
+    seleccionLng = null;
+    if (mapaSeleccion) {
+        mapaSeleccion.remove();
+        mapaSeleccion = null;
+        marcadorSeleccion = null;
+    }
+    // Mostrar paso 1, ocultar paso 2 y 3
+    document.getElementById('modal-crear-reten-paso-1').classList.remove('hidden');
+    document.getElementById('modal-crear-reten-paso-2').classList.add('hidden');
+    document.getElementById('modal-crear-reten-paso-3').classList.add('hidden');
+    toggleModal('modal-crear-reten', true);
+};
+
+// ---------- INICIALIZAR MAPA DE SELECCIÓN ----------
+function initMapaSeleccion() {
+    const container = document.getElementById('mapa-seleccion-reten');
+    if (!container) return;
+    if (mapaSeleccion) {
+        mapaSeleccion.invalidateSize();
+        return;
+    }
+    const isLight = document.body.classList.contains('light-mode');
+    const layerUrl = isLight
+        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    
+    mapaSeleccion = L.map(container, { 
+        zoomControl: false, 
+        attributionControl: false 
+    }).setView([TALLER_LAT, TALLER_LNG], 15);
+    
+    L.tileLayer(layerUrl, { 
+        attribution: '&copy; <a href="https://carto.com/">CARTO</a>' 
+    }).addTo(mapaSeleccion);
+    
+    // Marcador inicial en el centro
+    marcadorSeleccion = L.marker([TALLER_LAT, TALLER_LNG], { 
+        draggable: true 
+    }).addTo(mapaSeleccion);
+    
+    // Actualizar coordenadas al mover el marcador
+    marcadorSeleccion.on('dragend', function() {
+        const pos = marcadorSeleccion.getLatLng();
+        seleccionLat = pos.lat;
+        seleccionLng = pos.lng;
+        document.getElementById('coordenadas-seleccionadas').innerText = `Lat: ${seleccionLat.toFixed(4)}, Lng: ${seleccionLng.toFixed(4)}`;
+    });
+    
+    // También permitir clic en el mapa para mover el marcador
+    mapaSeleccion.on('click', function(e) {
+        const pos = e.latlng;
+        seleccionLat = pos.lat;
+        seleccionLng = pos.lng;
+        marcadorSeleccion.setLatLng(pos);
+        document.getElementById('coordenadas-seleccionadas').innerText = `Lat: ${seleccionLat.toFixed(4)}, Lng: ${seleccionLng.toFixed(4)}`;
+    });
+    
+    setTimeout(() => { 
+        if (mapaSeleccion) mapaSeleccion.invalidateSize(); 
+    }, 200);
+}
+
+// ---------- EVENTOS DE BOTONES DEL MODAL ----------
+document.addEventListener('click', function(e) {
+    // Botón "Seleccionar en el mapa"
+    if (e.target.id === 'btn-seleccionar-ubicacion-mapa') {
+        document.getElementById('modal-crear-reten-paso-1').classList.add('hidden');
+        document.getElementById('modal-crear-reten-paso-2').classList.remove('hidden');
+        setTimeout(initMapaSeleccion, 300);
+    }
+    
+    // Botón "Confirmar punto"
+    if (e.target.id === 'btn-confirmar-punto-reten') {
+        if (seleccionLat === null || seleccionLng === null) {
+            window.showToast('Mueve el marcador o haz clic en el mapa para seleccionar un punto.', true);
+            return;
+        }
+        document.getElementById('modal-crear-reten-paso-2').classList.add('hidden');
+        document.getElementById('modal-crear-reten-paso-3').classList.remove('hidden');
+        // Mostrar coordenadas en el paso 3
+        const contenedorExacta = document.getElementById('reten-ubicacion-exacta-container');
+        if (contenedorExacta) {
+            const p = contenedorExacta.querySelector('p');
+            if (p) {
+                p.innerText = `📍 Ubicación seleccionada: Lat ${seleccionLat.toFixed(4)}, Lng ${seleccionLng.toFixed(4)}`;
+            }
+        }
+    }
+    
+    // Botón "Cancelar selección"
+    if (e.target.id === 'btn-cancelar-seleccion-reten') {
+        document.getElementById('modal-crear-reten-paso-2').classList.add('hidden');
+        document.getElementById('modal-crear-reten-paso-1').classList.remove('hidden');
+        seleccionLat = null;
+        seleccionLng = null;
+        if (mapaSeleccion) {
+            mapaSeleccion.remove();
+            mapaSeleccion = null;
+            marcadorSeleccion = null;
+        }
+    }
+});
+
+// ---------- PROCESAR CREAR RETÉN ----------
+window.procesarCrearReten = async function() {
+    // Validar que se haya seleccionado una ubicación
+    if (seleccionLat === null || seleccionLng === null) {
+        window.showToast("Selecciona una ubicación en el mapa primero.", true);
+        return;
+    }
+    
+    const descripcionUbicacion = document.getElementById('reten-descripcion-ubicacion').value.trim();
+    const fileInput = document.getElementById('reten-evidencia');
+    let imageUrl = null;
+    
+    // Subir imagen si existe
+    if (fileInput && fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const compressed = await window.compressImage(file);
+        imageUrl = await uploadWithTimeout(compressed, `retenes/${auth.currentUser.uid}/${Date.now()}.jpg`);
+    }
+    
+    // Guardar en Firestore
+    await addDoc(collection(db, "retenes"), {
+        uid: auth.currentUser.uid,
+        lat: seleccionLat,
+        lng: seleccionLng,
+        descripcionUbicacion: descripcionUbicacion || null,
+        timestamp: Date.now(),
+        imageUrl: imageUrl,
+        negativeVotes: [],
+        status: 'active'
+    });
+    
+    // Limpiar variables y cerrar modal
+    seleccionLat = null;
+    seleccionLng = null;
+    if (mapaSeleccion) {
+        mapaSeleccion.remove();
+        mapaSeleccion = null;
+        marcadorSeleccion = null;
+    }
+    
+    toggleModal('modal-crear-reten', false);
+    window.showToast("✅ Retén creado correctamente.");
+    window.renderRetenMap(false);
+};
+
+// ---------- ADMIN: LISTA DE RETENES ----------
+window.cargarListaRetenesAdmin = async () => {
+    const container = document.getElementById('admin-retenes-list');
+    if (!container) return;
+    const snap = await getDocs(collection(db, "retenes"));
+    container.innerHTML = '';
+    snap.forEach(doc => {
+        const data = doc.data();
+        container.innerHTML += `
+            <div class="bg-white/5 p-3 rounded-xl border border-yellow-500/30 hover:bg-white/10 cursor-pointer" 
+                 onclick="window.focusRetenAdmin('${doc.id}', ${data.lat}, ${data.lng})">
+                <div class="flex justify-between items-center">
+                    <span class="font-bold text-sm text-yellow-400">🚨 ${new Date(data.timestamp).toLocaleString()}</span>
+                    <span class="text-[10px] px-2 py-0.5 rounded bg-gray-600/50 text-gray-300">${data.negativeVotes?.length || 0} votos NO</span>
+                </div>
+                <p class="text-xs text-gray-400 truncate">Lat: ${data.lat.toFixed(4)}, Lng: ${data.lng.toFixed(4)}</p>
+            </div>`;
+    });
+};
+
+window.focusRetenAdmin = (id, lat, lng) => {
+    if (retenesMapInstance) {
+        retenesMapInstance.setView([lat, lng], 16);
+        if (retenesMarkers[id]) {
+            retenesMarkers[id].openPopup();
+        }
+    }
+};
+
+window.eliminarReten = async (retenId) => {
+    if (confirm("¿Eliminar este retén permanentemente?")) {
+        const snap = await getDoc(doc(db, "retenes", retenId));
+        if (snap.exists() && snap.data().imageUrl) {
+            try {
+                const imageRef = sRef(storage, snap.data().imageUrl);
+                await deleteObject(imageRef);
+            } catch (e) { console.warn("No se pudo eliminar la imagen:", e); }
+        }
+        await deleteDoc(doc(db, "retenes", retenId));
+        showToast("Retén eliminado");
+        renderRetenMap(true);
+    }
+};
+
+window.editarReten = (retenId) => {
+    window.promptModal("Editar retén (ID):", retenId, (newId) => {
+        showToast("Edición no implementada aún");
+    });
+};
+
+
     window.submitDeliverySurvey = async () => {
     // Similar a submitSurvey pero para entregas
     const rating = window.currentDeliveryRating || 5;
@@ -3340,6 +3770,8 @@ function listenToMyDeliveries() {
     });
     // Cerrar encuesta y mostrar mensaje
 };
+
+
 
 window.abrirChatSOS = async () => {
     if (window._sosChatId) {
@@ -6647,8 +7079,8 @@ window.openStaffDetail = async (uid) => {
     const promedio = calificaciones.length ? (calificaciones.reduce((a,b)=>a+b,0)/calificaciones.length).toFixed(1) : 'N/A';
 
     // Permisos
-    const vistas = ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas','a-view-entregas'];
-const vistasNombres = ['Caja','Taller','SOS','Almacén','Promos','Usuarios','Ajustes','Estadíst.','Citas','Entregas'];
+    const vistas = ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas','a-view-entregas','a-view-retenes'];
+const vistasNombres = ['Caja','Taller','SOS','Almacén','Promos','Usuarios','Ajustes','Estadíst.','Citas','Entregas','Retenes'];
     const vistasActuales = user.vistasPermitidas || vistas;
     let vistasHTML = vistas.map((v,i) => {
         const checked = vistasActuales.includes(v) ? 'checked' : '';
@@ -10814,222 +11246,6 @@ window.ingresarATaller = async () => {
     window.adminListenServices();
 };
 
-// ============================================================
-//  SECCIÓN RETENES (mapa colaborativo con votación)
-// ============================================================
-
-let retenesMapInstance = null;
-let retenesMarkers = {};
-let retenesUnsubscribe = null;
-
-// ---------- RENDERIZADO DEL MAPA ----------
-window.renderRetenMap = async (isAdmin = false) => {
-    const containerId = isAdmin ? 'admin-retenes-map-container' : 'retenes-map-container';
-    const mapEl = document.getElementById(containerId);
-    if (!mapEl) {
-        console.error('❌ Contenedor del mapa no encontrado:', containerId);
-        return;
-    }
-
-    // Ajustar altura para cliente
-    if (!isAdmin) {
-        const wrapper = document.getElementById('retenes-map-wrapper');
-        if (wrapper) {
-            wrapper.style.height = 'auto';
-            wrapper.style.minHeight = 'calc(100vh - 140px)';
-        }
-        mapEl.style.height = '100%';
-        mapEl.style.minHeight = 'calc(100vh - 140px)';
-    } else {
-        mapEl.style.height = '100%';
-        mapEl.style.minHeight = '500px';
-    }
-
-    const isLight = document.body.classList.contains('light-mode');
-    const layerUrl = isLight
-        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-
-    if (!retenesMapInstance) {
-        retenesMapInstance = L.map(mapEl, { zoomControl: true, attributionControl: false })
-            .setView([TALLER_LAT, TALLER_LNG], 14);
-        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(retenesMapInstance);
-
-        // Control de ubicación (mira para centrar)
-        const locateControl = L.control.locate({
-            position: 'bottomright',
-            strings: { title: 'Centrar en mi ubicación' },
-            locateOptions: { enableHighAccuracy: true, maxZoom: 16, timeout: 10000 }
-        }).addTo(retenesMapInstance);
-        locateControl.on('locationfound', (e) => {
-            retenesMapInstance.setView(e.latlng, 16);
-        });
-        setTimeout(() => { locateControl.start(); }, 500);
-    } else {
-        // Actualizar capa base
-        retenesMapInstance.eachLayer(layer => {
-            if (layer instanceof L.TileLayer) retenesMapInstance.removeLayer(layer);
-        });
-        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(retenesMapInstance);
-        retenesMapInstance.invalidateSize();
-        retenesMapInstance.setView([TALLER_LAT, TALLER_LNG], 14);
-    }
-
-    // Limpiar marcadores anteriores
-    Object.values(retenesMarkers).forEach(m => {
-        if (retenesMapInstance && m && m.remove) m.remove();
-    });
-    retenesMarkers = {};
-
-    // Cargar datos de Firestore (solo activos)
-    if (retenesUnsubscribe) retenesUnsubscribe();
-    const q = query(collection(db, "retenes"), where("status", "==", "active"), orderBy("timestamp", "desc"));
-    retenesUnsubscribe = onSnapshot(q, (snap) => {
-        const allBounds = [];
-        snap.forEach(doc => {
-            const data = doc.data();
-            data.id = doc.id;
-            allBounds.push([data.lat, data.lng]);
-            crearMarcadorReten(data, isAdmin);
-        });
-
-        // Ajustar límites del mapa para ver todos los retenes
-        if (allBounds.length > 0 && !retenesMapInstance._locate) {
-            const bounds = L.latLngBounds(allBounds);
-            retenesMapInstance.fitBounds(bounds, { padding: [50, 50] });
-        }
-
-        if (isAdmin) cargarListaRetenesAdmin();
-    });
-};
-
-// ---------- CREAR MARCADOR CON TORRETA POLICIAL ----------
-function crearMarcadorReten(data, isAdmin) {
-    const marker = L.marker([data.lat, data.lng], {
-        icon: L.divIcon({
-            className: 'police-siren-icon',
-            html: `
-                <img src="https://www.gifsanimados.org/data/media/930/luz-y-sirena-de-policia-imagen-animada-0008.gif" 
-                     alt="Torreta policial" 
-                     style="width:50px; height:50px; object-fit:contain; display:block;"
-                     onerror="this.src='https://via.placeholder.com/50/FF6B00/FFFFFF?text=🚨'">
-            `
-        })
-    }).addTo(retenesMapInstance);
-
-    let popupContent = `
-        <div style="min-width:200px; text-align:center; font-family:sans-serif;">
-            <p class="font-bold text-naranja" style="font-weight:800; color:#FF6B00;">🚨 Retén</p>
-            <p class="text-xs text-gray-500" style="font-size:12px; color:#888;">${new Date(data.timestamp).toLocaleString()}</p>`;
-
-    if (data.descripcionUbicacion) {
-        popupContent += `<p class="text-xs font-semibold text-white" style="font-size:12px;">📍 ${escapeHtml(data.descripcionUbicacion)}</p>`;
-    }
-
-    if (data.imageUrl) {
-        popupContent += `
-            <div class="police-light-box" style="margin:10px auto;">
-                <img src="${data.imageUrl}" style="max-width:180px; max-height:180px; border-radius:8px; display:block; margin:0 auto;">
-            </div>`;
-    } else {
-        popupContent += `<p class="text-xs text-gray-400 italic" style="font-size:12px; color:#aaa;">Sin imagen</p>`;
-    }
-
-    // Si es admin: botones eliminar/editar
-    if (isAdmin) {
-        popupContent += `
-            <div class="flex gap-2 mt-2" style="display:flex; gap:8px; margin-top:8px;">
-                <button onclick="window.eliminarReten('${data.id}')" 
-                        style="background:#dc2626; color:white; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:bold; cursor:pointer;">
-                    Eliminar
-                </button>
-                <button onclick="window.editarReten('${data.id}')" 
-                        style="background:#2563eb; color:white; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:bold; cursor:pointer;">
-                    Editar
-                </button>
-            </div>`;
-    } else {
-        // Cliente: verificar si ha pasado 1 hora y votación
-        const elapsed = Date.now() - data.timestamp;
-        if (elapsed > 3600000) { // 1 hora
-            const uid = auth.currentUser.uid;
-            const yaVotoNO = data.negativeVotes && data.negativeVotes.includes(uid);
-            if (!yaVotoNO) {
-                popupContent += `
-                    <p class="text-xs text-red-500 font-bold mt-2" style="font-size:12px; color:#ef4444; font-weight:700; margin-top:8px;">
-                        ⚠️ Este retén tiene más de 1 hora.
-                    </p>
-                    <p class="text-xs font-bold mt-1" style="font-size:12px; font-weight:700;">¿El retén continúa?</p>
-                    <div class="flex gap-2 mt-2" style="display:flex; gap:8px; margin-top:8px;">
-                        <button onclick="window.votarReten('${data.id}', 'si')" 
-                                style="background:#22c55e; color:white; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:bold; cursor:pointer;">
-                            SI
-                        </button>
-                        <button onclick="window.votarReten('${data.id}', 'no')" 
-                                style="background:#ef4444; color:white; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:bold; cursor:pointer;">
-                            NO
-                        </button>
-                        <button onclick="window.votarReten('${data.id}', 'desconozco')" 
-                                style="background:#9ca3af; color:white; border:none; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:bold; cursor:pointer;">
-                            DESCONOZCO
-                        </button>
-                    </div>`;
-            } else {
-                popupContent += `<p class="text-xs text-gray-400 mt-2" style="font-size:12px; color:#aaa; margin-top:8px;">✅ Ya votaste NO en este retén.</p>`;
-            }
-        }
-    }
-
-    marker.bindPopup(popupContent);
-    retenesMarkers[data.id] = marker;
-}
-
-// ---------- VOTACIÓN ----------
-window.votarReten = async (retenId, voto) => {
-    const snap = await getDoc(doc(db, "retenes", retenId));
-    if (!snap.exists()) return showToast("Retén no encontrado", true);
-    const data = snap.data();
-    const uid = auth.currentUser.uid;
-
-    if (voto === 'si') {
-        // Renovar retén (actualizar timestamp)
-        await updateDoc(doc(db, "retenes", retenId), { timestamp: Date.now() });
-        showToast("✅ Retén renovado por 1 hora más.");
-    } else if (voto === 'no') {
-        const votes = data.negativeVotes || [];
-        if (votes.includes(uid)) return showToast("Ya votaste NO", true);
-        votes.push(uid);
-        // Si alcanza 4 o más NO, eliminar el retén
-        if (votes.length >= 4) {
-            // Eliminar imagen de Storage si existe
-            if (data.imageUrl) {
-                try {
-                    const imageRef = sRef(storage, data.imageUrl);
-                    await deleteObject(imageRef);
-                } catch (e) { console.warn("No se pudo eliminar la imagen:", e); }
-            }
-            await deleteDoc(doc(db, "retenes", retenId));
-            showToast("🚫 Retén eliminado por múltiples votos NO.");
-        } else {
-            await updateDoc(doc(db, "retenes", retenId), { negativeVotes: votes });
-            showToast(`🚫 Voto NO registrado (${votes.length}/4)`);
-        }
-    } else if (voto === 'desconozco') {
-        showToast("⚠️ Retén sin cambios. Seguirá visible.");
-    }
-    // Refrescar el mapa
-    renderRetenMap(false);
-};
-
-// ---------- CREAR RETÉN (MODAL) ----------
-window.abrirFormularioReten = () => {
-    const modal = document.getElementById('modal-crear-reten');
-    if (!modal) return;
-    document.getElementById('reten-evidencia').value = '';
-    document.getElementById('reten-descripcion-ubicacion').value = '';
-    toggleModal('modal-crear-reten', true);
-};
-
 document.addEventListener('change', function(e) {
     if (e.target.id === 'reten-tipo-ubicacion') {
         const exacta = document.getElementById('reten-ubicacion-exacta-container');
@@ -11044,70 +11260,51 @@ document.addEventListener('change', function(e) {
     }
 });
 
-window.procesarCrearReten = async () => {
-    const tipo = document.getElementById('reten-tipo-ubicacion').value;
-    let lat, lng;
-    let descripcionUbicacion = '';
-
-    if (tipo === 'exacta') {
-        if (!navigator.geolocation) {
-            window.showToast("Tu navegador no soporta geolocalización.", true);
-            return;
-        }
-        try {
-            const pos = await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
-            });
-            lat = pos.coords.latitude;
-            lng = pos.coords.longitude;
-        } catch (e) {
-            window.showToast("No se pudo obtener tu ubicación. Intenta de nuevo.", true);
-            return;
-        }
-    } else {
-        descripcionUbicacion = document.getElementById('reten-descripcion-ubicacion').value.trim();
-        if (!descripcionUbicacion) {
-            window.showToast("Describe la ubicación aproximada.", true);
-            return;
-        }
-        if (!navigator.geolocation) {
-            window.showToast("Tu navegador no soporta geolocalización.", true);
-            return;
-        }
-        try {
-            const pos = await new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
-            });
-            lat = pos.coords.latitude;
-            lng = pos.coords.longitude;
-        } catch (e) {
-            window.showToast("No se pudo obtener tu ubicación. Intenta de nuevo.", true);
-            return;
-        }
+window.procesarCrearReten = async function() {
+    // Validar que se haya seleccionado una ubicación
+    if (seleccionLat === null || seleccionLng === null) {
+        window.showToast("Selecciona una ubicación en el mapa primero.", true);
+        return;
     }
-
+    
+    const descripcionUbicacion = document.getElementById('reten-descripcion-ubicacion').value.trim();
     const fileInput = document.getElementById('reten-evidencia');
     let imageUrl = null;
+    
+    // Subir imagen si existe
     if (fileInput && fileInput.files.length > 0) {
         const file = fileInput.files[0];
         const compressed = await window.compressImage(file);
         imageUrl = await uploadWithTimeout(compressed, `retenes/${auth.currentUser.uid}/${Date.now()}.jpg`);
     }
-
+    
+    // Guardar en Firestore
     await addDoc(collection(db, "retenes"), {
         uid: auth.currentUser.uid,
-        lat, lng,
+        lat: seleccionLat,
+        lng: seleccionLng,
         descripcionUbicacion: descripcionUbicacion || null,
         timestamp: Date.now(),
-        imageUrl,
+        imageUrl: imageUrl,
         negativeVotes: [],
         status: 'active'
     });
-
+    
+    // Limpiar variables y cerrar modal
+    seleccionLat = null;
+    seleccionLng = null;
+    if (mapaSeleccion) {
+        mapaSeleccion.remove();
+        mapaSeleccion = null;
+        marcadorSeleccion = null;
+    }
+    
     toggleModal('modal-crear-reten', false);
-    window.showToast("✅ Retén creado correctamente.");
+    window.showToast("✅ Retén reportado correctamente.");
     window.renderRetenMap(false);
 };
+
+
 
 // ---------- ADMIN: LISTA DE RETENES ----------
 window.cargarListaRetenesAdmin = async () => {
