@@ -544,6 +544,22 @@
                     <p id="delivery-status-desc-client" class="text-xs text-gray-300 mt-2">Pedido recibido</p>
                 </div>
             </section>
+                        <!-- ================= PESTAÑA RETENES (CLIENTE) ================= -->
+            <section id="c-view-retenes" class="c-view hidden flex-1 flex flex-col" style="min-height: calc(100vh - 64px - 70px); padding-bottom: 70px;">
+                <div id="retenes-map-wrapper" class="w-full flex-1 relative" style="min-height: calc(100vh - 140px); height: auto !important;">
+                    <!-- MAPA -->
+                    <div id="retenes-map-container" class="w-full h-full bg-gray-200" style="height: 100% !important; min-height: calc(100vh - 140px);"></div>
+                    <!-- Controles superiores -->
+                    <div class="absolute top-4 left-4 right-4 z-[1000] flex justify-between items-center pointer-events-none">
+                        <h2 class="text-xl font-black italic uppercase text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] pointer-events-auto">
+                            MAPA DE RETENES
+                        </h2>
+                        <button onclick="window.abrirFormularioReten()" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-xl font-black uppercase text-xs flex items-center gap-2 shadow-lg pointer-events-auto">
+                            <i class="fas fa-plus-circle"></i> CREAR AVISO
+                        </button>
+                    </div>
+                </div>
+            </section>
         </main>
         <!-- Barra de navegación inferior con el orden solicitado -->
         <nav class="fixed bottom-0 w-full glass border-t border-white/5 flex justify-around p-3 z-50 bg-asfalto/90 backdrop-blur-lg lg:max-w-[600px] lg:mx-auto lg:left-0 lg:right-0 lg:rounded-t-3xl">
@@ -563,6 +579,10 @@
                 <i class="fas fa-history text-2xl mb-1"></i>
                 <span class="text-[10px] font-black uppercase tracking-widest mt-1">HISTORIAL</span>
             </button>
+        <button onclick="window.switchClientView?.('c-view-retenes')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
+    <i class="fas fa-shield-alt text-2xl mb-1"></i>
+    <span class="text-[10px] font-black uppercase tracking-widest mt-1">RETENES</span>
+</button>
         </nav>
     </div>
 
@@ -1173,7 +1193,19 @@
                     </div>
                 </div>
             </section>
-
+            <!-- ================= PESTAÑA RETENES (ADMIN) ================= -->
+            <section id="a-view-retenes" class="a-view hidden flex-col h-full space-y-4">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-2xl font-black italic uppercase text-yellow-400">Gestión de Retenes</h2>
+                    <button onclick="window.renderRetenMap(true)" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl font-black uppercase text-xs"><i class="fas fa-sync-alt mr-2"></i> Actualizar Mapa</button>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-grow" style="height: calc(100vh - 120px);">
+                    <div id="admin-retenes-list" class="lg:col-span-1 bg-white/5 border border-white/10 rounded-3xl p-4 overflow-y-auto space-y-3 max-h-[500px]">
+                        <p class="text-gray-400 text-center text-xs">Cargando retenes...</p>
+                    </div>
+                    <div id="admin-retenes-map-container" class="lg:col-span-2 w-full bg-white rounded-3xl z-0 border border-yellow-500/30 shadow-xl relative" style="height: 100%; min-height: 500px;"></div>
+                </div>
+            </section>
             <button id="btn-chat-ai-float" class="fixed bottom-24 right-20 w-14 h-14 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl z-40 hover:bg-orange-500 transition-all animate-pulse-soft" title="Chat con IA (Mecánico Virtual)" style="display: none;">
                 <i class="fas fa-robot text-2xl"></i>
             </button>
@@ -1191,6 +1223,8 @@
                 <button onclick="window.switchAdminView?.('a-view-config')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-gray-400 min-w-[60px]"><i class="fas fa-cog text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Ajustes</span></button>
                 <button onclick="window.switchAdminView?.('a-view-stats')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-naranja min-w-[60px]"><i class="fas fa-chart-bar text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Estadíst.</span></button>
                 <button onclick="window.switchAdminView?.('a-view-citas')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-green-400 min-w-[60px]"><i class="fas fa-calendar-check text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Citas</span></button>
+               <button onclick="window.switchAdminView?.('a-view-retenes')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-yellow-400 min-w-[60px]"><i class="fas fa-shield-alt text-xl mb-1"></i>            <span class="text-[8px] font-black uppercase tracking-widest mt-1">RETENES</span>
+        </button>
             </div>
         </nav>
     </div>
@@ -1877,5 +1911,33 @@
             <p id="pdf-progress-text" class="text-xs text-gray-400 mt-3">Preparando documento...</p>
         </div>
     </div>
+    <!-- Modal para crear retén -->
+<div id="modal-crear-reten" class="fixed inset-0 bg-black/95 z-[1000000] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-red-500/30 shadow-2xl">
+        <button onclick="toggleModal('modal-crear-reten', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        <h2 class="text-xl font-black mb-4 text-white text-center">Nuevo Retén</h2>
+        <div class="space-y-3">
+            <div>
+                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Tipo de ubicación</label>
+                <select id="reten-tipo-ubicacion" class="w-full bg-asfalto/50 border border-white/10 p-3 rounded-xl text-white text-sm">
+                    <option value="exacta">Ubicación exacta (GPS)</option>
+                    <option value="aproximada">Ubicación aproximada (cerca de...)</option>
+                </select>
+            </div>
+            <div id="reten-ubicacion-exacta-container">
+                <p class="text-xs text-gray-300">Se usará tu ubicación GPS actual.</p>
+            </div>
+            <div id="reten-ubicacion-aproximada-container" class="hidden">
+                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Describe la ubicación</label>
+                <input id="reten-descripcion-ubicacion" type="text" placeholder="Ej. Frente al Oxxo de la 5ta" class="w-full bg-asfalto/50 border border-white/10 p-3 rounded-xl text-white text-sm">
+            </div>
+            <div>
+                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Evidencia (opcional)</label>
+                <input type="file" id="reten-evidencia" accept="image/*" class="w-full bg-asfalto/50 border border-white/10 p-2 rounded-xl text-xs text-gray-400 file:bg-naranja file:text-white file:border-0 file:rounded-md file:px-3 file:py-1">
+            </div>
+            <button id="btn-confirmar-crear-reten" onclick="window.procesarCrearReten()" class="w-full bg-red-600 hover:bg-red-500 text-white p-3 rounded-xl font-black uppercase text-sm">Publicar Retén</button>
+        </div>
+    </div>
+</div>
 </body>
 </html>
