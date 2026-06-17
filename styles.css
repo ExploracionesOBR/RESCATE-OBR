@@ -1483,3 +1483,54 @@ body.light-mode #chat-ia-modal-dinamico {
 #active-sos-card:not(.hidden) ~ #emergency-client-btn {
     display: none !important;
 }
+/* ===== RETENES ===== */
+@keyframes police-lights {
+    0% { border-color: #0000ff; box-shadow: 0 0 15px #0000ff; }
+    50% { border-color: #ff0000; box-shadow: 0 0 15px #ff0000; }
+    100% { border-color: #0000ff; box-shadow: 0 0 15px #0000ff; }
+}
+
+.police-light-box {
+    border: 4px solid #0000ff;
+    border-radius: 12px;
+    animation: police-lights 0.8s infinite alternate;
+    padding: 5px;
+    background: #000;
+    display: inline-block;
+}
+
+.police-siren-icon {
+    width: 50px;
+    height: 50px;
+    background: transparent !important;
+    border: none !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.police-siren-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+
+/* Ajustes de mapa para cliente y admin */
+#c-view-retenes {
+    overflow-y: auto;
+    min-height: calc(100vh - 64px - 70px);
+    padding-bottom: 80px;
+}
+#retenes-map-wrapper {
+    min-height: calc(100vh - 140px);
+    height: auto !important;
+}
+#retenes-map-container {
+    height: 100% !important;
+    min-height: calc(100vh - 140px);
+}
+#admin-retenes-map-container {
+    min-height: 500px;
+}
