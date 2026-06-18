@@ -1901,31 +1901,35 @@ onAuthStateChanged(auth, async user => {
     if (window._adminCreatingUser) return;
 
     if (!user) {
-    if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
-    loadGlobalSettings(); 
+        if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
+        loadGlobalSettings(); 
+        showView('view-landing');
+        return;
+    }
+    
+    // Ocultar landing inmediatamente
+    showView('view-landing', false); // ocultar sin mostrar otra (no usar showView que muestra)
+    document.getElementById('view-landing').classList.add('hidden');
+    
+    const userSnap = await getDoc(doc(db, 'users', user.uid));
+    if (userSnap.exists()) { 
+        window.currentUserDoc = userSnap.data(); 
+        window.currentUserDoc.id = user.uid; 
+    } else { 
+        window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; 
+    }
 
-    // --- NUEVO: DETECTAR PARÁMETROS DE LA URL ---
-    const urlParams = new URLSearchParams(window.location.search);
-    const action = urlParams.get('action');
-    const refCode = urlParams.get('ref'); // El código de referido se guarda en la URL para processRegister
+    // Verificar bloqueo/pausa (con seguridad)
+    if (window.currentUserDoc && window.currentUserDoc.bloqueado) {
+        signOut(auth).then(() => {
+            document.getElementById('out-of-zone-modal').classList.remove('hidden');
+            showView('view-landing');
+        });
+        return;
+    }
 
-if (action === 'registro') {
-    showView('view-login');
-    const step1 = document.getElementById('auth-step-1');
-    const loginStep = document.getElementById('auth-step-login');
-    const regStep = document.getElementById('auth-step-register');
-    if (step1) step1.classList.add('hidden');
-    if (loginStep) loginStep.classList.remove('hidden');
-    if (regStep) regStep.classList.remove('hidden');
-    return;
-}
-    // --- FIN NUEVO ---
-
-    showView('view-landing');
-    return;
-}
-
-    if (window.currentUserDoc.firstLogin && !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
+    // Verificar firstLogin (con seguridad)
+    if (window.currentUserDoc && window.currentUserDoc.firstLogin && !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
         showView('view-force-setup');
         return;
     }
@@ -1938,7 +1942,7 @@ if (action === 'registro') {
         globalSettings.centerLng = TALLER_LNG;
         showView('app-admin');
         document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
-         iniciarListenerGlobalSOS();
+        iniciarListenerGlobalSOS();
         setTimeout(() => {
             window.adminRefreshConfigUI();
             window.adminLoadInventory();
@@ -1953,26 +1957,25 @@ if (action === 'registro') {
     } else {
         showView('app-client');
         setTimeout(() => {
-    if (typeof window.updateEmergencyButtonState === 'function') {
-        const now = new Date();
-        const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
-        const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
-        const [hOpen, mOpen] = sched.o.split(':').map(Number);
-        const [hClose, mClose] = sched.c.split(':').map(Number);
-        const nowMins = now.getHours() * 60 + now.getMinutes();
-        const openMins = hOpen * 60 + mOpen;
-        const closeMins = hClose * 60 + mClose;
-        const isOpen = nowMins >= openMins && nowMins < closeMins;
-        window.updateEmergencyButtonState(isOpen, sched);
-    }
-}, 100);
+            if (typeof window.updateEmergencyButtonState === 'function') {
+                const now = new Date();
+                const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
+                const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
+                const [hOpen, mOpen] = sched.o.split(':').map(Number);
+                const [hClose, mClose] = sched.c.split(':').map(Number);
+                const nowMins = now.getHours() * 60 + now.getMinutes();
+                const openMins = hOpen * 60 + mOpen;
+                const closeMins = hClose * 60 + mClose;
+                const isOpen = nowMins >= openMins && nowMins < closeMins;
+                window.updateEmergencyButtonState(isOpen, sched);
+            }
+        }, 100);
         document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
         window.loadClientHistory(); 
         listenToMySOS();
         listenToMyDeliveries(); 
         window.loadClientCitas();
         console.log('Cargando tienda para usuario:', window.currentUserDoc?.phone);
-loadPublicStore();
         loadPublicStore();
         window.loadMyOrders();
         updateLandingStatus();
