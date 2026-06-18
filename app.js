@@ -42,9 +42,9 @@ window.loadHtml2Canvas = () => {
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/[&<>]/g, function(m) {
-        if (m === '&') return '&amp;';
-        if (m === '<') return '&lt;';
-        if (m === '>') return '&gt;';
+        if (m === '&') return '&';
+        if (m === '<') return '<';
+        if (m === '>') return '>';
         return m;
     });
 }
@@ -166,9 +166,9 @@ function escapeHtml(str) {
             
             let textoLimpio = limpiarMarkdown(m.texto || '');
             let textoFormateado = textoLimpio.replace(/[&<>]/g, function(match) {
-                if (match === '&') return '&amp;';
-                if (match === '<') return '&lt;';
-                if (match === '>') return '&gt;';
+                if (match === '&') return '&';
+                if (match === '<') return '<';
+                if (match === '>') return '>';
                 return match;
             }).replace(/\n/g, '<br>');
             
@@ -186,7 +186,7 @@ function escapeHtml(str) {
             
             let accionesHtml = '';
             if (!esUsuario && m.texto !== '...' && !m.loading && m.texto) {
-                const textoEscapado = textoLimpio.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const textoEscapado = textoLimpio.replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>');
                 const menuId = `msg-actions-${idx}-${Date.now()}`;
                 accionesHtml = `
                     <div class="message-actions-menu">
@@ -1482,7 +1482,7 @@ function switchMapLayer(isLight) {
     const layerUrl = isLight
         ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
         : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    const attribution = '&copy; <a href="https://carto.com/">CARTO</a>';
+    const attribution = '© <a href="https://carto.com/">CARTO</a>';
     const maps = [adminSOSGlobalMapInst, adminGeoMap, mechMapInst, sosMapInstance, entregasMapInst];
     maps.forEach(map => {
         if (map) {
@@ -2128,11 +2128,19 @@ window.switchClientView = (id) => {
             console.warn('loadClientHistory no está disponible');
         }
     }
-if (id === 'c-view-retenes') {
+   if (id === 'c-view-retenes') {
     document.getElementById('c-view-retenes').classList.remove('hidden');
+    
     setTimeout(() => {
-        window.renderRetenMap(false);
-        if (retenesMapInstance) retenesMapInstance.invalidateSize();
+        if (!retenesMapInstance) {
+            window.renderRetenMap(false);
+        } else {
+            retenesMapInstance.invalidateSize();
+        }
+        // Reintentar después de un tiempo para asegurar
+        setTimeout(() => {
+            if (retenesMapInstance) retenesMapInstance.invalidateSize();
+        }, 400);
     }, 300);
 } else {
     document.getElementById('c-view-retenes').classList.add('hidden');
@@ -2606,7 +2614,7 @@ window.launchSOSForm = () => {
                 const layerUrl = isLight
                     ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
                     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-                L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(sosMapInstance);
+                L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(sosMapInstance);
                 L.marker([tempSOSGps.lat, tempSOSGps.lng], {
                     icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-street-view text-white text-xs"></i></div>', iconSize: [28, 28], iconAnchor: [14, 28] })
                 }).addTo(sosMapInstance);
@@ -2771,7 +2779,7 @@ function initClientMap() {
     }).setView([TALLER_LAT, TALLER_LNG], 13);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> | <a href="https://carto.com/">CARTO</a>',
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OSM</a> | <a href="https://carto.com/">CARTO</a>',
         subdomains: 'abcd'
     }).addTo(window.clientMapInstance);
 
@@ -3349,83 +3357,104 @@ let mapaSeleccion = null;
 let marcadorSeleccion = null;
 
 // ---------- RENDERIZADO DEL MAPA ----------
+// Variables globales para retenes y ubicación
+let retenesData = [];          // Almacena todos los retenes activos
+let userLat = null;
+let userLng = null;
+
+// Función para actualizar los límites del mapa (centrado)
+function actualizarLimitesMapa() {
+    if (!retenesMapInstance) return;
+    
+    const bounds = [];
+    
+    // Agregar todos los retenes
+    retenesData.forEach(r => {
+        bounds.push([r.lat, r.lng]);
+    });
+    
+    // Agregar la ubicación del usuario si existe
+    if (userLat && userLng) {
+        bounds.push([userLat, userLng]);
+    }
+    
+    if (bounds.length > 0) {
+        retenesMapInstance.fitBounds(L.latLngBounds(bounds), { padding: [50, 50] });
+    } else {
+        // Si no hay nada, centrar en el taller
+        retenesMapInstance.setView([TALLER_LAT, TALLER_LNG], 14);
+    }
+}
+
 window.renderRetenMap = async (isAdmin = false) => {
     const containerId = isAdmin ? 'admin-retenes-map-container' : 'retenes-map-container';
     const mapEl = document.getElementById(containerId);
-    if (!mapEl) {
-        console.error('❌ Contenedor del mapa no encontrado:', containerId);
-        return;
-    }
-
-    // Asegurar altura mínima
-    mapEl.style.height = isAdmin ? '500px' : 'calc(100vh - 140px)';
-    mapEl.style.width = '100%';
-    
-
-    const isLight = document.body.classList.contains('light-mode');
-    const layerUrl = isLight
-        ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-        : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    if (!mapEl) return;
 
     if (!retenesMapInstance) {
-        retenesMapInstance = L.map(mapEl, { 
-            zoomControl: true, 
-            attributionControl: false 
+        retenesMapInstance = L.map(mapEl, {
+            zoomControl: true,
+            attributionControl: false
         }).setView([TALLER_LAT, TALLER_LNG], 14);
-        
-        L.tileLayer(layerUrl, { 
-            attribution: '&copy; <a href="https://carto.com/">CARTO</a>' 
-        }).addTo(retenesMapInstance);
 
-        // Control de ubicación (mira para centrar)
-        const locateControl = L.control.locate({
-            position: 'bottomright',
-            strings: { title: 'Centrar en mi ubicación' },
-            locateOptions: { enableHighAccuracy: true, maxZoom: 16, timeout: 10000 }
-        }).addTo(retenesMapInstance);
-        
-        locateControl.on('locationfound', (e) => {
-            retenesMapInstance.setView(e.latlng, 16);
-        });
-        
-        setTimeout(() => { 
-            locateControl.start(); 
-        }, 500);
+        const layerUrl = document.body.classList.contains('light-mode')
+            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(retenesMapInstance);
     } else {
-        // Actualizar capa base
-        retenesMapInstance.eachLayer(layer => {
-            if (layer instanceof L.TileLayer) retenesMapInstance.removeLayer(layer);
-        });
-        L.tileLayer(layerUrl, { 
-            attribution: '&copy; <a href="https://carto.com/">CARTO</a>' 
-        }).addTo(retenesMapInstance);
         retenesMapInstance.invalidateSize();
-        retenesMapInstance.setView([TALLER_LAT, TALLER_LNG], 14);
     }
 
-    // Limpiar marcadores anteriores
-    Object.values(retenesMarkers).forEach(m => {
-        if (retenesMapInstance && m && m.remove) m.remove();
-    });
-    retenesMarkers = {};
+    // --- MARCADOR DE UBICACIÓN DEL USUARIO (🏍️) ---
+    if (!isAdmin && auth.currentUser) {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    userLat = pos.coords.latitude;
+                    userLng = pos.coords.longitude;
+                    
+                    // Agregar marcador
+                    L.marker([userLat, userLng], {
+                        icon: L.divIcon({
+                            className: 'mech-pulse-marker',
+                            html: '<div style="background:#FF6B00; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:16px;">🏍️</div>',
+                            iconSize: [28, 28],
+                            iconAnchor: [14, 14]
+                        })
+                    }).addTo(retenesMapInstance).bindPopup('📍 Tu ubicación');
+                    
+                    // Actualizar los límites ahora que tenemos la ubicación
+                    actualizarLimitesMapa();
+                },
+                (err) => {
+                    console.error('Error obteniendo ubicación:', err);
+                    window.showToast('No se pudo obtener tu ubicación. Asegúrate de tener el GPS activado.', true);
+                },
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+            );
+        } else {
+            window.showToast('Tu navegador no soporta geolocalización.', true);
+        }
+    }
 
-    // Cargar datos de Firestore (solo activos)
+    // --- LIMPIAR MARCADORES Y CARGAR RETENES ---
+    Object.values(retenesMarkers).forEach(m => retenesMapInstance.removeLayer(m));
+    retenesMarkers = {};
+    retenesData = [];
+
     if (retenesUnsubscribe) retenesUnsubscribe();
     const q = query(collection(db, "retenes"), where("status", "==", "active"), orderBy("timestamp", "desc"));
     retenesUnsubscribe = onSnapshot(q, (snap) => {
-        const allBounds = [];
+        retenesData = [];
         snap.forEach(doc => {
             const data = doc.data();
             data.id = doc.id;
-            allBounds.push([data.lat, data.lng]);
+            retenesData.push(data);
             crearMarcadorReten(data, isAdmin);
         });
 
-        // Ajustar límites del mapa para ver todos los retenes
-        if (allBounds.length > 0 && !retenesMapInstance._locate) {
-            const bounds = L.latLngBounds(allBounds);
-            retenesMapInstance.fitBounds(bounds, { padding: [50, 50] });
-        }
+        // Actualizar los límites con los retenes y la ubicación (si existe)
+        actualizarLimitesMapa();
 
         if (isAdmin) cargarListaRetenesAdmin();
     });
@@ -3589,7 +3618,7 @@ function initMapaSeleccion() {
     }).setView([TALLER_LAT, TALLER_LNG], 15);
     
     L.tileLayer(layerUrl, { 
-        attribution: '&copy; <a href="https://carto.com/">CARTO</a>' 
+        attribution: '© <a href="https://carto.com/">CARTO</a>' 
     }).addTo(mapaSeleccion);
     
     // Marcador inicial en el centro
@@ -7442,7 +7471,7 @@ async function renderSOSMapa() {
     const layerUrl = isLight
         ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
         : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    const attribution = '&copy; <a href="https://carto.com/">CARTO</a>';
+    const attribution = '© <a href="https://carto.com/">CARTO</a>';
 
     if (!adminSOSGlobalMapInst) {
         adminSOSGlobalMapInst = L.map(mapEl, {
@@ -8977,7 +9006,7 @@ window.renderAdminMap = () => {
         ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
         : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     adminGeoMap = L.map(mapEl).setView([TALLER_LAT, TALLER_LNG], 13);
-    L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(adminGeoMap);
+    L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(adminGeoMap);
     L.marker([TALLER_LAT, TALLER_LNG], { icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }) }).addTo(adminGeoMap);
     adminGeoCircle = L.circle([TALLER_LAT, TALLER_LNG], { radius: globalSettings.radiusKm * 1000, color: '#FF6B00', fillOpacity: 0.1 }).addTo(adminGeoMap);
 };
@@ -9478,7 +9507,7 @@ window.renderEntregasMapa = async () => {
             scrollWheelZoom: false,
             attributionControl: false      // ocultar atribución de Leaflet
         }).setView([TALLER_LAT, TALLER_LNG], 11);
-        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(entregasMapInst);
+        L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(entregasMapInst);
         L.marker([TALLER_LAT, TALLER_LNG], {
             icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }),
             interactive: false
@@ -9487,7 +9516,7 @@ window.renderEntregasMapa = async () => {
         entregasMapInst.eachLayer(layer => {
             if (layer instanceof L.TileLayer) entregasMapInst.removeLayer(layer);
         });
-        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(entregasMapInst);
+        L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(entregasMapInst);
     }
 
     // Limpiar marcadores de pedidos antiguos y controles de ruta
