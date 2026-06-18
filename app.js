@@ -1901,32 +1901,28 @@ onAuthStateChanged(auth, async user => {
     if (window._adminCreatingUser) return;
 
     if (!user) {
-        if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
-        loadGlobalSettings(); 
-        showView('view-landing');
-        return;
-    }
-    
-    // Ocultar landing inmediatamente
-    showView('view-landing', false); // ocultar sin mostrar otra (no usar showView que muestra)
-    document.getElementById('view-landing').classList.add('hidden');
-    
-    const userSnap = await getDoc(doc(db, 'users', user.uid));
-    if (userSnap.exists()) { 
-        window.currentUserDoc = userSnap.data(); 
-        window.currentUserDoc.id = user.uid; 
-    } else { 
-        window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; 
-    }
+    if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
+    loadGlobalSettings(); 
 
-    // Verificar bloqueo/pausa
-    if (window.currentUserDoc.bloqueado) {
-        signOut(auth).then(() => {
-            document.getElementById('out-of-zone-modal').classList.remove('hidden');
-            showView('view-landing');
-        });
-        return;
+    // --- NUEVO: DETECTAR PARÁMETROS DE LA URL ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const action = urlParams.get('action');
+    const refCode = urlParams.get('ref'); // El código de referido se guarda en la URL para processRegister
+
+    if (action === 'registro') {
+        // Saltar la landing y el paso 1, ir directo al formulario de registro
+        showView('view-login');
+        const step1 = document.getElementById('auth-step-1');
+        const regStep = document.getElementById('auth-step-register');
+        if (step1) step1.classList.add('hidden');
+        if (regStep) regStep.classList.remove('hidden');
+        return; // No mostrar la landing
     }
+    // --- FIN NUEVO ---
+
+    showView('view-landing');
+    return;
+}
 
     if (window.currentUserDoc.firstLogin && !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
         showView('view-force-setup');
@@ -2024,20 +2020,21 @@ window.fixMaps = () => {
     }, 400);
 };
 
+
+// enlace para reigistrar usuarios: https://exploracionesobr.github.io/RESCATE-OBR/?ref=N2CZ01&action=registro
+
 window.startFlow = (intent) => {
     window.userIntent = intent;
     if (intent === 'tienda_publica') showView('view-public-store');
     else if (intent === 'rastreo_publico') showView('view-public-tracking');
     else if (intent === 'inicio') { showView('view-landing'); window.pendingItemToBuy = null; }
     else if (intent === 'registro') {
-        // Ir directamente al paso de registro, sin pasar por el paso de teléfono
+        // Ir directamente al registro
         showView('view-login');
-        // Opcional: ocultar el paso 1 y mostrar directamente el registro
         const step1 = document.getElementById('auth-step-1');
         const regStep = document.getElementById('auth-step-register');
         if (step1) step1.classList.add('hidden');
         if (regStep) regStep.classList.remove('hidden');
-        // El código de referido ya se leerá de la URL en processRegister
     }
     else {
         if(auth.currentUser) {
