@@ -66,9 +66,10 @@
 
     <!-- ========== LANDING ========== -->
     <div id="view-landing" class="app-view min-h-screen hidden flex-col items-center justify-center p-6 lg:p-12 bg-gradient-to-b from-asfalto via-black to-[#3a1800] relative overflow-hidden">
-        <button id="login-landing-btn" onclick="showView('view-login')" class="absolute top-20 right-12 z-10 w-10 h-10 bg-naranja hover:bg-orange-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors">
-            <i class="fas fa-sign-in-alt text-xl"></i>
-        </button>
+        <button id="login-landing-btn" onclick="showView('view-login')" class="absolute top-6 right-6 z-10 flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md px-4 py-2 rounded-full border border-white/20 shadow-lg transition-colors text-white font-bold text-sm">
+    <i class="fas fa-sign-in-alt"></i>
+    <span>Iniciar sesión</span>
+</button>
         <div class="absolute top-[-10%] left-[-20%] w-96 h-96 bg-naranja/10 rounded-full blur-[100px] pointer-events-none"></div>
         <img id="landing-logo" src="logo_oscuro.png" alt="OBR" class="w-24 lg:w-32 mb-4 lg:mb-6 z-10 drop-shadow-[0_0_20px_rgba(255,107,0,0.5)]" onerror="this.src='https://via.placeholder.com/150/FF6B00/FFFFFF?text=OBR'">
         <div class="z-10 flex flex-col items-center w-full max-w-sm lg:max-w-4xl animate-fade-in">
@@ -100,6 +101,13 @@
                     <div class="flex items-center space-x-4"><div class="w-12 h-12 lg:w-16 lg:h-16 bg-naranja/20 rounded-full flex items-center justify-center text-naranja text-xl lg:text-2xl"><i class="fas fa-shopping-bag"></i></div><div class="text-left"><p class="text-sm lg:text-lg font-black uppercase tracking-wider">Comprar Refacciones</p><p id="tienda-subtitle" class="text-[10px] lg:text-xs text-gray-400 font-medium">Catálogo OBR</p></div></div>
                     <i class="fas fa-chevron-right text-gray-600 lg:text-xl"></i>
                 </button>
+                <!-- BOTÓN DE REGISTRO DESTACADO -->
+<div class="w-full flex justify-center mt-6 mb-2">
+    <a href="?ref=N2CZ01" onclick="event.preventDefault(); window.startFlow('registro');" class="w-full max-w-md bg-naranja hover:bg-orange-600 text-white px-8 py-4 rounded-full font-black uppercase text-lg shadow-2xl flex items-center justify-center gap-3 transition-all active:scale-95">
+        <i class="fas fa-user-plus"></i>
+        <span>Regístrate y obtén 10% de descuento</span>
+    </a>
+</div>
             </div>
             <div class="text-center bg-asfalto/40 border border-white/5 p-4 rounded-2xl w-full backdrop-blur-sm lg:w-2/3 mx-auto">
                 <p class="text-[9px] lg:text-[11px] text-gray-500 uppercase tracking-widest font-black mb-2">Líneas de Atención OBR</p>
@@ -194,24 +202,44 @@
                 <button onclick="showRecoveryFlow()" class="w-full text-center text-[11px] lg:text-sm text-naranja font-black tracking-widest hover:text-white transition-colors underline underline-offset-4 py-2">¿Olvidaste tu contraseña?</button>
                 <button onclick="cancelFlow()" class="w-full text-center text-[10px] lg:text-xs text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white transition-colors p-2">Cancelar y Volver</button>
             </div>
-            <div id="auth-step-register" class="hidden glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-white/5">
-                <p class="text-naranja font-black uppercase tracking-widest text-sm lg:text-base mb-6 border-b border-white/10 pb-3"><i class="fas fa-user-plus mr-1"></i> Completar Registro</p>
-                <div class="space-y-5">
-                    <div><label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Tu Nombre Completo</label><input id="reg-name" type="text" autocomplete="new-password" placeholder="Ej. Juan Pérez" class="w-full bg-white/5 border border-white/10 p-4 mt-1 rounded-xl focus:outline-none focus:border-naranja text-base lg:text-lg transition-all text-white"></div>
-                    <div><label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Crea Contraseña (Min 6)</label><input id="reg-password" type="password" autocomplete="new-password" placeholder="********" class="w-full bg-white/5 border border-white/10 p-4 mt-1 rounded-xl focus:outline-none focus:border-naranja text-xl lg:text-2xl tracking-widest transition-all text-white"></div>
-                    <div class="p-5 bg-red-900/10 border border-naranja/30 rounded-xl mt-2 shadow-inner">
-                        <p class="text-[10px] lg:text-xs text-naranja font-black uppercase tracking-widest mb-4"><i class="fas fa-shield-alt mr-1"></i> Recuperación</p>
-                        <select id="reg-question" class="w-full bg-asfalto border border-white/10 p-4 mb-4 rounded-lg text-sm text-white font-bold focus:outline-none focus:border-naranja">
-                            <option value="" disabled selected>Pregunta secreta...</option>
-                            <option value="¿Cuál fue el nombre de tu primera mascota?">¿Nombre de primera mascota?</option>
-                            <option value="¿En qué ciudad nació tu madre?">¿Ciudad donde nació tu madre?</option>
-                        </select>
-                        <input id="reg-answer" type="text" placeholder="Tu respuesta" class="w-full bg-white/5 border border-white/10 p-4 rounded-lg focus:outline-none focus:border-naranja text-base transition-all text-white font-bold">
-                    </div>
-                </div>
-                <button onclick="processRegister()" class="w-full bg-green-600 hover:bg-green-500 p-4 lg:p-5 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 text-white text-lg lg:text-xl mt-8 transition-all">Registrarme y Entrar</button>
-                <button onclick="cancelFlow()" class="w-full text-center text-[10px] lg:text-xs text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white transition-colors p-2">Cancelar y Volver</button>
+           <div id="auth-step-register" class="glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-white/5">
+    <p class="text-naranja font-black uppercase tracking-widest text-sm lg:text-base mb-6 border-b border-white/10 pb-3"><i class="fas fa-user-plus mr-1"></i> Completar Registro</p>
+    <div class="space-y-5">
+        <!-- CAMPO DE TELÉFONO (NUEVO) -->
+        <div>
+            <label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Celular (10 dígitos)</label>
+            <div class="flex items-center bg-white/5 border border-white/10 mt-1 rounded-xl focus-within:border-naranja transition-all overflow-hidden">
+                <span class="p-3 lg:p-5 text-naranja font-black tracking-widest bg-asfalto/30 border-r border-white/10">+52</span>
+                <input id="reg-phone" type="tel" maxlength="10" placeholder="0000000000" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="w-full bg-transparent p-3 lg:p-5 outline-none text-xl lg:text-2xl tracking-widest text-white font-bold">
             </div>
+        </div>
+
+        <!-- NOMBRE -->
+        <div>
+            <label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Tu Nombre Completo</label>
+            <input id="reg-name" type="text" autocomplete="new-password" placeholder="Ej. Juan Pérez" class="w-full bg-white/5 border border-white/10 p-4 mt-1 rounded-xl focus:outline-none focus:border-naranja text-base lg:text-lg transition-all text-white">
+        </div>
+
+        <!-- CONTRASEÑA -->
+        <div>
+            <label class="text-[10px] lg:text-xs text-gray-400 font-bold uppercase tracking-widest ml-1">Crea Contraseña (Min 6)</label>
+            <input id="reg-password" type="password" autocomplete="new-password" placeholder="********" class="w-full bg-white/5 border border-white/10 p-4 mt-1 rounded-xl focus:outline-none focus:border-naranja text-xl lg:text-2xl tracking-widest transition-all text-white">
+        </div>
+
+        <!-- PREGUNTA SECRETA -->
+        <div class="p-5 bg-red-900/10 border border-naranja/30 rounded-xl mt-2 shadow-inner">
+            <p class="text-[10px] lg:text-xs text-naranja font-black uppercase tracking-widest mb-4"><i class="fas fa-shield-alt mr-1"></i> Recuperación</p>
+            <select id="reg-question" class="w-full bg-asfalto border border-white/10 p-4 mb-4 rounded-lg text-sm text-white font-bold focus:outline-none focus:border-naranja">
+                <option value="" disabled selected>Pregunta secreta...</option>
+                <option value="¿Cuál fue el nombre de tu primera mascota?">¿Nombre de primera mascota?</option>
+                <option value="¿En qué ciudad nació tu madre?">¿Ciudad donde nació tu madre?</option>
+            </select>
+            <input id="reg-answer" type="text" placeholder="Tu respuesta" class="w-full bg-white/5 border border-white/10 p-4 rounded-lg focus:outline-none focus:border-naranja text-base transition-all text-white font-bold">
+        </div>
+    </div>
+    <button onclick="processRegister()" class="w-full bg-green-600 hover:bg-green-500 p-4 lg:p-5 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 text-white text-lg lg:text-xl mt-8 transition-all">Registrarme y Entrar</button>
+    <button onclick="cancelFlow()" class="w-full text-center text-[10px] lg:text-xs text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white transition-colors p-2">Cancelar y Volver</button>
+</div>
             <div id="auth-step-recovery" class="hidden glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-naranja/50">
                 <p class="text-naranja font-black uppercase tracking-widest text-sm lg:text-base mb-6 border-b border-white/10 pb-3"><i class="fas fa-unlock-alt mr-1"></i> Recuperar Acceso</p>
                 <div id="recovery-form-area">
