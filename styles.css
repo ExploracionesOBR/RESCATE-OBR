@@ -1524,3 +1524,18 @@ body.light-mode #chat-ia-modal-dinamico {
 #c-view-retenes .absolute > * {
     pointer-events: auto !important;
 }
+
+@keyframes police-lights {
+    0% { border-color: #0000ff; box-shadow: 0 0 15px #0000ff; }
+    50% { border-color: #ff0000; box-shadow: 0 0 15px #ff0000; }
+    100% { border-color: #0000ff; box-shadow: 0 0 15px #0000ff; }
+}
+
+.police-light-box {
+    border: 4px solid #0000ff;
+    border-radius: 12px;
+    animation: police-lights 0.8s infinite alternate;
+    padding: 5px;
+    background: #000;
+    display: inline-block;
+}
