@@ -712,9 +712,9 @@
 <button id="btn-cotizacion-pos" onclick="window.generarCotizacionPDF()" class="flex-1 bg-blue-500 hover:bg-blue-400 text-white font-black text-sm py-2 rounded-lg shadow-lg active:scale-95 transition-transform">
     📄 Cotización
 </button>
-                    <button id="btn-checkout-pos" class="flex-1 bg-green-500 hover:bg-green-400 text-white font-black text-lg py-2 rounded-lg shadow-lg active:scale-95 transition-transform flex justify-between px-4 items-center">
-                        <span>Cobrar</span> <span id="pos-btn-total">$0.00</span>
-                    </button>
+               <button id="btn-checkout-pos" onclick="window.checkoutTicket(document.getElementById('pos-payment-method').value !== 'Efectivo')" class="flex-1 bg-green-500 hover:bg-green-400 text-white font-black text-lg py-2 rounded-lg shadow-lg active:scale-95 transition-transform flex justify-between px-4 items-center">
+    <span>Cobrar</span> <span id="pos-btn-total">$0.00</span>
+</button>
                 </div>
                 <div class="flex space-x-2 shrink-0">
                     <button onclick="window.printTicket?.()" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 py-1.5 rounded-lg shadow-lg font-black uppercase text-xs" title="Imprimir"><i class="fas fa-print"></i></button>
@@ -1950,6 +1950,18 @@
         </div>
     </div>
 </div>
+<!-- Modal Confirmación de pago con WhatsApp -->
+<div id="modal-whatsapp-confirm" class="fixed inset-0 bg-black/95 z-[1000000] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl text-center">
+        <button onclick="toggleModal('modal-whatsapp-confirm', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
+        <h2 class="text-xl font-black mb-2 text-white">Confirmar envío</h2>
+        <p class="text-xs text-gray-300 mb-4">¿Deseas enviar el ticket a <span id="wa-client-name" class="font-bold text-naranja">Cliente</span> por WhatsApp?</p>
+        <div class="flex space-x-2">
+            <button id="wa-confirm-yes" class="flex-1 bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-xs">Sí, enviar</button>
+            <button id="wa-confirm-no" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-xs">No, solo cobrar</button>
+        </div>
+    </div>
+</div>
 </body>
 </html>
-
