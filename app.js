@@ -2035,20 +2035,20 @@ window.startFlow = (intent) => {
         showView('view-landing'); 
         window.pendingItemToBuy = null; 
     }
-    else if (intent === 'registro') {
-        // Mostrar la vista de login
-        showView('view-login');
-        // Ocultar el paso 1 (petición de teléfono)
-        const step1 = document.getElementById('auth-step-1');
-        const loginStep = document.getElementById('auth-step-login');
-        const regStep = document.getElementById('auth-step-register');
-        if (step1) step1.classList.add('hidden');
-        if (loginStep) loginStep.classList.remove('hidden'); // Asegurar que el contenedor login esté visible
-        if (regStep) regStep.classList.remove('hidden');     // Mostrar el formulario de registro
-        // Asegurar que el resto de pasos estén ocultos (por si acaso)
-        const recoveryStep = document.getElementById('auth-step-recovery');
-        if (recoveryStep) recoveryStep.classList.add('hidden');
-    }
+else if (intent === 'registro') {
+    showView('view-login');
+    // Ocultar TODOS los pasos excepto registro
+    const allSteps = ['auth-step-1', 'auth-step-login', 'auth-step-recovery'];
+    allSteps.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+    const regStep = document.getElementById('auth-step-register');
+    if (regStep) regStep.classList.remove('hidden');
+    // Cerrar cualquier modal de invitación que pueda estar abierto
+    const inviteModal = document.getElementById('modal-whatsapp-invite');
+    if (inviteModal) inviteModal.classList.add('hidden');
+}
     else {
         if (auth.currentUser) {
             if (intent === 'sos' && ['admin','socio','taller','mecanico'].includes(window.currentUserDoc?.role)) { 
@@ -2066,11 +2066,11 @@ window.startFlow = (intent) => {
 };
 
 window.cancelFlow = () => {
-    // Volver a la pantalla de landing (o al paso 1 si prefieres)
+    // 1. Volver a la landing
     showView('view-landing');
     window.pendingItemToBuy = null;
-    
-    // Ocultar todos los pasos de autenticación y mostrar solo el paso 1
+
+    // 2. Ocultar todos los pasos y mostrar solo el paso 1 (petición de teléfono)
     const steps = ['auth-step-1', 'auth-step-login', 'auth-step-register', 'auth-step-recovery'];
     steps.forEach(id => {
         const el = document.getElementById(id);
@@ -2078,16 +2078,12 @@ window.cancelFlow = () => {
     });
     const step1 = document.getElementById('auth-step-1');
     if (step1) step1.classList.remove('hidden');
-    
-    // Limpiar campo de teléfono
+
+    // 3. Limpiar campos de entrada
     const phoneInput = document.getElementById('phone-input');
     if (phoneInput) phoneInput.value = '';
-    
-    // Limpiar campos de login
     const loginPassword = document.getElementById('login-password');
     if (loginPassword) loginPassword.value = '';
-    
-    // Limpiar campos de registro
     const regName = document.getElementById('reg-name');
     if (regName) regName.value = '';
     const regPassword = document.getElementById('reg-password');
@@ -2096,12 +2092,17 @@ window.cancelFlow = () => {
     if (regQuestion) regQuestion.value = '';
     const regAnswer = document.getElementById('reg-answer');
     if (regAnswer) regAnswer.value = '';
-    
-    // Limpiar cualquier dato de recuperación
-    window._recoveryUid = null;
     const recoveryAnswer = document.getElementById('recovery-answer-input');
     if (recoveryAnswer) recoveryAnswer.value = '';
-    
+
+    // 4. Cerrar cualquier modal relacionado (invitación, etc.)
+    const inviteModal = document.getElementById('modal-whatsapp-invite');
+    if (inviteModal) inviteModal.classList.add('hidden');
+    const confirmModal = document.getElementById('modal-confirm-custom');
+    if (confirmModal) confirmModal.classList.add('hidden');
+
+    // 5. Limpiar variables de recuperación
+    window._recoveryUid = null;
     console.log('Flujo de autenticación reiniciado');
 };
 
