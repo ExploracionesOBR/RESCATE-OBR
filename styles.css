@@ -1483,99 +1483,44 @@ body.light-mode #chat-ia-modal-dinamico {
 #active-sos-card:not(.hidden) ~ #emergency-client-btn {
     display: none !important;
 }
-/* ===== RETENES ===== */
-@keyframes police-lights {
-    0% { border-color: #0000ff; box-shadow: 0 0 15px #0000ff; }
-    50% { border-color: #ff0000; box-shadow: 0 0 15px #ff0000; }
-    100% { border-color: #0000ff; box-shadow: 0 0 15px #0000ff; }
-}
 
-.police-light-box {
-    border: 4px solid #0000ff;
-    border-radius: 12px;
-    animation: police-lights 0.8s infinite alternate;
-    padding: 5px;
-    background: #000;
-    display: inline-block;
-}
 
-.police-siren-icon {
-    width: 50px;
-    height: 50px;
-    background: transparent !important;
-    border: none !important;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.police-siren-icon img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    border-radius: 50%;
-    border: 2px solid white;
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
-}
-/* ===== RETENES CLIENTE ===== */
+/* ===== RETENES CLIENTE - Fondo completo ===== */
 #c-view-retenes {
-    display: none !important;          /* Oculto por defecto */
-    flex-direction: column !important;
-    height: 100vh !important;          /* Ocupa toda la pantalla */
-    width: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    overflow: hidden !important;       /* Sin scroll */
-    position: fixed !important;        /* Fijo en pantalla */
+    display: none !important;
+    position: fixed !important;
     top: 0 !important;
     left: 0 !important;
-    z-index: 100 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 5 !important;                 /* Debajo del header (z-40) y nav (z-50) */
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background-color: #e0e0e0;             /* Para depuración, puedes quitarlo luego */
 }
 
 #c-view-retenes:not(.hidden) {
-    display: flex !important;
+    display: block !important;             /* Usamos block, no flex */
 }
 
-/* Header y menú deben tener position fixed y z-index superior */
-#app-client header {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    z-index: 105 !important;
-    height: 64px !important;           /* Ajusta a tu altura real */
-}
-
-#app-client nav.fixed.bottom-0 {
-    position: fixed !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    z-index: 105 !important;
-    height: 70px !important;           /* Ajusta a tu altura real */
-}
-
-/* Contenedor del mapa ocupa espacio restante */
 #retenes-map-wrapper {
-    flex: 1 !important;                /* Toma todo el espacio disponible */
-    height: auto !important;
     width: 100% !important;
-    min-height: 0 !important;
-    position: relative !important;
-    margin-top: 64px !important;       /* Espacio para el header */
-    margin-bottom: 70px !important;    /* Espacio para el menú inferior */
+    height: 100% !important;
     overflow: hidden !important;
+    position: relative !important;
 }
 
 #retenes-map-container {
-    height: 100% !important;
     width: 100% !important;
-    min-height: 0 !important;
+    min-height: 100vh !important;          /* Forzamos altura en píxeles */
+    height: 100% !important;
     display: block !important;
 }
-
-/* ===== RETENES ADMIN ===== */
-#admin-retenes-map-container {
-    height: 500px !important;
-    width: 100% !important;
-    min-height: 500px !important;
+#c-view-retenes .absolute {
+    z-index: 1000 !important;
+    pointer-events: none !important;
+}
+#c-view-retenes .absolute > * {
+    pointer-events: auto !important;
 }
