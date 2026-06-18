@@ -2029,6 +2029,16 @@ window.startFlow = (intent) => {
     if (intent === 'tienda_publica') showView('view-public-store');
     else if (intent === 'rastreo_publico') showView('view-public-tracking');
     else if (intent === 'inicio') { showView('view-landing'); window.pendingItemToBuy = null; }
+    else if (intent === 'registro') {
+        // Ir directamente al paso de registro, sin pasar por el paso de teléfono
+        showView('view-login');
+        // Opcional: ocultar el paso 1 y mostrar directamente el registro
+        const step1 = document.getElementById('auth-step-1');
+        const regStep = document.getElementById('auth-step-register');
+        if (step1) step1.classList.add('hidden');
+        if (regStep) regStep.classList.remove('hidden');
+        // El código de referido ya se leerá de la URL en processRegister
+    }
     else {
         if(auth.currentUser) {
             if(intent === 'sos' && ['admin','socio','taller','mecanico'].includes(window.currentUserDoc?.role)) { showView('app-admin'); window.switchAdminView('a-view-alertas'); return; }
@@ -2267,74 +2277,79 @@ window.processLogin = async () => {
     }
 };
 window.processRegister = async () => {
-    const rawPhone = document.getElementById('phone-input').value.trim();
+    // 1. Obtener el teléfono del nuevo campo
+    const rawPhone = document.getElementById('reg-phone').value.trim();
+    if (rawPhone.length !== 10) {
+        return showToast("Celular de 10 dígitos", true);
+    }
+
     const name = document.getElementById('reg-name').value.trim();
     const password = document.getElementById('reg-password').value.trim();
     const question = document.getElementById('reg-question').value;
     const answer = document.getElementById('reg-answer').value.trim();
-    
+
     if (!name || password.length < 6 || !question || !answer) {
-        return showToast("Completa datos (Pass min 6)", true);
+        return showToast("Completa todos los datos (contraseña mín 6)", true);
     }
-    
+
     const fakeEmail = `${rawPhone}@motorescateobr.com`;
-    
+
     try {
         // 1. Crear usuario en Authentication
         const userCredential = await createUserWithEmailAndPassword(auth, fakeEmail, password);
         const uid = userCredential.user.uid;
-        
+
         // 2. Generar código de referido único (6 caracteres)
         const codigoReferido = Math.random().toString(36).substring(2, 8).toUpperCase();
-        
+
         // 3. Leer parámetro 'ref' de la URL (si existe)
         const urlParams = new URLSearchParams(window.location.search);
         const codigoReferente = urlParams.get('ref');
-        
-        // 4. Guardar datos del usuario en Firestore (incluyendo referidos)
-await setDoc(doc(db, "users", uid), {
-    phone: "+52" + rawPhone,
-    name: name,
-    role: 'cliente',
-    secQuestion: question,
-    secAnswer: answer.toLowerCase(),
-    pwd: password,
-    firstLogin: false,   // ← Cambiado a false
-    created: Date.now(),
-    codigoReferido: codigoReferido,
-    referidoPor: codigoReferente || null,
-    serviciosCompletados: 0
-});
-        
+
+        // 4. Guardar datos del usuario en Firestore
+        await setDoc(doc(db, "users", uid), {
+            phone: "+52" + rawPhone,
+            name: name,
+            role: 'cliente',
+            secQuestion: question,
+            secAnswer: answer.toLowerCase(),
+            pwd: password,
+            firstLogin: false,
+            created: Date.now(),
+            codigoReferido: codigoReferido,
+            referidoPor: codigoReferente || null,
+            serviciosCompletados: 0
+        });
+
         // 5. Si viene de un referido, registrar la relación en colección "referidos"
-       if (codigoReferente) {
-    const qReferente = query(collection(db, "users"), where("codigoReferido", "==", codigoReferente), limit(1));
-    const snapReferente = await getDocs(qReferente);
-    if (!snapReferente.empty) {
-        const referenteDoc = snapReferente.docs[0];
-        const referenteId = referenteDoc.id;
-        await addDoc(collection(db, "referidos"), {
-            referenteId: referenteId,
-            referidoId: uid,
-            codigoReferente: codigoReferente,
-            fechaRegistro: Date.now(),
-            estado: 'pendiente',
-            servicioCompletado: false,
-            serviciosCompletados: 0   // ← AÑADE ESTA LÍNEA si no existe
-        });
-        // Notificación al referente
-        await setDoc(doc(db, "notificaciones", referenteId), {
-            msg: `🎉 ¡${name} se registró usando tu código de referido!`,
-            timestamp: Date.now(),
-            leida: false
-        });
-    }
-}
-        
-       // 6. Crear o actualizar modal de invitación (para compartir enlace)
-const modalId = 'modal-whatsapp-invite';
-let modalEl = document.getElementById(modalId);
-if (!modalEl) {
+        if (codigoReferente) {
+            const qReferente = query(collection(db, "users"), where("codigoReferido", "==", codigoReferente), limit(1));
+            const snapReferente = await getDocs(qReferente);
+            if (!snapReferente.empty) {
+                const referenteDoc = snapReferente.docs[0];
+                const referenteId = referenteDoc.id;
+                await addDoc(collection(db, "referidos"), {
+                    referenteId: referenteId,
+                    referidoId: uid,
+                    codigoReferente: codigoReferente,
+                    fechaRegistro: Date.now(),
+                    estado: 'pendiente',
+                    servicioCompletado: false,
+                    serviciosCompletados: 0
+                });
+                // Notificación al referente
+                await setDoc(doc(db, "notificaciones", referenteId), {
+                    msg: `🎉 ¡${name} se registró usando tu código de referido!`,
+                    timestamp: Date.now(),
+                    leida: false
+                });
+            }
+        }
+
+        // 6. Crear/actualizar modal de invitación (para compartir enlace)
+        const modalId = 'modal-whatsapp-invite';
+        let modalEl = document.getElementById(modalId);
+        if (!modalEl) {
     modalEl = document.createElement('div');
     modalEl.id = modalId;
     modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
@@ -2356,44 +2371,44 @@ if (!modalEl) {
 }
 // Actualizar el enlace (por si cambió)
 const linkSpan = document.getElementById('invite-link-display');
-if (linkSpan) linkSpan.innerText = `https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}`;
+        if (linkSpan) linkSpan.innerText = `https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}`;
 
-// Función para redirigir al dashboard después de cerrar el modal
-const redirectToDashboard = () => {
-    if (auth.currentUser) {
-        const role = window.currentUserDoc?.role;
-        if (role === 'admin' || role === 'mecanico' || role === 'taller' || role === 'socio') {
-            window.showView('app-admin');
-        } else {
-            window.showView('app-client');
-            window.switchClientView('c-view-rescate');
+        // Función para redirigir al dashboard después de cerrar el modal
+        const redirectToDashboard = () => {
+            if (auth.currentUser) {
+                const role = window.currentUserDoc?.role;
+                if (role === 'admin' || role === 'mecanico' || role === 'taller' || role === 'socio') {
+                    window.showView('app-admin');
+                } else {
+                    window.showView('app-client');
+                    window.switchClientView('c-view-rescate');
+                }
+            }
+        };
+
+        // Configurar eventos del modal (si existen)
+        const inviteBtn = document.getElementById('whatsapp-invite-btn');
+        const skipBtn = document.getElementById('whatsapp-skip-btn');
+        if (inviteBtn) {
+            inviteBtn.onclick = () => {
+                const link = document.getElementById('invite-link-display').innerText;
+                const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Auxilio mecánico rápido. Únete aquí: ${link}`);
+                window.open(`https://wa.me/?text=${mensaje}`, '_blank');
+                window.toggleModal(modalId, false);
+                redirectToDashboard();
+            };
         }
-    }
-};
+        if (skipBtn) {
+            skipBtn.onclick = () => {
+                window.toggleModal(modalId, false);
+                redirectToDashboard();
+            };
+        }
 
-// Configurar eventos (siempre se reasignan para asegurar la redirección)
-const inviteBtn = document.getElementById('whatsapp-invite-btn');
-const skipBtn = document.getElementById('whatsapp-skip-btn');
-if (inviteBtn) {
-    inviteBtn.onclick = () => {
-        const link = document.getElementById('invite-link-display').innerText;
-        const mensaje = encodeURIComponent(`🚀 ¡Descarga OBR Moto Rescate! Auxilio mecánico rápido. Únete aquí: ${link}`);
-        window.open(`https://wa.me/?text=${mensaje}`, '_blank');
-        window.toggleModal(modalId, false);
-        redirectToDashboard();
-    };
-}
-if (skipBtn) {
-    skipBtn.onclick = () => {
-        window.toggleModal(modalId, false);
-        redirectToDashboard();
-    };
-}
+        // 7. Mostrar modal y toast
+        window.toggleModal(modalId, true);
+        showToast("Registro exitoso. Completa tu perfil.");
 
-// 7. Mostrar modal y toast
-window.toggleModal(modalId, true);
-showToast("Registro exitoso. Completa tu perfil.");
-        
     } catch (error) {
         console.error("Error en registro:", error);
         if (error.code === 'auth/email-already-in-use') {
@@ -3400,7 +3415,7 @@ window.renderRetenMap = async (isAdmin = false) => {
         const layerUrl = document.body.classList.contains('light-mode')
             ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
             : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-        L.tileLayer(layerUrl, { attribution: '&copy; <a href="https://carto.com/">CARTO</a>' }).addTo(retenesMapInstance);
+        L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(retenesMapInstance);
     } else {
         retenesMapInstance.invalidateSize();
     }
