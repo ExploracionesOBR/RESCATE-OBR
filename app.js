@@ -5997,29 +5997,48 @@ window.processScannerInput = async () => {
 
 // ===== CHECKOUT Y FINALIZAR VENTA =====
 window.checkoutTicket = async (isCard = false) => {
-    if(!window.posTicket.length) return showToast("El ticket está vacío", true);
-    if(!window.cajaAbierta) return showToast("Abrir caja primero", true);
+    if (!window.posTicket.length) return showToast("El ticket está vacío", true);
+    if (!window.cajaAbierta) return showToast("Abrir caja primero", true);
+    
     const totalToPay = parseFloat(document.getElementById('pos-ticket-total')?.innerText?.replace('$','')) || 0;
     const paymentMethod = document.getElementById('pos-payment-method')?.value || 'Efectivo';
+    
     if (paymentMethod === 'Efectivo') {
         const received = parseFloat(document.getElementById('pos-amount-received')?.value) || 0;
         if (received < totalToPay) return showToast("Monto recibido insuficiente", true);
     }
+    
     const phone = document.getElementById('pos-customer-phone')?.value.trim() || '';
+    
+    // --- Verificar si el usuario existe ---
+    let userExists = false;
+    let clientName = 'Mostrador';
     if (phone) {
         const userSnap = await getDocs(query(collection(db, "users"), where("phone", "==", "+52"+phone), limit(1)));
         if (!userSnap.empty) {
-            const name = userSnap.docs[0].data().name;
-            const waNameEl = document.getElementById('wa-client-name');
-            if(waNameEl) waNameEl.innerText = name;
-            window._pendingCheckout = { isCard, totalToPay, paymentMethod, phone };
+            userExists = true;
+            clientName = userSnap.docs[0].data().name || clientName;
+            // Guardar datos para el envío de WhatsApp
+            window._pendingCheckout = { isCard, totalToPay, paymentMethod, phone, clientName };
+            // Mostrar modal de confirmación
+            document.getElementById('wa-client-name').innerText = clientName;
             toggleModal('modal-whatsapp-confirm', true);
             return;
         }
     }
-    await finalizeCheckout(isCard, totalToPay, paymentMethod, phone);
+    
+    // --- Si el usuario no existe o no se ingresó teléfono ---
+    if (!userExists && phone) {
+        // Preguntar si invitar por WhatsApp
+        const invite = confirm(`El número ${phone} no está registrado. ¿Deseas invitarlo a OBR por WhatsApp?`);
+        if (invite) {
+            window.invitarClienteWhatsApp(phone);
+        }
+    }
+    
+    // Proceder con el cobro (finalizar venta)
+    await finalizeCheckout(isCard, totalToPay, paymentMethod, phone || 'mostrador');
 };
-
 
 window.descargarPDF = async (url, nombreArchivo) => {
     try {
@@ -10010,6 +10029,82 @@ tailwind.config = {
 
 // Ya no se genera el manifiesto dinámico. Se usará el archivo manifest.json enlazado en el HTML.
 
+window.finalizeCheckout = async (isCard, totalToPay, paymentMethod, phone) => {
+    // 1. Descontar el stock del inventario
+    try {
+        for (let item of window.posTicket) {
+            if (item.type === 'almacen' && item.id) {
+                const prodRef = doc(db, "inventario", item.id);
+                const prodSnap = await getDoc(prodRef);
+                if (prodSnap.exists()) {
+                    const newStock = (prodSnap.data().stock || 0) - 1;
+                    await updateDoc(prodRef, { stock: Math.max(0, newStock) });
+                }
+            }
+        }
+    } catch (stockError) {
+        console.error('Error al descontar stock:', stockError);
+        window.showToast("⚠️ No se pudo descontar el stock de algunos productos.", true);
+    }
+
+    // 2. Preparar los datos de la venta
+    const clienteCel = phone || 'mostrador';
+    const shortId = generateShortId();
+    const descripcion = window.posTicket.map(i => i.name).join(', ');
+    const totalReal = Math.max(0, window.posTotal - (window.posDescuento || 0));
+
+    const ventaData = {
+        shortId: shortId,
+        fecha: new Date().toISOString(),
+        total: totalReal,
+        ticket: window.posTicket.map(item => ({ 
+            ...item, 
+            garantia: item.garantia || 'Sin garantía'
+        })),
+        metodoPago: paymentMethod,
+        clienteCel: clienteCel,
+        desc: descripcion,
+        esTarjeta: isCard || false,
+        costo: window.posTicket.reduce((sum, i) => sum + (i.cost || 0), 0),
+        timestamp: Date.now()
+    };
+
+    // 3. Registrar la venta en Firestore
+    let ventaId = null;
+    try {
+        const ventaRef = await addDoc(collection(db, "ventas"), ventaData);
+        ventaId = ventaRef.id;
+    } catch (firestoreError) {
+        console.error('Error al registrar la venta en Firestore:', firestoreError);
+        window.showToast("❌ Error al registrar la venta. Intenta de nuevo.", true);
+        return;
+    }
+
+    // 4. Limpiar el ticket y actualizar la UI
+    window.posTicket = [];
+    window.posDescuento = 0;
+    window.renderTicket();
+    
+    const cartCountEl = document.getElementById('cart-count');
+    const cartCountMobile = document.getElementById('cart-count-mobile');
+    if (cartCountEl) cartCountEl.innerText = '0';
+    if (cartCountMobile) cartCountMobile.innerText = '0';
+
+    // 5. Generar y descargar el PDF
+    try {
+        await window.reimprimirVenta(ventaId);
+        window.showToast("✅ Venta registrada y comprobante generado.");
+    } catch (pdfError) {
+        console.error('Error al generar el PDF:', pdfError);
+        window.showToast("⚠️ Venta registrada, pero hubo un error al generar el PDF. Revisa el historial para reimprimir.", true);
+    }
+
+    // 6. Actualizar la caché de estadísticas
+    if (window.adminSalesCache && window.adminSalesCache.ventas) {
+        window.adminSalesCache.ventas.push(ventaData);
+    }
+};
+
 // Refresco periódico cada 30 segundos
 setInterval(() => {
     updateLandingStatus(); // siempre se actualiza, incluso sin usuario
@@ -10028,11 +10123,21 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // Evento para el botón de contacto en el cliente
-window.addEventListener('click', function(e) {
-    if (e.target.closest('#btn-contacto-taller')) {
-        e.stopPropagation();
-        e.preventDefault();
-        window.mostrarOpcionesContacto();
+document.addEventListener('click', function(e) {
+    if (e.target.id === 'wa-confirm-yes') {
+        const pending = window._pendingCheckout;
+        if (pending) {
+            toggleModal('modal-whatsapp-confirm', false);
+            window.sendTicketWhatsAppAfterCheckout(pending.phone, pending.totalToPay, window.posTicket);
+            window.finalizeCheckout(pending.isCard, pending.totalToPay, pending.paymentMethod, pending.phone);
+        }
+    }
+    if (e.target.id === 'wa-confirm-no') {
+        const pending = window._pendingCheckout;
+        if (pending) {
+            toggleModal('modal-whatsapp-confirm', false);
+            window.finalizeCheckout(pending.isCard, pending.totalToPay, pending.paymentMethod, pending.phone);
+        }
     }
 });
 window.exportUserHistoryPDF = async () => {
