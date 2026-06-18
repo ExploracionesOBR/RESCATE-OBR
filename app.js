@@ -5738,40 +5738,27 @@ window.imprimirTicketVenta = async (ventaId, saleData, esCotizacion = false) => 
             try {
                 const pageWidth = pdfDoc.internal.pageSize.getWidth();
                 const pageHeight = pdfDoc.internal.pageSize.getHeight();
-if (esCotizacion) {
-    for (let p = 1; p <= pdfDoc.internal.getNumberOfPages(); p++) {
-        pdfDoc.setPage(p);
 
-        pdfDoc.setFont("helvetica", "bold");
-        pdfDoc.setFontSize(36);
-        pdfDoc.setTextColor(240, 240, 240);
-
-        const espacioX = 90;
-        const espacioY = 70;
-
-        for (let fila = 0; fila < 10; fila++) {
-
-            const offsetX = (fila % 2) ? 45 : 0;
-
-            for (let x = -50; x < pageWidth + 100; x += espacioX) {
-
-                pdfDoc.text(
-                    "COTIZACIÓN",
-                    x + offsetX,
-                    fila * espacioY,
-                    {
-                        angle: -45
+                // --- Marcas de agua si es cotización ---
+                if (esCotizacion) {
+                    for (let p = 1; p <= pdfDoc.internal.getNumberOfPages(); p++) {
+                        pdfDoc.setPage(p);
+                        pdfDoc.setFont("helvetica", "bold");
+                        pdfDoc.setFontSize(36);
+                        pdfDoc.setTextColor(240, 240, 240);
+                        const espacioX = 90;
+                        const espacioY = 70;
+                        for (let fila = 0; fila < 10; fila++) {
+                            const offsetX = (fila % 2) ? 45 : 0;
+                            for (let x = -50; x < pageWidth + 100; x += espacioX) {
+                                pdfDoc.text("COTIZACIÓN", x + offsetX, fila * espacioY, { angle: -45 });
+                            }
+                        }
                     }
-                );
+                }
 
-            }
-        }
-    }
-}
-
-                // 📌 Obtener nombre real del cliente (reemplaza "Mostrador")
+                // --- Obtener nombre real del cliente ---
                 let nombreCliente = saleData.clientName || saleData.clienteCel || 'Mostrador';
-
                 if (saleData.uid) {
                     try {
                         const userSnap = await getDoc(doc(db, "users", saleData.uid));
@@ -5779,9 +5766,7 @@ if (esCotizacion) {
                             const userData = userSnap.data();
                             nombreCliente = userData.name || userData.phone || nombreCliente;
                         }
-                    } catch (e) {
-                        console.warn('No se pudo obtener el nombre del usuario por UID:', e);
-                    }
+                    } catch (e) { console.warn('Error al obtener nombre por UID:', e); }
                 } else if (saleData.clienteCel && saleData.clienteCel !== 'Mostrador') {
                     const phoneToSearch = saleData.clienteCel.startsWith('+52') 
                         ? saleData.clienteCel 
@@ -5793,14 +5778,12 @@ if (esCotizacion) {
                             const userData = snap.docs[0].data();
                             nombreCliente = userData.name || userData.phone || nombreCliente;
                         }
-                    } catch (e) {
-                        console.warn('No se pudo buscar el usuario por teléfono:', e);
-                    }
+                    } catch (e) { console.warn('Error al buscar usuario por teléfono:', e); }
                 }
 
                 const clienteDisplay = nombreCliente || saleData.clienteCel || 'Mostrador';
 
-                // 📌 Encabezado
+                // --- Encabezado ---
                 pdfDoc.setFillColor(255, 107, 0);
                 pdfDoc.rect(0, 0, pageWidth, 28, 'F');
                 if (logoImg.complete && logoImg.naturalWidth > 0) {
@@ -5815,14 +5798,14 @@ if (esCotizacion) {
 
                 let y = 40;
 
-                // 📌 Datos del comprobante (con nombre real del cliente)
+                // --- Datos del comprobante ---
                 _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 25, 'Datos del Comprobante', [
                     { label: 'Ticket:', value: saleData.shortId, rightLabel: 'Método de Pago:', rightValue: saleData.metodoPago || 'No especificado' },
                     { label: 'Fecha:', value: new Date(saleData.fecha).toLocaleString(), rightLabel: 'Cliente:', rightValue: clienteDisplay }
                 ]);
                 y += 32;
 
-                // 📌 Artículos adquiridos
+                // --- Artículos adquiridos ---
                 pdfDoc.setFont("helvetica", "bold");
                 pdfDoc.setFontSize(10);
                 pdfDoc.setTextColor(15, 23, 42);
@@ -5830,11 +5813,13 @@ if (esCotizacion) {
                 y += 4;
 
                 let ticketItems = [];
+                // Servicio de rescate
                 if (saleData.servicioNombre) {
                     let nombreLimpio = saleData.servicioNombre.replace(/\[.*?\]/g, '').replace(/\*/g, '').replace(/\[|\]/g, '').trim();
                     if (!nombreLimpio) nombreLimpio = saleData.servicioNombre;
                     ticketItems.push([nombreLimpio, 'Sin garantía', `$${saleData.rescueCost?.toFixed(2) || '$0.00'}`]);
                 }
+                // Productos del ticket
                 if (saleData.ticket && saleData.ticket.length > 0) {
                     saleData.ticket.forEach(item => {
                         if (item.type !== 'servicio' && item.type !== 'rescate') {
@@ -5862,41 +5847,45 @@ if (esCotizacion) {
                 });
                 y = pdfDoc.lastAutoTable.finalY + 10;
 
-                // 📌 Desglose completo de precios (Subtotal, IVA, Descuento, Total)
-                const subTotal = saleData.ticket ? saleData.ticket.reduce((s, i) => s + (i.price || 0), 0) : 0;
-                const iva = subTotal * 0.16;
-                const totalCalculado = subTotal + iva - (saleData.descuento || 0);
+                // --- Desglose de precios (corregido: sin sumar IVA de nuevo) ---
+                // Usamos el total ya guardado en saleData.total
+                const totalFinal = saleData.total || 0;
+                // Para mostrar subtotal e IVA (opcional)
+                const subTotalSinIVA = totalFinal / 1.16;
+                const ivaCalculado = totalFinal - subTotalSinIVA;
+                // Nota: el total final no cambia, es el mismo que se cobró
 
                 pdfDoc.setFont("helvetica", "normal");
                 pdfDoc.setFontSize(10);
                 pdfDoc.setTextColor(15, 23, 42);
 
-                pdfDoc.text(`Subtotal: $${subTotal.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-                y += 6;
-
-                if (saleData.descuento > 0) {
-                    pdfDoc.text(`Descuento: -$${saleData.descuento.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+                // Mostrar subtotal (sin IVA) y IVA solo si no es cotización
+                if (!esCotizacion) {
+                    pdfDoc.text(`Subtotal (sin IVA): $${subTotalSinIVA.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+                    y += 6;
+                    pdfDoc.text(`IVA (16%): $${ivaCalculado.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+                    y += 8;
+                } else {
+                    // En cotización, solo mostrar el total estimado
+                    pdfDoc.text(`Total Estimado: $${totalFinal.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
                     y += 6;
                 }
-
-                pdfDoc.text(`IVA (16%): $${iva.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-                y += 8;
 
                 pdfDoc.setFont("helvetica", "bold");
                 pdfDoc.setFontSize(12);
                 if (esCotizacion) {
-                    pdfDoc.text(`Total Estimado: $${totalCalculado.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+                    pdfDoc.text(`Total Estimado: $${totalFinal.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
                     y += 6;
                     pdfDoc.setFontSize(8);
                     pdfDoc.setTextColor(148, 163, 184);
                     pdfDoc.text('* Esta cotización no representa un comprobante de pago. Los precios son referenciales y pueden cambiar.', 12, y);
                     y += 10;
                 } else {
-                    pdfDoc.text(`Total Neto: $${totalCalculado.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+                    pdfDoc.text(`Total Neto: $${totalFinal.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
                     y += 10;
                 }
 
-                // 📌 Footer profesional
+                // --- Footer profesional ---
                 const addFooter = window._setupProfessionalPDF(pdfDoc, esCotizacion ? 'COTIZACIÓN OBR' : 'COMPROBANTE DE VENTA', logoImg);
                 addFooter(pdfDoc);
 
