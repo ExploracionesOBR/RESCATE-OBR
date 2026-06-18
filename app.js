@@ -1909,15 +1909,16 @@ onAuthStateChanged(auth, async user => {
     const action = urlParams.get('action');
     const refCode = urlParams.get('ref'); // El código de referido se guarda en la URL para processRegister
 
-    if (action === 'registro') {
-        // Saltar la landing y el paso 1, ir directo al formulario de registro
-        showView('view-login');
-        const step1 = document.getElementById('auth-step-1');
-        const regStep = document.getElementById('auth-step-register');
-        if (step1) step1.classList.add('hidden');
-        if (regStep) regStep.classList.remove('hidden');
-        return; // No mostrar la landing
-    }
+if (action === 'registro') {
+    showView('view-login');
+    const step1 = document.getElementById('auth-step-1');
+    const loginStep = document.getElementById('auth-step-login');
+    const regStep = document.getElementById('auth-step-register');
+    if (step1) step1.classList.add('hidden');
+    if (loginStep) loginStep.classList.remove('hidden');
+    if (regStep) regStep.classList.remove('hidden');
+    return;
+}
     // --- FIN NUEVO ---
 
     showView('view-landing');
@@ -2027,19 +2028,35 @@ window.startFlow = (intent) => {
     window.userIntent = intent;
     if (intent === 'tienda_publica') showView('view-public-store');
     else if (intent === 'rastreo_publico') showView('view-public-tracking');
-    else if (intent === 'inicio') { showView('view-landing'); window.pendingItemToBuy = null; }
+    else if (intent === 'inicio') { 
+        showView('view-landing'); 
+        window.pendingItemToBuy = null; 
+    }
     else if (intent === 'registro') {
-        // Ir directamente al registro
+        // Mostrar la vista de login
         showView('view-login');
+        // Ocultar el paso 1 (petición de teléfono)
         const step1 = document.getElementById('auth-step-1');
+        const loginStep = document.getElementById('auth-step-login');
         const regStep = document.getElementById('auth-step-register');
         if (step1) step1.classList.add('hidden');
-        if (regStep) regStep.classList.remove('hidden');
+        if (loginStep) loginStep.classList.remove('hidden'); // Asegurar que el contenedor login esté visible
+        if (regStep) regStep.classList.remove('hidden');     // Mostrar el formulario de registro
+        // Asegurar que el resto de pasos estén ocultos (por si acaso)
+        const recoveryStep = document.getElementById('auth-step-recovery');
+        if (recoveryStep) recoveryStep.classList.add('hidden');
     }
     else {
-        if(auth.currentUser) {
-            if(intent === 'sos' && ['admin','socio','taller','mecanico'].includes(window.currentUserDoc?.role)) { showView('app-admin'); window.switchAdminView('a-view-alertas'); return; }
-            if(intent === 'sos') { window.launchSOSForm(); return; }
+        if (auth.currentUser) {
+            if (intent === 'sos' && ['admin','socio','taller','mecanico'].includes(window.currentUserDoc?.role)) { 
+                showView('app-admin'); 
+                window.switchAdminView('a-view-alertas'); 
+                return; 
+            }
+            if (intent === 'sos') { 
+                window.launchSOSForm(); 
+                return; 
+            }
         }
         showView('view-login');
     }
