@@ -1931,11 +1931,18 @@ modalEl.className = 'fixed inset-0 bg-black/95 z-[9999] flex items-center justif
 // ===== AUTO-REGISTRO DESDE URL =====
 (function() {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('action') === 'registro') {
-        // Esperar a que la app cargue y luego iniciar el flujo de registro
+    // Solo ejecutar si la acción es 'registro', no hay usuario autenticado y la vista actual no es login
+    if (params.get('action') === 'registro' && !auth.currentUser) {
+        // Esperar a que la app cargue
         const checkReady = setInterval(() => {
             if (document.readyState === 'complete' && typeof startFlow === 'function') {
                 clearInterval(checkReady);
+                // Verificar que la vista actual no sea login (evitar doble ejecución)
+                const loginView = document.getElementById('view-login');
+                if (loginView && !loginView.classList.contains('hidden')) {
+                    // Si ya estamos en login, no hacer nada
+                    return;
+                }
                 setTimeout(() => startFlow('registro'), 300);
             }
         }, 200);
@@ -11774,3 +11781,18 @@ window.cancelSOSFlow = function() {
         showView('view-landing');
     }
 };
+
+function resetLoginView() {
+    // Ocultar todos los pasos
+    const steps = ['auth-step-1', 'auth-step-login', 'auth-step-register', 'auth-step-recovery'];
+    steps.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+    // Mostrar solo el paso 1 (petición de teléfono)
+    const step1 = document.getElementById('auth-step-1');
+    if (step1) step1.classList.remove('hidden');
+    // Cerrar modales de invitación si están abiertos
+    const inviteModal = document.getElementById('modal-whatsapp-invite');
+    if (inviteModal) inviteModal.classList.add('hidden');
+}
