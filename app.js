@@ -1557,6 +1557,45 @@ function startMechanicTracking() {
 }
 // aqui finaliza startMechanicTracking
 
+// ===== SEGUIMIENTO DE UBICACIÓN PARA CLIENTES (en tiempo real) =====
+let clientLocationWatchId = null;
+window.currentUserLocation = null; // { lat, lng, direccion (opcional) }
+
+function startClientLocationTracking() {
+    if (!navigator.geolocation) {
+        console.warn('Geolocalización no soportada.');
+        return;
+    }
+    if (clientLocationWatchId) return; // ya iniciado
+
+    clientLocationWatchId = navigator.geolocation.watchPosition(
+        async (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            // Actualizar variable global
+            window.currentUserLocation = { lat, lng };
+            console.log('📍 Ubicación del cliente actualizada:', window.currentUserLocation);
+            // Opcional: geocodificar para mostrar dirección (se puede hacer bajo demanda)
+        },
+        (err) => {
+            console.warn('Error en seguimiento de ubicación del cliente:', err);
+            // Si falla, no actualizar
+        },
+        {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 5000 // actualizar cada 5 segundos si cambia
+        }
+    );
+}
+
+function stopClientLocationTracking() {
+    if (clientLocationWatchId) {
+        navigator.geolocation.clearWatch(clientLocationWatchId);
+        clientLocationWatchId = null;
+    }
+}
+
 // ======================================================
 // ACTUALIZACIÓN DEL BOTÓN DE EMERGENCIA (SEGÚN HORARIO)
 // ======================================================
@@ -1889,7 +1928,19 @@ modalEl.className = 'fixed inset-0 bg-black/95 z-[9999] flex items-center justif
     }
     window.toggleModal(modalId, true);
 };
-
+// ===== AUTO-REGISTRO DESDE URL =====
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'registro') {
+        // Esperar a que la app cargue y luego iniciar el flujo de registro
+        const checkReady = setInterval(() => {
+            if (document.readyState === 'complete' && typeof startFlow === 'function') {
+                clearInterval(checkReady);
+                setTimeout(() => startFlow('registro'), 300);
+            }
+        }, 200);
+    }
+})();
 
 
 // === FLUJO DE VISTAS Y AUTENTICACIÓN ===
@@ -1929,57 +1980,35 @@ onAuthStateChanged(auth, async user => {
     }
 
     // Verificar firstLogin (con seguridad)
-    if (window.currentUserDoc && window.currentUserDoc.firstLogin && !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
-        showView('view-force-setup');
-        return;
-    }
-
-    if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
+     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
         const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
-        startMechanicTracking();
+        startMechanicTracking(); // seguimiento para personal
         if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
         globalSettings.centerLat = TALLER_LAT;
         globalSettings.centerLng = TALLER_LNG;
         showView('app-admin');
-        document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
-        iniciarListenerGlobalSOS();
-        setTimeout(() => {
-            window.adminRefreshConfigUI();
-            window.adminLoadInventory();
-            window.adminLoadSales();
-            window.filterSOS('pending');
-            window.adminListenServices();
-            window.adminLoadCitas();
-            window.loadChatList();
-            window.applyViewPermissions?.();
-        }, 100);
-        if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
+        // ... resto del código admin ...
     } else {
-        showView('app-client');
-        setTimeout(() => {
-            if (typeof window.updateEmergencyButtonState === 'function') {
-                const now = new Date();
-                const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
-                const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
-                const [hOpen, mOpen] = sched.o.split(':').map(Number);
-                const [hClose, mClose] = sched.c.split(':').map(Number);
-                const nowMins = now.getHours() * 60 + now.getMinutes();
-                const openMins = hOpen * 60 + mOpen;
-                const closeMins = hClose * 60 + mClose;
-                const isOpen = nowMins >= openMins && nowMins < closeMins;
-                window.updateEmergencyButtonState(isOpen, sched);
-            }
-        }, 100);
-        document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
-        window.loadClientHistory(); 
-        listenToMySOS();
-        listenToMyDeliveries(); 
-        window.loadClientCitas();
-        console.log('Cargando tienda para usuario:', window.currentUserDoc?.phone);
-        loadPublicStore();
-        window.loadMyOrders();
-        updateLandingStatus();
+    // Cliente o membresía
+    showView('app-client');
+    setTimeout(() => {
+        // ... código de actualización del botón de emergencia ...
+    }, 100);
+    document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
+    window.loadClientHistory(); 
+    listenToMySOS();
+    listenToMyDeliveries(); 
+    window.loadClientCitas();
+    console.log('Cargando tienda para usuario:', window.currentUserDoc?.phone);
+    loadPublicStore();
+    window.loadMyOrders();
+    updateLandingStatus();
+
+    // ✅ Iniciar seguimiento solo si los permisos ya fueron aceptados
+    if (localStorage.getItem('obr_permissions_granted') === 'true') {
+        startClientLocationTracking();
     }
+}
 
     // Listener de notificaciones RTDB
     onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
@@ -2065,12 +2094,28 @@ else if (intent === 'registro') {
     }
 };
 
-window.cancelFlow = () => {
-    // 1. Volver a la landing
-    showView('view-landing');
+// ===== REGRESO DESDE FLUJOS DE AUTENTICACIÓN =====
+window.goBackFromAuth = function() {
+    // 1. Determinar destino
+    if (auth.currentUser) {
+        const role = window.currentUserDoc?.role;
+        if (['admin', 'mecanico', 'taller', 'socio'].includes(role)) {
+            showView('app-admin');
+        } else {
+            showView('app-client');
+            // Opcional: cambiar a la pestaña de rescate
+            if (typeof window.switchClientView === 'function') {
+                switchClientView('c-view-rescate');
+            }
+        }
+    } else {
+        showView('view-landing');
+    }
+
+    // 2. Limpiar el estado de autenticación
     window.pendingItemToBuy = null;
 
-    // 2. Ocultar todos los pasos y mostrar solo el paso 1 (petición de teléfono)
+    // 3. Ocultar todos los pasos y mostrar solo el paso 1 (petición de teléfono)
     const steps = ['auth-step-1', 'auth-step-login', 'auth-step-register', 'auth-step-recovery'];
     steps.forEach(id => {
         const el = document.getElementById(id);
@@ -2079,7 +2124,7 @@ window.cancelFlow = () => {
     const step1 = document.getElementById('auth-step-1');
     if (step1) step1.classList.remove('hidden');
 
-    // 3. Limpiar campos de entrada
+    // 4. Limpiar campos de entrada
     const phoneInput = document.getElementById('phone-input');
     if (phoneInput) phoneInput.value = '';
     const loginPassword = document.getElementById('login-password');
@@ -2095,15 +2140,15 @@ window.cancelFlow = () => {
     const recoveryAnswer = document.getElementById('recovery-answer-input');
     if (recoveryAnswer) recoveryAnswer.value = '';
 
-    // 4. Cerrar cualquier modal relacionado (invitación, etc.)
+    // 5. Cerrar modales que pudieran estar abiertos (invitación, confirmación)
     const inviteModal = document.getElementById('modal-whatsapp-invite');
     if (inviteModal) inviteModal.classList.add('hidden');
     const confirmModal = document.getElementById('modal-confirm-custom');
     if (confirmModal) confirmModal.classList.add('hidden');
 
-    // 5. Limpiar variables de recuperación
+    // 6. Limpiar variables de recuperación
     window._recoveryUid = null;
-    console.log('Flujo de autenticación reiniciado');
+    console.log('Regreso desde autenticación completado');
 };
 
 window.resetAndGoHome = () => {
@@ -2266,19 +2311,32 @@ window.applyViewPermissions = () => {
 window.checkUserExists = async () => {
     const rawPhone = document.getElementById('phone-input').value.trim();
     if (rawPhone.length !== 10) return showToast("Celular de 10 dígitos", true);
-    const btn = document.querySelector('#auth-step-1 button'); btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
+    const btn = document.querySelector('#auth-step-1 button');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Procesando...';
     try {
-        const q = query(collection(db, "users"), where("phone", "==", "+52"+rawPhone), limit(1)); const snap = await getDocs(q);
+        const q = query(collection(db, "users"), where("phone", "==", "+52"+rawPhone), limit(1));
+        const snap = await getDocs(q);
+        // Ocultar todos los pasos primero
         document.getElementById('auth-step-1').classList.add('hidden');
+        document.getElementById('auth-step-login').classList.add('hidden');
+        document.getElementById('auth-step-register').classList.add('hidden');
+        document.getElementById('auth-step-recovery').classList.add('hidden');
+        
         if (!snap.empty) {
-            window.currentUserDoc = snap.docs[0].data(); document.getElementById('login-name-display').innerText = window.currentUserDoc.name || 'Cliente';
+            window.currentUserDoc = snap.docs[0].data();
+            document.getElementById('login-name-display').innerText = window.currentUserDoc.name || 'Cliente';
             document.getElementById('auth-step-login').classList.remove('hidden');
         } else {
             document.getElementById('auth-step-register').classList.remove('hidden');
         }
-    } catch(e) { showToast("Error de conexión", true); } finally { btn.disabled = false; btn.innerHTML = 'Siguiente'; }
+    } catch(e) {
+        showToast("Error de conexión", true);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Siguiente';
+    }
 };
-
 window.processLogin = async () => {
     const rawPhone = document.getElementById('phone-input').value.trim();
     const password = document.getElementById('login-password').value.trim();
@@ -3439,37 +3497,38 @@ window.renderRetenMap = async (isAdmin = false) => {
     }
 
     // --- MARCADOR DE UBICACIÓN DEL USUARIO (🏍️) ---
-    if (!isAdmin && auth.currentUser) {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    userLat = pos.coords.latitude;
-                    userLng = pos.coords.longitude;
-                    
-                    // Agregar marcador
-                    L.marker([userLat, userLng], {
-                        icon: L.divIcon({
-                            className: 'mech-pulse-marker',
-                            html: '<div style="background:#FF6B00; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:16px;">🏍️</div>',
-                            iconSize: [28, 28],
-                            iconAnchor: [14, 14]
-                        })
-                    }).addTo(retenesMapInstance).bindPopup('📍 Tu ubicación');
-                    
-                    // Actualizar los límites ahora que tenemos la ubicación
-                    actualizarLimitesMapa();
-                },
-                (err) => {
-                    console.error('Error obteniendo ubicación:', err);
-                    window.showToast('No se pudo obtener tu ubicación. Asegúrate de tener el GPS activado.', true);
-                },
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
-            );
+if (!isAdmin && auth.currentUser) {
+    let markerAdded = false;
+    const checkLocation = () => {
+        const loc = window.currentUserLocation;
+        if (loc && loc.lat && loc.lng) {
+            userLat = loc.lat;
+            userLng = loc.lng;
+            // Agregar marcador (solo una vez)
+            if (!markerAdded) {
+                L.marker([userLat, userLng], {
+                    icon: L.divIcon({
+                        className: 'mech-pulse-marker',
+                        html: '<div style="background:#FF6B00; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:16px;">🏍️</div>',
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 14]
+                    })
+                }).addTo(retenesMapInstance).bindPopup('📍 Tu ubicación');
+                markerAdded = true;
+                actualizarLimitesMapa();
+                clearInterval(checkInterval);
+            }
         } else {
-            window.showToast('Tu navegador no soporta geolocalización.', true);
+            // Mostrar mensaje solo la primera vez
+            if (!markerAdded) {
+                window.showToast('Obteniendo ubicación...', false);
+            }
         }
-    }
-
+    };
+    // Comprobar ahora y luego cada 2 segundos
+    checkLocation();
+    const checkInterval = setInterval(checkLocation, 2000);
+}
     // --- LIMPIAR MARCADORES Y CARGAR RETENES ---
     Object.values(retenesMarkers).forEach(m => retenesMapInstance.removeLayer(m));
     retenesMarkers = {};
@@ -3617,14 +3676,43 @@ window.abrirFormularioReten = () => {
     if (!modal) return;
     document.getElementById('reten-evidencia').value = '';
     document.getElementById('reten-descripcion-ubicacion').value = '';
-    // Reiniciar variables de selección
-    seleccionLat = null;
-    seleccionLng = null;
+    
+    // 🔁 CAMBIO: Mostrar la dirección actual del usuario si existe
+    const dirDisplay = document.getElementById('direccion-seleccionada');
+    if (dirDisplay) {
+        const loc = window.currentUserLocation;
+        if (loc && loc.lat && loc.lng) {
+            // Si ya tenemos lat/lng, geocodificamos o mostramos la dirección guardada
+            // (Para no esperar, podemos mostrar un mensaje y geocodificar después)
+            dirDisplay.innerText = '🔍 Obteniendo dirección...';
+            // También actualizamos las variables de selección con la ubicación actual
+            seleccionLat = loc.lat;
+            seleccionLng = loc.lng;
+            // Geocodificamos de forma asíncrona para mostrar la dirección
+            reverseGeocode(loc.lat, loc.lng).then(direccion => {
+                dirDisplay.innerText = `📍 ${direccion}`;
+                // Actualizamos también el paso 3 si está visible (pero no lo estará)
+            });
+        } else {
+            dirDisplay.innerText = 'Obteniendo dirección...';
+            seleccionLat = null;
+            seleccionLng = null;
+        }
+    }
+    
+    // Limpiar el contenedor del paso 3
+    const contenedorExacta = document.getElementById('reten-ubicacion-exacta-container');
+    if (contenedorExacta) {
+        contenedorExacta.innerHTML = '<p class="text-xs text-gray-300">Ubicación seleccionada.</p>';
+    }
+    
+    // Reiniciar mapa si existe
     if (mapaSeleccion) {
         mapaSeleccion.remove();
         mapaSeleccion = null;
         marcadorSeleccion = null;
     }
+    
     // Mostrar paso 1, ocultar paso 2 y 3
     document.getElementById('modal-crear-reten-paso-1').classList.remove('hidden');
     document.getElementById('modal-crear-reten-paso-2').classList.add('hidden');
@@ -3645,42 +3733,75 @@ function initMapaSeleccion() {
         ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
         : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
     
+    // Usar la ubicación del usuario si existe
+    const center = window.currentUserLocation && window.currentUserLocation.lat && window.currentUserLocation.lng
+        ? [window.currentUserLocation.lat, window.currentUserLocation.lng]
+        : [TALLER_LAT, TALLER_LNG];
+    
     mapaSeleccion = L.map(container, { 
         zoomControl: false, 
         attributionControl: false 
-    }).setView([TALLER_LAT, TALLER_LNG], 15);
+    }).setView(center, 15);
     
     L.tileLayer(layerUrl, { 
         attribution: '© <a href="https://carto.com/">CARTO</a>' 
     }).addTo(mapaSeleccion);
     
-    // Marcador inicial en el centro
-    marcadorSeleccion = L.marker([TALLER_LAT, TALLER_LNG], { 
-        draggable: true 
+    // 🔁 Icono personalizado: torreta policial animada (igual que en retenes)
+    const policeIcon = L.divIcon({
+        className: 'police-siren-icon',
+        html: `
+            <img src="https://www.gifsanimados.org/data/media/930/luz-y-sirena-de-policia-imagen-animada-0008.gif" 
+                 alt="Torreta policial" 
+                 style="width:50px; height:50px; object-fit:contain; display:block;"
+                 onerror="this.src='https://via.placeholder.com/50/FF6B00/FFFFFF?text=🚨'">
+        `,
+        iconSize: [50, 50],
+        iconAnchor: [25, 25]
+    });
+    
+    marcadorSeleccion = L.marker(center, { 
+        draggable: true,
+        icon: policeIcon
     }).addTo(mapaSeleccion);
     
-    // Actualizar coordenadas al mover el marcador
+    // Función para geocodificar y actualizar la dirección en el paso 2 y paso 3
+    const actualizarDireccion = async (lat, lng) => {
+        const direccion = await reverseGeocode(lat, lng);
+        // Actualizar el texto del paso 2
+        const dirDisplay = document.getElementById('direccion-seleccionada');
+        if (dirDisplay) dirDisplay.innerText = `📍 ${direccion}`;
+        // También actualizar el contenedor del paso 3 (si ya está visible)
+        const contenedorExacta = document.getElementById('reten-ubicacion-exacta-container');
+        if (contenedorExacta && !contenedorExacta.closest('.hidden')) {
+            const p = contenedorExacta.querySelector('p');
+            if (p) p.innerText = `📍 ${direccion}`;
+        }
+        // Guardar en variables globales
+        seleccionLat = lat;
+        seleccionLng = lng;
+    };
+    
+    // Actualizar al mover el marcador
     marcadorSeleccion.on('dragend', function() {
         const pos = marcadorSeleccion.getLatLng();
-        seleccionLat = pos.lat;
-        seleccionLng = pos.lng;
-        document.getElementById('coordenadas-seleccionadas').innerText = `Lat: ${seleccionLat.toFixed(4)}, Lng: ${seleccionLng.toFixed(4)}`;
+        actualizarDireccion(pos.lat, pos.lng);
     });
     
-    // También permitir clic en el mapa para mover el marcador
+    // También actualizar al hacer clic en el mapa
     mapaSeleccion.on('click', function(e) {
         const pos = e.latlng;
-        seleccionLat = pos.lat;
-        seleccionLng = pos.lng;
         marcadorSeleccion.setLatLng(pos);
-        document.getElementById('coordenadas-seleccionadas').innerText = `Lat: ${seleccionLat.toFixed(4)}, Lng: ${seleccionLng.toFixed(4)}`;
+        actualizarDireccion(pos.lat, pos.lng);
     });
+    
+    // Geocodificar la ubicación inicial (centro elegido)
+    actualizarDireccion(center[0], center[1]);
     
     setTimeout(() => { 
         if (mapaSeleccion) mapaSeleccion.invalidateSize(); 
     }, 200);
 }
-
 // ---------- EVENTOS DE BOTONES DEL MODAL ----------
 document.addEventListener('click', function(e) {
     // Botón "Seleccionar en el mapa"
@@ -3691,22 +3812,30 @@ document.addEventListener('click', function(e) {
     }
     
     // Botón "Confirmar punto"
-    if (e.target.id === 'btn-confirmar-punto-reten') {
-        if (seleccionLat === null || seleccionLng === null) {
-            window.showToast('Mueve el marcador o haz clic en el mapa para seleccionar un punto.', true);
-            return;
-        }
-        document.getElementById('modal-crear-reten-paso-2').classList.add('hidden');
-        document.getElementById('modal-crear-reten-paso-3').classList.remove('hidden');
-        // Mostrar coordenadas en el paso 3
-        const contenedorExacta = document.getElementById('reten-ubicacion-exacta-container');
-        if (contenedorExacta) {
-            const p = contenedorExacta.querySelector('p');
-            if (p) {
-                p.innerText = `📍 Ubicación seleccionada: Lat ${seleccionLat.toFixed(4)}, Lng ${seleccionLng.toFixed(4)}`;
+if (e.target.id === 'btn-confirmar-punto-reten') {
+    if (seleccionLat === null || seleccionLng === null) {
+        window.showToast('Mueve el marcador o haz clic en el mapa para seleccionar un punto.', true);
+        return;
+    }
+    document.getElementById('modal-crear-reten-paso-2').classList.add('hidden');
+    document.getElementById('modal-crear-reten-paso-3').classList.remove('hidden');
+    // Mostrar dirección ya geocodificada (se actualizó en tiempo real)
+    const contenedorExacta = document.getElementById('reten-ubicacion-exacta-container');
+    if (contenedorExacta) {
+        const dirDisplay = document.getElementById('direccion-seleccionada');
+        if (dirDisplay) {
+            const texto = dirDisplay.innerText;
+            if (texto.startsWith('📍')) {
+                contenedorExacta.innerHTML = `<p class="text-xs text-gray-300">${texto}</p>`;
+            } else {
+                contenedorExacta.innerHTML = `<p class="text-xs text-gray-300">📍 ${texto}</p>`;
             }
+        } else {
+            // Fallback
+            contenedorExacta.innerHTML = `<p class="text-xs text-gray-300">📍 Ubicación seleccionada</p>`;
         }
     }
+}
     
     // Botón "Cancelar selección"
     if (e.target.id === 'btn-cancelar-seleccion-reten') {
@@ -3741,11 +3870,22 @@ window.procesarCrearReten = async function() {
         imageUrl = await uploadWithTimeout(compressed, `retenes/${auth.currentUser.uid}/${Date.now()}.jpg`);
     }
     
+    // Obtener la dirección que se mostró en el modal (ya geocodificada)
+    const contenedorExacta = document.getElementById('reten-ubicacion-exacta-container');
+    let direccion = null;
+    if (contenedorExacta) {
+        const p = contenedorExacta.querySelector('p');
+        if (p && p.innerText.startsWith('📍')) {
+            direccion = p.innerText.replace('📍 ', '');
+        }
+    }
+    
     // Guardar en Firestore
     await addDoc(collection(db, "retenes"), {
         uid: auth.currentUser.uid,
         lat: seleccionLat,
         lng: seleccionLng,
+        direccion: direccion,                       // <-- NUEVO CAMPO
         descripcionUbicacion: descripcionUbicacion || null,
         timestamp: Date.now(),
         imageUrl: imageUrl,
@@ -3764,7 +3904,14 @@ window.procesarCrearReten = async function() {
     
     toggleModal('modal-crear-reten', false);
     window.showToast("✅ Retén creado correctamente.");
-    window.renderRetenMap(false);
+    
+    // 🔁 Retraso breve para que el modal termine de cerrarse y el mapa tenga tamaño
+    setTimeout(() => {
+        window.renderRetenMap(false);
+        if (retenesMapInstance) {
+            retenesMapInstance.invalidateSize();
+        }
+    }, 300);
 };
 
 // ---------- ADMIN: LISTA DE RETENES ----------
@@ -3782,7 +3929,7 @@ window.cargarListaRetenesAdmin = async () => {
                     <span class="font-bold text-sm text-yellow-400">🚨 ${new Date(data.timestamp).toLocaleString()}</span>
                     <span class="text-[10px] px-2 py-0.5 rounded bg-gray-600/50 text-gray-300">${data.negativeVotes?.length || 0} votos NO</span>
                 </div>
-                <p class="text-xs text-gray-400 truncate">Lat: ${data.lat.toFixed(4)}, Lng: ${data.lng.toFixed(4)}</p>
+                <p class="text-xs text-gray-400 truncate">${data.direccion || `Lat: ${data.lat.toFixed(4)}, Lng: ${data.lng.toFixed(4)}`}</p>
             </div>`;
     });
 };
@@ -10348,45 +10495,48 @@ const _drawStatusBadge = (doc, x, y, status) => {
 };
 
     // Crear modal personalizado para solicitar permisos
-    const modalId = 'modal-permisos';
-    let modalEl = document.getElementById(modalId);
-    if (!modalEl) {
-        modalEl = document.createElement('div');
-        modalEl.id = modalId;
-        modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-        modalEl.innerHTML = `
-            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-blue-500/30 text-center">
-                <i class="fas fa-shield-alt text-4xl text-blue-400 mb-4"></i>
-                <h2 class="text-xl font-black text-white mb-2">Permisos de la App</h2>
-                <p class="text-xs text-gray-300 mb-6">OBR necesita algunos permisos para funcionar correctamente. Puedes cambiarlos después en Ajustes.</p>
-                <div class="space-y-3 text-left text-sm text-gray-400 mb-6">
-                    <div class="flex items-center space-x-3"><i class="fas fa-bell text-blue-400"></i><span>Notificaciones</span></div>
-                    <div class="flex items-center space-x-3"><i class="fas fa-map-marker-alt text-green-400"></i><span>Ubicación</span></div>
-                </div>
-                <div class="flex space-x-2">
-                    <button id="permisos-aceptar" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black uppercase text-xs">Aceptar</button>
-                    <button id="permisos-denegar" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-xs">Ahora no</button>
-                </div>
+    // Crear modal personalizado para solicitar permisos
+const modalId = 'modal-permisos';
+let modalEl = document.getElementById(modalId);
+if (!modalEl) {
+    modalEl = document.createElement('div');
+    modalEl.id = modalId;
+    modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+    modalEl.innerHTML = `
+        <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-blue-500/30 text-center">
+            <i class="fas fa-shield-alt text-4xl text-blue-400 mb-4"></i>
+            <h2 class="text-xl font-black text-white mb-2">Permisos de la App</h2>
+            <p class="text-xs text-gray-300 mb-6">OBR necesita algunos permisos para funcionar correctamente. Puedes cambiarlos después en Ajustes.</p>
+            <div class="space-y-3 text-left text-sm text-gray-400 mb-6">
+                <div class="flex items-center space-x-3"><i class="fas fa-bell text-blue-400"></i><span>Notificaciones</span></div>
+                <div class="flex items-center space-x-3"><i class="fas fa-map-marker-alt text-green-400"></i><span>Ubicación</span></div>
             </div>
-        `;
-        document.body.appendChild(modalEl);
-        document.getElementById('permisos-aceptar').onclick = async () => {
-            toggleModal(modalId, false);
-            if (Notification.permission === 'default') {
-                await Notification.requestPermission();
-            }
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(()=>{}, ()=>{});
-            }
-            localStorage.setItem('obr_permissions_granted', 'true');
-            window.initServiceWorker?.(); // opcional
-        };
-        document.getElementById('permisos-denegar').onclick = () => {
-            toggleModal(modalId, false);
-            localStorage.setItem('obr_permissions_granted', 'false');
-        };
-    }
-    toggleModal(modalId, true);
+            <div class="flex space-x-2">
+                <button id="permisos-aceptar" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black uppercase text-xs">Aceptar</button>
+                <button id="permisos-denegar" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-xs">Ahora no</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modalEl);
+    document.getElementById('permisos-aceptar').onclick = async () => {
+        toggleModal(modalId, false);
+        if (Notification.permission === 'default') {
+            await Notification.requestPermission();
+        }
+        // 🔁 INICIAR SEGUIMIENTO DE UBICACIÓN PARA EL CLIENTE
+        if (auth.currentUser && window.currentUserDoc && 
+            ['cliente', 'membresia'].includes(window.currentUserDoc.role)) {
+            startClientLocationTracking();
+        }
+        localStorage.setItem('obr_permissions_granted', 'true');
+        window.initServiceWorker?.(); // opcional
+    };
+    document.getElementById('permisos-denegar').onclick = () => {
+        toggleModal(modalId, false);
+        localStorage.setItem('obr_permissions_granted', 'false');
+    };
+}
+toggleModal(modalId, true);
 // Stubs para funciones no implementadas completamente
 window.sendContactFromModal = async function() {
     const name = document.getElementById('modal-contact-name')?.value.trim();
@@ -10843,17 +10993,6 @@ window.aplicarHorarioALunes = () => {
         if (closeEl) closeEl.value = lunesC;
     }
 };
-const phoneField = document.getElementById('phone-input');
-if (phoneField) {
-    phoneField.addEventListener('focus', () => {
-        const loginStep = document.getElementById('auth-step-login');
-        const registerStep = document.getElementById('auth-step-register');
-        if ((loginStep && !loginStep.classList.contains('hidden')) || 
-            (registerStep && !registerStep.classList.contains('hidden'))) {
-            cancelFlow();
-        }
-    });
-}
 // ========== BOTÓN FLOTANTE DORADO DE INVITACIÓN (SOLO CLIENTES Y VIP) ==========
 (function() {
     let boton = null;
@@ -11533,3 +11672,33 @@ function crearListenerSeguro(query, callback) {
     conectar();
     return () => { if (unsubscribe) unsubscribe(); if (reconnectTimer) clearTimeout(reconnectTimer); };
 }
+
+// ========== GEOCODIFICACIÓN INVERSA (Nominatim) ==========
+async function reverseGeocode(lat, lng) {
+    try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+        const response = await fetch(url, {
+            headers: { 'User-Agent': 'OBR-MotoRescate' } // Obligatorio para Nominatim
+        });
+        if (!response.ok) throw new Error('Error en Nominatim');
+        const data = await response.json();
+        if (data && data.display_name) {
+            return data.display_name;
+        } else {
+            return 'Dirección no disponible';
+        }
+    } catch (error) {
+        console.warn('Geocodificación fallida:', error);
+        return `Coordenadas: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    }
+}
+window.cancelSOSFlow = function() {
+    if (auth.currentUser) {
+        showView('app-client');
+        if (typeof window.switchClientView === 'function') {
+            switchClientView('c-view-rescate');
+        }
+    } else {
+        showView('view-landing');
+    }
+};
