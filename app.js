@@ -1988,13 +1988,26 @@ onAuthStateChanged(auth, async user => {
 
     // Verificar firstLogin (con seguridad)
      if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
-        const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
-        startMechanicTracking(); // seguimiento para personal
-        if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
-        globalSettings.centerLat = TALLER_LAT;
-        globalSettings.centerLng = TALLER_LNG;
-        showView('app-admin');
-        // ... resto del código admin ...
+    const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
+    startMechanicTracking();
+    if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
+    globalSettings.centerLat = TALLER_LAT;
+    globalSettings.centerLng = TALLER_LNG;
+    showView('app-admin');
+
+    // --- Mostrar nombre del usuario en el header ---
+    const adminDisplay = document.getElementById('admin-phone-display');
+    if (adminDisplay) {
+        const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
+        adminDisplay.innerText = nombre;
+    } else {
+        setTimeout(() => {
+            const el = document.getElementById('admin-phone-display');
+            if (el) {
+                const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
+                el.innerText = nombre;
+            }
+        }, 200);
     } else {
     // Cliente o membresía
     showView('app-client');
@@ -3609,7 +3622,20 @@ window.renderRetenMap = async (isAdmin = false) => {
         }
     }
 
-    // --- LIMPIAR MARCADORES DE RETENES (conservar el del usuario) ---
+    // --- SI YA EXISTE UN LISTENER, NO REINICIAMOS NADA (solo invalidamos tamaño) ---
+    if (retenesUnsubscribe) {
+        // Forzar redibujo
+        setTimeout(() => {
+            if (retenesMapInstance) {
+                retenesMapInstance.invalidateSize();
+                actualizarLimitesMapa();
+            }
+        }, 200);
+        return;
+    }
+
+    // --- SOLO CUANDO EL LISTENER NO EXISTE: LIMPIAR Y CREAR NUEVO ---
+    // Limpiar marcadores de retenes (NO el del usuario)
     Object.keys(retenesMarkers).forEach(key => {
         if (retenesMapInstance && retenesMarkers[key]) {
             retenesMapInstance.removeLayer(retenesMarkers[key]);
@@ -3618,14 +3644,11 @@ window.renderRetenMap = async (isAdmin = false) => {
     retenesMarkers = {};
     retenesData = [];
 
-    // Si ya hay un listener activo, no lo reemplazamos (evita duplicados)
-    if (retenesUnsubscribe) return;
-
     // --- CONFIGURACIÓN DE NOTIFICACIONES ---
     if (!window._reteneSeenIds) {
         window._reteneSeenIds = new Set();
     }
-    let firstSnapshot = true;  // para no notificar los retenes existentes al cargar
+    let firstSnapshot = true;
 
     const q = query(collection(db, "retenes"), where("status", "==", "active"), orderBy("timestamp", "desc"));
     retenesUnsubscribe = onSnapshot(q, (snap) => {
