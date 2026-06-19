@@ -1959,14 +1959,14 @@ onAuthStateChanged(auth, async user => {
     if (window._adminCreatingUser) return;
 
     if (!user) {
-        if(mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
+        if (mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
         loadGlobalSettings(); 
         showView('view-landing');
         return;
     }
     
     // Ocultar landing inmediatamente
-    showView('view-landing', false); // ocultar sin mostrar otra (no usar showView que muestra)
+    showView('view-landing', false); // ocultar sin mostrar otra
     document.getElementById('view-landing').classList.add('hidden');
     
     const userSnap = await getDoc(doc(db, 'users', user.uid));
@@ -1977,7 +1977,7 @@ onAuthStateChanged(auth, async user => {
         window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; 
     }
 
-    // Verificar bloqueo/pausa (con seguridad)
+    // Verificar bloqueo/pausa
     if (window.currentUserDoc && window.currentUserDoc.bloqueado) {
         signOut(auth).then(() => {
             document.getElementById('out-of-zone-modal').classList.remove('hidden');
@@ -1986,64 +1986,86 @@ onAuthStateChanged(auth, async user => {
         return;
     }
 
-    // Verificar firstLogin (con seguridad)
-     if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
-    const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
-    startMechanicTracking();
-    if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
-    globalSettings.centerLat = TALLER_LAT;
-    globalSettings.centerLng = TALLER_LNG;
-    showView('app-admin');
-
-    // --- Mostrar nombre del usuario en el header ---
-    const adminDisplay = document.getElementById('admin-phone-display');
-    if (adminDisplay) {
-        const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
-        adminDisplay.innerText = nombre;
-    } else {
-        setTimeout(() => {
-            const el = document.getElementById('admin-phone-display');
-            if (el) {
-                const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
-                el.innerText = nombre;
-            }
-        }, 200);
-    } else {
-    // Cliente o membresía
-    showView('app-client');
-    setTimeout(() => {
-        // Actualizar estado del botón de emergencia según horario
-        if (typeof window.updateEmergencyButtonState === 'function') {
-            const now = new Date();
-            const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
-            const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
-            const [hOpen, mOpen] = sched.o.split(':').map(Number);
-            const [hClose, mClose] = sched.c.split(':').map(Number);
-            const nowMins = now.getHours() * 60 + now.getMinutes();
-            const openMins = hOpen * 60 + mOpen;
-            const closeMins = hClose * 60 + mClose;
-            const isOpen = nowMins >= openMins && nowMins < closeMins;
-            window.updateEmergencyButtonState(isOpen, sched);
-        }
-    }, 100);
-    document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
-    window.loadClientHistory(); 
-    listenToMySOS();
-    listenToMyDeliveries(); 
-    window.loadClientCitas();
-    console.log('Cargando tienda para usuario:', window.currentUserDoc?.phone);
-    loadPublicStore();
-    window.loadMyOrders();
-    updateLandingStatus();
-
-    // ✅ Iniciar seguimiento solo si los permisos ya fueron aceptados
-    if (localStorage.getItem('obr_permissions_granted') === 'true') {
-        startClientLocationTracking();
+    // Verificar firstLogin (solo para clientes)
+    if (window.currentUserDoc && window.currentUserDoc.firstLogin && 
+        !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
+        showView('view-force-setup');
+        return;
     }
 
-    // ✅ Mostrar modal de permisos si no están concedidos y no estamos en registro
-    maybeShowPermissionsModal();
-}
+    // ===== ADMIN / MECÁNICO / TALLER / SOCIO =====
+    if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
+        const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
+        startMechanicTracking();
+        if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
+        globalSettings.centerLat = TALLER_LAT;
+        globalSettings.centerLng = TALLER_LNG;
+        showView('app-admin');
+
+        // Mostrar nombre del usuario en el header
+        const adminDisplay = document.getElementById('admin-phone-display');
+        if (adminDisplay) {
+            const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
+            adminDisplay.innerText = nombre;
+        } else {
+            setTimeout(() => {
+                const el = document.getElementById('admin-phone-display');
+                if (el) {
+                    const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
+                    el.innerText = nombre;
+                }
+            }, 200);
+        }
+
+        document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
+        iniciarListenerGlobalSOS();
+        setTimeout(() => {
+            window.adminRefreshConfigUI();
+            window.adminLoadInventory();
+            window.adminLoadSales();
+            window.filterSOS('pending');
+            window.adminListenServices();
+            window.adminLoadCitas();
+            window.loadChatList();
+            window.applyViewPermissions?.();
+        }, 100);
+        if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
+
+    // ===== CLIENTE / MEMBRESÍA =====
+    } else {
+        showView('app-client');
+        setTimeout(() => {
+            if (typeof window.updateEmergencyButtonState === 'function') {
+                const now = new Date();
+                const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
+                const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
+                const [hOpen, mOpen] = sched.o.split(':').map(Number);
+                const [hClose, mClose] = sched.c.split(':').map(Number);
+                const nowMins = now.getHours() * 60 + now.getMinutes();
+                const openMins = hOpen * 60 + mOpen;
+                const closeMins = hClose * 60 + mClose;
+                const isOpen = nowMins >= openMins && nowMins < closeMins;
+                window.updateEmergencyButtonState(isOpen, sched);
+            }
+        }, 100);
+        document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
+        window.loadClientHistory(); 
+        listenToMySOS();
+        listenToMyDeliveries(); 
+        window.loadClientCitas();
+        console.log('Cargando tienda para usuario:', window.currentUserDoc?.phone);
+        loadPublicStore();
+        window.loadMyOrders();
+        updateLandingStatus();
+
+        // Iniciar seguimiento de ubicación solo si los permisos ya fueron aceptados
+        if (localStorage.getItem('obr_permissions_granted') === 'true') {
+            startClientLocationTracking();
+        }
+
+        // Mostrar modal de permisos si no están concedidos y no estamos en registro
+        maybeShowPermissionsModal();
+    }
 
     // Listener de notificaciones RTDB
     onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
@@ -2056,7 +2078,6 @@ onAuthStateChanged(auth, async user => {
         }
     });
 });
-
 function showView(targetId) {
     // Modo Próximamente: redirigir a 'view-proximamente' excepto landing, login y force-setup
     if (globalSettings.modoProximamente && !['view-landing','view-login','view-force-setup'].includes(targetId)) {
