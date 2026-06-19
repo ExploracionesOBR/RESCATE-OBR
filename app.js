@@ -3547,7 +3547,7 @@ window.renderRetenMap = async (isAdmin = false) => {
     const mapEl = document.getElementById(containerId);
     if (!mapEl) return;
 
-    // Si el mapa ya existe, solo invalidamos tamaño y continuamos
+    // Crear o reutilizar el mapa
     if (retenesMapInstance) {
         retenesMapInstance.invalidateSize();
     } else {
@@ -3563,9 +3563,7 @@ window.renderRetenMap = async (isAdmin = false) => {
     }
 
     // --- MARCADOR DE UBICACIÓN DEL USUARIO (🏍️) ---
-    // Solo para clientes (no admin)
     if (!isAdmin && auth.currentUser) {
-        // Si ya existe un marcador, lo actualizamos; si no, lo creamos
         const loc = window.currentUserLocation;
         if (loc && loc.lat && loc.lng) {
             userLat = loc.lat;
@@ -3583,11 +3581,9 @@ window.renderRetenMap = async (isAdmin = false) => {
                 }).addTo(retenesMapInstance).bindPopup('📍 Tu ubicación');
             }
         } else {
-            // Si aún no hay ubicación, intentamos obtenerla con un intervalo (hasta que llegue)
+            // Marcador temporal y espera de ubicación real
             if (!window._userMarker) {
-                // Mostramos un mensaje temporal
                 window.showToast('Obteniendo ubicación...', false);
-                // Usamos la ubicación del taller como fallback temporal
                 userLat = TALLER_LAT;
                 userLng = TALLER_LNG;
                 window._userMarker = L.marker([userLat, userLng], {
@@ -3598,7 +3594,6 @@ window.renderRetenMap = async (isAdmin = false) => {
                         iconAnchor: [14, 14]
                     })
                 }).addTo(retenesMapInstance).bindPopup('📍 Ubicación temporal (taller)');
-                // Cada 3 segundos, revisamos si la ubicación real llegó y actualizamos
                 const checkLoc = setInterval(() => {
                     const newLoc = window.currentUserLocation;
                     if (newLoc && newLoc.lat && newLoc.lng) {
@@ -3614,8 +3609,7 @@ window.renderRetenMap = async (isAdmin = false) => {
         }
     }
 
-    // --- LIMPIAR MARCADORES DE RETENES (pero NO el del usuario) ---
-    // Eliminar solo los marcadores de retenes, no el del usuario
+    // --- LIMPIAR MARCADORES DE RETENES (conservar el del usuario) ---
     Object.keys(retenesMarkers).forEach(key => {
         if (retenesMapInstance && retenesMarkers[key]) {
             retenesMapInstance.removeLayer(retenesMarkers[key]);
@@ -3624,11 +3618,37 @@ window.renderRetenMap = async (isAdmin = false) => {
     retenesMarkers = {};
     retenesData = [];
 
-    // Si ya hay un listener activo, no lo reemplazamos (para evitar duplicados)
+    // Si ya hay un listener activo, no lo reemplazamos (evita duplicados)
     if (retenesUnsubscribe) return;
+
+    // --- CONFIGURACIÓN DE NOTIFICACIONES ---
+    if (!window._reteneSeenIds) {
+        window._reteneSeenIds = new Set();
+    }
+    let firstSnapshot = true;  // para no notificar los retenes existentes al cargar
 
     const q = query(collection(db, "retenes"), where("status", "==", "active"), orderBy("timestamp", "desc"));
     retenesUnsubscribe = onSnapshot(q, (snap) => {
+        // Primera carga: poblar el set con todos los IDs existentes
+        if (firstSnapshot) {
+            snap.docs.forEach(doc => window._reteneSeenIds.add(doc.id));
+            firstSnapshot = false;
+        } else {
+            // Procesar cambios incrementales
+            snap.docChanges().forEach(change => {
+                if (change.type === 'added') {
+                    const id = change.doc.id;
+                    if (!window._reteneSeenIds.has(id)) {
+                        window._reteneSeenIds.add(id);
+                        // 🔔 Notificación: sonido y toast
+                        playSound('alert');
+                        showToast('🚨 ¡Nuevo retén reportado en tu zona!', false);
+                    }
+                }
+            });
+        }
+
+        // Actualizar marcadores de retenes
         retenesData = [];
         snap.forEach(doc => {
             const data = doc.data();
@@ -3637,8 +3657,8 @@ window.renderRetenMap = async (isAdmin = false) => {
             crearMarcadorReten(data, isAdmin);
         });
 
+        // Ajustar límites y forzar redibujo
         actualizarLimitesMapa();
-        // Forzar redibujo después de un breve retraso
         setTimeout(() => {
             if (retenesMapInstance) {
                 retenesMapInstance.invalidateSize();
