@@ -44,7 +44,7 @@
 </head>
 <body class="bg-asfalto text-white font-sans antialiased overflow-x-hidden">
     <!-- TOAST -->
-    <div id="status-toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[1000000] hidden transition-all duration-300 w-[90%] max-w-sm">
+    <div id="status-toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-[1000001] hidden transition-all duration-300 w-[90%] max-w-sm">
         <div class="bg-naranja text-white px-6 py-3 rounded-full shadow-2xl flex items-center space-x-3 font-bold text-sm">
             <i id="toast-icon" class="fas fa-info-circle text-lg"></i>
             <span id="status-msg">Mensaje</span>
@@ -175,7 +175,7 @@
 
     <!-- LOGIN / REGISTRO -->
     <div id="view-login" class="app-view min-h-screen hidden flex-col items-center justify-center p-6 bg-asfalto relative overflow-hidden">
-        <button onclick="startFlow('inicio')" class="absolute top-20 right-12 z-10 w-10 h-10 bg-gray-700 hover:bg-gray-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors">
+        <button onclick="window.cancelSOSFlow()" class="absolute top-20 right-12 z-10 w-10 h-10 bg-gray-700 hover:bg-gray-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors">
             <i class="fas fa-arrow-left text-xl"></i>
         </button>
         <div class="absolute top-0 right-0 w-64 h-64 lg:w-96 lg:h-96 bg-naranja/10 rounded-full blur-[80px] pointer-events-none"></div>
@@ -189,7 +189,7 @@
                     <input id="phone-input" type="tel" maxlength="10" placeholder="0000000000" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="w-full bg-transparent p-3 lg:p-5 outline-none text-xl lg:text-2xl tracking-widest text-white font-bold">
                 </div>
                 <button onclick="checkUserExists()" class="w-full bg-naranja hover:bg-orange-600 p-4 lg:p-5 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 text-white text-lg lg:text-xl transition-all">Siguiente</button>
-                <button onclick="startFlow('inicio')" class="w-full text-center text-[10px] lg:text-xs text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white transition-colors p-2">Cancelar y Volver</button>
+                <button onclick="window.goBackFromAuth()" class="w-full text-center text-[10px] lg:text-xs text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white transition-colors p-2">Cancelar y Volver</button>
             </div>
             <div id="auth-step-login" class="hidden glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-white/5">
                 <div class="flex items-center space-x-4 mb-6 bg-white/5 p-4 rounded-xl border border-white/10">
@@ -200,7 +200,7 @@
                 <input id="login-password" type="password" placeholder="********" class="w-full bg-white/5 border border-white/10 p-4 mt-1 mb-6 rounded-xl focus:outline-none focus:border-naranja text-xl lg:text-2xl tracking-widest transition-all text-white">
                 <button id="btn-login" class="w-full bg-naranja hover:bg-orange-600 p-4 lg:p-5 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 text-white text-lg lg:text-xl mb-4 transition-all">Entrar</button>
                 <button onclick="showRecoveryFlow()" class="w-full text-center text-[11px] lg:text-sm text-naranja font-black tracking-widest hover:text-white transition-colors underline underline-offset-4 py-2">¿Olvidaste tu contraseña?</button>
-                <button onclick="cancelFlow()" class="w-full text-center text-[10px] lg:text-xs text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white transition-colors p-2">Cancelar y Volver</button>
+                <button onclick="window.goBackFromAuth()" class="w-full text-center text-[10px] lg:text-xs text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white transition-colors p-2">Cancelar y Volver</button>
             </div>
            <div id="auth-step-register" class="glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-white/5">
     <p class="text-naranja font-black uppercase tracking-widest text-sm lg:text-base mb-6 border-b border-white/10 pb-3"><i class="fas fa-user-plus mr-1"></i> Completar Registro</p>
@@ -238,7 +238,7 @@
         </div>
     </div>
     <button onclick="processRegister()" class="w-full bg-green-600 hover:bg-green-500 p-4 lg:p-5 rounded-xl font-black uppercase tracking-widest shadow-lg active:scale-95 text-white text-lg lg:text-xl mt-8 transition-all">Registrarme y Entrar</button>
-    <button onclick="cancelFlow()" class="w-full text-center text-[10px] lg:text-xs text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white transition-colors p-2">Cancelar y Volver</button>
+    <button onclick="window.goBackFromAuth()" class="w-full text-center text-[10px] lg:text-xs text-gray-500 mt-4 uppercase font-bold tracking-widest hover:text-white transition-colors p-2">Cancelar y Volver</button>
 </div>
             <div id="auth-step-recovery" class="hidden glass p-6 lg:p-10 rounded-3xl shadow-xl animate-fade-in border border-naranja/50">
                 <p class="text-naranja font-black uppercase tracking-widest text-sm lg:text-base mb-6 border-b border-white/10 pb-3"><i class="fas fa-unlock-alt mr-1"></i> Recuperar Acceso</p>
@@ -603,14 +603,14 @@
                 <i class="fas fa-calendar-alt text-2xl mb-1"></i>
                 <span class="text-[10px] font-black uppercase tracking-widest mt-1">CITAS</span>
             </button>
-            <button onclick="window.switchClientView?.('c-view-historial')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
-                <i class="fas fa-history text-2xl mb-1"></i>
-                <span class="text-[10px] font-black uppercase tracking-widest mt-1">HISTORIAL</span>
-            </button>
         <button onclick="window.switchClientView?.('c-view-retenes')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
     <i class="fas fa-shield-alt text-2xl mb-1"></i>
     <span class="text-[10px] font-black uppercase tracking-widest mt-1">RETENES</span>
 </button>
+<button onclick="window.switchClientView?.('c-view-historial')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
+                <i class="fas fa-history text-2xl mb-1"></i>
+                <span class="text-[10px] font-black uppercase tracking-widest mt-1">HISTORIAL</span>
+            </button>
         </nav>
     </div>
 
@@ -1954,7 +1954,8 @@
         <!-- PASO 2: Mapa de selección -->
         <div id="modal-crear-reten-paso-2" class="hidden">
             <div id="mapa-seleccion-reten" class="h-48 w-full bg-gray-200 rounded-xl mb-3"></div>
-            <p id="coordenadas-seleccionadas" class="text-xs text-center text-gray-400 mb-2"></p>
+            <!-- Aquí se muestra la dirección geocodificada automáticamente -->
+            <p id="direccion-seleccionada" class="text-xs text-center text-gray-400 mb-2">Obteniendo dirección...</p>
             <div class="flex space-x-2">
                 <button id="btn-confirmar-punto-reten" class="flex-1 bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm">Confirmar punto</button>
                 <button id="btn-cancelar-seleccion-reten" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Cancelar</button>
