@@ -1992,7 +1992,19 @@ onAuthStateChanged(auth, async user => {
     // Cliente o membresía
     showView('app-client');
     setTimeout(() => {
-        // ... código de actualización del botón de emergencia ...
+        // Actualizar estado del botón de emergencia según horario
+        if (typeof window.updateEmergencyButtonState === 'function') {
+            const now = new Date();
+            const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
+            const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
+            const [hOpen, mOpen] = sched.o.split(':').map(Number);
+            const [hClose, mClose] = sched.c.split(':').map(Number);
+            const nowMins = now.getHours() * 60 + now.getMinutes();
+            const openMins = hOpen * 60 + mOpen;
+            const closeMins = hClose * 60 + mClose;
+            const isOpen = nowMins >= openMins && nowMins < closeMins;
+            window.updateEmergencyButtonState(isOpen, sched);
+        }
     }, 100);
     document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
     window.loadClientHistory(); 
@@ -2008,6 +2020,9 @@ onAuthStateChanged(auth, async user => {
     if (localStorage.getItem('obr_permissions_granted') === 'true') {
         startClientLocationTracking();
     }
+
+    // ✅ Mostrar modal de permisos si no están concedidos y no estamos en registro
+    maybeShowPermissionsModal();
 }
 
     // Listener de notificaciones RTDB
@@ -2040,19 +2055,48 @@ function showView(targetId) {
     toggleModal('modal-user-detail', false);
     window.fixMaps?.();
 }
-window.showView = showView;
+window.showView = function(targetId) {
+    // Modo Próximamente: redirigir a 'view-proximamente' excepto landing, login y force-setup
+    if (globalSettings.modoProximamente && !['view-landing','view-login','view-force-setup'].includes(targetId)) {
+        targetId = 'view-proximamente';
+    }
 
-window.fixMaps = () => {
-    setTimeout(() => {
-        if(adminGeoMap) adminGeoMap.invalidateSize();
-        if(adminSOSGlobalMapInst) adminSOSGlobalMapInst.invalidateSize();
-        if(sosMapInstance) sosMapInstance.invalidateSize();
-        if(mechMapInst) mechMapInst.invalidateSize();
-        if(sosDetailMapInst) sosDetailMapInst.invalidateSize();
-        if(entregasMapInst) entregasMapInst.invalidateSize();
-    }, 400);
+    const views = ['view-landing', 'view-public-store', 'view-public-tracking', 'view-login', 'view-sos-form', 'view-force-setup', 'app-client', 'app-admin', 'view-proximamente'];
+    views.forEach(id => { 
+        const el = document.getElementById(id); 
+        if(el) { 
+            el.classList.add('hidden'); 
+            el.classList.remove('flex'); 
+            el.style.display = 'none'; 
+        } 
+    });
+    const target = document.getElementById(targetId);
+    // Mostrar/ocultar el botón de sesión unificado (opcional)
+    const sessionBtn = document.getElementById('session-btn');
+    if (sessionBtn) {
+        sessionBtn.style.display = 'block';
+    }
+    if(target) { 
+        target.classList.remove('hidden'); 
+        target.classList.add('flex'); 
+        target.style.display = 'flex'; 
+    }
+    toggleModal('modal-user-detail', false);
+    window.fixMaps?.();
+
+    // 🔁 Reiniciar estado de login y limpiar URL si se muestra la vista de login
+    if (targetId === 'view-login') {
+        resetLoginView();
+        // Eliminar el parámetro 'action' para evitar que el auto-registro se ejecute
+        if (window.history && window.history.replaceState) {
+            const url = new URL(window.location);
+            if (url.searchParams.has('action')) {
+                url.searchParams.delete('action');
+                window.history.replaceState({}, document.title, url.pathname + url.search);
+            }
+        }
+    }
 };
-
 
 // enlace para reigistrar usuarios: https://exploracionesobr.github.io/RESCATE-OBR/?ref=N2CZ01&action=registro
 
@@ -2077,6 +2121,15 @@ else if (intent === 'registro') {
     // Cerrar cualquier modal de invitación que pueda estar abierto
     const inviteModal = document.getElementById('modal-whatsapp-invite');
     if (inviteModal) inviteModal.classList.add('hidden');
+
+    // 🔁 Limpiar la URL después de iniciar el registro para evitar que el auto-registro se ejecute nuevamente
+    if (window.history && window.history.replaceState) {
+        const url = new URL(window.location);
+        if (url.searchParams.has('action')) {
+            url.searchParams.delete('action');
+            window.history.replaceState({}, document.title, url.pathname + url.search);
+        }
+    }
 }
     else {
         if (auth.currentUser) {
@@ -2426,28 +2479,33 @@ window.processRegister = async () => {
         const modalId = 'modal-whatsapp-invite';
         let modalEl = document.getElementById(modalId);
         if (!modalEl) {
-    modalEl = document.createElement('div');
-    modalEl.id = modalId;
-    modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-    modalEl.innerHTML = `
-        <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
-            <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
-            <h2 class="text-xl font-black text-white mb-2">¡Registro exitoso!</h2>
-            <p class="text-xs text-gray-300 mb-4">Comparte este enlace con tus amigos para que también se unan a OBR.</p>
-            <div class="bg-white/10 p-2 rounded-lg mb-4">
-                <p class="text-[10px] text-gray-400 break-all" id="invite-link-display">https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}</p>
-            </div>
-            <div class="flex flex-col space-y-2">
-                <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar por WhatsApp</button>
-                <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Comenzar</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modalEl);
-}
-// Actualizar el enlace (por si cambió)
-const linkSpan = document.getElementById('invite-link-display');
+            modalEl = document.createElement('div');
+            modalEl.id = modalId;
+            modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+            modalEl.innerHTML = `
+                <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-green-500/30 shadow-2xl text-center">
+                    <i class="fab fa-whatsapp text-5xl text-green-500 mb-4"></i>
+                    <h2 class="text-xl font-black text-white mb-2">¡Registro exitoso!</h2>
+                    <p class="text-xs text-gray-300 mb-4">Comparte este enlace con tus amigos para que también se unan a OBR.</p>
+                    <div class="bg-white/10 p-2 rounded-lg mb-4">
+                        <p class="text-[10px] text-gray-400 break-all" id="invite-link-display">https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}</p>
+                    </div>
+                    <div class="flex flex-col space-y-2">
+                        <button id="whatsapp-invite-btn" class="bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase text-sm flex items-center justify-center"><i class="fab fa-whatsapp mr-2"></i> Enviar por WhatsApp</button>
+                        <button id="whatsapp-skip-btn" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Comenzar</button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalEl);
+        }
+        // Actualizar el enlace (por si cambió)
+        const linkSpan = document.getElementById('invite-link-display');
         if (linkSpan) linkSpan.innerText = `https://exploracionesobr.github.io/RESCATE-OBR?ref=${codigoReferido}`;
+
+        // ✅ LIMPIAR URL para que el modal de permisos pueda mostrarse después
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
 
         // Función para redirigir al dashboard después de cerrar el modal
         const redirectToDashboard = () => {
@@ -10494,49 +10552,63 @@ const _drawStatusBadge = (doc, x, y, status) => {
     doc.text(status.toUpperCase(), x + 14, y + 4.2, { align: 'center' });
 };
 
-    // Crear modal personalizado para solicitar permisos
-    // Crear modal personalizado para solicitar permisos
-const modalId = 'modal-permisos';
-let modalEl = document.getElementById(modalId);
-if (!modalEl) {
-    modalEl = document.createElement('div');
-    modalEl.id = modalId;
-    modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-    modalEl.innerHTML = `
-        <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-blue-500/30 text-center">
-            <i class="fas fa-shield-alt text-4xl text-blue-400 mb-4"></i>
-            <h2 class="text-xl font-black text-white mb-2">Permisos de la App</h2>
-            <p class="text-xs text-gray-300 mb-6">OBR necesita algunos permisos para funcionar correctamente. Puedes cambiarlos después en Ajustes.</p>
-            <div class="space-y-3 text-left text-sm text-gray-400 mb-6">
-                <div class="flex items-center space-x-3"><i class="fas fa-bell text-blue-400"></i><span>Notificaciones</span></div>
-                <div class="flex items-center space-x-3"><i class="fas fa-map-marker-alt text-green-400"></i><span>Ubicación</span></div>
+// ===== MODAL DE PERMISOS (condicional) =====
+function maybeShowPermissionsModal() {
+    // Si ya se concedieron permisos, no mostrar
+    if (localStorage.getItem('obr_permissions_granted') === 'true') return;
+
+    // Si estamos en flujo de registro (action=registro), no mostrar
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'registro') return;
+
+    // Crear el modal si no existe
+    const modalId = 'modal-permisos';
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'fixed inset-0 bg-black/95 z-[500] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.innerHTML = `
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 border border-blue-500/30 text-center">
+                <i class="fas fa-shield-alt text-4xl text-blue-400 mb-4"></i>
+                <h2 class="text-xl font-black text-white mb-2">Permisos de la App</h2>
+                <p class="text-xs text-gray-300 mb-6">OBR necesita algunos permisos para funcionar correctamente. Puedes cambiarlos después en Ajustes.</p>
+                <div class="space-y-3 text-left text-sm text-gray-400 mb-6">
+                    <div class="flex items-center space-x-3"><i class="fas fa-bell text-blue-400"></i><span>Notificaciones</span></div>
+                    <div class="flex items-center space-x-3"><i class="fas fa-map-marker-alt text-green-400"></i><span>Ubicación</span></div>
+                </div>
+                <div class="flex space-x-2">
+                    <button id="permisos-aceptar" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black uppercase text-xs">Aceptar</button>
+                    <button id="permisos-denegar" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-xs">Ahora no</button>
+                </div>
             </div>
-            <div class="flex space-x-2">
-                <button id="permisos-aceptar" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-black uppercase text-xs">Aceptar</button>
-                <button id="permisos-denegar" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-xs">Ahora no</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modalEl);
-    document.getElementById('permisos-aceptar').onclick = async () => {
-        toggleModal(modalId, false);
-        if (Notification.permission === 'default') {
-            await Notification.requestPermission();
-        }
-        // 🔁 INICIAR SEGUIMIENTO DE UBICACIÓN PARA EL CLIENTE
-        if (auth.currentUser && window.currentUserDoc && 
-            ['cliente', 'membresia'].includes(window.currentUserDoc.role)) {
-            startClientLocationTracking();
-        }
-        localStorage.setItem('obr_permissions_granted', 'true');
-        window.initServiceWorker?.(); // opcional
-    };
-    document.getElementById('permisos-denegar').onclick = () => {
-        toggleModal(modalId, false);
-        localStorage.setItem('obr_permissions_granted', 'false');
-    };
+        `;
+        document.body.appendChild(modalEl);
+        document.getElementById('permisos-aceptar').onclick = async () => {
+            toggleModal(modalId, false);
+            if (Notification.permission === 'default') {
+                await Notification.requestPermission();
+            }
+            // 🔁 INICIAR SEGUIMIENTO DE UBICACIÓN PARA EL CLIENTE
+            if (auth.currentUser && window.currentUserDoc && 
+                ['cliente', 'membresia'].includes(window.currentUserDoc.role)) {
+                startClientLocationTracking();
+            }
+            localStorage.setItem('obr_permissions_granted', 'true');
+            window.initServiceWorker?.(); // opcional
+        };
+        document.getElementById('permisos-denegar').onclick = () => {
+            toggleModal(modalId, false);
+            localStorage.setItem('obr_permissions_granted', 'false');
+        };
+    }
+    // Mostrar el modal
+    toggleModal(modalId, true);
 }
-toggleModal(modalId, true);
+
+// Llamar a la función cuando la app esté lista
+setTimeout(maybeShowPermissionsModal, 500);
+
 // Stubs para funciones no implementadas completamente
 window.sendContactFromModal = async function() {
     const name = document.getElementById('modal-contact-name')?.value.trim();
