@@ -3547,31 +3547,33 @@ window.renderRetenMap = async (isAdmin = false) => {
     const mapEl = document.getElementById(containerId);
     if (!mapEl) return;
 
-    if (!retenesMapInstance) {
+    // Si el mapa ya existe, solo invalidamos tamaño y continuamos
+    if (retenesMapInstance) {
+        retenesMapInstance.invalidateSize();
+    } else {
+        const isLight = document.body.classList.contains('light-mode');
+        const layerUrl = isLight
+            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
         retenesMapInstance = L.map(mapEl, {
             zoomControl: true,
             attributionControl: false
         }).setView([TALLER_LAT, TALLER_LNG], 14);
-
-        const layerUrl = document.body.classList.contains('light-mode')
-            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
         L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(retenesMapInstance);
-    } else {
-        retenesMapInstance.invalidateSize();
     }
 
     // --- MARCADOR DE UBICACIÓN DEL USUARIO (🏍️) ---
-if (!isAdmin && auth.currentUser) {
-    let markerAdded = false;
-    const checkLocation = () => {
+    // Solo para clientes (no admin)
+    if (!isAdmin && auth.currentUser) {
+        // Si ya existe un marcador, lo actualizamos; si no, lo creamos
         const loc = window.currentUserLocation;
         if (loc && loc.lat && loc.lng) {
             userLat = loc.lat;
             userLng = loc.lng;
-            // Agregar marcador (solo una vez)
-            if (!markerAdded) {
-                L.marker([userLat, userLng], {
+            if (window._userMarker) {
+                window._userMarker.setLatLng([userLat, userLng]);
+            } else {
+                window._userMarker = L.marker([userLat, userLng], {
                     icon: L.divIcon({
                         className: 'mech-pulse-marker',
                         html: '<div style="background:#FF6B00; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:16px;">🏍️</div>',
@@ -3579,27 +3581,52 @@ if (!isAdmin && auth.currentUser) {
                         iconAnchor: [14, 14]
                     })
                 }).addTo(retenesMapInstance).bindPopup('📍 Tu ubicación');
-                markerAdded = true;
-                actualizarLimitesMapa();
-                clearInterval(checkInterval);
             }
         } else {
-            // Mostrar mensaje solo la primera vez
-            if (!markerAdded) {
+            // Si aún no hay ubicación, intentamos obtenerla con un intervalo (hasta que llegue)
+            if (!window._userMarker) {
+                // Mostramos un mensaje temporal
                 window.showToast('Obteniendo ubicación...', false);
+                // Usamos la ubicación del taller como fallback temporal
+                userLat = TALLER_LAT;
+                userLng = TALLER_LNG;
+                window._userMarker = L.marker([userLat, userLng], {
+                    icon: L.divIcon({
+                        className: 'mech-pulse-marker',
+                        html: '<div style="background:#FF6B00; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:16px;">🏍️</div>',
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 14]
+                    })
+                }).addTo(retenesMapInstance).bindPopup('📍 Ubicación temporal (taller)');
+                // Cada 3 segundos, revisamos si la ubicación real llegó y actualizamos
+                const checkLoc = setInterval(() => {
+                    const newLoc = window.currentUserLocation;
+                    if (newLoc && newLoc.lat && newLoc.lng) {
+                        userLat = newLoc.lat;
+                        userLng = newLoc.lng;
+                        window._userMarker.setLatLng([userLat, userLng]);
+                        window._userMarker.setPopupContent('📍 Tu ubicación');
+                        clearInterval(checkLoc);
+                        actualizarLimitesMapa();
+                    }
+                }, 3000);
             }
         }
-    };
-    // Comprobar ahora y luego cada 2 segundos
-    checkLocation();
-    const checkInterval = setInterval(checkLocation, 2000);
-}
-    // --- LIMPIAR MARCADORES Y CARGAR RETENES ---
-    Object.values(retenesMarkers).forEach(m => retenesMapInstance.removeLayer(m));
+    }
+
+    // --- LIMPIAR MARCADORES DE RETENES (pero NO el del usuario) ---
+    // Eliminar solo los marcadores de retenes, no el del usuario
+    Object.keys(retenesMarkers).forEach(key => {
+        if (retenesMapInstance && retenesMarkers[key]) {
+            retenesMapInstance.removeLayer(retenesMarkers[key]);
+        }
+    });
     retenesMarkers = {};
     retenesData = [];
 
-    if (retenesUnsubscribe) retenesUnsubscribe();
+    // Si ya hay un listener activo, no lo reemplazamos (para evitar duplicados)
+    if (retenesUnsubscribe) return;
+
     const q = query(collection(db, "retenes"), where("status", "==", "active"), orderBy("timestamp", "desc"));
     retenesUnsubscribe = onSnapshot(q, (snap) => {
         retenesData = [];
@@ -3610,13 +3637,21 @@ if (!isAdmin && auth.currentUser) {
             crearMarcadorReten(data, isAdmin);
         });
 
-        // Actualizar los límites con los retenes y la ubicación (si existe)
         actualizarLimitesMapa();
+        // Forzar redibujo después de un breve retraso
+        setTimeout(() => {
+            if (retenesMapInstance) {
+                retenesMapInstance.invalidateSize();
+                actualizarLimitesMapa();
+            }
+        }, 200);
 
         if (isAdmin) cargarListaRetenesAdmin();
+    }, (error) => {
+        console.error('Error en listener de retenes:', error);
+        window.showToast('Error al cargar retenes.', true);
     });
 };
-
 // ---------- CREAR MARCADOR CON TORRETA POLICIAL ----------
 function crearMarcadorReten(data, isAdmin) {
     const marker = L.marker([data.lat, data.lng], {
