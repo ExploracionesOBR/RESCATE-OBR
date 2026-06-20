@@ -39,13 +39,12 @@ function isAppInstalled() {
 
 // ===== GUÍA DE INSTALACIÓN (modal único) =====
 async function showInstallGuideIfNeeded() {
-    // Seguridad: si document o window no existen, salir
     if (typeof document === 'undefined' || typeof window === 'undefined') {
         console.warn('Entorno no válido para mostrar la guía.');
         return;
     }
 
-    // Si la app ya está instalada, no mostrar
+    // Si la app ya está instalada, no mostrar nunca
     if (isAppInstalled()) {
         console.log('✅ App ya instalada, no se muestra guía.');
         return;
@@ -55,11 +54,11 @@ async function showInstallGuideIfNeeded() {
     const modal = document.getElementById('modal-install-guide');
     const container = document.getElementById('install-guide-media-container');
     if (!modal || !container) {
-        console.error('❌ Modal o contenedor no encontrado en el DOM. Asegúrate de que el HTML esté presente.');
+        console.error('❌ Modal o contenedor no encontrado en el DOM.');
         return;
     }
 
-    // Cargar la URL desde Firestore
+    // Cargar la URL desde Firestore (o usar la predeterminada)
     let mediaUrl = null;
     try {
         const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
@@ -77,19 +76,6 @@ async function showInstallGuideIfNeeded() {
 
     if (!mediaUrl) {
         console.warn('❌ No hay URL para la guía.');
-        return;
-    }
-
-    // Verificar si la URL ha cambiado (para forzar que se vuelva a mostrar)
-    const storedUrl = localStorage.getItem('install_guide_url');
-    if (storedUrl !== mediaUrl) {
-        localStorage.removeItem('install_guide_seen');
-        localStorage.setItem('install_guide_url', mediaUrl);
-    }
-
-    // Si ya se mostró antes (con la misma URL), no mostrar
-    if (localStorage.getItem('install_guide_seen') === 'true') {
-        console.log('⏭️ Guía ya vista anteriormente.');
         return;
     }
 
@@ -113,12 +99,11 @@ async function showInstallGuideIfNeeded() {
     toggleModal('modal-install-guide', true);
     console.log('✅ Modal de guía mostrado.');
 
-    // Botón de cierre
+    // Botón de cierre (solo cierra, no guarda nada)
     const closeBtn = document.getElementById('install-guide-close');
     if (closeBtn) {
         closeBtn.onclick = () => {
             toggleModal('modal-install-guide', false);
-            localStorage.setItem('install_guide_seen', 'true');
         };
     }
 
@@ -126,7 +111,6 @@ async function showInstallGuideIfNeeded() {
     modal.addEventListener('click', (e) => {
         if (e.target === modal) {
             toggleModal('modal-install-guide', false);
-            localStorage.setItem('install_guide_seen', 'true');
         }
     });
 }
@@ -149,7 +133,6 @@ window.saveInstallGuideUrl = async function() {
         return;
     }
 
-    // Validación básica de URL
     try {
         new URL(url);
     } catch (e) {
@@ -157,40 +140,19 @@ window.saveInstallGuideUrl = async function() {
         return;
     }
 
-    let oldUrl = null;
-    try {
-        const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
-        if (settingsSnap.exists()) {
-            oldUrl = settingsSnap.data().installGuideMedia || null;
-        }
-    } catch (error) {
-        console.warn('⚠️ No se pudo leer la configuración anterior:', error);
-    }
-
     try {
         await setDoc(doc(db, 'settings', 'general'), { installGuideMedia: url }, { merge: true });
         window.showToast("✅ URL de la guía guardada correctamente.");
-    } catch (error) {
-        console.error('❌ Error al guardar en Firestore:', error);
-        window.showToast("❌ Error al guardar la URL. Intenta de nuevo.", true);
-        return;
-    }
-
-    // Si la URL cambió, reiniciar el flag de visto
-    if (oldUrl !== url) {
-        localStorage.removeItem('install_guide_seen');
-        localStorage.setItem('install_guide_url', url);
-        window.showToast("🔄 La guía se mostrará nuevamente a los usuarios en su próximo inicio.");
-        // Cerrar el modal si está abierto
+        // Si el modal está abierto, cerrarlo para que la nueva URL se aplique al próximo inicio
         const modal = document.getElementById('modal-install-guide');
         if (modal && !modal.classList.contains('hidden')) {
             toggleModal('modal-install-guide', false);
         }
-    } else {
-        window.showToast("ℹ️ La URL no ha cambiado. No se requiere actualización.");
+    } catch (error) {
+        console.error('❌ Error al guardar en Firestore:', error);
+        window.showToast("❌ Error al guardar la URL. Intenta de nuevo.", true);
     }
 };
-
 
 // === CARGA DIFERIDA DE html2canvas ==
 window.loadHtml2Canvas = () => {
@@ -12068,7 +12030,7 @@ function resetLoginView() {
     const inviteModal = document.getElementById('modal-whatsapp-invite');
     if (inviteModal) inviteModal.classList.add('hidden');
 }
-// ===== EJECUCIÓN AL CARGAR LA PÁGINA (una sola vez) =====
+// ===== EJECUCIÓN AL CARGAR LA PÁGINA =====
 window.addEventListener('load', () => {
     setTimeout(() => {
         showInstallGuideIfNeeded();
