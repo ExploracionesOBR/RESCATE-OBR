@@ -275,7 +275,7 @@
         </div>
     </div>
 
-    <!-- FORMULARIO SOS CLIENTE -->
+        <!-- FORMULARIO SOS CLIENTE -->
     <div id="view-sos-form" class="app-view min-h-screen hidden flex-col items-center p-6 lg:p-12 bg-asfalto pt-8 lg:pt-16">
         <div class="w-full max-w-md lg:max-w-4xl animate-fade-in pb-10">
             <h2 class="text-3xl lg:text-5xl font-black italic uppercase text-naranja mb-2 text-center">Detalles del Rescate</h2>
@@ -285,7 +285,7 @@
                     <div class="space-y-6">
                         <div class="bg-naranja/10 border border-naranja/30 p-5 rounded-2xl h-full flex flex-col">
                             <label class="text-[10px] lg:text-xs text-naranja font-black uppercase tracking-widest mb-2 block"><i class="fas fa-cog mr-1"></i> Tipo de Servicio</label>
-                            <!-- CONTENEDOR DEL SELECTOR DE SERVICIOS (se ocultará para clientes normales) -->
+                            <!-- CONTENEDOR DEL SELECTOR DE SERVICIOS -->
                             <div id="sos-service-selector-container" class="mb-4">
                                 <div class="relative">
                                     <div class="flex space-x-2">
@@ -298,9 +298,11 @@
                                         </button>
                                     </div>
                                     <input type="hidden" id="sos-service-select-value" value="0">
-                                    <p id="selected-service-display" class="text-xs text-green-400 mt-1 hidden">
-                                        <i class="fas fa-check-circle mr-1"></i> Servicio seleccionado: <span id="selected-service-name">Ninguno</span>
-                                    </p>
+                                    <!-- DESGLOSE SIMPLIFICADO (una sola línea gris) -->
+                                    <div id="selected-service-display" class="hidden mt-2 text-xs text-gray-400">
+                                        <i class="fas fa-check-circle text-green-400 mr-1"></i>
+                                        <span id="selected-service-summary">Selecciona un servicio</span>
+                                    </div>
                                 </div>
                             </div>
                             <!-- Fin contenedor -->
