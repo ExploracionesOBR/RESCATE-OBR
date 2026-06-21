@@ -1945,11 +1945,19 @@ function findNextOpenDay() {
 async function loadPublicStore() {
     try {
         const snap = await getDocs(collection(db, "inventario"));
-        const grid = document.getElementById('public-store-grid'); const cGrid = document.getElementById('client-store-grid');
-        let html = ''; const isMem = auth.currentUser && window.currentUserDoc?.role === 'membresia';
+        // 🔁 Guardar todos los productos en una variable global (para clientes y admin)
+        window.publicInventory = [];
+        const grid = document.getElementById('public-store-grid');
+        const cGrid = document.getElementById('client-store-grid');
+        let html = '';
+        const isMem = auth.currentUser && window.currentUserDoc?.role === 'membresia';
+        
         snap.forEach(doc => {
             const p = doc.data();
-            if(p.stock > 0 && p.visible !== false) {
+            p.id = doc.id; // Asegurar que tenga el ID
+            window.publicInventory.push(p); // Guardar en la variable global
+            
+            if (p.stock > 0 && p.visible !== false) {
                 const price = isMem ? (p.priceMember || p.pricePublic) : p.pricePublic;
                 const promo = (p.originalPrice && p.originalPrice > p.pricePublic);
                 html += `<div class="glass p-4 rounded-3xl flex flex-col hover:shadow-[0_0_15px_rgba(255,107,0,0.3)] transition-all relative" onclick="window.openProductDetail?.('${doc.id}')">
@@ -1961,10 +1969,14 @@ async function loadPublicStore() {
                 </div>`;
             }
         });
+        
         if (!html) html = `<div class="col-span-full text-center p-10 flex flex-col items-center"><i class="fas fa-box-open text-6xl text-gray-600 mb-6 opacity-30"></i><h3 class="text-2xl font-black text-naranja uppercase italic mb-2">Próximamente</h3><p class="text-gray-400 text-sm mb-6">Estamos abasteciendo nuestro almacén.</p><button onclick="toggleModal('modal-contact', true)" class="bg-blue-600 text-white px-6 py-3 rounded-full font-black uppercase text-xs"><i class="fas fa-headset mr-2"></i>Contactar al Taller</button></div>`;
-        if (grid) grid.innerHTML = html; if (cGrid) cGrid.innerHTML = html;
+        if (grid) grid.innerHTML = html;
+        if (cGrid) cGrid.innerHTML = html;
         window.loadPromoVideo();
-    } catch(e){}
+    } catch(e) {
+        console.error('Error al cargar la tienda:', e);
+    }
 }
 
 async function loadServicesCatalog() {
@@ -2841,21 +2853,17 @@ window.logout = () => {
     });
 };
 // aqui finaliza logout
-window.filterServiceOptions = () => {
+window.filterServiceOptions = async () => {
+    if (typeof document === 'undefined') return;
     const input = document.getElementById('sos-service-input');
     const dropdown = document.getElementById('sos-service-dropdown');
-    if (!input || !dropdown) {
-        console.warn('No se encontró input o dropdown');
-        return;
-    }
+    if (!input || !dropdown) return;
+
     const query = input.value.trim().toLowerCase();
-    console.log('Buscando:', query, 'shopServices length:', shopServices.length);
-    
     let matches = [];
     if (query.length === 0) {
-        // Mostrar primeros 5 servicios del catálogo + opción genérica
         matches = shopServices.slice(0, 5);
-        matches.push({ id: "0", name: "SIN FALLO ESPECÍFICO (Se cotizará en el lugar)", price: 0 });
+        matches.push({ id: "0", name: "SIN FALLO ESPECÍFICO (Se cotizará en el lugar)", price: 0, materiales: [] });
     } else {
         matches = shopServices.filter(s => s.name.toLowerCase().includes(query));
         if (matches.length === 0) {
@@ -2863,28 +2871,50 @@ window.filterServiceOptions = () => {
             return;
         }
         matches = matches.slice(0, 5);
-        matches.push({ id: "0", name: "SIN FALLO ESPECÍFICO (Se cotizará en el lugar)", price: 0 });
+        matches.push({ id: "0", name: "SIN FALLO ESPECÍFICO (Se cotizará en el lugar)", price: 0, materiales: [] });
     }
-    
+
     dropdown.innerHTML = '';
     matches.forEach(s => {
         const item = document.createElement('div');
         item.className = 'p-3 hover:bg-naranja/30 cursor-pointer text-white text-sm border-b border-white/10 last:border-0 flex justify-between items-center';
-        item.innerHTML = `
-            <span>${s.name}</span>
-            ${s.price > 0 ? `<span class="text-naranja font-bold">$${s.price}</span>` : '<span class="text-gray-400 text-xs">Sin costo extra</span>'}
-        `;
+
+        // Calcular el costo total (servicio + materiales) usando window.publicInventory
+        let totalPrice = s.price;
+        if (s.materiales && s.materiales.length) {
+            for (const mat of s.materiales) {
+                let id, quantity;
+                if (typeof mat === 'string') {
+                    id = mat;
+                    quantity = 1;
+                } else {
+                    id = mat.id;
+                    quantity = mat.quantity || 1;
+                }
+                const product = (window.publicInventory || []).find(p => p.id === id);
+                if (product) {
+                    totalPrice += (product.pricePublic || 0) * quantity;
+                }
+            }
+        }
+        let priceDisplay;
+if (s.id === '0') {
+    priceDisplay = '<span class="text-gray-400 text-xs">+ Tarifa de rescate</span>';
+} else {
+    priceDisplay = totalPrice > 0 ? `$${totalPrice.toFixed(2)}` : '<span class="text-gray-400 text-xs">Sin costo extra</span>';
+}
+
+        item.innerHTML = `<span>${s.name}</span><span class="text-naranja font-bold">${priceDisplay}</span>`;
         item.onclick = () => {
             document.getElementById('sos-service-input').value = s.name;
             document.getElementById('sos-service-select-value').value = s.id;
             dropdown.classList.add('hidden');
-            const displayDiv = document.getElementById('selected-service-display');
-            const nameSpan = document.getElementById('selected-service-name');
-            if (displayDiv && nameSpan) {
-                nameSpan.innerText = s.name;
-                displayDiv.classList.remove('hidden');
-                setTimeout(() => displayDiv.classList.add('hidden'), 3000);
-            }
+
+            // Guardar el servicio seleccionado para el resumen
+            window._selectedService = s;
+
+            // Actualizar el resumen y el estimado
+            updateSelectedServiceDisplay();
             window.updateSOSEstimate();
         };
         dropdown.appendChild(item);
@@ -2901,14 +2931,18 @@ document.addEventListener('click', function(e) {
         dropdown.classList.add('hidden');
     }
 });
+
+
 window.clearServiceSelection = () => {
+    if (typeof document === 'undefined') return;
     const input = document.getElementById('sos-service-input');
     const hidden = document.getElementById('sos-service-select-value');
     const display = document.getElementById('selected-service-display');
     if (input) input.value = '';
     if (hidden) hidden.value = '0';
     if (display) display.classList.add('hidden');
-    window.updateSOSEstimate();   // actualiza el costo a tarifa base
+    window._selectedService = null;
+    window.updateSOSEstimate();
     window.showToast("Selección limpiada. Se usará tarifa base.");
 };
 // === SOS CLIENTE ===
@@ -2973,11 +3007,11 @@ window.launchSOSForm = () => {
 };
 
 window.updateSOSEstimate = function(dist = null) {
+    if (typeof document === 'undefined') return;
     const serviceId = document.getElementById('sos-service-select-value')?.value;
     const dispEl = document.getElementById('sos-estimate-display');
     let rescueCost = 0;
 
-    // Cálculo del costo de rescate (domicilio)
     if (globalSettings.priceMode === 'km') {
         let d = dist !== null ? dist : getDistanceKm(tempSOSGps.lat||0, tempSOSGps.lng||0, globalSettings.centerLat, globalSettings.centerLng);
         let ranges = globalSettings.rescueKmRanges || [];
@@ -3000,7 +3034,6 @@ window.updateSOSEstimate = function(dist = null) {
     if (auth.currentUser && window.currentUserDoc?.role === 'membresia') rescueCost = 0;
     window.currentSOSCost = rescueCost;
 
-    // Costo del servicio + materiales
     let serviceCost = 0;
     let materialCost = 0;
     if (serviceId && serviceId !== "0") {
@@ -3009,9 +3042,17 @@ window.updateSOSEstimate = function(dist = null) {
             serviceCost = s.price || 0;
             if (s.materiales && s.materiales.length) {
                 for (const mat of s.materiales) {
-                    const product = adminInventoryList.find(p => p.id === mat.id);
+                    let id, quantity;
+                    if (typeof mat === 'string') {
+                        id = mat;
+                        quantity = 1;
+                    } else {
+                        id = mat.id;
+                        quantity = mat.quantity || 1;
+                    }
+                    const product = (window.publicInventory || []).find(p => p.id === id);
                     if (product) {
-                        materialCost += (product.pricePublic || 0) * (mat.quantity || 1);
+                        materialCost += (product.pricePublic || 0) * quantity;
                     }
                 }
             }
@@ -3019,7 +3060,6 @@ window.updateSOSEstimate = function(dist = null) {
     }
 
     const total = rescueCost + serviceCost + materialCost;
-
     if (total === 0) {
         dispEl.innerHTML = `<span class="text-naranja">Rescate: $${rescueCost.toFixed(2)}</span>`;
         if (materialCost > 0) {
@@ -3032,7 +3072,52 @@ window.updateSOSEstimate = function(dist = null) {
         }
         dispEl.innerHTML = html;
     }
+
+    updateSelectedServiceDisplay();
 };
+
+// ---- Actualizar el resumen simplificado (una sola línea) ----
+function updateSelectedServiceDisplay() {
+    if (typeof document === 'undefined') return;
+    const display = document.getElementById('selected-service-display');
+    const summarySpan = document.getElementById('selected-service-summary');
+    if (!display) return;
+
+    const service = window._selectedService;
+    if (!service || service.id === "0") {
+        display.classList.add('hidden');
+        return;
+    }
+    display.classList.remove('hidden');
+
+    // Construir el resumen en una sola línea
+    let summary = `Servicio: ${service.name}`;
+    summary += ` | Mano de obra: $${service.price.toFixed(2)}`;
+
+    // Materiales: obtener nombres y cantidades desde window.publicInventory
+    if (service.materiales && service.materiales.length) {
+        const materialNames = service.materiales.map(mat => {
+            let id, quantity;
+            if (typeof mat === 'string') {
+                id = mat;
+                quantity = 1;
+            } else {
+                id = mat.id;
+                quantity = mat.quantity || 1;
+            }
+            // 🔁 Usar window.publicInventory en lugar de adminInventoryList
+            const product = (window.publicInventory || []).find(p => p.id === id);
+            return product ? `${product.name} x${quantity}` : '?';
+        }).join(', ');
+        summary += ` | Materiales: ${materialNames}`;
+    } else {
+        summary += ' | Materiales: Ninguno';
+    }
+
+    const rescueCost = window.currentSOSCost || 0;
+    summary += ` | Rescate: $${rescueCost.toFixed(2)}`;
+    summarySpan.innerText = summary;
+}
 
 window.checkSOSKeywords = () => {
     const txt = document.getElementById('sos-falla').value.toLowerCase(); const llantaBox = document.getElementById('llanta-type-container');
