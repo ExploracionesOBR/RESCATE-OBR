@@ -712,12 +712,6 @@
                     <input id="pos-promo-code" type="text" placeholder="Código Promo" class="flex-grow bg-gray-100 p-1.5 rounded-lg text-black text-[10px] border border-gray-300 focus:outline-none uppercase">
                     <button onclick="window.applyPosPromoCode?.()" class="bg-purple-600 hover:bg-purple-500 text-white px-2 rounded-lg text-[10px] font-bold transition-colors">Canjear</button>
                 </div>
-                <div class="flex space-x-2 mb-2 shrink-0 border-b border-gray-200 pb-2">
-                    <select id="pos-cotizacion-promo" class="w-1/2 bg-gray-100 border border-gray-300 text-black p-1.5 rounded-lg text-[10px] font-bold">
-                        <option value="">Sin promoción</option>
-                    </select>
-                    <button onclick="window.cargarPromocionesCotizacion()" class="w-1/2 bg-purple-600 hover:bg-purple-500 text-white px-2 rounded-lg text-[10px] font-bold transition-colors">Cargar promociones</button>
-                </div>
                 <div class="text-black space-y-1 mb-2 shrink-0">
                     <div class="flex justify-between text-[10px] font-bold text-gray-600"><span>Subtotal</span><span id="pos-subtotal">$0.00</span></div>
                     <div id="pos-discount-row" class="flex justify-between text-[10px] font-bold text-purple-600 hidden"><span>Descuento</span><span id="pos-discount-amount">-$0.00</span></div>
@@ -1062,92 +1056,156 @@
                 </div>
             </section>
 
-            <!-- AJUSTES CONFIGURACIÓN -->
-            <section id="a-view-config" class="a-view hidden space-y-6">
-                <div class="flex justify-between items-center mb-2">
-                    <h3 class="text-2xl font-black italic uppercase text-white">Ajustes <span class="text-gray-400">Generales</span></h3>
-                    <div class="flex items-center space-x-2 bg-white/5 border border-white/10 p-1.5 rounded-xl shadow-inner">
-                        <i class="fas fa-palette text-gray-400 ml-2"></i>
-                        <select id="theme-selector" onchange="window.changeThemeMode?.(this.value)" class="bg-transparent text-white font-bold text-[10px] uppercase outline-none px-2 cursor-pointer">
-                            <option value="auto" class="text-black">Automático (Día/Noche)</option>
-                            <option value="dark" class="text-black">Oscuro</option>
-                            <option value="light" class="text-black">Claro</option>
-                        </select>
+
+           <!-- INICIA LA PARTE DE AJUSTES -->
+<section id="a-view-config" class="a-view hidden space-y-6 pb-10">
+    <!-- Encabezado con selector de tema -->
+    <div class="flex justify-between items-center mb-2">
+        <h3 class="text-2xl font-black italic uppercase text-white">Ajustes <span class="text-gray-400">Generales</span></h3>
+        <div class="flex items-center space-x-2 bg-white/5 border border-white/10 p-1.5 rounded-xl shadow-inner">
+            <i class="fas fa-palette text-gray-400 ml-2"></i>
+            <select id="theme-selector" onchange="window.changeThemeMode?.(this.value)" class="bg-transparent text-white font-bold text-[10px] uppercase outline-none px-2 cursor-pointer">
+                <option value="auto" class="text-black">Automático</option>
+                <option value="dark" class="text-black">Oscuro</option>
+                <option value="light" class="text-black">Claro</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- FILA SUPERIOR: API Key y Costo Membresía (2 columnas) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- API KEY GROQ -->
+        <div class="bg-white/5 border border-white/10 p-4 rounded-2xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+                <p class="text-[10px] font-black text-naranja uppercase tracking-widest"><i class="fas fa-key mr-1"></i> API Key Groq</p>
+                <p class="text-[9px] text-gray-400">Clave para la IA</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <input id="config-groq-api-key" type="password" placeholder="gsk_..." class="bg-asfalto p-2 rounded-lg border border-white/10 text-white text-sm flex-1 min-w-[140px]">
+                <button onclick="window.saveGroqApiKey()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg font-black uppercase text-[9px] transition-all">Guardar</button>
+                <button onclick="this.previousElementSibling.type = this.previousElementSibling.type === 'password' ? 'text' : 'password'" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1.5 rounded-lg text-[9px]">👁️</button>
+            </div>
+        </div>
+
+        <!-- COSTO MEMBRESÍA VIP -->
+        <div class="bg-white/5 border border-white/10 p-4 rounded-2xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+                <p class="text-[10px] font-black text-yellow-400 uppercase tracking-widest"><i class="fas fa-crown mr-1"></i> Costo Membresía VIP</p>
+                <p class="text-[9px] text-gray-400">Precio mensual</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <input id="config-mem-price" type="number" placeholder="Ej. 100" class="bg-asfalto p-2 rounded-lg border border-yellow-500/50 text-yellow-400 font-black w-[120px]">
+                <button onclick="window.adminSaveMemPrice?.()" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-1.5 rounded-lg font-black uppercase text-[9px] transition-all">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILA MEDIA: Rescate y Catálogo (2 columnas) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- RESCATE A DOMICILIO -->
+        <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col space-y-5">
+            <div class="flex items-center border-b border-white/5 pb-2">
+                <i class="fas fa-coins text-naranja mr-2"></i>
+                <p class="text-[11px] font-black text-naranja uppercase tracking-widest">Rescate a Domicilio</p>
+            </div>
+            
+            <div>
+                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-1">Modalidad de Cobro</label>
+                <select id="config-price-mode" onchange="window.togglePriceMode?.()" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-white font-bold focus:border-naranja transition-colors">
+                    <option value="fijo">Tarifa Fija General</option>
+                    <option value="km">Cálculo Automático por KM</option>
+                </select>
+            </div>
+
+            <div id="config-price-fijo">
+                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-1">Tarifa Base ($)</label>
+                <input id="config-base-price" type="number" placeholder="Ej. 100" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-white text-lg font-black">
+            </div>
+
+            <div id="config-price-km" class="hidden space-y-3">
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-2"><i class="fas fa-list-ol mr-1 text-naranja"></i> Tabla de Rangos por KM</label>
+                    <div id="km-ranges-list" class="space-y-2 max-h-32 overflow-y-auto hide-scroll border-b border-white/10 pb-3 mb-3"></div>
+                    
+                    <div class="flex flex-wrap items-end gap-2">
+                        <div class="flex-1 min-w-[100px]">
+                            <label class="text-[9px] text-gray-500 block">Max KM</label>
+                            <input id="new-km-limit" type="number" step="0.1" placeholder="Ej. 2" class="w-full bg-asfalto p-2 rounded-lg border border-white/10 text-white text-xs">
+                        </div>
+                        <div class="flex-1 min-w-[100px]">
+                            <label class="text-[9px] text-gray-500 block">Precio $</label>
+                            <input id="new-km-price" type="number" placeholder="Ej. 30" class="w-full bg-asfalto p-2 rounded-lg border border-white/10 text-white text-xs">
+                        </div>
+                        <button onclick="window.adminAddKmRange?.()" class="bg-naranja hover:bg-orange-600 text-white h-[38px] px-4 rounded-lg font-black text-sm shadow-lg active:scale-95 transition-all"><i class="fas fa-plus"></i></button>
                     </div>
                 </div>
-                
-                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                    <div class="bg-white/5 border border-white/10 p-8 rounded-3xl shadow-xl flex flex-col space-y-4 h-full lg:col-span-2">
-                        <p class="text-[10px] font-black text-naranja uppercase tracking-widest border-b border-white/5 pb-2"><i class="fas fa-coins mr-1"></i> Rescate a Domicilio</p>
-                        <div>
-                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Modalidad de Cobro</label>
-                            <select id="config-price-mode" onchange="window.togglePriceMode?.()" class="w-full bg-asfalto p-3 rounded-xl border border-naranja/50 text-white font-bold focus:border-naranja transition-colors">
-                                <option value="fijo">Tarifa Fija General</option>
-                                <option value="km">Cálculo Automático por KM</option>
-                            </select>
-                        </div>
-                        <div id="config-price-fijo">
-                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-2">Tarifa Base ($)</label>
-                            <input id="config-base-price" type="number" placeholder="Ej. 100" class="w-full bg-asfalto p-3 rounded-xl border border-white/10 text-white text-lg font-black">
-                        </div>
-                        <div id="config-price-km" class="hidden bg-asfalto/40 p-4 rounded-xl border border-white/5 flex-grow">
-                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-2"><i class="fas fa-list-ol mr-1"></i> Tabla de Rangos por KM</label>
-                            <div id="km-ranges-list" class="space-y-2 mb-3 max-h-32 overflow-y-auto hide-scroll"></div>
-                            <div class="flex space-x-2">
-                                <input id="new-km-limit" type="number" step="0.1" placeholder="Max KM" class="w-1/2 bg-asfalto p-2 rounded-xl border border-white/10 text-white text-xs focus:border-naranja">
-                                <input id="new-km-price" type="number" placeholder="Precio $" class="w-1/2 bg-asfalto p-2 rounded-xl border border-white/10 text-white text-xs focus:border-naranja">
-                                <button onclick="window.adminAddKmRange?.()" class="bg-naranja hover:bg-orange-600 px-3 rounded-xl font-black text-white transition-colors active:scale-95"><i class="fas fa-plus"></i></button>
-                            </div>
-                            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mt-4 mb-2"><i class="fas fa-plus-circle mr-1"></i> Costo por KM Extra</label>
-                            <input id="config-km-extra" type="number" placeholder="Ej. 10" class="w-full bg-asfalto p-2 rounded-xl border border-white/10 text-white text-sm font-black focus:border-naranja">
-                        </div>
-                    </div>
 
-                    <div class="bg-white/5 border border-white/10 p-8 rounded-3xl shadow-xl flex flex-col h-full lg:col-span-2">
-                        <p class="text-[10px] font-black text-naranja uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-list-ul mr-1"></i> Catálogo de Servicios</p>
-                        <div class="flex flex-col space-y-2 mb-4">
-                            <div class="flex space-x-2">
-                                <input id="new-service-name" type="text" placeholder="Ej. Cambio de Aceite" class="w-2/3 bg-asfalto p-2 rounded-xl border border-white/10 text-xs text-white">
-                                <input id="new-service-price" type="number" placeholder="$" class="w-1/3 bg-asfalto p-2 rounded-xl border border-naranja/50 text-xs text-naranja font-bold">
-                            </div>
-                            <div class="flex space-x-2 items-center">
-                                <input id="new-service-desc" type="text" placeholder="Breve descripción..." class="flex-grow bg-asfalto p-2 rounded-xl border border-white/10 text-[10px] text-gray-300">
-                                <button onclick="window.adminAddService?.()" class="bg-naranja hover:bg-orange-600 px-4 py-2 rounded-xl font-black text-white active:scale-95 transition-all"><i class="fas fa-plus"></i></button>
-                                <button onclick="document.getElementById('new-service-desc').value = 'Servicio profesional OBR: ' + document.getElementById('new-service-name').value + '. Realizado por mecánicos especializados.'" class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-3 py-2 rounded-md text-[9px] font-black uppercase active:scale-95 transition-all"><i class="fas fa-magic mr-1"></i>IA ✨</button>
-                            </div>
-                        </div>
-                        <div id="admin-service-catalog" class="space-y-2 max-h-[300px] overflow-y-auto hide-scroll flex-grow"></div>
-                    </div>
-
-                    <div class="bg-white/5 border border-white/10 p-8 rounded-3xl shadow-xl flex flex-col h-full lg:col-span-1">
-                        <p class="text-[10px] font-black text-naranja uppercase tracking-widest border-b border-white/5 pb-2 mb-3"><i class="fas fa-calendar-alt mr-1"></i> Horarios Semanales</p>
-                        <div class="w-full">
-                            <div id="schedule-grid" class="grid grid-cols-4 gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-white/10 pb-2 mb-2">
-                                <div>Día</div><div class="text-center">Abre</div><div class="text-center">Cierra</div><div class="text-center">Acción</div>
-                            </div>
-                            <div id="schedule-list" class="space-y-2"></div>
-                        </div>
-                        <label class="flex items-center space-x-2 text-[10px] text-white w-full mt-4 cursor-pointer bg-asfalto/40 p-3 rounded-xl border border-white/5 hover:bg-white/5 transition-colors">
-                            <input type="checkbox" id="config-apply-all" class="accent-naranja w-4 h-4" onchange="if(this.checked) window.aplicarHorarioALunes()">
-                            <span class="font-bold">Igualar horario toda la semana</span>
-                        </label>
-                        <button onclick="window.set24HSchedule?.()" class="w-full bg-green-600 hover:bg-green-500 mt-3 p-3 rounded-xl font-black uppercase text-xs tracking-widest text-white shadow-lg active:scale-95 transition-colors"><i class="fas fa-clock mr-2"></i>Activar 24h</button>
-                    </div>
-
-                    <div class="bg-white/5 border border-white/10 p-8 rounded-3xl shadow-xl flex flex-col h-full lg:col-span-3">
-                        <div class="flex justify-between items-center border-b border-white/5 pb-2 mb-4">
-                            <p class="text-[10px] font-black text-naranja uppercase tracking-widest"><i class="fas fa-draw-polygon mr-1"></i> Zona de Cobertura</p>
-                            <p class="text-[8px] text-gray-500 italic">Arrastra el mapa</p>
-                        </div>
-                        <div id="admin-geofence-map" class="flex-grow min-h-[250px] w-full bg-white rounded-xl z-0 border border-white/10 mb-4 relative"></div>
-                        <div class="bg-asfalto/40 p-4 rounded-xl border border-white/5 mt-auto">
-                            <label class="text-xs font-bold text-gray-300 flex justify-between mb-2"><span>Radio de Servicio:</span> <span class="text-naranja"><span id="radius-display">15</span> Km</span></label>
-                            <input id="config-radius" type="range" min="1" max="50" step="0.5" value="15" class="w-full accent-naranja cursor-pointer" oninput="window.updateGeofenceRadius?.(this.value)">
-                        </div>
-                    </div>
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest block mb-1">Costo por KM Extra</label>
+                    <input id="config-km-extra" type="number" placeholder="Ej. 10" class="w-full bg-asfalto p-2 rounded-xl border border-white/10 text-white text-sm font-black">
                 </div>
-            </section>
+            </div>
+        </div>
 
+        <!-- CATÁLOGO DE SERVICIOS -->
+        <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col">
+            <div class="flex justify-between items-center border-b border-white/5 pb-2 mb-4">
+                <div class="flex items-center">
+                    <i class="fas fa-list-ul text-naranja mr-2"></i>
+                    <p class="text-[11px] font-black text-naranja uppercase tracking-widest">Catálogo de Servicios</p>
+                </div>
+                <button onclick="window.openAddServiceModal()" class="bg-naranja hover:bg-orange-600 px-4 py-1.5 rounded-xl font-black text-white text-xs shadow-lg active:scale-95 transition-all">
+                    <i class="fas fa-plus mr-1"></i> Nuevo
+                </button>
+            </div>
+            <div id="admin-service-catalog" class="space-y-2 max-h-[320px] overflow-y-auto hide-scroll flex-grow pr-1"></div>
+        </div>
+    </div>
+
+    <!-- FILA INFERIOR: Horario (izquierda) y Mapa (derecha) con botones debajo del horario -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+       <!-- HORARIO SEMANAL (generado completamente por JavaScript) -->
+<div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl lg:col-span-1 flex flex-col">
+    <div class="flex items-center border-b border-white/5 pb-3 mb-4">
+        <i class="fas fa-calendar-alt text-naranja mr-2"></i>
+        <p class="text-[11px] font-black text-naranja uppercase tracking-widest">Horario Semanal</p>
+    </div>
+    
+    <!-- Contenedor donde se generará la tabla completa (cabecera + filas) -->
+    <div id="schedule-table-container" class="space-y-1.5 flex-grow"></div>
+
+    <!-- Botones debajo de la tabla (se mantienen fuera) -->
+    <div class="flex gap-2 mt-4 pt-3 border-t border-white/10">
+        <button onclick="window.set24HSchedule?.()" class="flex-1 bg-green-600 hover:bg-green-500 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase text-white shadow-lg transition-colors"><i class="fas fa-clock mr-1"></i> 24H</button>
+        <label class="flex-1 flex items-center justify-center gap-1 text-[10px] text-white cursor-pointer bg-asfalto/40 px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/10 transition-colors">
+            <input type="checkbox" id="config-apply-all" class="accent-naranja w-3 h-3" onchange="if(this.checked) window.aplicarHorarioALunes()">
+            Igualar a Lunes
+        </label>
+    </div>
+</div>
+
+        <!-- ZONA DE COBERTURA (ocupa 2 columnas) -->
+        <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl lg:col-span-2 flex flex-col">
+            <div class="flex justify-between items-center border-b border-white/5 pb-3 mb-4">
+                <div class="flex items-center">
+                    <i class="fas fa-draw-polygon text-naranja mr-2"></i>
+                    <p class="text-[11px] font-black text-naranja uppercase tracking-widest">Zona de Cobertura</p>
+                </div>
+                <p class="text-[8px] text-gray-500 italic">Arrastra el mapa</p>
+            </div>
+            
+            <div id="admin-geofence-map" class="flex-grow min-h-[300px] w-full bg-white rounded-xl z-0 border border-white/10 mb-4 relative"></div>
+            
+            <div class="bg-white/5 p-3 rounded-xl border border-white/10 mt-1">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-[10px] font-bold text-gray-300">Radio de Servicio:</span>
+                    <span class="text-naranja font-black text-sm"><span id="radius-display">15</span> Km</span>
+                </div>
+                <input id="config-radius" type="range" min="1" max="50" step="0.5" value="15" class="w-full accent-naranja cursor-pointer" oninput="window.updateGeofenceRadius?.(this.value)">
+            </div>
+        </div>
+    </div>
+</section>
             <!-- ESTADÍSTICAS -->
             <section id="a-view-stats" class="a-view hidden space-y-6 p-4">
                 <div class="flex justify-between items-center">
@@ -1397,6 +1455,80 @@
             </div>
         </div>
     </div>
+<!-- Modal Editar/Crear Servicio (con dos columnas, materiales y cantidades) -->
+<div id="modal-edit-service" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full max-w-4xl max-h-[90vh] rounded-[2rem] p-6 relative border border-naranja/30 shadow-2xl overflow-y-auto">
+        <button onclick="toggleModal('modal-edit-service', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+        <h2 id="modal-service-title" class="text-xl font-black mb-4 text-white">Crear Servicio</h2>
+        
+        <input type="hidden" id="edit-service-id">
+        
+        <div class="flex flex-col lg:flex-row gap-6">
+            <!-- COLUMNA IZQUIERDA: Productos del almacén -->
+            <div class="lg:w-1/2">
+                <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Productos disponibles (Almacén)</label>
+                <div id="service-materials-grid" class="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-y-auto hide-scroll p-2 bg-asfalto/50 rounded-xl border border-white/10">
+    <!-- Los productos se renderizarán aquí mediante JavaScript -->
+</div>
+<p class="text-[9px] text-gray-500 mt-1">Haz clic en un producto para seleccionarlo. La cantidad se añade automáticamente como 1.</p>
+                <p class="text-[9px] text-gray-500 mt-1">Mantén presionado Ctrl/Cmd para seleccionar varios. La cantidad se añade automáticamente como 1.</p>
+                <!-- Lista de materiales seleccionados con cantidades (se renderiza dinámicamente) -->
+                <div id="edit-materials-container" class="mt-3 space-y-2 max-h-40 overflow-y-auto hide-scroll"></div>
+            </div>
+
+            <!-- COLUMNA DERECHA: Datos del servicio -->
+            <div class="lg:w-1/2 space-y-4">
+                <!-- Nombre -->
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Nombre del Servicio</label>
+                    <input id="edit-service-name" type="text" placeholder="Ej. Cambio de Aceite" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white text-sm focus:border-naranja">
+                </div>
+
+                <!-- Mano de Obra (con estimación automática IA) -->
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Mano de Obra ($)</label>
+                    <div class="flex space-x-2 items-center">
+                        <input id="edit-service-price" type="number" placeholder="Ej. 200" class="flex-1 bg-white/5 border border-white/10 p-3 rounded-xl text-white text-sm focus:border-naranja">
+                        <button id="btn-estimate-ai-edit" onclick="window.estimateServicePriceWithAI()" class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-3 py-2 rounded-md text-[9px] font-black uppercase shadow-lg active:scale-95 transition-all whitespace-nowrap">
+                            <i class="fas fa-robot mr-1"></i> IA Estimar
+                        </button>
+                    </div>
+                    <div id="ai-estimate-result" class="hidden mt-1 bg-green-900/20 border border-green-500/30 p-2 rounded-lg flex items-center justify-between">
+                        <span id="ai-estimate-text" class="text-xs text-green-400 font-bold">Precio estimado: $300</span>
+                        <button onclick="window.applyAIEstimate()" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-black uppercase">✅ Aplicar</button>
+                    </div>
+                </div>
+
+                <!-- Cargo Extra (descripción y monto) -->
+                <div>
+                    <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Cargo Extra (opcional)</label>
+                    <div class="flex space-x-2">
+                        <input id="edit-service-extra-desc" type="text" placeholder="Descripción (Ej. Kit de limpieza)" class="w-2/3 bg-white/5 border border-white/10 p-3 rounded-xl text-white text-sm">
+                        <input id="edit-service-extra-price" type="number" placeholder="Monto ($)" class="w-1/3 bg-white/5 border border-white/10 p-3 rounded-xl text-white text-sm">
+                    </div>
+                    <p class="text-[9px] text-gray-500 mt-1">Se agregará como un cargo extra en el POS si se usa.</p>
+                </div>
+
+                <!-- Descripción (con IA generativa) -->
+                <div>
+                    <div class="flex justify-between items-center">
+                        <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Descripción Breve</label>
+                        <button onclick="window.generateAIDescriptionFromModal()" class="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-2 py-1 rounded-md text-[9px] font-black uppercase active:scale-95 transition-all">
+                            <i class="fas fa-magic mr-1"></i>IA Desc
+                        </button>
+                    </div>
+                    <textarea id="edit-service-desc" rows="3" placeholder="Describe el servicio..." class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white text-sm resize-none focus:border-purple-500"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botones de acción -->
+        <div class="flex space-x-3 mt-6 pt-4 border-t border-white/10">
+            <button id="btn-save-service" onclick="window.saveEditService()" class="flex-1 bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase">Guardar</button>
+            <button onclick="toggleModal('modal-edit-service', false)" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase">Cancelar</button>
+        </div>
+    </div>
+</div>
 
     <!-- Modal lista de chats admin -->
     <div id="modal-chat-list" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
