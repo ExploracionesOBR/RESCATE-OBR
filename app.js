@@ -5977,6 +5977,7 @@ window.deleteService = (serviceId) => {
 };
 
 function refreshCatalogUI() {
+    if (typeof document === 'undefined') return;
     const catalogList = document.getElementById('admin-service-catalog');
     if (!catalogList) return;
     
@@ -5984,23 +5985,66 @@ function refreshCatalogUI() {
         catalogList.innerHTML = '';
         snap.forEach(d => {
             const s = d.data();
+            
+            // Calcular costo total del servicio
+            let totalCost = s.price || 0; // Mano de obra
+            
+            // Sumar materiales (usando window.publicInventory o adminInventoryList)
+            const inventory = window.publicInventory || adminInventoryList || [];
+            if (s.materiales && s.materiales.length) {
+                for (const mat of s.materiales) {
+                    let id, quantity;
+                    if (typeof mat === 'string') {
+                        id = mat;
+                        quantity = 1;
+                    } else {
+                        id = mat.id;
+                        quantity = mat.quantity || 1;
+                    }
+                    const product = inventory.find(p => p.id === id);
+                    if (product) {
+                        totalCost += (product.pricePublic || 0) * quantity;
+                    }
+                }
+            }
+            
+            // Sumar cargo extra (si existe como objeto con price)
+            if (s.extraCharge) {
+                if (typeof s.extraCharge === 'object' && s.extraCharge.price) {
+                    totalCost += s.extraCharge.price;
+                } else if (typeof s.extraCharge === 'number') {
+                    totalCost += s.extraCharge;
+                }
+                // Si es string, no se suma (se ignora)
+            }
+            
             // Mostrar materiales con cantidad
             const materialNames = (s.materiales || []).map(mat => {
-                const p = adminInventoryList.find(p => p.id === mat.id);
-                return p ? `${p.name} x${mat.quantity}` : '?';
+                let id, quantity;
+                if (typeof mat === 'string') {
+                    id = mat;
+                    quantity = 1;
+                } else {
+                    id = mat.id;
+                    quantity = mat.quantity || 1;
+                }
+                const product = inventory.find(p => p.id === id);
+                return product ? `${product.name} x${quantity}` : '?';
             }).join(', ') || 'Ninguno';
             
+            // Generar HTML de la tarjeta
             catalogList.innerHTML += `
-                <div class="flex justify-between bg-white/5 p-3 rounded-xl text-xs items-start border border-white/5 hover:border-naranja/30 transition-colors">
+                <div class="flex justify-between bg-white/5 p-3 rounded-xl text-xs border border-white/5 hover:border-naranja/30 transition-colors">
                     <div class="flex-1 mr-2">
                         <span class="font-bold text-white block">${escapeHtml(s.name)}</span>
-                        <span class="text-naranja font-black">Mano de obra: $${s.price}</span>
-                        ${s.extraCharge ? `<span class="text-blue-400 text-[10px] block">Cargo extra: ${s.extraCharge}</span>` : ''}
                         <span class="text-gray-400 text-[10px] block mt-1">Materiales: ${materialNames}</span>
                     </div>
-                    <div class="flex flex-col space-y-1">
-                        <button onclick="window.editService('${d.id}')" class="text-blue-400 hover:text-blue-300 text-xs"><i class="fas fa-edit"></i></button>
-                        <button onclick="window.deleteService('${d.id}')" class="text-red-400 hover:text-red-300 text-xs"><i class="fas fa-trash"></i></button>
+                    <div class="flex flex-col items-end">
+                        <span class="text-naranja font-black text-base">$${totalCost.toFixed(2)}</span>
+                        <div class="flex space-x-2 mt-2">
+                            <button onclick="window.editService('${d.id}')" class="text-blue-400 hover:text-blue-300 text-xs"><i class="fas fa-edit"></i></button>
+                            <button onclick="window.deleteService('${d.id}')" class="text-red-400 hover:text-red-300 text-xs"><i class="fas fa-trash"></i></button>
+                        </div>
                     </div>
                 </div>
             `;
