@@ -2453,38 +2453,48 @@ window.switchAdminView = (id) => {
     
     // Mostrar/ocultar botón de chat de soporte (solo en POS y Alertas)
     const chatBtn = document.getElementById('admin-chat-float-btn');
-    if(chatBtn) chatBtn.classList.toggle('hidden', !['a-view-pos', 'a-view-alertas'].includes(id));
+    if (chatBtn) chatBtn.classList.toggle('hidden', !['a-view-pos', 'a-view-alertas'].includes(id));
     
     document.querySelectorAll('.a-view').forEach(v => v.classList.add('hidden')); 
     document.getElementById(id).classList.remove('hidden');
     document.querySelectorAll('.a-nav-btn').forEach(b => b.classList.remove('tab-active'));
     const btn = Array.from(document.querySelectorAll('.a-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
-    if(btn) btn.classList.add('tab-active');
+    if (btn) btn.classList.add('tab-active');
 
-    if(id === 'a-view-config') {
+    if (id === 'a-view-config') {
         window.adminRefreshConfigUI();
         window.renderAdminMap();
         if (window._servicesCatalogUnsubscribe) window._servicesCatalogUnsubscribe();
         window._servicesCatalogUnsubscribe = onSnapshot(collection(db, "servicios"), () => refreshCatalogUI());
+        // 🔁 Cargar API Key de Groq
+        const groqInput = document.getElementById('config-groq-api-key');
+        if (groqInput) {
+            getDoc(doc(db, 'settings', 'general')).then(snap => {
+                if (snap.exists() && snap.data().groqApiKey) {
+                    groqInput.value = snap.data().groqApiKey;
+                }
+            }).catch(err => console.warn('No se pudo cargar la API Key:', err));
+        }
+        // 🔁 La población de materiales se hace en el modal, no aquí.
     }
-    if(id === 'a-view-usuarios') window.adminLoadUsers();
-    if(id === 'a-view-promos') { 
+    if (id === 'a-view-usuarios') window.adminLoadUsers();
+    if (id === 'a-view-promos') { 
         window.adminLoadLoyalty(); 
         populatePromoProductSelect(); 
         window.loadPromoPreview?.(); 
-     const urlInput = document.getElementById('config-install-guide-url');
-    if (urlInput) {
-        getDoc(doc(db, 'settings', 'general')).then(snap => {
-            if (snap.exists() && snap.data().installGuideMedia) {
-                urlInput.value = snap.data().installGuideMedia;
-            }
-        }).catch(err => console.warn('No se pudo cargar la URL de la guía:', err));
+        const urlInput = document.getElementById('config-install-guide-url');
+        if (urlInput) {
+            getDoc(doc(db, 'settings', 'general')).then(snap => {
+                if (snap.exists() && snap.data().installGuideMedia) {
+                    urlInput.value = snap.data().installGuideMedia;
+                }
+            }).catch(err => console.warn('No se pudo cargar la URL de la guía:', err));
+        }
     }
-}
-    if(id === 'a-view-stats') window.loadStats();
-    if(id === 'a-view-citas') window.adminLoadCitas();
-    if(id === 'a-view-alertas') window.renderSOSGlobalMap();
-    if(id === 'a-view-pos') { 
+    if (id === 'a-view-stats') window.loadStats();
+    if (id === 'a-view-citas') window.adminLoadCitas();
+    if (id === 'a-view-alertas') window.renderSOSGlobalMap();
+    if (id === 'a-view-pos') { 
         window.posFilterProducts(); 
         window.cargarNotificacionesCitas(); 
         window.cargarCobrosMecanicosPanel(); 
@@ -2492,7 +2502,7 @@ window.switchAdminView = (id) => {
         setTimeout(() => window.loadOnlineOrders?.(), 200);
         window.cargarChatsPendientesAdmin();
     }
-    if(id === 'a-view-entregas') { 
+    if (id === 'a-view-entregas') { 
         setTimeout(() => window.loadEntregas?.(), 300);
         window.fixMaps?.();
     }
@@ -2500,7 +2510,7 @@ window.switchAdminView = (id) => {
     const entregaPanel = document.getElementById('entrega-actions-panel');
     if (entregaPanel) entregaPanel.classList.add('hidden');
 
-        if (id === 'a-view-retenes') {
+    if (id === 'a-view-retenes') {
         setTimeout(() => window.renderRetenMap(true), 300);
     }
     
@@ -2966,21 +2976,61 @@ window.updateSOSEstimate = function(dist = null) {
     const serviceId = document.getElementById('sos-service-select-value')?.value;
     const dispEl = document.getElementById('sos-estimate-display');
     let rescueCost = 0;
+
+    // Cálculo del costo de rescate (domicilio)
     if (globalSettings.priceMode === 'km') {
         let d = dist !== null ? dist : getDistanceKm(tempSOSGps.lat||0, tempSOSGps.lng||0, globalSettings.centerLat, globalSettings.centerLng);
-        let ranges = globalSettings.rescueKmRanges || []; ranges.sort((a,b) => a.km - b.km); let matched = false;
-        for(let r of ranges) { if(d <= r.km) { rescueCost = r.price; matched = true; break; } }
-        if(!matched && ranges.length > 0) rescueCost = ranges[ranges.length-1].price + Math.max(0, (d - ranges[ranges.length-1].km)) * (globalSettings.rescueKmExtra||0);
-    } else rescueCost = globalSettings.rescueBase || 100;
-
-    if(auth.currentUser && window.currentUserDoc?.role === 'membresia') rescueCost = 0;
-    window.currentSOSCost = rescueCost;
-    if(serviceId === "0" || !serviceId) {
-        dispEl.innerHTML = `<span class="text-naranja">Rescate: $${rescueCost.toFixed(2)}</span>`;
+        let ranges = globalSettings.rescueKmRanges || [];
+        ranges.sort((a,b) => a.km - b.km);
+        let matched = false;
+        for (let r of ranges) {
+            if (d <= r.km) {
+                rescueCost = r.price;
+                matched = true;
+                break;
+            }
+        }
+        if (!matched && ranges.length > 0) {
+            rescueCost = ranges[ranges.length-1].price + Math.max(0, (d - ranges[ranges.length-1].km)) * (globalSettings.rescueKmExtra||0);
+        }
     } else {
+        rescueCost = globalSettings.rescueBase || 100;
+    }
+
+    if (auth.currentUser && window.currentUserDoc?.role === 'membresia') rescueCost = 0;
+    window.currentSOSCost = rescueCost;
+
+    // Costo del servicio + materiales
+    let serviceCost = 0;
+    let materialCost = 0;
+    if (serviceId && serviceId !== "0") {
         const s = shopServices.find(x => x.id === serviceId);
-        if(s) dispEl.innerHTML = `$${(rescueCost + parseFloat(s.price)).toFixed(2)}`;
-        else dispEl.innerHTML = `<span class="text-naranja">Rescate: $${rescueCost.toFixed(2)}</span>`;
+        if (s) {
+            serviceCost = s.price || 0;
+            if (s.materiales && s.materiales.length) {
+                for (const mat of s.materiales) {
+                    const product = adminInventoryList.find(p => p.id === mat.id);
+                    if (product) {
+                        materialCost += (product.pricePublic || 0) * (mat.quantity || 1);
+                    }
+                }
+            }
+        }
+    }
+
+    const total = rescueCost + serviceCost + materialCost;
+
+    if (total === 0) {
+        dispEl.innerHTML = `<span class="text-naranja">Rescate: $${rescueCost.toFixed(2)}</span>`;
+        if (materialCost > 0) {
+            dispEl.innerHTML += `<br><span class="text-xs text-yellow-400">* Materiales no incluidos (costo aproximado $${materialCost.toFixed(2)}). El precio final puede variar.</span>`;
+        }
+    } else {
+        let html = `<span class="text-naranja font-black">$${total.toFixed(2)}</span>`;
+        if (materialCost > 0) {
+            html += `<br><span class="text-xs text-yellow-400">* Incluye $${materialCost.toFixed(2)} en materiales (estimado).</span>`;
+        }
+        dispEl.innerHTML = html;
     }
 };
 
@@ -5656,21 +5706,180 @@ function _getRouteInstructions(puntos) {
     return `El mecánico recorrió aproximadamente ${distTotal.toFixed(1)} km para llegar al cliente. La ruta seguida se muestra en el mapa. Tiempo estimado: ${Math.round(distTotal * 3)} minutos.`;
 }
 window.editService = (serviceId) => {
-    getDoc(doc(db, "servicios", serviceId)).then(snap => {
-        if (!snap.exists()) return;
+    const modal = document.getElementById('modal-edit-service');
+    if (!modal) {
+        console.error('Modal de edición no encontrado');
+        return;
+    }
+    document.getElementById('edit-service-id').value = serviceId;
+    document.getElementById('modal-service-title').innerText = 'Editar Servicio';
+    document.getElementById('btn-save-service').innerText = 'Guardar Cambios';
+    toggleModal('modal-edit-service', true);
+    populateEditServiceModal(serviceId);
+};
+
+async function populateEditServiceModal(serviceId) {
+    try {
+        const snap = await getDoc(doc(db, "servicios", serviceId));
+        if (!snap.exists()) {
+            window.showToast("Servicio no encontrado", true);
+            toggleModal('modal-edit-service', false);
+            return;
+        }
         const s = snap.data();
-        window.promptModal("Nuevo nombre del servicio:", s.name, async (newName) => {
-            if (!newName) return;
-            window.promptModal("Nuevo precio:", s.price.toString(), async (newPriceStr) => {
-                const newPrice = parseFloat(newPriceStr);
-                if (isNaN(newPrice)) return showToast("Precio inválido", true);
-                await updateDoc(doc(db, "servicios", serviceId), { name: newName, price: newPrice });
-                showToast("Servicio actualizado");
-                loadServicesCatalog();
-                refreshCatalogUI(); // <-- Asegurar que esté presente
-            });
+        document.getElementById('edit-service-name').value = s.name || '';
+        document.getElementById('edit-service-price').value = s.price || '';
+        document.getElementById('edit-service-desc').value = s.desc || '';
+
+        let extraDesc = '', extraPrice = 0;
+        if (s.extraCharge) {
+            if (typeof s.extraCharge === 'object') {
+                extraDesc = s.extraCharge.description || '';
+                extraPrice = s.extraCharge.price || 0;
+            } else {
+                extraDesc = s.extraCharge;
+                extraPrice = 0;
+            }
+        }
+        document.getElementById('edit-service-extra-desc').value = extraDesc;
+        document.getElementById('edit-service-extra-price').value = extraPrice;
+
+        // Materiales: normalizar a array de IDs
+        let materials = s.materiales || [];
+        if (Array.isArray(materials) && materials.length > 0 && typeof materials[0] === 'object') {
+            materials = materials.map(m => m.id);
+        }
+        window._selectedMaterials = materials;
+        renderServiceMaterialsGrid(materials);
+        // Renderizar lista de materiales con cantidades (si hay)
+        const materialObjects = (s.materiales || []).map(mat => {
+            if (typeof mat === 'string') return { id: mat, quantity: 1 };
+            return mat;
         });
+        renderEditMaterialList(materialObjects);
+    } catch (error) {
+        console.error('Error al cargar servicio:', error);
+        window.showToast("Error al cargar datos", true);
+        toggleModal('modal-edit-service', false);
+    }
+}
+
+// Variable global para mantener los materiales en edición
+window._editMaterials = [];
+
+function renderEditMaterialList(materials) {
+    window._editMaterials = materials;
+    const container = document.getElementById('edit-materials-container');
+    container.innerHTML = '';
+    if (!materials || materials.length === 0) {
+        container.innerHTML = '<p class="text-gray-400 text-xs italic">No hay materiales seleccionados.</p>';
+        return;
+    }
+    materials.forEach((mat, index) => {
+        const product = adminInventoryList.find(p => p.id === mat.id);
+        const productName = product ? product.name : 'Producto desconocido';
+        const div = document.createElement('div');
+        div.className = 'flex items-center gap-2 bg-white/5 p-2 rounded-lg';
+        div.innerHTML = `
+            <span class="flex-1 text-xs text-white">${escapeHtml(productName)}</span>
+            <input type="number" min="0" value="${mat.quantity}" 
+                   class="w-16 bg-asfalto border border-white/10 p-1 rounded text-white text-xs text-center"
+                   onchange="updateEditMaterialQuantity(${index}, this.value)">
+            <button onclick="removeEditMaterial(${index})" class="text-red-400 text-xs"><i class="fas fa-times"></i></button>
+        `;
+        container.appendChild(div);
     });
+}
+
+// Ajustar removeEditMaterial para también actualizar la selección en la cuadrícula
+window.removeEditMaterial = function(index) {
+    if (window._editMaterials) {
+        const removed = window._editMaterials[index];
+        window._editMaterials.splice(index, 1);
+        // Remover de la selección de la cuadrícula
+        const idIndex = window._selectedMaterials.indexOf(removed.id);
+        if (idIndex !== -1) window._selectedMaterials.splice(idIndex, 1);
+        renderServiceMaterialsGrid(window._selectedMaterials);
+        renderEditMaterialList(window._editMaterials);
+    }
+};
+
+window.addMaterialToEditList = function() {
+    const container = document.getElementById('edit-materials-container');
+    const select = document.createElement('select');
+    select.className = 'w-full bg-asfalto border border-white/10 p-2 rounded text-white text-xs mb-2';
+    select.innerHTML = '<option value="">Selecciona un producto...</option>';
+    adminInventoryList.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.innerText = `${p.name} (Stock: ${p.stock})`;
+        select.appendChild(opt);
+    });
+    select.onchange = function() {
+        if (this.value) {
+            const current = window._editMaterials || [];
+            const existing = current.find(m => m.id === this.value);
+            if (existing) {
+                existing.quantity += 1;
+            } else {
+                current.push({ id: this.value, quantity: 1 });
+            }
+            renderEditMaterialList(current);
+            select.remove();
+        }
+    };
+    container.appendChild(select);
+};
+window.saveEditService = async function() {
+    const serviceId = document.getElementById('edit-service-id').value;
+    const name = document.getElementById('edit-service-name').value.trim();
+    const price = parseFloat(document.getElementById('edit-service-price').value);
+    const desc = document.getElementById('edit-service-desc').value.trim();
+    const extraDesc = document.getElementById('edit-service-extra-desc').value.trim();
+    const extraPrice = parseFloat(document.getElementById('edit-service-extra-price').value) || 0;
+
+    if (!name || isNaN(price)) {
+        window.showToast("Nombre y precio de mano de obra requeridos", true);
+        return;
+    }
+
+    // Materiales: obtener de la variable global
+    let materials = window._editMaterials || [];
+    if (materials.length > 0 && typeof materials[0] === 'string') {
+        materials = materials.map(id => ({ id, quantity: 1 }));
+    }
+
+    // Cargo extra: solo guardar si hay descripción o precio > 0
+    let extraCharge = null;
+    if (extraDesc || extraPrice > 0) {
+        extraCharge = { description: extraDesc, price: extraPrice };
+    }
+
+    const serviceData = {
+        name,
+        price,
+        desc,
+        materiales: materials,
+        extraCharge
+    };
+
+    try {
+        if (serviceId) {
+            // Editar
+            await updateDoc(doc(db, "servicios", serviceId), serviceData);
+            window.showToast("Servicio actualizado correctamente");
+        } else {
+            // Crear nuevo
+            await addDoc(collection(db, "servicios"), serviceData);
+            window.showToast("Servicio creado correctamente");
+        }
+        toggleModal('modal-edit-service', false);
+        loadServicesCatalog();
+        refreshCatalogUI();
+    } catch (error) {
+        console.error('Error al guardar:', error);
+        window.showToast("Error al guardar el servicio", true);
+    }
 };
 
 window.deleteService = (serviceId) => {
@@ -5685,18 +5894,31 @@ window.deleteService = (serviceId) => {
 function refreshCatalogUI() {
     const catalogList = document.getElementById('admin-service-catalog');
     if (!catalogList) return;
-    // Siempre consultar datos frescos
+    
     getDocs(collection(db, "servicios")).then(snap => {
         catalogList.innerHTML = '';
         snap.forEach(d => {
             const s = d.data();
-            catalogList.innerHTML += `<div class="flex justify-between bg-white/5 p-2 rounded text-xs">
-                <span>${escapeHtml(s.name)} ($${s.price})</span>
-                <div>
-                    <button onclick="window.editService('${d.id}')" class="text-blue-400 mr-2"><i class="fas fa-edit"></i></button>
-                    <button onclick="window.deleteService('${d.id}')" class="text-red-400"><i class="fas fa-trash"></i></button>
+            // Mostrar materiales con cantidad
+            const materialNames = (s.materiales || []).map(mat => {
+                const p = adminInventoryList.find(p => p.id === mat.id);
+                return p ? `${p.name} x${mat.quantity}` : '?';
+            }).join(', ') || 'Ninguno';
+            
+            catalogList.innerHTML += `
+                <div class="flex justify-between bg-white/5 p-3 rounded-xl text-xs items-start border border-white/5 hover:border-naranja/30 transition-colors">
+                    <div class="flex-1 mr-2">
+                        <span class="font-bold text-white block">${escapeHtml(s.name)}</span>
+                        <span class="text-naranja font-black">Mano de obra: $${s.price}</span>
+                        ${s.extraCharge ? `<span class="text-blue-400 text-[10px] block">Cargo extra: ${s.extraCharge}</span>` : ''}
+                        <span class="text-gray-400 text-[10px] block mt-1">Materiales: ${materialNames}</span>
+                    </div>
+                    <div class="flex flex-col space-y-1">
+                        <button onclick="window.editService('${d.id}')" class="text-blue-400 hover:text-blue-300 text-xs"><i class="fas fa-edit"></i></button>
+                        <button onclick="window.deleteService('${d.id}')" class="text-red-400 hover:text-red-300 text-xs"><i class="fas fa-trash"></i></button>
+                    </div>
                 </div>
-            </div>`;
+            `;
         });
         if (snap.empty) catalogList.innerHTML = '<p class="text-gray-500 text-xs">No hay servicios registrados.</p>';
     }).catch(err => console.error('Error cargando servicios:', err));
@@ -7273,30 +7495,6 @@ if (isCurrentlyClosed) {
 // ======================================================
 // === CATÁLOGO DE SERVICIOS (con IA y edición) ===
 // ======================================================
-window.adminAddService = async () => {
-    const name = document.getElementById('new-service-name')?.value.trim();
-    const price = parseFloat(document.getElementById('new-service-price')?.value);
-    const desc = document.getElementById('new-service-desc')?.value.trim();
-    if (!name || isNaN(price)) return showToast("Nombre y precio requeridos", true);
-    await addDoc(collection(db, "servicios"), { name, price, desc });
-    showToast("Servicio agregado");
-    document.getElementById('new-service-name').value = '';
-    document.getElementById('new-service-price').value = '';
-    document.getElementById('new-service-desc').value = '';
-    loadServicesCatalog();
-    refreshCatalogUI();
-};
-
-// Generar descripción IA para servicio (Ajustes)
-window.generateAIDescription = () => {
-    const nameEl = document.getElementById('new-service-name');
-    const descEl = document.getElementById('new-service-desc');
-    if(nameEl && descEl) {
-        const name = nameEl.value.trim() || 'este servicio';
-        descEl.value = `Servicio profesional OBR: ${name}. Realizado por mecánicos especializados con herramientas de alta calidad.`;
-    }
-};
-
 // Nueva función: generar descripción IA para producto (Almacén)
 window.generateAIInvDescription = () => {
     const nameEl = document.getElementById('inv-name');
@@ -7316,6 +7514,69 @@ window.generateAIInvDescription = () => {
         `Confía en la calidad OBR. ${name} es justo lo que necesitas para seguir rodando sin preocupaciones.`
     ];
     descEl.value = prompts[Math.floor(Math.random() * prompts.length)];
+};
+
+// ===== ESTIMACIÓN DE PRECIO CON IA (Groq) =====
+async function consultaGroqTexto(prompt) {
+    const key = localStorage.getItem('groq_api_key') || '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';
+    try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+            body: JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    { role: "system", content: "Eres un experto en mecánica automotriz en Ciudad Obregón, Sonora. Respondes ÚNICAMENTE con un número entero en pesos mexicanos (MXN) que representa el costo de mano de obra justo para el servicio indicado. No uses puntos, comas ni signos de pesos. Solo el número." },
+                    { role: "user", content: prompt }
+                ],
+                temperature: 0.2,
+                max_tokens: 20
+            })
+        });
+        if (!response.ok) throw new Error('Error en Groq');
+        const data = await response.json();
+        return data.choices[0].message.content.trim();
+    } catch (e) {
+        console.error('Error IA:', e);
+        return null;
+    }
+}
+
+window.estimateServicePriceWithAI = async function() {
+    const nameInput = document.getElementById('edit-service-name');
+    const resultDiv = document.getElementById('ai-estimate-result');
+    const resultText = document.getElementById('ai-estimate-text');
+    
+    const serviceName = nameInput.value.trim();
+    if (!serviceName) {
+        window.showToast("Escribe el nombre del servicio primero.", true);
+        return;
+    }
+
+    resultDiv.classList.remove('hidden');
+    resultText.innerText = "Consultando IA... ⏳";
+    
+    const prompt = `Estima el precio de mano de obra en Ciudad Obregón para el servicio: "${serviceName}"`;
+    const estimatedPrice = await consultaGroqTexto(prompt);
+    
+    if (estimatedPrice && !isNaN(parseFloat(estimatedPrice))) {
+        resultText.innerText = `💰 Precio estimado: $${estimatedPrice}`;
+        window._tempAIEstimate = parseFloat(estimatedPrice);
+    } else {
+        resultText.innerText = "❌ No se pudo obtener una estimación.";
+        window._tempAIEstimate = null;
+    }
+};
+
+window.applyAIEstimate = function() {
+    const priceInput = document.getElementById('edit-service-price');
+    if (window._tempAIEstimate) {
+        priceInput.value = window._tempAIEstimate;
+        document.getElementById('ai-estimate-result').classList.add('hidden');
+        window.showToast("✅ Precio de mano de obra aplicado.");
+    } else {
+        window.showToast("Primero genera una estimación válida.", true);
+    }
 };
 
 // ======================================================
@@ -9356,44 +9617,69 @@ window.adminRefreshConfigUI = () => {
     if (radiusEl) radiusEl.value = globalSettings.radiusKm;
     document.getElementById('radius-display').innerText = globalSettings.radiusKm;
 
-const scheduleContainer = document.getElementById('schedule-list');
-if (scheduleContainer) {
-    scheduleContainer.innerHTML = '';
-    const daysFull = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-    for (let i = 0; i < 7; i++) {
-        const s = globalSettings.schedule[i] || { o: "08:00", c: "20:00" };
-        const isClosed = (s.o === "00:00" && s.c === "00:00");
-const buttonText = isClosed ? 'CERRADO' : 'ABIERTO';
-const buttonClass = isClosed ? 'bg-red-600' : 'bg-green-600';
-        scheduleContainer.innerHTML += `
-            <div class="grid grid-cols-4 gap-2 items-center bg-white/5 p-2 rounded-xl">
-                <span class="font-bold text-white text-xs">${daysFull[i]}</span>
-                <input id="sch-${i}-o" type="time" value="${s.o}" class="bg-asfalto border border-white/10 p-2 rounded-lg text-white text-sm w-32 focus:border-naranja">
-                <input id="sch-${i}-c" type="time" value="${s.c}" class="bg-asfalto border border-white/10 p-2 rounded-lg text-white text-sm w-32 focus:border-naranja">
-                <button onclick="window.toggleDayState(${i})" class="${buttonClass} text-white px-2 py-1 rounded text-[9px] font-bold uppercase">${buttonText}</button>
+        // --- GENERAR TODA LA TABLA DE HORARIO (cabecera + filas) ---
+    const tableContainer = document.getElementById('schedule-table-container');
+    if (tableContainer) {
+        let html = '';
+
+        // Cabecera: el botón de estado tendrá ancho auto
+        html += `
+            <div class="grid grid-cols-[80px_1fr_1fr_auto] gap-2 text-[9px] font-black text-gray-400 uppercase tracking-widest border-b border-white/10 pb-2 mb-2 items-center">
+                <div class="whitespace-nowrap">Día</div>
+                <div class="pl-1">Abre</div>
+                <div class="pl-1">Cierra</div>
+                <div class="text-center">Estado</div>
             </div>
         `;
-    }
-}
 
+        // Filas
+        const daysFull = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+        for (let i = 0; i < 7; i++) {
+            const s = globalSettings.schedule[i] || { o: "08:00", c: "20:00" };
+            const isClosed = (s.o === "00:00" && s.c === "00:00");
+            const buttonText = isClosed ? 'CERRADO' : 'ABIERTO';
+            const buttonClass = isClosed ? 'bg-red-600' : 'bg-green-600';
+            
+            // Mismo grid, con ancho auto para el botón
+            html += `
+                <div class="grid grid-cols-[80px_1fr_1fr_auto] gap-2 items-center bg-white/5 p-2 rounded-xl border border-white/10">
+                    <span class="font-bold text-white text-[10px] whitespace-nowrap text-center">${daysFull[i]}</span>
+                    <input id="sch-${i}-o" type="time" value="${s.o}" 
+                           class="bg-asfalto border border-white/10 p-1.5 rounded-lg text-white text-[10px] w-full focus:border-naranja"
+                           onclick="this.focus();">
+                    <input id="sch-${i}-c" type="time" value="${s.c}" 
+                           class="bg-asfalto border border-white/10 p-1.5 rounded-lg text-white text-[10px] w-full focus:border-naranja"
+                           onclick="this.focus();">
+                    <button onclick="window.toggleDayState(${i})" class="${buttonClass} text-white px-3 py-1.5 rounded text-[9px] font-bold uppercase text-center transition-colors whitespace-nowrap">${buttonText}</button>
+                </div>
+            `;
+        }
+
+        tableContainer.innerHTML = html;
+    }
+
+    // --- KM RANGES (sin cambios) ---
     const kmRangesList = document.getElementById('km-ranges-list');
     if (kmRangesList) {
         kmRangesList.innerHTML = '';
         globalSettings.rescueKmRanges.forEach((r, i) => {
-            kmRangesList.innerHTML += `<div class="flex justify-between items-center bg-black/20 p-1 rounded">
-                <span class="text-xs">Hasta ${r.km} km: $${r.price}</span>
-                <button onclick="window.removeKmRange(${i})" class="text-red-400"><i class="fas fa-times"></i></button>
-            </div>`;
+            kmRangesList.innerHTML += `
+                <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/10">
+                    <span class="text-xs font-bold text-white">Hasta ${r.km} km: <span class="text-naranja">$${r.price}</span></span>
+                    <button onclick="window.removeKmRange(${i})" class="text-red-400 hover:text-red-300 text-sm"><i class="fas fa-times-circle"></i></button>
+                </div>
+            `;
         });
     }
+
     window.togglePriceMode();
 
     const memPriceInput = document.getElementById('config-mem-price');
-    if (memPriceInput && globalSettings.membershipPrice) {
-        memPriceInput.value = globalSettings.membershipPrice;
+    if (memPriceInput) {
+        memPriceInput.value = globalSettings.membershipPrice !== undefined && globalSettings.membershipPrice !== null ? globalSettings.membershipPrice : '';
     }
 
-    // --- Enlazar eventos de auto-guardado (únicamente aquí) ---
+    // --- AUTO-SAVE EVENTS ---
     const autoSaveFields = [
         'config-price-mode', 'config-base-price', 'config-km-extra', 'config-radius',
         'sch-0-o', 'sch-0-c', 'sch-1-o', 'sch-1-c', 'sch-2-o', 'sch-2-c',
@@ -9407,7 +9693,6 @@ const buttonClass = isClosed ? 'bg-red-600' : 'bg-green-600';
         }
     });
 
-    // Campo de radio: actualizar círculo en tiempo real y guardar al soltar
     const radiusInput = document.getElementById('config-radius');
     if (radiusInput && !radiusInput._radiusBound) {
         radiusInput.addEventListener('input', (e) => {
@@ -9488,14 +9773,38 @@ window.clearVideoURL = (dayIndex) => {
 window.renderAdminMap = () => {
     const mapEl = document.getElementById('admin-geofence-map');
     if (!mapEl || adminGeoMap) return;
+    
     const isLight = document.body.classList.contains('light-mode');
     const layerUrl = isLight
         ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
         : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-    adminGeoMap = L.map(mapEl).setView([TALLER_LAT, TALLER_LNG], 13);
+        
+    adminGeoMap = L.map(mapEl, {
+        zoomControl: true,
+        attributionControl: false
+    }).setView([TALLER_LAT, TALLER_LNG], 13);
+    
     L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(adminGeoMap);
-    L.marker([TALLER_LAT, TALLER_LNG], { icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }) }).addTo(adminGeoMap);
-    adminGeoCircle = L.circle([TALLER_LAT, TALLER_LNG], { radius: globalSettings.radiusKm * 1000, color: '#FF6B00', fillOpacity: 0.1 }).addTo(adminGeoMap);
+    
+    L.marker([TALLER_LAT, TALLER_LNG], { 
+        icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }) 
+    }).addTo(adminGeoMap);
+
+    // Crear el círculo de cobertura
+    adminGeoCircle = L.circle([TALLER_LAT, TALLER_LNG], { 
+        radius: globalSettings.radiusKm * 1000, 
+        color: '#FF6B00', 
+        fillOpacity: 0.1 
+    }).addTo(adminGeoMap);
+
+    // 🔁 FORZAR EL ZOOM AUTOMÁTICO AL CÍRCULO
+    setTimeout(() => {
+        if (adminGeoMap && adminGeoCircle) {
+            const bounds = adminGeoCircle.getBounds();
+            adminGeoMap.fitBounds(bounds, { padding: [30, 30] });
+            adminGeoMap.invalidateSize();
+        }
+    }, 300);
 };
 
 window.updateGeofenceRadius = (val) => {
@@ -12036,3 +12345,123 @@ window.addEventListener('load', () => {
         showInstallGuideIfNeeded();
     }, 1000);
 });
+
+// ===== GUARDAR API KEY DE GROQ =====
+window.saveGroqApiKey = async function() {
+    const input = document.getElementById('config-groq-api-key');
+    const key = input.value.trim();
+    if (!key) {
+        window.showToast("Ingresa una API Key válida.", true);
+        return;
+    }
+    if (!key.startsWith('gsk_')) {
+        window.showToast("La clave debe comenzar con 'gsk_'", true);
+        return;
+    }
+    try {
+        await setDoc(doc(db, 'settings', 'general'), { groqApiKey: key }, { merge: true });
+        localStorage.setItem('groq_api_key', key);
+        window.showToast("✅ API Key guardada correctamente");
+        input.value = key;
+    } catch (error) {
+        console.error('Error al guardar API Key:', error);
+        window.showToast("Error al guardar", true);
+    }
+};
+
+function renderServiceMaterialsGrid(selectedIds = []) {
+    const container = document.getElementById('service-materials-grid');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    adminInventoryList.forEach(p => {
+        const isSelected = selectedIds.includes(p.id);
+        const card = document.createElement('div');
+        card.className = `p-2 rounded-xl cursor-pointer border-2 transition-all ${isSelected ? 'border-naranja bg-naranja/10' : 'border-white/10 bg-white/5 hover:border-white/30'}`;
+        card.onclick = () => toggleMaterialSelection(p.id);
+        card.innerHTML = `
+            <div class="w-full aspect-square bg-black/30 rounded-lg mb-1 flex items-center justify-center overflow-hidden">
+                ${p.imgUrl ? `<img src="${p.imgUrl}" class="w-full h-full object-contain">` : '<i class="fas fa-box text-3xl text-gray-600"></i>'}
+            </div>
+            <p class="text-[10px] font-bold text-white text-center leading-tight">${escapeHtml(p.name)}</p>
+            <p class="text-[9px] text-gray-400 text-center">Stock: ${p.stock}</p>
+        `;
+        container.appendChild(card);
+    });
+}
+
+// Variable global para manejar selección en el modal
+window._selectedMaterials = [];
+
+function toggleMaterialSelection(productId) {
+    const index = window._selectedMaterials.indexOf(productId);
+    if (index !== -1) {
+        window._selectedMaterials.splice(index, 1);
+    } else {
+        window._selectedMaterials.push(productId);
+    }
+    // Actualizar la lista de materiales seleccionados con cantidades (se renderizará abajo)
+    const materials = window._selectedMaterials.map(id => ({ id, quantity: 1 }));
+    renderEditMaterialList(materials);
+    // Actualizar la cuadrícula (cambiar borde)
+    renderServiceMaterialsGrid(window._selectedMaterials);
+}
+
+window.openAddServiceModal = function() {
+    const modal = document.getElementById('modal-edit-service');
+    if (!modal) {
+        console.error('Modal de edición no encontrado');
+        return;
+    }
+    // Limpiar campos
+    document.getElementById('edit-service-id').value = '';
+    document.getElementById('edit-service-name').value = '';
+    document.getElementById('edit-service-price').value = '';
+    document.getElementById('edit-service-extra-desc').value = '';
+    document.getElementById('edit-service-extra-price').value = '';
+    document.getElementById('edit-service-desc').value = '';
+    window._selectedMaterials = [];
+    window._editMaterials = [];
+    renderServiceMaterialsGrid([]);
+    renderEditMaterialList([]);
+    document.getElementById('modal-service-title').innerText = 'Crear Servicio';
+    document.getElementById('btn-save-service').innerText = 'Crear Servicio';
+    toggleModal('modal-edit-service', true);
+    // Poblar cuadrícula con todos los productos
+    renderServiceMaterialsGrid([]);
+    // Si hay nombre, se puede estimar automáticamente (debounce se encargará)
+};
+
+// ===== ESTIMACIÓN AUTOMÁTICA DE MANO DE OBRA (debounce) =====
+let estimateTimeout = null;
+document.addEventListener('input', function(e) {
+    if (e.target.id === 'edit-service-name') {
+        clearTimeout(estimateTimeout);
+        estimateTimeout = setTimeout(() => {
+            const name = e.target.value.trim();
+            if (name.length > 3) {
+                window.estimateServicePriceWithAI();
+            }
+        }, 800);
+    }
+});
+
+window.generateAIDescriptionFromModal = function() {
+    const nameInput = document.getElementById('edit-service-name');
+    const descInput = document.getElementById('edit-service-desc');
+    const name = nameInput.value.trim();
+    if (!name) {
+        window.showToast("Primero escribe el nombre del servicio.", true);
+        return;
+    }
+    // Usar la misma consulta a Groq pero para descripción
+    const prompt = `Genera una descripción breve y profesional en español para el servicio mecánico: "${name}". Usa máximo 2 oraciones.`;
+    consultaGroqTexto(prompt).then(desc => {
+        if (desc) {
+            descInput.value = desc;
+            window.showToast("✅ Descripción generada.");
+        } else {
+            window.showToast("No se pudo generar la descripción.", true);
+        }
+    });
+};
