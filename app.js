@@ -4246,30 +4246,39 @@ document.addEventListener('click', function(e) {
     }
     
     // Botón "Confirmar punto"
-if (e.target.id === 'btn-confirmar-punto-reten') {
-    if (seleccionLat === null || seleccionLng === null) {
-        window.showToast('Mueve el marcador o haz clic en el mapa para seleccionar un punto.', true);
-        return;
-    }
-    document.getElementById('modal-crear-reten-paso-2').classList.add('hidden');
-    document.getElementById('modal-crear-reten-paso-3').classList.remove('hidden');
-    // Mostrar dirección ya geocodificada (se actualizó en tiempo real)
-    const contenedorExacta = document.getElementById('reten-ubicacion-exacta-container');
-    if (contenedorExacta) {
-        const dirDisplay = document.getElementById('direccion-seleccionada');
-        if (dirDisplay) {
-            const texto = dirDisplay.innerText;
-            if (texto.startsWith('📍')) {
-                contenedorExacta.innerHTML = `<p class="text-xs text-gray-300">${texto}</p>`;
+    if (e.target.id === 'btn-confirmar-punto-reten') {
+        // Si las coordenadas no se cargaron automáticamente, tomar la posición actual del marcador
+        if (seleccionLat === null || seleccionLng === null) {
+            if (marcadorSeleccion) {
+                const pos = marcadorSeleccion.getLatLng();
+                seleccionLat = pos.lat;
+                seleccionLng = pos.lng;
             } else {
-                contenedorExacta.innerHTML = `<p class="text-xs text-gray-300">📍 ${texto}</p>`;
+                window.showToast('Mueve el marcador o haz clic en el mapa para seleccionar un punto.', true);
+                return;
             }
-        } else {
-            // Fallback
-            contenedorExacta.innerHTML = `<p class="text-xs text-gray-300">📍 Ubicación seleccionada</p>`;
+        }
+        
+        document.getElementById('modal-crear-reten-paso-2').classList.add('hidden');
+        document.getElementById('modal-crear-reten-paso-3').classList.remove('hidden');
+        
+        // Mostrar dirección ya geocodificada (se actualizó en tiempo real)
+        const contenedorExacta = document.getElementById('reten-ubicacion-exacta-container');
+        if (contenedorExacta) {
+            const dirDisplay = document.getElementById('direccion-seleccionada');
+            if (dirDisplay) {
+                const texto = dirDisplay.innerText;
+                if (texto.startsWith('📍')) {
+                    contenedorExacta.innerHTML = `<p class="text-xs text-gray-300">${texto}</p>`;
+                } else {
+                    contenedorExacta.innerHTML = `<p class="text-xs text-gray-300">📍 ${texto}</p>`;
+                }
+            } else {
+                // Fallback
+                contenedorExacta.innerHTML = `<p class="text-xs text-gray-300">📍 Ubicación seleccionada</p>`;
+            }
         }
     }
-}
     
     // Botón "Cancelar selección"
     if (e.target.id === 'btn-cancelar-seleccion-reten') {
