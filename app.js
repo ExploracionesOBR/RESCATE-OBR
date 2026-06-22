@@ -4246,10 +4246,10 @@ document.addEventListener('click', function(e) {
     }
     
     // Botón "Confirmar punto"
-       if (e.target.id === 'btn-confirmar-punto-reten') {
-        // Si las coordenadas no se cargaron, intentar obtener del marcador
+    if (e.target.id === 'btn-confirmar-punto-reten') {
+        // Si las coordenadas no se cargaron automáticamente, tomar la posición actual del marcador
         if (seleccionLat === null || seleccionLng === null) {
-            if (marcadorSeleccion && typeof marcadorSeleccion.getLatLng === 'function') {
+            if (marcadorSeleccion) {
                 const pos = marcadorSeleccion.getLatLng();
                 seleccionLat = pos.lat;
                 seleccionLng = pos.lng;
@@ -4274,6 +4274,7 @@ document.addEventListener('click', function(e) {
                     contenedorExacta.innerHTML = `<p class="text-xs text-gray-300">📍 ${texto}</p>`;
                 }
             } else {
+                // Fallback
                 contenedorExacta.innerHTML = `<p class="text-xs text-gray-300">📍 Ubicación seleccionada</p>`;
             }
         }
@@ -4293,79 +4294,94 @@ document.addEventListener('click', function(e) {
     }
 });
 
-
+// ---------- PROCESAR CREAR RETÉN ----------
 window.procesarCrearReten = async function() {
-    // 1. Verificar que las coordenadas estén definidas; si no, intentar obtenerlas del marcador
-    if (seleccionLat === null || seleccionLng === null) {
-        if (marcadorSeleccion && typeof marcadorSeleccion.getLatLng === 'function') {
-            const pos = marcadorSeleccion.getLatLng();
-            seleccionLat = pos.lat;
-            seleccionLng = pos.lng;
-        } else {
-            window.showToast("Selecciona una ubicación en el mapa primero.", true);
-            return;
-        }
-    }
-
-    // Si aún son null, mostrar error
-    if (seleccionLat === null || seleccionLng === null) {
-        window.showToast("No se pudo obtener la ubicación. Intenta de nuevo.", true);
+    // ✅ Bloqueo para evitar ejecuciones simultáneas
+    if (window._creandoReten) {
+        window.showToast("Ya se está procesando, espera un momento.", true);
         return;
     }
-    
-    const descripcionUbicacion = document.getElementById('reten-descripcion-ubicacion').value.trim();
-    const fileInput = document.getElementById('reten-evidencia');
-    let imageUrl = null;
-    
-    // Subir imagen si existe
-    if (fileInput && fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        const compressed = await window.compressImage(file);
-        imageUrl = await uploadWithTimeout(compressed, `retenes/${auth.currentUser.uid}/${Date.now()}.jpg`);
-    }
-    
-    // Obtener la dirección que se mostró en el modal (ya geocodificada)
-    const contenedorExacta = document.getElementById('reten-ubicacion-exacta-container');
-    let direccion = null;
-    if (contenedorExacta) {
-        const p = contenedorExacta.querySelector('p');
-        if (p && p.innerText.startsWith('📍')) {
-            direccion = p.innerText.replace('📍 ', '');
+    window._creandoReten = true;
+
+    try {
+        // 1. Verificar que las coordenadas estén definidas
+        if (seleccionLat === null || seleccionLng === null) {
+            if (marcadorSeleccion && typeof marcadorSeleccion.getLatLng === 'function') {
+                const pos = marcadorSeleccion.getLatLng();
+                seleccionLat = pos.lat;
+                seleccionLng = pos.lng;
+            } else {
+                window.showToast("Selecciona una ubicación en el mapa primero.", true);
+                window._creandoReten = false;
+                return;
+            }
         }
-    }
-    
-    // Guardar en Firestore
-    await addDoc(collection(db, "retenes"), {
-        uid: auth.currentUser.uid,
-        lat: seleccionLat,
-        lng: seleccionLng,
-        direccion: direccion,
-        descripcionUbicacion: descripcionUbicacion || null,
-        timestamp: Date.now(),
-        imageUrl: imageUrl,
-        negativeVotes: [],
-        status: 'active'
-    });
-    
-    // Limpiar variables y cerrar modal
-    seleccionLat = null;
-    seleccionLng = null;
-    if (mapaSeleccion) {
-        mapaSeleccion.remove();
-        mapaSeleccion = null;
-        marcadorSeleccion = null;
-    }
-    
-    toggleModal('modal-crear-reten', false);
-    window.showToast("✅ Retén creado correctamente.");
-    
-    // 🔁 Retraso breve para que el modal termine de cerrarse y el mapa tenga tamaño
-    setTimeout(() => {
-        window.renderRetenMap(false);
-        if (retenesMapInstance) {
-            retenesMapInstance.invalidateSize();
+
+        if (seleccionLat === null || seleccionLng === null) {
+            window.showToast("No se pudo obtener la ubicación. Intenta de nuevo.", true);
+            window._creandoReten = false;
+            return;
         }
-    }, 300);
+
+        const descripcionUbicacion = document.getElementById('reten-descripcion-ubicacion').value.trim();
+        const fileInput = document.getElementById('reten-evidencia');
+        let imageUrl = null;
+
+        // Subir imagen si existe
+        if (fileInput && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const compressed = await window.compressImage(file);
+            imageUrl = await uploadWithTimeout(compressed, `retenes/${auth.currentUser.uid}/${Date.now()}.jpg`);
+        }
+
+        // Obtener la dirección mostrada en el modal
+        const contenedorExacta = document.getElementById('reten-ubicacion-exacta-container');
+        let direccion = null;
+        if (contenedorExacta) {
+            const p = contenedorExacta.querySelector('p');
+            if (p && p.innerText.startsWith('📍')) {
+                direccion = p.innerText.replace('📍 ', '');
+            }
+        }
+
+        // Guardar en Firestore
+        await addDoc(collection(db, "retenes"), {
+            uid: auth.currentUser.uid,
+            lat: seleccionLat,
+            lng: seleccionLng,
+            direccion: direccion,
+            descripcionUbicacion: descripcionUbicacion || null,
+            timestamp: Date.now(),
+            imageUrl: imageUrl,
+            negativeVotes: [],
+            status: 'active'
+        });
+
+        window.showToast("✅ Retén creado correctamente.");
+
+        // 🔁 Cerrar modal y limpiar variables después de un retraso
+        setTimeout(() => {
+            toggleModal('modal-crear-reten', false);
+            seleccionLat = null;
+            seleccionLng = null;
+            if (mapaSeleccion) {
+                mapaSeleccion.remove();
+                mapaSeleccion = null;
+                marcadorSeleccion = null;
+            }
+            window._creandoReten = false;
+            // Refrescar el mapa
+            window.renderRetenMap(false);
+            if (retenesMapInstance) {
+                retenesMapInstance.invalidateSize();
+            }
+        }, 300);
+
+    } catch (error) {
+        console.error('Error al crear retén:', error);
+        window.showToast("Error al crear el retén. Intenta de nuevo.", true);
+        window._creandoReten = false;
+    }
 };
 
 // ---------- ADMIN: LISTA DE RETENES ----------
@@ -4383,7 +4399,9 @@ window.cargarListaRetenesAdmin = async () => {
                     <span class="font-bold text-sm text-yellow-400">🚨 ${new Date(data.timestamp).toLocaleString()}</span>
                     <span class="text-[10px] px-2 py-0.5 rounded bg-gray-600/50 text-gray-300">${data.negativeVotes?.length || 0} votos NO</span>
                 </div>
-                <p class="text-xs text-gray-400 truncate">${data.direccion || `Lat: ${data.lat.toFixed(4)}, Lng: ${data.lng.toFixed(4)}`}</p>
+                <p class="text-xs text-gray-400 truncate">
+                    ${data.direccion || `Lat: ${data.lat?.toFixed(4) || ''}, Lng: ${data.lng?.toFixed(4) || ''}`}
+                </p>
             </div>`;
     });
 };
@@ -12327,49 +12345,107 @@ document.addEventListener('change', function(e) {
 });
 
 window.procesarCrearReten = async function() {
-    // Validar que se haya seleccionado una ubicación
-    if (seleccionLat === null || seleccionLng === null) {
-        window.showToast("Selecciona una ubicación en el mapa primero.", true);
+    // ✅ Bloqueo para evitar ejecuciones simultáneas
+    if (window._creandoReten) {
+        window.showToast("Ya se está procesando, espera un momento.", true);
         return;
     }
-    
-    const descripcionUbicacion = document.getElementById('reten-descripcion-ubicacion').value.trim();
-    const fileInput = document.getElementById('reten-evidencia');
-    let imageUrl = null;
-    
-    // Subir imagen si existe
-    if (fileInput && fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        const compressed = await window.compressImage(file);
-        imageUrl = await uploadWithTimeout(compressed, `retenes/${auth.currentUser.uid}/${Date.now()}.jpg`);
-    }
-    
-    // Guardar en Firestore
-    await addDoc(collection(db, "retenes"), {
-        uid: auth.currentUser.uid,
-        lat: seleccionLat,
-        lng: seleccionLng,
-        descripcionUbicacion: descripcionUbicacion || null,
-        timestamp: Date.now(),
-        imageUrl: imageUrl,
-        negativeVotes: [],
-        status: 'active'
-    });
-    
-    // Limpiar variables y cerrar modal
-    seleccionLat = null;
-    seleccionLng = null;
-    if (mapaSeleccion) {
-        mapaSeleccion.remove();
-        mapaSeleccion = null;
-        marcadorSeleccion = null;
-    }
-    
-    toggleModal('modal-crear-reten', false);
-    window.showToast("✅ Retén reportado correctamente.");
-    window.renderRetenMap(false);
-};
+    window._creandoReten = true;
 
+    // ✅ Deshabilitar el botón y cambiar texto
+    const btn = document.getElementById('btn-confirmar-crear-reten');
+    const originalText = btn.innerText;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Guardando...';
+
+    try {
+        // 1. Verificar que las coordenadas estén definidas
+        if (seleccionLat === null || seleccionLng === null) {
+            if (marcadorSeleccion && typeof marcadorSeleccion.getLatLng === 'function') {
+                const pos = marcadorSeleccion.getLatLng();
+                seleccionLat = pos.lat;
+                seleccionLng = pos.lng;
+            } else {
+                window.showToast("Selecciona una ubicación en el mapa primero.", true);
+                window._creandoReten = false;
+                btn.disabled = false;
+                btn.innerText = originalText;
+                return;
+            }
+        }
+
+        if (seleccionLat === null || seleccionLng === null) {
+            window.showToast("No se pudo obtener la ubicación. Intenta de nuevo.", true);
+            window._creandoReten = false;
+            btn.disabled = false;
+            btn.innerText = originalText;
+            return;
+        }
+
+        const descripcionUbicacion = document.getElementById('reten-descripcion-ubicacion').value.trim();
+        const fileInput = document.getElementById('reten-evidencia');
+        let imageUrl = null;
+
+        // Subir imagen si existe
+        if (fileInput && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            const compressed = await window.compressImage(file);
+            imageUrl = await uploadWithTimeout(compressed, `retenes/${auth.currentUser.uid}/${Date.now()}.jpg`);
+        }
+
+        // Obtener la dirección mostrada en el modal
+        const contenedorExacta = document.getElementById('reten-ubicacion-exacta-container');
+        let direccion = null;
+        if (contenedorExacta) {
+            const p = contenedorExacta.querySelector('p');
+            if (p && p.innerText.startsWith('📍')) {
+                direccion = p.innerText.replace('📍 ', '');
+            }
+        }
+
+        // Guardar en Firestore
+        await addDoc(collection(db, "retenes"), {
+            uid: auth.currentUser.uid,
+            lat: seleccionLat,
+            lng: seleccionLng,
+            direccion: direccion,
+            descripcionUbicacion: descripcionUbicacion || null,
+            timestamp: Date.now(),
+            imageUrl: imageUrl,
+            negativeVotes: [],
+            status: 'active'
+        });
+
+        window.showToast("✅ Retén creado correctamente.");
+
+        // 🔁 Cerrar modal y limpiar variables después de un retraso
+        setTimeout(() => {
+            toggleModal('modal-crear-reten', false);
+            seleccionLat = null;
+            seleccionLng = null;
+            if (mapaSeleccion) {
+                mapaSeleccion.remove();
+                mapaSeleccion = null;
+                marcadorSeleccion = null;
+            }
+            window._creandoReten = false;
+            // Refrescar el mapa
+            window.renderRetenMap(false);
+            if (retenesMapInstance) {
+                retenesMapInstance.invalidateSize();
+            }
+            btn.disabled = false;
+            btn.innerText = originalText;
+        }, 300);
+
+    } catch (error) {
+        console.error('Error al crear retén:', error);
+        window.showToast("Error al crear el retén. Intenta de nuevo.", true);
+        window._creandoReten = false;
+        btn.disabled = false;
+        btn.innerText = originalText;
+    }
+};
 
 
 // ---------- ADMIN: LISTA DE RETENES ----------
