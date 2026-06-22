@@ -4246,10 +4246,10 @@ document.addEventListener('click', function(e) {
     }
     
     // Botón "Confirmar punto"
-    if (e.target.id === 'btn-confirmar-punto-reten') {
-        // Si las coordenadas no se cargaron automáticamente, tomar la posición actual del marcador
+       if (e.target.id === 'btn-confirmar-punto-reten') {
+        // Si las coordenadas no se cargaron, intentar obtener del marcador
         if (seleccionLat === null || seleccionLng === null) {
-            if (marcadorSeleccion) {
+            if (marcadorSeleccion && typeof marcadorSeleccion.getLatLng === 'function') {
                 const pos = marcadorSeleccion.getLatLng();
                 seleccionLat = pos.lat;
                 seleccionLng = pos.lng;
@@ -4274,7 +4274,6 @@ document.addEventListener('click', function(e) {
                     contenedorExacta.innerHTML = `<p class="text-xs text-gray-300">📍 ${texto}</p>`;
                 }
             } else {
-                // Fallback
                 contenedorExacta.innerHTML = `<p class="text-xs text-gray-300">📍 Ubicación seleccionada</p>`;
             }
         }
@@ -4294,11 +4293,23 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// ---------- PROCESAR CREAR RETÉN ----------
+
 window.procesarCrearReten = async function() {
-    // Validar que se haya seleccionado una ubicación
+    // 1. Verificar que las coordenadas estén definidas; si no, intentar obtenerlas del marcador
     if (seleccionLat === null || seleccionLng === null) {
-        window.showToast("Selecciona una ubicación en el mapa primero.", true);
+        if (marcadorSeleccion && typeof marcadorSeleccion.getLatLng === 'function') {
+            const pos = marcadorSeleccion.getLatLng();
+            seleccionLat = pos.lat;
+            seleccionLng = pos.lng;
+        } else {
+            window.showToast("Selecciona una ubicación en el mapa primero.", true);
+            return;
+        }
+    }
+
+    // Si aún son null, mostrar error
+    if (seleccionLat === null || seleccionLng === null) {
+        window.showToast("No se pudo obtener la ubicación. Intenta de nuevo.", true);
         return;
     }
     
@@ -4328,7 +4339,7 @@ window.procesarCrearReten = async function() {
         uid: auth.currentUser.uid,
         lat: seleccionLat,
         lng: seleccionLng,
-        direccion: direccion,                       // <-- NUEVO CAMPO
+        direccion: direccion,
         descripcionUbicacion: descripcionUbicacion || null,
         timestamp: Date.now(),
         imageUrl: imageUrl,
