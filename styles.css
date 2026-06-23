@@ -1539,3 +1539,25 @@ body.light-mode #chat-ia-modal-dinamico {
     background: #000;
     display: inline-block;
 }
+/* Efecto de luces policiales para texto */
+.police-light-text {
+    animation: policeGlow 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes policeGlow {
+    0% {
+        text-shadow: 0 0 8px rgba(0, 0, 255, 0.9),
+                     0 0 20px rgba(0, 0, 255, 0.6),
+                     0 0 40px rgba(0, 0, 255, 0.3);
+    }
+    50% {
+        text-shadow: 0 0 8px rgba(255, 0, 0, 0.9),
+                     0 0 20px rgba(255, 0, 0, 0.6),
+                     0 0 40px rgba(255, 0, 0, 0.3);
+    }
+    100% {
+        text-shadow: 0 0 8px rgba(0, 0, 255, 0.9),
+                     0 0 20px rgba(0, 0, 255, 0.6),
+                     0 0 40px rgba(0, 0, 255, 0.3);
+    }
+}
