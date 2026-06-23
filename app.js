@@ -26,6 +26,150 @@ window.setDoc = setDoc;
 window.doc = doc;
 window.dbRef = dbRef; 
 
+// ===== CLIMA CON OPEN-METEO + MARCADORES DE ICONO (SIN TILELAYER) =====
+const OWM_API_KEY = '823d92e7c95ad088f91bebdb6995afbc'; // Se mantiene por compatibilidad, pero ya no se usa para tiles
+let weatherWidget = null;
+
+function getWeatherIcon(code, isDay) {
+    const day = isDay !== undefined ? isDay : 1;
+    if (code === 0) return day === 1 ? '☀️' : '🌙';
+    if (code >= 1 && code <= 3) return day === 1 ? '⛅' : '🌙☁️';
+    if (code >= 45 && code <= 48) return '🌫️';
+    if (code >= 51 && code <= 57) return '🌦️';
+    if (code >= 61 && code <= 67) return '🌧️';
+    if (code >= 71 && code <= 77) return '❄️';
+    if (code >= 80 && code <= 82) return '🌧️';
+    if (code >= 95 && code <= 99) return '⛈️';
+    return day === 1 ? '☀️' : '🌙';
+}
+
+function getWeatherDescription(code) {
+    const map = {
+        0: 'Despejado',
+        1: 'Parcialmente nublado',
+        2: 'Nublado',
+        3: 'Muy nublado',
+        45: 'Niebla',
+        48: 'Niebla densa',
+        51: 'Llovizna leve',
+        53: 'Llovizna',
+        55: 'Llovizna intensa',
+        61: 'Lluvia leve',
+        63: 'Lluvia',
+        65: 'Lluvia intensa',
+        71: 'Nieve leve',
+        73: 'Nieve',
+        75: 'Nieve intensa',
+        80: 'Chubasco',
+        81: 'Chubasco intenso',
+        95: 'Tormenta',
+        96: 'Tormenta con granizo',
+        99: 'Tormenta severa'
+    };
+    return map[code] || 'Actual';
+}
+
+function addWeatherLayer(map, lat, lng) {
+    if (typeof document === 'undefined' || !map) return;
+
+    // Detectar si estamos en modo claro
+    const isLight = document.body.classList.contains('light-mode');
+    const textShadow = isLight ? '0 0 6px rgba(0,0,0,0.8), 0 0 12px rgba(0,0,0,0.5)' : '0 0 6px rgba(255,255,255,0.8), 0 0 12px rgba(255,255,255,0.5)';
+
+    // Widget (se mantiene igual, dentro del contenedor del mapa)
+    const container = map.getContainer();
+    if (weatherWidget) {
+        if (weatherWidget.parentNode !== container) container.appendChild(weatherWidget);
+    } else {
+        weatherWidget = document.createElement('div');
+        weatherWidget.id = 'weather-widget';
+        weatherWidget.style.cssText = `
+            position: absolute; bottom: 10px; right: 10px; z-index: 1000;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+            border-radius: 12px; padding: 6px 12px;
+            display: flex; align-items: center; gap: 8px;
+            color: white; font-family: sans-serif; font-size: 13px;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            pointer-events: none; user-select: none;
+        `;
+        container.appendChild(weatherWidget);
+        weatherWidget.innerHTML = `<span style="font-size:24px;">⏳</span><div><span>Cargando...</span></div>`;
+    }
+
+    // Obtener el clima desde Open-Meteo (sin API Key)
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
+        .then(res => res.json())
+        .then(data => {
+            const current = data.current_weather;
+            if (!current) return;
+            const temp = Math.round(current.temperature);
+            const code = current.weathercode;
+            const isDay = current.is_day;
+            const icon = getWeatherIcon(code, isDay);
+            const desc = getWeatherDescription(code);
+
+            // Actualizar widget en la esquina
+            weatherWidget.innerHTML = `
+                <span style="font-size:24px;">${icon}</span>
+                <div style="display:flex; flex-direction:column; line-height:1.1;">
+                    <span style="font-weight:bold;">${temp}°C</span>
+                    <span style="font-size:9px; text-transform:capitalize; color:#aaa;">${desc}</span>
+                </div>
+            `;
+
+            // Función auxiliar para crear marcadores con el estilo adecuado
+            function createWeatherMarker(lat, lng, size, opacity, textShadow) {
+                L.marker([lat, lng], {
+                    icon: L.divIcon({
+                        className: 'weather-emoji',
+                        html: `<div style="opacity: ${opacity}; font-size: ${size}px; text-shadow: ${textShadow};">${icon}</div>`,
+                        iconSize: [size, size],
+                        iconAnchor: [size/2, size/2]
+                    })
+                }).addTo(map);
+            }
+
+            // 1. Muy cerca del centro (usuario): 2 iconos
+            const cercanos = [
+                [0.002, 0.002],
+                [-0.002, -0.002]
+            ];
+            cercanos.forEach(offset => {
+                createWeatherMarker(lat + offset[0], lng + offset[1], 24, 0.5, textShadow);
+            });
+
+            // 2. Cerca pero un poco más lejos: 2 iconos
+            const medio = [
+                [0.015, 0.015],
+                [-0.015, -0.015]
+            ];
+            medio.forEach(offset => {
+                createWeatherMarker(lat + offset[0], lng + offset[1], 20, 0.4, textShadow);
+            });
+
+            // 3. Lejanos: varios puntos alrededor
+            const lejanos = [
+                [0.04, 0.0],
+                [-0.04, 0.0],
+                [0.0, 0.04],
+                [0.0, -0.04],
+                [0.06, 0.06],
+                [-0.06, -0.06],
+                [0.06, -0.06],
+                [-0.06, 0.06],
+                [0.08, 0.02],
+                [-0.08, -0.02]
+            ];
+            lejanos.forEach(offset => {
+                createWeatherMarker(lat + offset[0], lng + offset[1], 16, 0.25, textShadow);
+            });
+
+            console.log('✅ Iconos de clima colocados (cerca y dispersos)');
+        })
+        .catch(err => console.error('Error en widget o clima:', err));
+}
+
 // ===== DETECCIÓN DE INSTALACIÓN PWA =====
 function isAppInstalled() {
     if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
@@ -3283,10 +3427,6 @@ function initClientMap() {
         subdomains: 'abcd'
     }).addTo(window.clientMapInstance);
 
-    // 🔥 AÑADIR CLIMA AQUÍ (justo después de la línea anterior)
-    const loc = window.currentUserLocation || { lat: TALLER_LAT, lng: TALLER_LNG };
-    addWeatherLayer(window.clientMapInstance, loc.lat, loc.lng);
-
     window.clientMapMarkers = window.clientMapMarkers || { mech: null, client: null, taller: null };
     window.clientMapMarkers.taller = L.marker([TALLER_LAT, TALLER_LNG], {
         icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] })
@@ -3607,6 +3747,8 @@ if (!snap.exists()) {
             }
         }
     });
+    const loc = window.currentUserLocation || { lat: TALLER_LAT, lng: TALLER_LNG };
+    addWeatherLayer(retenesMapInstance, loc.lat, loc.lng);
 }
 // ========== FIN DE listenToMySOS ==========
 
@@ -3828,6 +3970,8 @@ function listenToMyDeliveries() {
                             }
                         }
                     });
+                    const loc = window.currentUserLocation || { lat: TALLER_LAT, lng: TALLER_LNG };
+    addWeatherLayer(retenesMapInstance, loc.lat, loc.lng);
                 }
 
                 // Ajustar límites
@@ -3893,111 +4037,6 @@ function actualizarLimitesMapa() {
         // Si no hay nada, centrar en el taller
         retenesMapInstance.setView([TALLER_LAT, TALLER_LNG], 14);
     }
-}
-
-// ===== CAPA DE CLIMA Y WIDGET (SIN API KEY) =====
-// (No declares "let weatherWidget = null;" aquí, ya debe estar declarada al inicio de app.js)
-
-// Mapeo de códigos WMO a iconos
-function getWeatherIcon(code) {
-    if (code === 0) return '☀️';                   // Despejado
-    if (code >= 1 && code <= 3) return '⛅';       // Parcialmente nublado / Nublado
-    if (code >= 45 && code <= 48) return '🌫️';    // Niebla
-    if (code >= 51 && code <= 57) return '🌦️';    // Llovizna
-    if (code >= 61 && code <= 67) return '🌧️';    // Lluvia
-    if (code >= 71 && code <= 77) return '❄️';    // Nieve
-    if (code >= 80 && code <= 82) return '🌧️';    // Chubascos
-    if (code >= 95 && code <= 99) return '⛈️';    // Tormenta
-    return '☀️';
-}
-
-// Mapeo de códigos WMO a descripciones en español
-function getWeatherDescription(code) {
-    const map = {
-        0: 'Despejado',
-        1: 'Parcialmente nublado',
-        2: 'Nublado',
-        3: 'Muy nublado',
-        45: 'Niebla',
-        48: 'Niebla densa',
-        51: 'Llovizna leve',
-        53: 'Llovizna',
-        55: 'Llovizna intensa',
-        61: 'Lluvia leve',
-        63: 'Lluvia',
-        65: 'Lluvia intensa',
-        71: 'Nieve leve',
-        73: 'Nieve',
-        75: 'Nieve intensa',
-        80: 'Chubasco',
-        81: 'Chubasco intenso',
-        95: 'Tormenta',
-        96: 'Tormenta con granizo',
-        99: 'Tormenta severa'
-    };
-    return map[code] || 'Actual';
-}
-
-// Función para añadir clima a cualquier mapa
-function addWeatherLayer(map, lat, lng) {
-    // 1. Generar la fecha actual para el radar de RainViewer
-    const dateStr = new Date().toISOString().split('T')[0];
-    const weatherTileUrl = `https://tilecache.rainviewer.com/api/maps/${dateStr}/256/{z}/{x}/{y}/1/1_0.png`;
-
-    // 2. Añadir capa de lluvia/nubes al mapa (con opacidad reducida)
-    L.tileLayer(weatherTileUrl, {
-        opacity: 0.4,
-        attribution: '© <a href="https://www.rainviewer.com/">RainViewer</a>',
-        maxZoom: 14
-    }).addTo(map);
-
-    // 3. Obtener el clima actual desde Open-Meteo (sin API Key)
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
-        .then(res => res.json())
-        .then(data => {
-            const current = data.current_weather;
-            const temp = Math.round(current.temperature);
-            const weatherCode = current.weathercode;
-            const icon = getWeatherIcon(weatherCode);
-            const description = getWeatherDescription(weatherCode);
-
-            // 4. Crear o actualizar el widget en la esquina inferior derecha
-            if (!weatherWidget) {
-                weatherWidget = document.createElement('div');
-                weatherWidget.id = 'weather-widget';
-                weatherWidget.style.cssText = `
-                    position: fixed;
-                    bottom: 20px;
-                    right: 20px;
-                    z-index: 10000;
-                    background: rgba(0, 0, 0, 0.7);
-                    backdrop-filter: blur(4px);
-                    border-radius: 16px;
-                    padding: 8px 16px;
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                    color: white;
-                    font-family: sans-serif;
-                    font-size: 14px;
-                    border: 1px solid rgba(255,255,255,0.1);
-                    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-                    pointer-events: none;
-                    user-select: none;
-                `;
-                document.body.appendChild(weatherWidget);
-            }
-
-            // Actualizar el contenido del widget
-            weatherWidget.innerHTML = `
-                <span style="font-size:28px;">${icon}</span>
-                <div style="display:flex; flex-direction:column; line-height:1.2;">
-                    <span style="font-weight:bold;">${temp}°C</span>
-                    <span style="font-size:10px; text-transform:capitalize; color:#aaa;">${description}</span>
-                </div>
-            `;
-        })
-        .catch(err => console.warn('Error al obtener el clima:', err));
 }
 
 window.renderRetenMap = async (isAdmin = false) => {
@@ -4139,6 +4178,8 @@ window.renderRetenMap = async (isAdmin = false) => {
         console.error('Error en listener de retenes:', error);
         window.showToast('Error al cargar retenes.', true);
     });
+    let weatherLoc = window.currentUserLocation || { lat: TALLER_LAT, lng: TALLER_LNG };
+    addWeatherLayer(retenesMapInstance, weatherLoc.lat, weatherLoc.lng);
 };
 // ---------- CREAR MARCADOR CON TORRETA POLICIAL ----------
 function crearMarcadorReten(data, isAdmin) {
@@ -4256,6 +4297,9 @@ window.votarReten = async (retenId, voto) => {
     }
     // Refrescar el mapa
     renderRetenMap(false);
+    const loc = window.currentUserLocation || { lat: TALLER_LAT, lng: TALLER_LNG };
+    addWeatherLayer(retenesMapInstance, loc.lat, loc.lng);
+    
 };
 
 // ---------- CREAR RETÉN (MODAL) ----------
@@ -4306,6 +4350,7 @@ window.abrirFormularioReten = () => {
     document.getElementById('modal-crear-reten-paso-2').classList.add('hidden');
     document.getElementById('modal-crear-reten-paso-3').classList.add('hidden');
     toggleModal('modal-crear-reten', true);
+    
 };
 
 // ---------- INICIALIZAR MAPA DE SELECCIÓN ----------
@@ -4335,9 +4380,6 @@ function initMapaSeleccion() {
         attribution: '© <a href="https://carto.com/">CARTO</a>' 
     }).addTo(mapaSeleccion);
 
-    // 🔥 AÑADIR CLIMA AQUÍ (justo después de la línea anterior)
-    addWeatherLayer(mapaSeleccion, center[0], center[1]);
-    
     // 🔁 Icono personalizado: torreta policial animada (igual que en retenes)
     const policeIcon = L.divIcon({
         className: 'police-siren-icon',
@@ -8736,6 +8778,8 @@ async function renderSOSMapa() {
         if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.invalidateSize();
     }, 200);
     window.fixMaps?.();
+    let weatherLoc = window.currentUserLocation || { lat: TALLER_LAT, lng: TALLER_LNG };
+    addWeatherLayer(adminSOSGlobalMapInst, weatherLoc.lat, weatherLoc.lng);
 }
 // aqui finaliza renderSOSMapa
 
@@ -10153,6 +10197,8 @@ window.renderAdminMap = () => {
             adminGeoMap.invalidateSize();
         }
     }, 300);
+    let weatherLoc = window.currentUserLocation || { lat: TALLER_LAT, lng: TALLER_LNG };
+    addWeatherLayer(adminGeoMap, weatherLoc.lat, weatherLoc.lng);
 };
 
 window.updateGeofenceRadius = (val) => {
@@ -10804,7 +10850,9 @@ routeControl = L.Routing.control({
     } else {
         entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
     }
-    window.fixMaps?.();
+      window.fixMaps?.();
+    let weatherLoc = window.currentUserLocation || { lat: TALLER_LAT, lng: TALLER_LNG };
+    addWeatherLayer(entregasMapInst, weatherLoc.lat, weatherLoc.lng);
 };
 
 // ---------- Seguimiento en tiempo real de personal (repartidores/mecánicos/admins) con calificación y botón perfil ----------
