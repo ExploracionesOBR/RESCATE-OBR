@@ -27,13 +27,14 @@ window.doc = doc;
 window.dbRef = dbRef; 
 
 // ===== CLIMA CON OPEN-METEO + MARCADORES DE ICONO (SIN TILELAYER) =====
-const OWM_API_KEY = '823d92e7c95ad088f91bebdb6995afbc'; // Se mantiene por compatibilidad, pero ya no se usa para tiles
+const OWM_API_KEY = '823d92e7c95ad088f91bebdb6995afbc'; // Se mantiene por compatibilidad
 let weatherWidget = null;
+let _currentWeatherMap = null; // Guarda el último mapa que usó el clima
 
 function getWeatherIcon(code, isDay) {
     const day = isDay !== undefined ? isDay : 1;
     if (code === 0) return day === 1 ? '☀️' : '🌙';
-    if (code >= 1 && code <= 3) return day === 1 ? '⛅' : '🌙☁️';
+    if (code >= 1 && code <= 3) return day === 1 ? '⛅' : '🌙';
     if (code >= 45 && code <= 48) return '🌫️';
     if (code >= 51 && code <= 57) return '🌦️';
     if (code >= 61 && code <= 67) return '🌧️';
@@ -69,35 +70,76 @@ function getWeatherDescription(code) {
     return map[code] || 'Actual';
 }
 
+// Actualiza la posición del widget según la vista actual
+function updateWeatherWidgetPosition() {
+    if (!weatherWidget) return;
+
+    const retenesView = document.getElementById('c-view-retenes');
+    const isRetenes = retenesView && !retenesView.classList.contains('hidden');
+
+    if (isRetenes) {
+        // Modo Retenes: fijo en la pantalla
+        weatherWidget.style.position = 'fixed';
+        weatherWidget.style.bottom = '120px';
+        weatherWidget.style.right = '10px';
+        weatherWidget.style.zIndex = '400';
+        if (weatherWidget.parentNode !== document.body) {
+            document.body.appendChild(weatherWidget);
+        }
+    } else {
+        // Modo normal: dentro del mapa actual
+        if (_currentWeatherMap) {
+            const container = _currentWeatherMap.getContainer();
+            weatherWidget.style.position = 'absolute';
+            weatherWidget.style.bottom = '10px';
+            weatherWidget.style.right = '10px';
+            weatherWidget.style.zIndex = '1000';
+            if (weatherWidget.parentNode !== container) {
+                container.appendChild(weatherWidget);
+            }
+        }
+    }
+}
+
 function addWeatherLayer(map, lat, lng) {
     if (typeof document === 'undefined' || !map) return;
 
-    // Detectar si estamos en modo claro
+    // Guardar referencia al mapa actual
+    _currentWeatherMap = map;
+
+    // Detectar modo claro
     const isLight = document.body.classList.contains('light-mode');
     const textShadow = isLight ? '0 0 6px rgba(0,0,0,0.8), 0 0 12px rgba(0,0,0,0.5)' : '0 0 6px rgba(255,255,255,0.8), 0 0 12px rgba(255,255,255,0.5)';
 
-    // Widget (se mantiene igual, dentro del contenedor del mapa)
-    const container = map.getContainer();
-    if (weatherWidget) {
-        if (weatherWidget.parentNode !== container) container.appendChild(weatherWidget);
-    } else {
+    // Crear el widget si no existe (usando estilos por defecto, luego se reubicará)
+    if (!weatherWidget) {
         weatherWidget = document.createElement('div');
         weatherWidget.id = 'weather-widget';
         weatherWidget.style.cssText = `
-            position: absolute; bottom: 10px; right: 10px; z-index: 1000;
-            background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
-            border-radius: 12px; padding: 6px 12px;
-            display: flex; align-items: center; gap: 8px;
-            color: white; font-family: sans-serif; font-size: 13px;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            border-radius: 12px;
+            padding: 6px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            font-family: sans-serif;
+            font-size: 13px;
             border: 1px solid rgba(255,255,255,0.2);
             box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-            pointer-events: none; user-select: none;
+            pointer-events: none;
+            user-select: none;
         `;
-        container.appendChild(weatherWidget);
+        // Lo añadimos temporalmente al body, luego updateWeatherWidgetPosition lo moverá
+        document.body.appendChild(weatherWidget);
         weatherWidget.innerHTML = `<span style="font-size:24px;">⏳</span><div><span>Cargando...</span></div>`;
     }
 
-    // Obtener el clima desde Open-Meteo (sin API Key)
+    // Actualizar posición según la vista actual
+    updateWeatherWidgetPosition();
+
+    // Obtener el clima desde Open-Meteo
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
         .then(res => res.json())
         .then(data => {
@@ -109,7 +151,7 @@ function addWeatherLayer(map, lat, lng) {
             const icon = getWeatherIcon(code, isDay);
             const desc = getWeatherDescription(code);
 
-            // Actualizar widget en la esquina
+            // Actualizar widget
             weatherWidget.innerHTML = `
                 <span style="font-size:24px;">${icon}</span>
                 <div style="display:flex; flex-direction:column; line-height:1.1;">
@@ -119,7 +161,7 @@ function addWeatherLayer(map, lat, lng) {
             `;
 
             // Función auxiliar para crear marcadores con el estilo adecuado
-            function createWeatherMarker(lat, lng, size, opacity, textShadow) {
+            function createWeatherMarker(lat, lng, size, opacity) {
                 L.marker([lat, lng], {
                     icon: L.divIcon({
                         className: 'weather-emoji',
@@ -136,7 +178,7 @@ function addWeatherLayer(map, lat, lng) {
                 [-0.002, -0.002]
             ];
             cercanos.forEach(offset => {
-                createWeatherMarker(lat + offset[0], lng + offset[1], 24, 0.5, textShadow);
+                createWeatherMarker(lat + offset[0], lng + offset[1], 24, 0.5);
             });
 
             // 2. Cerca pero un poco más lejos: 2 iconos
@@ -145,7 +187,7 @@ function addWeatherLayer(map, lat, lng) {
                 [-0.015, -0.015]
             ];
             medio.forEach(offset => {
-                createWeatherMarker(lat + offset[0], lng + offset[1], 20, 0.4, textShadow);
+                createWeatherMarker(lat + offset[0], lng + offset[1], 20, 0.4);
             });
 
             // 3. Lejanos: varios puntos alrededor
@@ -162,7 +204,7 @@ function addWeatherLayer(map, lat, lng) {
                 [-0.08, -0.02]
             ];
             lejanos.forEach(offset => {
-                createWeatherMarker(lat + offset[0], lng + offset[1], 16, 0.25, textShadow);
+                createWeatherMarker(lat + offset[0], lng + offset[1], 16, 0.25);
             });
 
             console.log('✅ Iconos de clima colocados (cerca y dispersos)');
@@ -2539,6 +2581,17 @@ window.resetAndGoHome = () => {
 
 window.switchClientView = (id) => {
     toggleModal('modal-user-detail', false);
+    
+    // Ocultar/mostrar botón de invitación (float-invite-btn)
+    const inviteBtn = document.getElementById('float-invite-btn');
+    if (inviteBtn) {
+        if (id === 'c-view-retenes') {
+            inviteBtn.style.display = 'none';
+        } else {
+            inviteBtn.style.display = '';
+        }
+    }
+
     document.querySelectorAll('.c-view').forEach(v => v.classList.add('hidden'));
     document.getElementById(id).classList.remove('hidden');
     document.querySelectorAll('.c-nav-btn').forEach(b => b.classList.remove('tab-active'));
@@ -2577,23 +2630,30 @@ window.switchClientView = (id) => {
             console.warn('loadClientHistory no está disponible');
         }
     }
-   if (id === 'c-view-retenes') {
-    document.getElementById('c-view-retenes').classList.remove('hidden');
-    
-    setTimeout(() => {
-        if (!retenesMapInstance) {
-            window.renderRetenMap(false);
-        } else {
-            retenesMapInstance.invalidateSize();
-        }
-        // Reintentar después de un tiempo para asegurar
+
+    if (id === 'c-view-retenes') {
+        document.getElementById('c-view-retenes').classList.remove('hidden');
+        
         setTimeout(() => {
-            if (retenesMapInstance) retenesMapInstance.invalidateSize();
-        }, 400);
-    }, 300);
-} else {
-    document.getElementById('c-view-retenes').classList.add('hidden');
-}
+            if (!retenesMapInstance) {
+                window.renderRetenMap(false);
+            } else {
+                retenesMapInstance.invalidateSize();
+            }
+            // Reintentar después de un tiempo para asegurar
+            setTimeout(() => {
+                if (retenesMapInstance) retenesMapInstance.invalidateSize();
+            }, 400);
+        }, 300);
+    } else {
+        document.getElementById('c-view-retenes').classList.add('hidden');
+    }
+
+    // ✅ ACTUALIZAR POSICIÓN DEL WIDGET DE CLIMA AL CAMBIAR DE VISTA
+    if (typeof updateWeatherWidgetPosition === 'function') {
+        updateWeatherWidgetPosition();
+    }
+
     window.fixMaps?.();
 };
 
