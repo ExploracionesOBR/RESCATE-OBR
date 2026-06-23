@@ -1867,7 +1867,6 @@ function iniciarListenerGlobalSOS() {
         lastSOSCount = currentCount;
     });
 }
-// ... luego sigue updateLandingStatus ...
 
 function updateLandingStatus() {
     const now = new Date();
@@ -2961,9 +2960,44 @@ window.launchSOSForm = () => {
         serviceContainer.classList.remove('hidden');
     }
 
-    // (Opcional) Recargar servicios por si acaso
     if (typeof loadServicesCatalog === 'function') loadServicesCatalog();
 
+    // ✅ USAR UBICACIÓN CACHEADA SI EXISTE (ya está disponible desde el inicio)
+    const cachedLocation = window.currentUserLocation;
+    if (cachedLocation && cachedLocation.lat && cachedLocation.lng) {
+        tempSOSGps.lat = cachedLocation.lat;
+        tempSOSGps.lng = cachedLocation.lng;
+        const dist = getDistanceKm(tempSOSGps.lat, tempSOSGps.lng, globalSettings.centerLat, globalSettings.centerLng);
+        if (dist > globalSettings.radiusKm) {
+            document.getElementById('out-of-zone-modal').classList.remove('hidden');
+            document.getElementById('out-of-zone-modal').classList.add('flex');
+            showView('view-landing');
+            return;
+        }
+        document.getElementById('gps-status-text').innerText = "GPS Establecido";
+        document.getElementById('gps-status-text').className = "text-[9px] font-bold text-green-400";
+        
+        // Mostrar el mapa con la ubicación cacheada (usando la función existente, si no existe, creamos una simple)
+        if (!sosMapInstance) {
+            const isLight = document.body.classList.contains('light-mode');
+            const layerUrl = isLight
+                ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+                : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+            sosMapInstance = L.map('sos-map-preview', { dragging: false, zoomControl: false, scrollWheelZoom: false }).setView([tempSOSGps.lat, tempSOSGps.lng], 16);
+            L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(sosMapInstance);
+            L.marker([tempSOSGps.lat, tempSOSGps.lng], {
+                icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-street-view text-white text-xs"></i></div>', iconSize: [28, 28], iconAnchor: [14, 28] })
+            }).addTo(sosMapInstance);
+        } else {
+            sosMapInstance.setView([tempSOSGps.lat, tempSOSGps.lng], 16);
+            sosMapInstance.invalidateSize();
+        }
+        
+        window.updateSOSEstimate(dist);
+        return; // ✅ No volver a pedir GPS
+    }
+
+    // Si no hay caché, intentar obtener GPS (código original)
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition((pos) => {
             tempSOSGps.lat = pos.coords.latitude;
@@ -2977,12 +3011,13 @@ window.launchSOSForm = () => {
             }
             document.getElementById('gps-status-text').innerText = "GPS Establecido";
             document.getElementById('gps-status-text').className = "text-[9px] font-bold text-green-400";
+            
             if (!sosMapInstance) {
-                sosMapInstance = L.map('sos-map-preview', { dragging: false, zoomControl: false, scrollWheelZoom: false }).setView([tempSOSGps.lat, tempSOSGps.lng], 16);
                 const isLight = document.body.classList.contains('light-mode');
                 const layerUrl = isLight
                     ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
                     : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+                sosMapInstance = L.map('sos-map-preview', { dragging: false, zoomControl: false, scrollWheelZoom: false }).setView([tempSOSGps.lat, tempSOSGps.lng], 16);
                 L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(sosMapInstance);
                 L.marker([tempSOSGps.lat, tempSOSGps.lng], {
                     icon: L.divIcon({ className: 'gps-pulse-marker', html: '<div class="pulse-inner"><i class="fas fa-street-view text-white text-xs"></i></div>', iconSize: [28, 28], iconAnchor: [14, 28] })
@@ -2991,6 +3026,7 @@ window.launchSOSForm = () => {
                 sosMapInstance.setView([tempSOSGps.lat, tempSOSGps.lng], 16);
                 sosMapInstance.invalidateSize();
             }
+            
             window.updateSOSEstimate(dist);
         }, () => {
             document.getElementById('gps-status-text').innerText = "Sin GPS: Escribe dirección";
@@ -3203,6 +3239,10 @@ window.submitFinalSOS = async () => {
         window.switchClientView('c-view-rescate');
         listenToMySOS();
 
+    // ✅ Notificación al usuario
+    showToast("🚨 Solicitud de Rescate generada. Espera mientras el taller lo acepta.");
+    speakTTS("Solicitud de rescate generada. Espera mientras el taller lo acepta.");
+    
     } catch (e) {
         console.warn('SOS enviado con posibles demoras:', e);
         showToast("Solicitud enviada. Te notificaremos cuando el taller confirme.");
@@ -3281,13 +3321,18 @@ function listenToMySOS() {
             centrarMapaInterval = null;
         }
 
-        // 📌 CASO 1: No hay nodo RTDB (servicio eliminado o finalizado)
-        if (!snap.exists()) {
-            if (activeCard) activeCard.classList.add('hidden');
-            if (noServicesMsg) noServicesMsg.classList.remove('hidden');
-            if (emergencyBtn) emergencyBtn.style.display = 'flex';
-            if (videoContainer) videoContainer.style.display = 'block';
-
+        // CASO 1: No hay nodo RTDB (servicio eliminado o finalizado)
+if (!snap.exists()) {
+    const activeCard = document.getElementById('active-sos-card');
+    const noServicesMsg = document.getElementById('no-active-services-msg');
+    const emergencyBtn = document.getElementById('emergency-client-btn');
+    const videoContainer = document.getElementById('promo-video-container');
+    
+    if (activeCard) activeCard.classList.add('hidden');
+    if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+    if (emergencyBtn) emergencyBtn.style.display = 'flex';
+    if (videoContainer) videoContainer.style.display = 'block';
+    
             if (mechPosUnsubscribe) mechPosUnsubscribe();
             if (routingControl) {
                 routingControl.remove();
@@ -3845,6 +3890,91 @@ function actualizarLimitesMapa() {
         retenesMapInstance.setView([TALLER_LAT, TALLER_LNG], 14);
     }
 }
+
+// ===== CAPA DE CLIMA Y WIDGET (SIN API KEY) =====
+let weatherWidget = null;
+let currentWeatherLayer = null;
+
+// Mapeo de códigos de Open-Meteo a iconos
+function getWeatherIcon(code) {
+    if (code === 0) return '☀️';                   // Despejado
+    if (code >= 1 && code <= 3) return '⛅';       // Parcialmente nublado / Nublado
+    if (code >= 45 && code <= 48) return '🌫️';    // Niebla
+    if (code >= 51 && code <= 57) return '🌦️';    // Llovizna
+    if (code >= 61 && code <= 67) return '🌧️';    // Lluvia
+    if (code >= 71 && code <= 77) return '❄️';    // Nieve
+    if (code >= 80 && code <= 82) return '🌧️';    // Chubascos
+    if (code >= 95 && code <= 99) return '⛈️';    // Tormenta
+    return '☀️';
+}
+
+// Función para añadir clima a cualquier mapa
+function addWeatherLayer(map, lat, lng) {
+    // 1. Limpiar capa anterior si existe
+    if (currentWeatherLayer) {
+        map.removeLayer(currentWeatherLayer);
+        currentWeatherLayer = null;
+    }
+
+    // 2. Capa de radar/lluvia de RainViewer (sin API Key)
+    const weatherTileUrl = `https://tilecache.rainviewer.com/api/maps/current/256/{z}/{x}/{y}/1/1_0.png`;
+    
+    currentWeatherLayer = L.tileLayer(weatherTileUrl, {
+        opacity: 0.4,
+        attribution: '© <a href="https://www.rainviewer.com/">RainViewer</a>',
+        maxZoom: 14
+    });
+    currentWeatherLayer.addTo(map);
+
+    // 3. Obtener el clima actual desde Open-Meteo (sin API Key)
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
+        .then(res => res.json())
+        .then(data => {
+            const current = data.current_weather;
+            const temp = Math.round(current.temperature);
+            const weatherCode = current.weathercode;
+            const icon = getWeatherIcon(weatherCode);
+            const description = current.weathercode_description || '';
+
+            // 4. Crear o actualizar el widget en la esquina inferior derecha
+            if (!weatherWidget) {
+                weatherWidget = document.createElement('div');
+                weatherWidget.id = 'weather-widget';
+                weatherWidget.style.cssText = `
+                    position: fixed;
+                    bottom: 20px;
+                    right: 20px;
+                    z-index: 10000;
+                    background: rgba(0, 0, 0, 0.7);
+                    backdrop-filter: blur(4px);
+                    border-radius: 16px;
+                    padding: 8px 16px;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    color: white;
+                    font-family: sans-serif;
+                    font-size: 14px;
+                    border: 1px solid rgba(255,255,255,0.1);
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+                    pointer-events: none;
+                    user-select: none;
+                `;
+                document.body.appendChild(weatherWidget);
+            }
+
+            // Actualizar el contenido del widget
+            weatherWidget.innerHTML = `
+                <span style="font-size:28px;">${icon}</span>
+                <div style="display:flex; flex-direction:column; line-height:1.2;">
+                    <span style="font-weight:bold;">${temp}°C</span>
+                    <span style="font-size:10px; text-transform:capitalize; color:#aaa;">${description || 'Actual'}</span>
+                </div>
+            `;
+        })
+        .catch(err => console.warn('Error al obtener el clima:', err));
+}
+
 
 window.renderRetenMap = async (isAdmin = false) => {
     const containerId = isAdmin ? 'admin-retenes-map-container' : 'retenes-map-container';
@@ -5055,8 +5185,8 @@ window.openDetalleServicio = async (id) => {
     const data = docSnap.data();
     currentDetalleServicioId = id;
     
-    // Declaración única
-    let soloLectura = data.tallerStatus === 'lista' || data.tallerStatus === 'pagado' || data.status === 'completed';
+    // ✅ Incluir 'cancelled' en la condición de solo lectura
+    let soloLectura = data.tallerStatus === 'lista' || data.tallerStatus === 'pagado' || data.status === 'completed' || data.status === 'cancelled';
     const isPending = data.status === 'pending';
     const isAccepted = data.status === 'accepted' || data.status === 'repairing';
 
@@ -5083,6 +5213,11 @@ window.openDetalleServicio = async (id) => {
         if (actionsContainer) actionsContainer.classList.add('hidden');
         if (comentarioInput) comentarioInput.disabled = true;
         if (comentarioBtn) comentarioBtn.classList.add('hidden');
+        // Mostrar mensaje si está cancelado
+        if (data.status === 'cancelled') {
+            const infoDiv = document.getElementById('servicio-detalle-info');
+            infoDiv.innerHTML += `<p class="text-red-400 font-bold mt-2">🚫 Servicio cancelado</p>`;
+        }
     } else {
         if (addPhotoBtn) {
             addPhotoBtn.classList.remove('hidden');
@@ -8314,20 +8449,20 @@ async function cargarListadoSOS() {
     });
 
     // Filtrar según filtro individual o por estatus
-let filtered = rescates;
-if (window.sosFiltroUnicoId) {
-    // Si hay un filtro individual, mostrar solo ese servicio
-    filtered = rescates.filter(r => r.id === window.sosFiltroUnicoId);
-} else {
-    // Sino, aplicar filtro por estatus
-    if (window.currentSOSFilter === 'pending') {
-        filtered = rescates.filter(r => r.status === 'pending');
-    } else if (window.currentSOSFilter === 'accepted') {
-        filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
-    } else if (window.currentSOSFilter === 'completed') {
-        filtered = rescates.filter(r => r.status === 'completed');
+    let filtered = rescates;
+    if (window.sosFiltroUnicoId) {
+        filtered = rescates.filter(r => r.id === window.sosFiltroUnicoId);
+    } else {
+        if (window.currentSOSFilter === 'pending') {
+            filtered = rescates.filter(r => r.status === 'pending');
+        } else if (window.currentSOSFilter === 'accepted') {
+            filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
+        } else if (window.currentSOSFilter === 'completed') {
+            filtered = rescates.filter(r => r.status === 'completed');
+        } else if (window.currentSOSFilter === 'cancelled') {
+            filtered = rescates.filter(r => r.status === 'cancelled');
+        }
     }
-}
     
     listaDiv.innerHTML = '';
     if (filtered.length === 0) {
@@ -8338,9 +8473,12 @@ if (window.sosFiltroUnicoId) {
     filtered.forEach(r => {
         const estadoTexto = r.status === 'completed' ? '✅ Completado' : 
                            (r.status === 'accepted' ? '🚚 En camino' : 
-                           (r.status === 'repairing' ? '🔧 Reparando' : '🆕 Pendiente'));
+                           (r.status === 'repairing' ? '🔧 Reparando' : 
+                           (r.status === 'cancelled' ? '❌ Cancelado' : '🆕 Pendiente')));
         const colorClase = r.status === 'completed' ? 'text-green-400' :
-                          (r.status === 'accepted' ? 'text-blue-400' : 'text-yellow-400');
+                          (r.status === 'cancelled' ? 'text-red-400' :
+                          (r.status === 'accepted' ? 'text-blue-400' : 'text-yellow-400'));
+
         const telefonoCliente = r.phone || '';
         const telefonoClean = telefonoCliente.replace('+52', '');
         const botonesContacto = telefonoClean ? `
@@ -8353,8 +8491,8 @@ if (window.sosFiltroUnicoId) {
         const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
         const detailBtn = `<button onclick="event.stopPropagation(); window.openDetalleServicio('${r.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">VER DETALLES</button>`;
 
-       listaDiv.innerHTML += `
-    <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')">
+        listaDiv.innerHTML += `
+            <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')">
                 <div class="flex justify-between items-center">
                     <span class="text-[0.8rem] font-bold">${escapeHtml(r.phone) || ''}</span>
                     <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${colorClase}">${estadoTexto}</span>
@@ -8377,7 +8515,7 @@ window.cargarListadoSOS = cargarListadoSOS;
 window.renderSOSMapa = renderSOSMapa;
 window.mostrarOpcionesContacto = mostrarOpcionesContacto;
 
-// aqui inicia renderSOSMapa (pulso naranja y zoom con personal)
+// ---------- Renderizar mapa SOS ----------
 async function renderSOSMapa() {
     const mapEl = document.getElementById('admin-sos-global-map');
     if (!mapEl) return;
@@ -8407,9 +8545,9 @@ async function renderSOSMapa() {
     }
 
     Object.values(adminSOSMarkers).forEach(m => {
-    if (adminSOSGlobalMapInst && m && m.remove) m.remove();
-});
-adminSOSMarkers = {};
+        if (adminSOSGlobalMapInst && m && m.remove) m.remove();
+    });
+    adminSOSMarkers = {};
 
     if (window._adminSOSTrackingListeners) {
         Object.values(window._adminSOSTrackingListeners).forEach(unsub => unsub());
@@ -8438,30 +8576,38 @@ adminSOSMarkers = {};
         rescates.push(data);
     });
 
-    // Después de tener el array `rescates`
-let filtered = rescates;
-let allBounds = [];   // ← agrega esta línea
-if (window.sosFiltroUnicoId) {
-    filtered = rescates.filter(r => r.id === window.sosFiltroUnicoId);
-} else {
-    // Aplicar filtro por estatus (igual que en cargarListadoSOS)
-    if (window.currentSOSFilter === 'pending') {
-        filtered = rescates.filter(r => r.status === 'pending');
-    } else if (window.currentSOSFilter === 'accepted') {
-        filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
-    } else if (window.currentSOSFilter === 'completed') {
-        filtered = rescates.filter(r => r.status === 'completed');
+    // Filtrar
+    let filtered = rescates;
+    let allBounds = [];
+    if (window.sosFiltroUnicoId) {
+        filtered = rescates.filter(r => r.id === window.sosFiltroUnicoId);
+    } else {
+        if (window.currentSOSFilter === 'pending') {
+            filtered = rescates.filter(r => r.status === 'pending');
+        } else if (window.currentSOSFilter === 'accepted') {
+            filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
+        } else if (window.currentSOSFilter === 'completed') {
+            filtered = rescates.filter(r => r.status === 'completed');
+        }
     }
-}
 
-// Luego iteras sobre `filtered` en lugar de `rescates`
-for (const r of filtered) {
+    for (const r of filtered) {
         if (!r.lat || !r.lng) continue;
         allBounds.push([r.lat, r.lng]);
 
+        // ✅ CORRECCIÓN: se añade manejo de 'cancelled' en el mapa
         const isCompleted = r.status === 'completed';
-        const markerColor = isCompleted ? '#22c55e' : '#FF6B00';
-        const iconHtml = isCompleted ? '🏍️✅' : '🏍️';
+        const isCancelled = r.status === 'cancelled';
+        let markerColor = '#FF6B00';
+        let iconHtml = '🏍️';
+        if (isCompleted) {
+            markerColor = '#22c55e';
+            iconHtml = '✅';
+        } else if (isCancelled) {
+            markerColor = '#ef4444';
+            iconHtml = '❌';
+        }
+
         const marker = L.marker([r.lat, r.lng], {
             icon: L.divIcon({
                 className: 'gps-pulse-marker',
@@ -8555,13 +8701,11 @@ for (const r of filtered) {
     } else {
         adminSOSGlobalMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
     }
-    // ✅ Aquí va el setTimeout
-setTimeout(() => {
-    if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.invalidateSize();
-}, 200);
+    setTimeout(() => {
+        if (adminSOSGlobalMapInst) adminSOSGlobalMapInst.invalidateSize();
+    }, 200);
     window.fixMaps?.();
 }
-
 // aqui finaliza renderSOSMapa
 
 // aqui inicia iniciarSeguimientoPersonalSOS mejorado
@@ -8819,28 +8963,31 @@ window.cancelSOS = async (id) => {
         if (!snap.exists()) return;
         const data = snap.data();
         
-        // Actualizar estado a 'cancelled'
         await updateDoc(docRef, { 
             status: 'cancelled',
             tallerStatus: 'cancelado',
             canceladoEn: Date.now()
         });
         
-        // Eliminar la alerta en tiempo real para que el cliente pueda solicitar otro rescate
         if (data.uid) {
             await remove(dbRef(rtdb, 'sos_alerts/' + data.uid));
-            // Notificar al cliente (opcional, sin TTS para no saturar)
-            await push(dbRef(rtdb, 'sos_alerts/' + data.uid + '/notifs'), {
-                msg: '❌ Tu solicitud no se ha podido aceptar. Puedes generar una nueva solicitud si lo deseas.'
-            });
+            window.showToast("❌ Tu servicio ha sido cancelado. Puedes solicitar uno nuevo.", true);
+            window.speakTTS("Lo sentimos, tu servicio ha sido cancelado. Puedes solicitar un nuevo auxilio.");
+            
+            // Forzar actualización de la UI del cliente
+            const activeCard = document.getElementById('active-sos-card');
+            const emergencyBtn = document.getElementById('emergency-client-btn');
+            const noServicesMsg = document.getElementById('no-active-services-msg');
+            if (activeCard) activeCard.classList.add('hidden');
+            if (emergencyBtn) emergencyBtn.style.display = 'flex';
+            if (noServicesMsg) noServicesMsg.classList.remove('hidden');
         }
         
-        // Refrescar listado y mapa en el panel de admin
         window.cargarListadoSOS();
         window.renderSOSMapa();
-        window.adminListenServices(); // para actualizar el kanban de taller
+        window.adminListenServices();
         
-        showToast("Servicio cancelado");
+        window.showToast("Servicio cancelado");
         toggleModal('modal-detalle-servicio', false);
     });
 };
@@ -9307,7 +9454,7 @@ window.tomarCasoDirecto = async () => {
 
 // ---------- Iniciar notificaciones TTS ----------
 setTimeout(() => {
-    iniciarNotificacionSOS();
+    iniciarListenerGlobalSOS();
 }, 2000);
 
 // Redimensionar mapa al cambiar de pestaña
