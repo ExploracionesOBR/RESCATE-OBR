@@ -791,11 +791,12 @@
 
                 <!-- Barra de filtros por estatus (con doble clic para quitar filtro) -->
                 <div id="sos-filter-bar" class="flex space-x-2 overflow-x-auto hide-scroll pb-2 border-b border-white/10 shrink-0 px-4">
-                    <button data-sos-estatus="todos" class="filter-btn-sos-estatus bg-white/10 text-white px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-white/20" onclick="window.filtrarSOSPorEstatus?.('todos')">Todos</button>
-                    <button data-sos-estatus="pending" class="filter-btn-sos-estatus bg-yellow-600/20 text-yellow-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-yellow-500/30" onclick="window.filtrarSOSPorEstatus?.('pending')">Pendientes</button>
-                    <button data-sos-estatus="accepted" class="filter-btn-sos-estatus bg-blue-600/20 text-blue-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-blue-500/30" onclick="window.filtrarSOSPorEstatus?.('accepted')">Aceptados</button>
-                    <button data-sos-estatus="completed" class="filter-btn-sos-estatus bg-green-600/20 text-green-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-green-500/30" onclick="window.filtrarSOSPorEstatus?.('completed')">Completados</button>
-                </div>
+    <button data-sos-estatus="todos" class="filter-btn-sos-estatus bg-white/10 text-white px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-white/20" onclick="window.filtrarSOSPorEstatus?.('todos')">Todos</button>
+    <button data-sos-estatus="pending" class="filter-btn-sos-estatus bg-yellow-600/20 text-yellow-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-yellow-500/30" onclick="window.filtrarSOSPorEstatus?.('pending')">Pendientes</button>
+    <button data-sos-estatus="accepted" class="filter-btn-sos-estatus bg-blue-600/20 text-blue-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-blue-500/30" onclick="window.filtrarSOSPorEstatus?.('accepted')">Aceptados</button>
+    <button data-sos-estatus="completed" class="filter-btn-sos-estatus bg-green-600/20 text-green-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-green-500/30" onclick="window.filtrarSOSPorEstatus?.('completed')">Completados</button>
+    <button data-sos-estatus="cancelled" class="filter-btn-sos-estatus bg-red-600/20 text-red-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-red-500/30" onclick="window.filtrarSOSPorEstatus?.('cancelled')">Cancelados</button>
+</div>
 
                 <div class="flex flex-col lg:flex-row flex-grow min-h-[500px]">
                     <!-- Listado lateral de SOS -->
