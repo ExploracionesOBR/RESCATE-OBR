@@ -3283,6 +3283,10 @@ function initClientMap() {
         subdomains: 'abcd'
     }).addTo(window.clientMapInstance);
 
+    // 🔥 AÑADIR CLIMA AQUÍ (justo después de la línea anterior)
+    const loc = window.currentUserLocation || { lat: TALLER_LAT, lng: TALLER_LNG };
+    addWeatherLayer(window.clientMapInstance, loc.lat, loc.lng);
+
     window.clientMapMarkers = window.clientMapMarkers || { mech: null, client: null, taller: null };
     window.clientMapMarkers.taller = L.marker([TALLER_LAT, TALLER_LNG], {
         icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] })
@@ -3892,10 +3896,9 @@ function actualizarLimitesMapa() {
 }
 
 // ===== CAPA DE CLIMA Y WIDGET (SIN API KEY) =====
-let weatherWidget = null;
-let currentWeatherLayer = null;
+// (No declares "let weatherWidget = null;" aquí, ya debe estar declarada al inicio de app.js)
 
-// Mapeo de códigos de Open-Meteo a iconos
+// Mapeo de códigos WMO a iconos
 function getWeatherIcon(code) {
     if (code === 0) return '☀️';                   // Despejado
     if (code >= 1 && code <= 3) return '⛅';       // Parcialmente nublado / Nublado
@@ -3908,23 +3911,45 @@ function getWeatherIcon(code) {
     return '☀️';
 }
 
+// Mapeo de códigos WMO a descripciones en español
+function getWeatherDescription(code) {
+    const map = {
+        0: 'Despejado',
+        1: 'Parcialmente nublado',
+        2: 'Nublado',
+        3: 'Muy nublado',
+        45: 'Niebla',
+        48: 'Niebla densa',
+        51: 'Llovizna leve',
+        53: 'Llovizna',
+        55: 'Llovizna intensa',
+        61: 'Lluvia leve',
+        63: 'Lluvia',
+        65: 'Lluvia intensa',
+        71: 'Nieve leve',
+        73: 'Nieve',
+        75: 'Nieve intensa',
+        80: 'Chubasco',
+        81: 'Chubasco intenso',
+        95: 'Tormenta',
+        96: 'Tormenta con granizo',
+        99: 'Tormenta severa'
+    };
+    return map[code] || 'Actual';
+}
+
 // Función para añadir clima a cualquier mapa
 function addWeatherLayer(map, lat, lng) {
-    // 1. Limpiar capa anterior si existe
-    if (currentWeatherLayer) {
-        map.removeLayer(currentWeatherLayer);
-        currentWeatherLayer = null;
-    }
+    // 1. Generar la fecha actual para el radar de RainViewer
+    const dateStr = new Date().toISOString().split('T')[0];
+    const weatherTileUrl = `https://tilecache.rainviewer.com/api/maps/${dateStr}/256/{z}/{x}/{y}/1/1_0.png`;
 
-    // 2. Capa de radar/lluvia de RainViewer (sin API Key)
-    const weatherTileUrl = `https://tilecache.rainviewer.com/api/maps/current/256/{z}/{x}/{y}/1/1_0.png`;
-    
-    currentWeatherLayer = L.tileLayer(weatherTileUrl, {
+    // 2. Añadir capa de lluvia/nubes al mapa (con opacidad reducida)
+    L.tileLayer(weatherTileUrl, {
         opacity: 0.4,
         attribution: '© <a href="https://www.rainviewer.com/">RainViewer</a>',
         maxZoom: 14
-    });
-    currentWeatherLayer.addTo(map);
+    }).addTo(map);
 
     // 3. Obtener el clima actual desde Open-Meteo (sin API Key)
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
@@ -3934,7 +3959,7 @@ function addWeatherLayer(map, lat, lng) {
             const temp = Math.round(current.temperature);
             const weatherCode = current.weathercode;
             const icon = getWeatherIcon(weatherCode);
-            const description = current.weathercode_description || '';
+            const description = getWeatherDescription(weatherCode);
 
             // 4. Crear o actualizar el widget en la esquina inferior derecha
             if (!weatherWidget) {
@@ -3968,13 +3993,12 @@ function addWeatherLayer(map, lat, lng) {
                 <span style="font-size:28px;">${icon}</span>
                 <div style="display:flex; flex-direction:column; line-height:1.2;">
                     <span style="font-weight:bold;">${temp}°C</span>
-                    <span style="font-size:10px; text-transform:capitalize; color:#aaa;">${description || 'Actual'}</span>
+                    <span style="font-size:10px; text-transform:capitalize; color:#aaa;">${description}</span>
                 </div>
             `;
         })
         .catch(err => console.warn('Error al obtener el clima:', err));
 }
-
 
 window.renderRetenMap = async (isAdmin = false) => {
     const containerId = isAdmin ? 'admin-retenes-map-container' : 'retenes-map-container';
@@ -4310,6 +4334,9 @@ function initMapaSeleccion() {
     L.tileLayer(layerUrl, { 
         attribution: '© <a href="https://carto.com/">CARTO</a>' 
     }).addTo(mapaSeleccion);
+
+    // 🔥 AÑADIR CLIMA AQUÍ (justo después de la línea anterior)
+    addWeatherLayer(mapaSeleccion, center[0], center[1]);
     
     // 🔁 Icono personalizado: torreta policial animada (igual que en retenes)
     const policeIcon = L.divIcon({
@@ -8533,6 +8560,10 @@ async function renderSOSMapa() {
             attributionControl: false
         }).setView([TALLER_LAT, TALLER_LNG], 11);
         L.tileLayer(layerUrl, { attribution }).addTo(adminSOSGlobalMapInst);
+
+        // 🔥 AÑADIR CLIMA AQUÍ (justo después de la línea anterior)
+        addWeatherLayer(adminSOSGlobalMapInst, TALLER_LAT, TALLER_LNG);
+        
         L.marker([TALLER_LAT, TALLER_LNG], {
             icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }),
             interactive: false
@@ -10099,6 +10130,9 @@ window.renderAdminMap = () => {
     }).setView([TALLER_LAT, TALLER_LNG], 13);
     
     L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(adminGeoMap);
+
+    // 🔥 AÑADIR CLIMA AQUÍ (justo después de la línea anterior)
+    addWeatherLayer(adminGeoMap, TALLER_LAT, TALLER_LNG);
     
     L.marker([TALLER_LAT, TALLER_LNG], { 
         icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }) 
@@ -10611,13 +10645,17 @@ window.renderEntregasMapa = async () => {
     const isLight = document.body.classList.contains('light-mode');
     const layerUrl = isLight ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
-    if (!entregasMapInst) {
+       if (!entregasMapInst) {
         entregasMapInst = L.map(mapEl, { 
             zoomControl: true, 
             scrollWheelZoom: false,
-            attributionControl: false      // ocultar atribución de Leaflet
+            attributionControl: false      
         }).setView([TALLER_LAT, TALLER_LNG], 11);
         L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(entregasMapInst);
+
+        // 🔥 AÑADIR CLIMA AQUÍ (justo después de la línea anterior)
+        addWeatherLayer(entregasMapInst, TALLER_LAT, TALLER_LNG);
+        
         L.marker([TALLER_LAT, TALLER_LNG], {
             icon: L.divIcon({ className: 'obr-pin-marker', html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>', iconSize: [36,36], iconAnchor: [18,36] }),
             interactive: false
