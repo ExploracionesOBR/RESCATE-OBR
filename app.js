@@ -130,66 +130,61 @@ const desc = getWeatherDescription(weatherCode);
 
   // 🔥 NUEVA VERSIÓN CON EXPIRACIÓN DE 2 HORAS
   function addWeatherLayer(map, lat, lng) {
-      if (typeof document === 'undefined' || document === null || !map) return;
+    if (typeof document === 'undefined' || document === null || !map) return;
 
-      _currentWeatherMap = map;
+    _currentWeatherMap = map;
 
-      // Detectar modo claro
-      const isLight = document.body.classList.contains('light-mode');
-      const textShadow = isLight ? '0 0 6px rgba(0,0,0,0.8), 0 0 12px rgba(0,0,0,0.5)' : '0 0 6px rgba(255,255,255,0.8), 0 0 12px rgba(255,255,255,0.5)';
+    // Detectar modo claro
+    const isLight = document.body.classList.contains('light-mode');
+    const textShadow = isLight ? '0 0 6px rgba(0,0,0,0.8), 0 0 12px rgba(0,0,0,0.5)' : '0 0 6px rgba(255,255,255,0.8), 0 0 12px rgba(255,255,255,0.5)';
 
-      // Crear el widget si no existe
-      if (!weatherWidget) {
-          weatherWidget = document.createElement('div');
-          weatherWidget.id = 'weather-widget';
-          weatherWidget.style.cssText = `
-              background: rgba(0,0,0,0.6);
-              backdrop-filter: blur(4px);
-              border-radius: 12px; padding: 6px 12px;
-              display: flex; align-items: center; gap: 8px;
-              color: white; font-family: sans-serif; font-size: 13px;
-              border: 1px solid rgba(255,255,255,0.2);
-              box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-              pointer-events: none; user-select: none;
-          `;
-          document.body.appendChild(weatherWidget);
-          weatherWidget.innerHTML = `<span style="font-size:24px;">⏳</span><div><span>Cargando...</span></div>`;
-      }
+    // Crear el widget si no existe
+    if (!weatherWidget) {
+        weatherWidget = document.createElement('div');
+        weatherWidget.id = 'weather-widget';
+        weatherWidget.style.cssText = `
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(4px);
+            border-radius: 12px; padding: 6px 12px;
+            display: flex; align-items: center; gap: 8px;
+            color: white; font-family: sans-serif; font-size: 13px;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            pointer-events: none; user-select: none;
+        `;
+        document.body.appendChild(weatherWidget);
+        weatherWidget.innerHTML = `<span style="font-size:24px;">⏳</span><div><span>Cargando...</span></div>`;
+    }
 
-      updateWeatherWidgetPosition();
+    updateWeatherWidgetPosition();
 
-      // 1. Verificar si las coordenadas coinciden
-      const coordsMatch = _cachedWeatherCoords &&
-          Math.abs(_cachedWeatherCoords.lat - lat) < 0.01 &&
-          Math.abs(_cachedWeatherCoords.lng - lng) < 0.01;
+    // Verificar coordenadas y expiración
+    const coordsMatch = _cachedWeatherCoords &&
+        Math.abs(_cachedWeatherCoords.lat - lat) < 0.01 &&
+        Math.abs(_cachedWeatherCoords.lng - lng) < 0.01;
+    const TWO_HOURS = 2 * 60 * 60 * 1000;
+    const isStale = !_cachedWeatherTimestamp || (Date.now() - _cachedWeatherTimestamp > TWO_HOURS);
 
-      // 2. Verificar si los datos están expirados (más de 2 horas)
-      const TWO_HOURS = 2 * 60 * 60 * 1000;
-      const isStale = !_cachedWeatherTimestamp || (Date.now() - _cachedWeatherTimestamp > TWO_HOURS);
-
-      // Si NO coinciden las coordenadas, O no hay datos, O están expirados -> Fetch
-      if (!coordsMatch || !_cachedWeatherData || isStale) {
-          console.log('🌤️ Actualizando clima (coordenadas diferentes o datos expirados)');
-          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
-              .then(res => res.ok ? res.json() : Promise.reject())
-              .then(data => {
-                  const current = data.current_weather;
-                  if (!current) return;
-                  // Actualizar caché y timestamp
-                  _cachedWeatherData = current;
-                  _cachedWeatherCoords = { lat, lng };
-                  _cachedWeatherTimestamp = Date.now();
-                  
-                  updateWeatherWidgetWithData(current);
-                  createWeatherMarkers(map, lat, lng, current.weathercode, current.is_day, textShadow);
-              })
-              .catch(err => console.error('Error al obtener clima:', err));
-      } else {
-          // Usar caché, pero dibujar marcadores en este nuevo mapa
-          console.log('🌤️ Usando clima en caché (válido por < 2 horas)');
-          createWeatherMarkers(map, lat, lng, _cachedWeatherData.weathercode, _cachedWeatherData.is_day, textShadow);
-      }
-  }
+    if (!coordsMatch || !_cachedWeatherData || isStale) {
+        console.log('🌤️ Actualizando clima (coordenadas diferentes o datos expirados)');
+        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
+            .then(res => res.ok ? res.json() : Promise.reject())
+            .then(data => {
+                const current = data.current_weather;
+                if (!current) return;
+                _cachedWeatherData = current;
+                _cachedWeatherCoords = { lat, lng };
+                _cachedWeatherTimestamp = Date.now();
+                
+                updateWeatherWidgetWithData(current);
+                createWeatherMarkers(map, lat, lng, current.weathercode, current.is_day, textShadow);
+            })
+            .catch(err => console.error('Error al obtener clima:', err));
+    } else {
+        console.log('🌤️ Usando clima en caché (válido por < 2 horas)');
+        createWeatherMarkers(map, lat, lng, _cachedWeatherData.weathercode, _cachedWeatherData.is_day, textShadow);
+    }
+}
 
   // Función para crear los marcadores (sin cambios)
   function createWeatherMarkers(map, lat, lng, weatherCode, isDay, textShadow) {
@@ -2453,7 +2448,7 @@ const desc = getWeatherDescription(weatherCode);
 
           // Mostrar modal de permisos si no están concedidos y no estamos en registro
           maybeShowPermissionsModal();
-  // --- TRIGGER CLIMA CADA 2 HORAS ---
+// --- TRIGGER CLIMA CADA 2 HORAS ---
 if (window.currentUserLocation) {
     const DOS_HORAS = 2 * 60 * 60 * 1000;
     let intervalClima = null;
@@ -2486,7 +2481,7 @@ if (window.currentUserLocation) {
     if (intervalClima) clearInterval(intervalClima);
     intervalClima = setInterval(enviarAlertaClima, DOS_HORAS);
 }
-}
+ }
 
       // Listener de notificaciones RTDB
       onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
