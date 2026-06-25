@@ -29,12 +29,15 @@ window.dbRef = dbRef;
 // ===== CLIMA CON OPEN-METEO + MARCADORES DE ICONO (SIN TILELAYER) =====
 const OWM_API_KEY = '823d92e7c95ad088f91bebdb6995afbc'; // Se mantiene por compatibilidad
 let weatherWidget = null;
-let _currentWeatherMap = null; // Guarda el último mapa que usó el clima
+let _currentWeatherMap = null;
+let _cachedWeatherData = null;
+let _cachedWeatherCoords = null;
+let _cachedWeatherTimestamp = null; // <-- NUEVO: Para controlar la expiración
 
 function getWeatherIcon(code, isDay) {
     const day = isDay !== undefined ? isDay : 1;
     if (code === 0) return day === 1 ? '☀️' : '🌙';
-    if (code >= 1 && code <= 3) return day === 1 ? '⛅' : '🌙';
+    if (code >= 1 && code <= 3) return day === 1 ? '⛅' : '🌙 ☁️';
     if (code >= 45 && code <= 48) return '🌫️';
     if (code >= 51 && code <= 57) return '🌦️';
     if (code >= 61 && code <= 67) return '🌧️';
@@ -73,143 +76,152 @@ function getWeatherDescription(code) {
 // Actualiza la posición del widget según la vista actual
 function updateWeatherWidgetPosition() {
     if (!weatherWidget) return;
-
     const retenesView = document.getElementById('c-view-retenes');
     const isRetenes = retenesView && !retenesView.classList.contains('hidden');
-
     if (isRetenes) {
-        // Modo Retenes: fijo en la pantalla
         weatherWidget.style.position = 'fixed';
         weatherWidget.style.bottom = '120px';
         weatherWidget.style.right = '10px';
         weatherWidget.style.zIndex = '400';
-        if (weatherWidget.parentNode !== document.body) {
-            document.body.appendChild(weatherWidget);
-        }
+        if (weatherWidget.parentNode !== document.body) document.body.appendChild(weatherWidget);
     } else {
-        // Modo normal: dentro del mapa actual
         if (_currentWeatherMap) {
             const container = _currentWeatherMap.getContainer();
             weatherWidget.style.position = 'absolute';
             weatherWidget.style.bottom = '10px';
             weatherWidget.style.right = '10px';
             weatherWidget.style.zIndex = '1000';
-            if (weatherWidget.parentNode !== container) {
-                container.appendChild(weatherWidget);
-            }
+            if (weatherWidget.parentNode !== container) container.appendChild(weatherWidget);
         }
     }
 }
 
+function updateWeatherWidgetWithData(current) {
+    if (!weatherWidget || !current) return;
+    const temp = Math.round(current.temperature);
+    const code = current.weathercode;
+    const isDay = current.is_day;
+    const icon = getWeatherIcon(code, isDay);
+    const desc = getWeatherDescription(code);
+    weatherWidget.innerHTML = `
+        <span style="font-size:24px;">${icon}</span>
+        <div style="display:flex; flex-direction:column; line-height:1.1;">
+            <span style="font-weight:bold;">${temp}°C</span>
+            <span style="font-size:9px; text-transform:capitalize; color:#aaa;">${desc}</span>
+        </div>
+    `;
+}
+
+// Función de precarga (también actualiza el timestamp)
+function preloadWeather(lat, lng) {
+    if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) return;
+    _cachedWeatherCoords = { lat, lng };
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
+        .then(res => res.ok ? res.json() : Promise.reject())
+        .then(data => {
+            if (data.current_weather) {
+                _cachedWeatherData = data.current_weather;
+                _cachedWeatherTimestamp = Date.now(); // <-- Guardamos la hora de precarga
+                if (weatherWidget) updateWeatherWidgetWithData(data.current_weather);
+            }
+        })
+        .catch(() => { _cachedWeatherData = null; });
+}
+
+// 🔥 NUEVA VERSIÓN CON EXPIRACIÓN DE 2 HORAS
 function addWeatherLayer(map, lat, lng) {
     if (typeof document === 'undefined' || !map) return;
 
-    // Guardar referencia al mapa actual
     _currentWeatherMap = map;
 
     // Detectar modo claro
     const isLight = document.body.classList.contains('light-mode');
     const textShadow = isLight ? '0 0 6px rgba(0,0,0,0.8), 0 0 12px rgba(0,0,0,0.5)' : '0 0 6px rgba(255,255,255,0.8), 0 0 12px rgba(255,255,255,0.5)';
 
-    // Crear el widget si no existe (usando estilos por defecto, luego se reubicará)
+    // Crear el widget si no existe
     if (!weatherWidget) {
         weatherWidget = document.createElement('div');
         weatherWidget.id = 'weather-widget';
         weatherWidget.style.cssText = `
             background: rgba(0,0,0,0.6);
             backdrop-filter: blur(4px);
-            border-radius: 12px;
-            padding: 6px 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: white;
-            font-family: sans-serif;
-            font-size: 13px;
+            border-radius: 12px; padding: 6px 12px;
+            display: flex; align-items: center; gap: 8px;
+            color: white; font-family: sans-serif; font-size: 13px;
             border: 1px solid rgba(255,255,255,0.2);
             box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-            pointer-events: none;
-            user-select: none;
+            pointer-events: none; user-select: none;
         `;
-        // Lo añadimos temporalmente al body, luego updateWeatherWidgetPosition lo moverá
         document.body.appendChild(weatherWidget);
         weatherWidget.innerHTML = `<span style="font-size:24px;">⏳</span><div><span>Cargando...</span></div>`;
     }
 
-    // Actualizar posición según la vista actual
     updateWeatherWidgetPosition();
 
-    // Obtener el clima desde Open-Meteo
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
-        .then(res => res.json())
-        .then(data => {
-            const current = data.current_weather;
-            if (!current) return;
-            const temp = Math.round(current.temperature);
-            const code = current.weathercode;
-            const isDay = current.is_day;
-            const icon = getWeatherIcon(code, isDay);
-            const desc = getWeatherDescription(code);
+    // 1. Verificar si las coordenadas coinciden
+    const coordsMatch = _cachedWeatherCoords &&
+        Math.abs(_cachedWeatherCoords.lat - lat) < 0.01 &&
+        Math.abs(_cachedWeatherCoords.lng - lng) < 0.01;
 
-            // Actualizar widget
-            weatherWidget.innerHTML = `
-                <span style="font-size:24px;">${icon}</span>
-                <div style="display:flex; flex-direction:column; line-height:1.1;">
-                    <span style="font-weight:bold;">${temp}°C</span>
-                    <span style="font-size:9px; text-transform:capitalize; color:#aaa;">${desc}</span>
-                </div>
-            `;
+    // 2. Verificar si los datos están expirados (más de 2 horas)
+    const TWO_HOURS = 2 * 60 * 60 * 1000;
+    const isStale = !_cachedWeatherTimestamp || (Date.now() - _cachedWeatherTimestamp > TWO_HOURS);
 
-            // Función auxiliar para crear marcadores con el estilo adecuado
-            function createWeatherMarker(lat, lng, size, opacity) {
-                L.marker([lat, lng], {
-                    icon: L.divIcon({
-                        className: 'weather-emoji',
-                        html: `<div style="opacity: ${opacity}; font-size: ${size}px; text-shadow: ${textShadow};">${icon}</div>`,
-                        iconSize: [size, size],
-                        iconAnchor: [size/2, size/2]
-                    })
-                }).addTo(map);
-            }
+    // Si NO coinciden las coordenadas, O no hay datos, O están expirados -> Fetch
+    if (!coordsMatch || !_cachedWeatherData || isStale) {
+        console.log('🌤️ Actualizando clima (coordenadas diferentes o datos expirados)');
+        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
+            .then(res => res.ok ? res.json() : Promise.reject())
+            .then(data => {
+                const current = data.current_weather;
+                if (!current) return;
+                // Actualizar caché y timestamp
+                _cachedWeatherData = current;
+                _cachedWeatherCoords = { lat, lng };
+                _cachedWeatherTimestamp = Date.now();
+                
+                updateWeatherWidgetWithData(current);
+                createWeatherMarkers(map, lat, lng, current.weathercode, current.is_day, textShadow);
+            })
+            .catch(err => console.error('Error al obtener clima:', err));
+    } else {
+        // Usar caché, pero dibujar marcadores en este nuevo mapa
+        console.log('🌤️ Usando clima en caché (válido por < 2 horas)');
+        createWeatherMarkers(map, lat, lng, _cachedWeatherData.weathercode, _cachedWeatherData.is_day, textShadow);
+    }
+}
 
-            // 1. Muy cerca del centro (usuario): 2 iconos
-            const cercanos = [
-                [0.002, 0.002],
-                [-0.002, -0.002]
-            ];
-            cercanos.forEach(offset => {
-                createWeatherMarker(lat + offset[0], lng + offset[1], 24, 0.5);
-            });
+// Función para crear los marcadores (sin cambios)
+function createWeatherMarkers(map, lat, lng, weatherCode, isDay, textShadow) {
+    const icon = getWeatherIcon(weatherCode, isDay);
 
-            // 2. Cerca pero un poco más lejos: 2 iconos
-            const medio = [
-                [0.015, 0.015],
-                [-0.015, -0.015]
-            ];
-            medio.forEach(offset => {
-                createWeatherMarker(lat + offset[0], lng + offset[1], 20, 0.4);
-            });
+    function createMarker(lat, lng, size, opacity) {
+        L.marker([lat, lng], {
+            icon: L.divIcon({
+                className: 'weather-emoji',
+                html: `<div style="opacity: ${opacity}; font-size: ${size}px; text-shadow: ${textShadow};">${icon}</div>`,
+                iconSize: [size, size],
+                iconAnchor: [size/2, size/2]
+            })
+        }).addTo(map);
+    }
 
-            // 3. Lejanos: varios puntos alrededor
-            const lejanos = [
-                [0.04, 0.0],
-                [-0.04, 0.0],
-                [0.0, 0.04],
-                [0.0, -0.04],
-                [0.06, 0.06],
-                [-0.06, -0.06],
-                [0.06, -0.06],
-                [-0.06, 0.06],
-                [0.08, 0.02],
-                [-0.08, -0.02]
-            ];
-            lejanos.forEach(offset => {
-                createWeatherMarker(lat + offset[0], lng + offset[1], 16, 0.25);
-            });
+    const cercanos = [[0.002, 0.002], [-0.002, -0.002]];
+    cercanos.forEach(o => createMarker(lat + o[0], lng + o[1], 24, 0.5));
 
-            console.log('✅ Iconos de clima colocados (cerca y dispersos)');
-        })
-        .catch(err => console.error('Error en widget o clima:', err));
+    const medio = [[0.015, 0.015], [-0.015, -0.015]];
+    medio.forEach(o => createMarker(lat + o[0], lng + o[1], 20, 0.4));
+
+    const lejanos = [
+        [0.04, 0.0], [-0.04, 0.0],
+        [0.0, 0.04], [0.0, -0.04],
+        [0.06, 0.06], [-0.06, -0.06],
+        [0.06, -0.06], [-0.06, 0.06],
+        [0.08, 0.02], [-0.08, -0.02]
+    ];
+    lejanos.forEach(o => createMarker(lat + o[0], lng + o[1], 16, 0.25));
+    
+    console.log('✅ Iconos de clima actualizados para esta ubicación');
 }
 
 // ===== DETECCIÓN DE INSTALACIÓN PWA =====
