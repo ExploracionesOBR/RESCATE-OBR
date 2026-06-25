@@ -99,10 +99,10 @@
   function updateWeatherWidgetWithData(current) {
       if (!weatherWidget || !current) return;
       const temp = Math.round(current.temperature);
-      const code = current.weathercode;
+      const weatherCode = current.weathercode;
       const isDay = current.is_day;
-      const icon = getWeatherIcon(code, isDay);
-      const desc = getWeatherDescription(code);
+      const icon = getWeatherIcon(weatherCode, isDay);
+const desc = getWeatherDescription(weatherCode);
       weatherWidget.innerHTML = `
           <span style="font-size:24px;">${icon}</span>
           <div style="display:flex; flex-direction:column; line-height:1.1;">
@@ -2453,36 +2453,40 @@
 
           // Mostrar modal de permisos si no están concedidos y no estamos en registro
           maybeShowPermissionsModal();
-          // --- TRIGGER CLIMA: Enviar notificación cada 2 horas ---
-  if (window.currentUserLocation) {
-      const DOS_HORAS = 2 * 60 * 60 * 1000;
-      let intervalClima = null;
+  // --- TRIGGER CLIMA CADA 2 HORAS ---
+if (window.currentUserLocation) {
+    const DOS_HORAS = 2 * 60 * 60 * 1000;
+    let intervalClima = null;
 
-      async function enviarAlertaClima() {
-          const { lat, lng } = window.currentUserLocation;
-          if (!lat || !lng) return;
-          try {
-              const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`);
-              const data = await res.json();
-              const temp = Math.round(data.current_weather.temperature);
-              const code = data.current_weather.weathercode;
-              const isDay = data.current_weather.is_day;
-              const icon = getWeatherIcon(code, isDay);
-              const desc = getWeatherDescription(code);
-              const titulo = '🌤️ Clima OBR';
-              const mensaje = `En tu zona: ${icon} ${temp}°C, ${desc}. ¡Conduce con cuidado!`;
-              enviarNotificacion([auth.currentUser.uid], titulo, mensaje);
-          } catch (e) {
-              console.warn('No se pudo obtener el clima:', e);
-          }
-      }
+    async function enviarAlertaClima() {
+        const { lat, lng } = window.currentUserLocation;
+        if (!lat || !lng) return;
+        try {
+            const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`);
+            const data = await res.json();
+            const current = data.current_weather;
+            if (!current) return;
+            const temp = Math.round(current.temperature);
+            const weatherCode = current.weathercode;   // <-- Renombrado a weatherCode
+            const isDay = current.is_day;
+            const icon = getWeatherIcon(weatherCode, isDay);
+            const desc = getWeatherDescription(weatherCode);
+            const titulo = '🌤️ Clima OBR';
+            const mensaje = `En tu zona: ${icon} ${temp}°C, ${desc}. ¡Conduce con cuidado!`;
+            enviarNotificacion([auth.currentUser.uid], titulo, mensaje);
+        } catch (e) {
+            console.warn('No se pudo obtener el clima:', e);
+        }
+    }
 
-      // Ejecutar inmediatamente y luego cada 2 horas
-      enviarAlertaClima();
-      if (intervalClima) clearInterval(intervalClima);
-      intervalClima = setInterval(enviarAlertaClima, DOS_HORAS);
-  }
-      }
+    // Enviar inmediatamente al abrir la app
+    enviarAlertaClima();
+    
+    // Limpiar intervalo previo y establecer el nuevo (cada 2 horas)
+    if (intervalClima) clearInterval(intervalClima);
+    intervalClima = setInterval(enviarAlertaClima, DOS_HORAS);
+}
+}
 
       // Listener de notificaciones RTDB
       onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
