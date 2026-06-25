@@ -1352,7 +1352,7 @@ const desc = getWeatherDescription(weatherCode);
   const TALLER_LNG = -109.94388280415251;
   // --- LISTA DE TODOS LOS USUARIOS PARA NOTIFICACIONES MASIVAS ---
   let listaTodosLosUids = [];
-
+let intervalClima = null;
   async function cargarTodosLosUids() {
       try {
           const snap = await getDocs(collection(db, "users"));
@@ -3593,6 +3593,7 @@ if (window.currentUserLocation) {
   function listenToMySOS() {
       if (window.mySOSListener && typeof window.mySOSListener === 'function') {
           window.mySOSListener();
+          window._ultimoEstadoSOS = null;
           window.mySOSListener = null;
       }
       if (!auth.currentUser) return;
@@ -3933,6 +3934,7 @@ if (window.currentUserLocation) {
   function listenToMyDeliveries() {
       if (window._deliveryListener && typeof window._deliveryListener === 'function') {
           window._deliveryListener();
+          window._ultimoEstadoEntrega = null;
           window._deliveryListener = null;
       }
       if (!auth.currentUser) return;
@@ -4332,13 +4334,17 @@ if (window.currentUserLocation) {
       }
       let firstSnapshot = true;
 
-      const q = query(collection(db, "retenes"), where("status", "==", "active"), orderBy("timestamp", "desc"));
-      retenesUnsubscribe = onSnapshot(q, (snap) => {
-        // --- TRIGGER RETENES: Notificar a todos los usuarios al cambiar ---
-  if (!window._primerSnapshotRetenes) {
-      window._primerSnapshotRetenes = true;
-  } else {
-      snap.docChanges().forEach(change => {
+  retenesUnsubscribe = onSnapshot(q, async (snap) => {
+    // ✅ ESPECIFICACIÓN: Asegurar que la lista de usuarios esté cargada
+    if (listaTodosLosUids.length === 0) {
+        await cargarTodosLosUids();
+    }
+    
+    // --- TRIGGER RETENES: Notificar a todos los usuarios al cambiar ---
+    if (!window._primerSnapshotRetenes) {
+        window._primerSnapshotRetenes = true;
+    } else {
+             snap.docChanges().forEach(change => {
           const data = change.doc.data();
           const direccion = data.direccion || 'ubicación desconocida';
           let titulo = '', mensaje = '';
@@ -7840,79 +7846,37 @@ if (window.currentUserLocation) {
   // === ADMIN LEALTAD Y CÓDIGOS (con notificación) ===
   // ======================================================
   window.adminSaveLoyalty = async () => {
-    // --- TRIGGER PROMOCIONES: Notificar a todos los usuarios al crear un código ---
-  const code = document.getElementById('loyalty-code')?.value.trim().toUpperCase();
-  // ... resto del código existente ...
+    const code = document.getElementById('loyalty-code')?.value.trim().toUpperCase();
+    if (!code) return showToast("Ingresa un código", true);
+    const condition = document.getElementById('loyalty-condition')?.value;
+    const rewardType = document.getElementById('loyalty-reward-type')?.value;
+    const rewardVal = document.getElementById('loyalty-reward-val')?.value.trim();
+    const audience = document.getElementById('loyalty-audience')?.value;
+    const maxUsos = parseInt(document.getElementById('loyalty-max-usos')?.value) || 0;
+    if (!rewardVal) return showToast("Valor de recompensa requerido", true);
 
-  // Al final de la función, después de await addDoc(...), agrega:
-  const usuariosTodos = await getDocs(collection(db, "users"));
-  const uids = usuariosTodos.docs.map(d => d.id);
-  const tituloPromo = '🎉 ¡Nueva promoción OBR!';
-  const mensajePromo = `Usa el código "${code}" y obtén un descuento especial. ¡No te lo pierdas!`;
-  enviarNotificacion(uids, tituloPromo, mensajePromo, '/RESCATE-OBR/');
-      const code = document.getElementById('loyalty-code')?.value.trim().toUpperCase();
-      if (!code) return showToast("Ingresa un código", true);
-      const condition = document.getElementById('loyalty-condition')?.value;
-      const rewardType = document.getElementById('loyalty-reward-type')?.value;
-      const rewardVal = document.getElementById('loyalty-reward-val')?.value.trim();
-      const audience = document.getElementById('loyalty-audience')?.value;
-      const maxUsos = parseInt(document.getElementById('loyalty-max-usos')?.value) || 0;
-      if (!rewardVal) return showToast("Valor de recompensa requerido", true);
+    const promoData = {
+        codigo: code,
+        tipoRecompensa: rewardType,
+        valorRecompensa: rewardVal,
+        active: true,
+        maxUsos: maxUsos,
+        usos: 0,
+        condition,
+        audience,
+        timestamp: Date.now()
+    };
+    await addDoc(collection(db, "promociones"), promoData);
+    showToast("Promoción activada. Notificando usuarios...");
+    window.adminLoadLoyalty();
 
-      const promoData = {
-          codigo: code,
-          tipoRecompensa: rewardType,
-          valorRecompensa: rewardVal,
-          active: true,
-          maxUsos: maxUsos,
-          usos: 0,
-          condition,
-          audience,
-          timestamp: Date.now()
-      };
-      await addDoc(collection(db, "promociones"), promoData);
-      showToast("Promoción activada. Notificando usuarios...");
-      window.adminLoadLoyalty();
-
-      // Notificar usuarios según audiencia
-      const usersSnap = await getDocs(collection(db, "users"));
-      const msg = `🎉 ¡Nuevo código de descuento! Usa "${code}" y obtén ${rewardType === 'desc_porc' ? rewardVal + '% de descuento' : '$' + rewardVal + ' de descuento'}.`;
-      usersSnap.forEach(async (userDoc) => {
-          const user = userDoc.data();
-          let notificar = false;
-          if (audience === 'both') notificar = true;
-          else if (audience === 'vip' && (user.role === 'membresia' || user.role === 'admin')) notificar = true;
-          else if (audience === 'general' && user.role !== 'membresia' && user.role !== 'admin') notificar = true;
-
-          if (notificar) {
-              await rtdbSet(dbRef(rtdb, 'notificaciones/' + userDoc.id), { msg });
-          }
-      });
-  };
-
-  window.adminLoadLoyalty = async () => {
-      const snap = await getDocs(collection(db, "promociones"));
-      const list = document.getElementById('admin-loyalty-list');
-      if (!list) return;
-      list.innerHTML = '';
-      snap.forEach(docSnap => {
-          const promo = docSnap.data();
-          const maxUsos = promo.maxUsos || 0;
-          const usos = promo.usos || 0;
-          const limiteTexto = maxUsos > 0 ? `${usos}/${maxUsos}` : `${usos}/∞`;
-          list.innerHTML += `<div class="flex justify-between items-center bg-white/5 p-2 rounded-xl text-white text-xs">
-              <div class="flex-1">
-                  <span class="font-bold">${promo.codigo}</span>
-                  <span class="text-gray-400 ml-2">${promo.tipoRecompensa}: ${promo.valorRecompensa}</span>
-              </div>
-              <span class="text-[10px]">${limiteTexto}</span>
-              <div class="flex space-x-1 ml-2">
-                  <button onclick="window.togglePromoActive('${docSnap.id}', ${!promo.active})" class="text-xs px-2 py-0.5 rounded ${promo.active ? 'bg-yellow-600' : 'bg-green-600'} text-white">${promo.active ? 'Pausar' : 'Activar'}</button>
-                  <button onclick="window.deletePromo('${docSnap.id}')" class="text-xs px-2 py-0.5 rounded bg-red-600 text-white">Eliminar</button>
-              </div>
-          </div>`;
-      });
-  };
+    // --- TRIGGER: Notificar a todos los usuarios sobre la nueva promoción ---
+    const usuariosTodos = await getDocs(collection(db, "users"));
+    const uids = usuariosTodos.docs.map(d => d.id);
+    const tituloPromo = '🎉 ¡Nueva promoción OBR!';
+    const mensajePromo = `Usa el código "${code}" y obtén un descuento especial. ¡No te lo pierdas!`;
+    enviarNotificacion(uids, tituloPromo, mensajePromo, '/RESCATE-OBR/');
+};
 
   window.togglePromoActive = async (promoId, active) => {
       await updateDoc(doc(db, "promociones", promoId), { active });
