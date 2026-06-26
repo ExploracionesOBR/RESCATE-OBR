@@ -1,7 +1,4 @@
-// ===== IMPORTAR EL SERVICE WORKER DE ONESIGNAL (ÚNICA LÍNEA NUEVA) =====
-importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDKWorker.js');
-
-const CACHE_NAME = 'obr-cache-v67';
+const CACHE_NAME = 'obr-cache-v69';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
