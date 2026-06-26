@@ -2315,15 +2315,15 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
             })
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Worker error ${response.status}: ${errorText}`);
-        }
-
         const data = await response.json();
-        // Si el Worker devolvió un error (aunque status 200), lo capturamos aquí
+
+        // 🔥 Si el Worker devolvió un error explícito
         if (data.error) {
             throw new Error(data.error);
+        }
+
+        if (!response.ok) {
+            throw new Error(`Worker error: ${response.status} - ${data.error || 'Unknown error'}`);
         }
 
         console.log('✅ Notificación enviada exitosamente:', data);
@@ -7943,28 +7943,29 @@ window.enviarBroadcast = async function() {
     
     window.confirmModal(`¿Enviar notificación masiva a TODOS los usuarios registrados?\n\nTítulo: ${title}\nMensaje: ${body}`, async () => {
         const btn = document.querySelector('#a-view-promos button[onclick*="enviarBroadcast"]');
-    if (!btn) return;
-    const originalText = btn.innerText;
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
-    try {
-        if (listaTodosLosUids.length === 0) {
-            await cargarTodosLosUids();
+        if (!btn) return;
+        const originalText = btn.innerText;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
+        
+        try {
+            if (listaTodosLosUids.length === 0) {
+                await cargarTodosLosUids();
+            }
+            await enviarNotificacion(listaTodosLosUids, title, body, url);
+            window.showToast(`✅ Notificación enviada a ${listaTodosLosUids.length} usuarios.`);
+            // Limpiar campos
+            if (titleInput) titleInput.value = '';
+            if (bodyInput) bodyInput.value = '';
+            if (urlInput) urlInput.value = '';
+        } catch (error) {
+            console.error('Error al enviar broadcast:', error);
+            window.showToast(`❌ Error: ${error.message}`, true);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
         }
-        const result = await enviarNotificacion(listaTodosLosUids, title, body, url);
-        // Si llegamos aquí, todo fue exitoso
-        window.showToast(`✅ Notificación enviada a ${listaTodosLosUids.length} usuarios.`);
-        // Limpiar campos
-        if (titleInput) titleInput.value = '';
-        if (bodyInput) bodyInput.value = '';
-        if (urlInput) urlInput.value = '';
-    } catch (error) {
-        console.error('Error al enviar broadcast:', error);
-        window.showToast(`❌ Error: ${error.message}`, true);
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-    }
+    });
 };
   // ======================================================
   // === VIDEO BANNER (con previsualización) ===
