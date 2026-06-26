@@ -2295,34 +2295,44 @@ let intervalClima = null;
   // =============================================
   // === FUNCIÓN PARA ENVIAR NOTIFICACIONES (Vía Cloudflare Worker) ===
   // =============================================
-  async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
-      // Si no hay destinatarios o está vacío, no hacemos nada
-      if (!userIds || userIds.length === 0) {
-          console.warn('⚠️ No se envió notificación: faltan destinatarios.');
-          return;
-      }
+async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
+    if (!userIds || userIds.length === 0) {
+        console.warn('⚠️ No se envió notificación: faltan destinatarios.');
+        return;
+    }
 
-      // La URL de tu Cloudflare Worker (ya configurada con tu dominio)
-      const workerUrl = 'https://obr-notify.eder-villarreal26.workers.dev/send';
+    const workerUrl = 'https://obr-notify.eder-villarreal26.workers.dev/send';
 
-      try {
-          const response = await fetch(workerUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                  userIds: userIds, // Debe ser un array de UIDs (ej: ["uid123", "uid456"])
-                  title: title,
-                  body: body,
-                  url: url
-              })
-          });
+    try {
+        const response = await fetch(workerUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userIds: userIds,
+                title: title,
+                body: body,
+                url: url
+            })
+        });
 
-          const data = await response.json();
-          console.log('✅ Notificación enviada exitosamente:', data);
-      } catch (error) {
-          console.error('❌ Error al comunicarse con el Worker de notificaciones:', error);
-      }
-  }
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Worker error ${response.status}: ${errorText}`);
+        }
+
+        const data = await response.json();
+        // Si el Worker devolvió un error (aunque status 200), lo capturamos aquí
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        console.log('✅ Notificación enviada exitosamente:', data);
+        return data;
+    } catch (error) {
+        console.error('❌ Error al comunicarse con el Worker:', error);
+        throw error;
+    }
+}
 
   // ===== FLUJO DE VISTAS Y AUTENTICACIÓN (MODIFICADO PARA ONESIGNAL) =====
   onAuthStateChanged(auth, async user => {
@@ -7933,32 +7943,28 @@ window.enviarBroadcast = async function() {
     
     window.confirmModal(`¿Enviar notificación masiva a TODOS los usuarios registrados?\n\nTítulo: ${title}\nMensaje: ${body}`, async () => {
         const btn = document.querySelector('#a-view-promos button[onclick*="enviarBroadcast"]');
-        if (!btn) return;
-        const originalText = btn.innerText;
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
-        
-        try {
-            // Asegurar que la lista de UIDs esté cargada
-            if (listaTodosLosUids.length === 0) {
-                await cargarTodosLosUids();
-            }
-            
-            await enviarNotificacion(listaTodosLosUids, title, body, url);
-            window.showToast(`✅ Notificación enviada a ${listaTodosLosUids.length} usuarios.`);
-            
-            // Limpiar campos
-            if (titleInput) titleInput.value = '';
-            if (bodyInput) bodyInput.value = '';
-            if (urlInput) urlInput.value = '';
-        } catch (error) {
-            console.error('Error al enviar broadcast:', error);
-            window.showToast("❌ Error al enviar la notificación.", true);
-        } finally {
-            btn.disabled = false;
-            btn.innerHTML = originalText;
+    if (!btn) return;
+    const originalText = btn.innerText;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
+    try {
+        if (listaTodosLosUids.length === 0) {
+            await cargarTodosLosUids();
         }
-    });
+        const result = await enviarNotificacion(listaTodosLosUids, title, body, url);
+        // Si llegamos aquí, todo fue exitoso
+        window.showToast(`✅ Notificación enviada a ${listaTodosLosUids.length} usuarios.`);
+        // Limpiar campos
+        if (titleInput) titleInput.value = '';
+        if (bodyInput) bodyInput.value = '';
+        if (urlInput) urlInput.value = '';
+    } catch (error) {
+        console.error('Error al enviar broadcast:', error);
+        window.showToast(`❌ Error: ${error.message}`, true);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
 };
   // ======================================================
   // === VIDEO BANNER (con previsualización) ===
