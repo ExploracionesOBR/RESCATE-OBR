@@ -7915,6 +7915,51 @@ if (window.currentUserLocation) {
           observer.observe(promosView, { attributes: true });
       }
   }
+
+// ===== BROADCAST (Notificaciones masivas) =====
+window.enviarBroadcast = async function() {
+    const titleInput = document.getElementById('broadcast-title');
+    const bodyInput = document.getElementById('broadcast-body');
+    const urlInput = document.getElementById('broadcast-url');
+    
+    const title = titleInput ? titleInput.value.trim() : '';
+    const body = bodyInput ? bodyInput.value.trim() : '';
+    const url = urlInput ? urlInput.value.trim() : '/RESCATE-OBR/';
+    
+    if (!title || !body) {
+        window.showToast("❌ El título y el mensaje son obligatorios.", true);
+        return;
+    }
+    
+    window.confirmModal(`¿Enviar notificación masiva a TODOS los usuarios registrados?\n\nTítulo: ${title}\nMensaje: ${body}`, async () => {
+        const btn = document.querySelector('#a-view-promos button[onclick*="enviarBroadcast"]');
+        if (!btn) return;
+        const originalText = btn.innerText;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
+        
+        try {
+            // Asegurar que la lista de UIDs esté cargada
+            if (listaTodosLosUids.length === 0) {
+                await cargarTodosLosUids();
+            }
+            
+            await enviarNotificacion(listaTodosLosUids, title, body, url);
+            window.showToast(`✅ Notificación enviada a ${listaTodosLosUids.length} usuarios.`);
+            
+            // Limpiar campos
+            if (titleInput) titleInput.value = '';
+            if (bodyInput) bodyInput.value = '';
+            if (urlInput) urlInput.value = '';
+        } catch (error) {
+            console.error('Error al enviar broadcast:', error);
+            window.showToast("❌ Error al enviar la notificación.", true);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    });
+};
   // ======================================================
   // === VIDEO BANNER (con previsualización) ===
   // ======================================================
