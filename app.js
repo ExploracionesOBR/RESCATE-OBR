@@ -2340,10 +2340,10 @@ let intervalClima = null;
       }
       
       // 🔹 VINCULACIÓN CON ONESIGNAL (Usuario individual)
-      if (typeof OneSignal !== 'undefined' && user) {
-          OneSignal.User.setUserId(user.uid);
-          console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
-      }
+   if (typeof OneSignal !== 'undefined' && user) {
+    OneSignal.login(user.uid);
+    console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
+}
 
           // 🔹 Cargar lista de todos los usuarios para notificaciones masivas
       cargarTodosLosUids();
