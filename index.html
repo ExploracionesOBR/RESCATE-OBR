@@ -2163,7 +2163,6 @@
   OneSignalDeferred.push(async function(OneSignal) {
     await OneSignal.init({
       appId: "dbdeba23-a1a1-4220-8861-cbf29002d394",
-      // 🔥 ESTAS DOS LÍNEAS SON LAS QUE GARANTIZAN QUE EL WORKER SE REGISTRE EN LA SUBRUTA
       serviceWorkerPath: "/RESCATE-OBR/OneSignalSDKWorker.js",
       serviceWorkerParam: { scope: "/RESCATE-OBR/" }
     });
