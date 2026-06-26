@@ -12658,12 +12658,43 @@ window.enviarBroadcast = async function() {
       }
   }
 
+// ===== ADMIN LEALTAD Y CÓDIGOS (cargar lista) =====
+window.adminLoadLoyalty = async function() {
+    const container = document.getElementById('admin-loyalty-list');
+    if (!container) return;
+    const snap = await getDocs(collection(db, "promociones"));
+    container.innerHTML = '';
+    snap.forEach(doc => {
+        const p = doc.data();
+        const estado = p.active ? '🟢 Activa' : '🔴 Inactiva';
+        const usos = p.maxUsos ? `${p.usos || 0}/${p.maxUsos}` : `${p.usos || 0} usos`;
+        container.innerHTML += `
+            <div class="bg-white/5 p-2 rounded-xl text-xs text-white flex justify-between items-center mb-1">
+                <div>
+                    <span class="font-bold">${p.codigo}</span>
+                    <span class="text-gray-400 ml-2">${p.tipoRecompensa === 'desc_porc' ? p.valorRecompensa + '%' : '$' + p.valorRecompensa}</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="text-[10px] ${p.active ? 'text-green-400' : 'text-red-400'}">${estado}</span>
+                    <span class="text-[9px] text-gray-500">${usos}</span>
+                    <button onclick="window.togglePromoActive('${doc.id}', ${!p.active})" class="text-blue-400 hover:text-blue-300">
+                        <i class="fas ${p.active ? 'fa-toggle-on' : 'fa-toggle-off'}"></i>
+                    </button>
+                    <button onclick="window.deletePromo('${doc.id}')" class="text-red-400 hover:text-red-300"><i class="fas fa-trash"></i></button>
+                </div>
+            </div>
+        `;
+    });
+    if (snap.empty) container.innerHTML = '<p class="text-xs text-gray-500">No hay promociones activas.</p>';
+};
+
   // 7. Inicializar eventos y carga de datos en la vista de promos
   function initReferidosAdmin() {
+    console.log('adminLoadLoyalty existe?', typeof window.adminLoadLoyalty);
       // Cargar configuración y lista al abrir la vista
       cargarConfigReferidos();
       cargarListaReferidos();   // ← LÍNEA AÑADIDA (esto faltaba)
-    window.adminLoadLoyalty(); 
+    window.adminLoadLoyalty();
 
       // Vincular eventos solo una vez
       const guardarBtn = document.getElementById('btn-guardar-config-referidos');
