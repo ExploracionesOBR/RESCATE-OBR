@@ -12663,6 +12663,7 @@ window.enviarBroadcast = async function() {
       // Cargar configuración y lista al abrir la vista
       cargarConfigReferidos();
       cargarListaReferidos();   // ← LÍNEA AÑADIDA (esto faltaba)
+    window.adminLoadLoyalty(); 
 
       // Vincular eventos solo una vez
       const guardarBtn = document.getElementById('btn-guardar-config-referidos');
