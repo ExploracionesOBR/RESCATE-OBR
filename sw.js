@@ -1,6 +1,5 @@
-const CACHE_NAME = 'obr-cache-v74';
+const CACHE_NAME = 'obr-cache-v62';
 const BASE_PATH = '/RESCATE-OBR';
-
 
 const ALL_FILES = [
   `${BASE_PATH}/`,
@@ -17,8 +16,7 @@ const ALL_FILES = [
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js',
   'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'
 ];
-// ===== IMPORTAR EL SERVICE WORKER DE ONESIGNAL (ÚNICA LÍNEA NUEVA) =====
-importScripts('https://cdn.onesignal.com/sdks/web/v16/OneSignalSDKWorker.js');
+
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
