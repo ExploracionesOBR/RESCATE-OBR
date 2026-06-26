@@ -2157,5 +2157,18 @@
     </div>
 </div>
 </script>
+    <!-- ONE SIGNAL SDK (CONFIGURACIÓN CORRECTA PARA SW FUSIONADO) -->
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal) {
+    await OneSignal.init({
+      appId: "dbdeba23-a1a1-4220-8861-cbf29002d394",
+      // 🔥 ESTAS DOS LÍNEAS SON LAS QUE FALTABAN:
+      serviceWorkerPath: "/RESCATE-OBR/sw.js",
+      serviceWorkerParam: { scope: "/RESCATE-OBR/" }
+    });
+  });
+</script>
 </body>
 </html>
