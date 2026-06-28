@@ -15,6 +15,21 @@
       appId: "1:444725574222:web:db1055eef17e1a5ddee11f"
   };
 
+// Cargar SDK de OneSignal manualmente
+function loadOneSignalSDK() {
+    return new Promise((resolve, reject) => {
+        if (typeof OneSignal !== 'undefined') {
+            resolve();
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('No se pudo cargar OneSignal SDK'));
+        document.head.appendChild(script);
+    });
+}
+
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   window.auth = auth;   // 👈 EXPONER GLOBALMENTE
