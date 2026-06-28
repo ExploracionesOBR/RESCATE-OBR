@@ -2376,7 +2376,7 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
 }
 
   // ===== FLUJO DE VISTAS Y AUTENTICACIÓN (MODIFICADO PARA ONESIGNAL) =====
-  onAuthStateChanged(auth, async user => {
+ onAuthStateChanged(auth, async user => {
     // Asegurar tema antes de mostrar cualquier vista
     cargarTemaLocal();
     
@@ -2389,48 +2389,16 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
         showView('view-landing');
         return;
     }
-    
-    // 🔹 CARGAR SDK DE ONESIGNAL MANUALMENTE Y VINCULAR USUARIO
-    try {
-        // Función auxiliar para cargar el SDK y esperar a que window.OneSignal esté definido
-        function loadOneSignalSDK() {
-            return new Promise((resolve, reject) => {
-                if (typeof window.OneSignal !== 'undefined') {
-                    resolve();
-                    return;
-                }
-                const script = document.createElement('script');
-                script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
-                script.onload = () => {
-                    // Esperar a que el objeto OneSignal esté disponible
-                    const check = () => {
-                        if (typeof window.OneSignal !== 'undefined') {
-                            resolve();
-                        } else {
-                            setTimeout(check, 200);
-                        }
-                    };
-                    check();
-                };
-                script.onerror = () => reject(new Error('No se pudo cargar OneSignal SDK'));
-                document.head.appendChild(script);
-            });
-        }
 
-        await loadOneSignalSDK();
-        // Inicializar OneSignal
-        await window.OneSignal.init({
-            appId: "dbdeba23-a1a1-4220-8861-cbf29002d394",
-            serviceWorkerPath: "/RESCATE-OBR/onesignalsdkworker.js",
-            serviceWorkerParam: { scope: "/RESCATE-OBR/" }
-        });
-        console.log('✅ OneSignal inicializado');
-        // Vincular usuario
-        await window.OneSignal.login(user.uid);
+    // 🔹 ESPERAR A QUE ONESIGNAL ESTÉ DISPONIBLE Y LUEGO VINCULAR (SIN INIT)
+    try {
+        await esperarOneSignal(); // Función definida al inicio del archivo
+        // No inicializamos, ya lo hizo el HTML
+        await OneSignal.login(user.uid);
         console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
         // Solicitar permiso si es necesario
-        if (window.OneSignal.Notifications.permission === 'default') {
-            await window.OneSignal.Notifications.requestPermission();
+        if (OneSignal.Notifications.permission === 'default') {
+            await OneSignal.Notifications.requestPermission();
         }
     } catch (error) {
         console.error('❌ Error al configurar OneSignal:', error);
