@@ -39,6 +39,23 @@ function loadOneSignalSDK() {
     });
 }
 
+
+function esperarOneSignal() {
+    return new Promise((resolve) => {
+        if (typeof OneSignal !== 'undefined') {
+            resolve();
+            return;
+        }
+        const intervalo = setInterval(() => {
+            if (typeof OneSignal !== 'undefined') {
+                clearInterval(intervalo);
+                resolve();
+            }
+        }, 200);
+    });
+}
+
+
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   window.auth = auth;   // 👈 EXPONER GLOBALMENTE
