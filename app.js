@@ -15,16 +15,25 @@
       appId: "1:444725574222:web:db1055eef17e1a5ddee11f"
   };
 
-// Cargar SDK de OneSignal manualmente
 function loadOneSignalSDK() {
     return new Promise((resolve, reject) => {
-        if (typeof OneSignal !== 'undefined') {
+        if (typeof window.OneSignal !== 'undefined') {
             resolve();
             return;
         }
         const script = document.createElement('script');
         script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
-        script.onload = () => resolve();
+        script.onload = () => {
+            // Esperar a que el objeto OneSignal esté disponible
+            const check = () => {
+                if (typeof window.OneSignal !== 'undefined') {
+                    resolve();
+                } else {
+                    setTimeout(check, 200);
+                }
+            };
+            check();
+        };
         script.onerror = () => reject(new Error('No se pudo cargar OneSignal SDK'));
         document.head.appendChild(script);
     });
@@ -2366,29 +2375,45 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
     
     // 🔹 CARGAR SDK DE ONESIGNAL MANUALMENTE Y VINCULAR USUARIO
     try {
-        // Cargar el script si no está presente
-        if (typeof OneSignal === 'undefined') {
-            await new Promise((resolve, reject) => {
+        // Función auxiliar para cargar el SDK y esperar a que window.OneSignal esté definido
+        function loadOneSignalSDK() {
+            return new Promise((resolve, reject) => {
+                if (typeof window.OneSignal !== 'undefined') {
+                    resolve();
+                    return;
+                }
                 const script = document.createElement('script');
                 script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
-                script.onload = resolve;
+                script.onload = () => {
+                    // Esperar a que el objeto OneSignal esté disponible
+                    const check = () => {
+                        if (typeof window.OneSignal !== 'undefined') {
+                            resolve();
+                        } else {
+                            setTimeout(check, 200);
+                        }
+                    };
+                    check();
+                };
                 script.onerror = () => reject(new Error('No se pudo cargar OneSignal SDK'));
                 document.head.appendChild(script);
             });
         }
+
+        await loadOneSignalSDK();
         // Inicializar OneSignal
-        await OneSignal.init({
+        await window.OneSignal.init({
             appId: "dbdeba23-a1a1-4220-8861-cbf29002d394",
             serviceWorkerPath: "/RESCATE-OBR/onesignalsdkworker.js",
             serviceWorkerParam: { scope: "/RESCATE-OBR/" }
         });
         console.log('✅ OneSignal inicializado');
         // Vincular usuario
-        await OneSignal.login(user.uid);
+        await window.OneSignal.login(user.uid);
         console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
         // Solicitar permiso si es necesario
-        if (OneSignal.Notifications.permission === 'default') {
-            await OneSignal.Notifications.requestPermission();
+        if (window.OneSignal.Notifications.permission === 'default') {
+            await window.OneSignal.Notifications.requestPermission();
         }
     } catch (error) {
         console.error('❌ Error al configurar OneSignal:', error);
@@ -2510,7 +2535,6 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
         }
     });
 });
-
 
   function showView(targetId) {
       // Modo Próximamente: redirigir a 'view-proximamente' excepto landing, login y force-setup
