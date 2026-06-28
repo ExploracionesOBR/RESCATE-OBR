@@ -2351,174 +2351,166 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
 
   // ===== FLUJO DE VISTAS Y AUTENTICACIÓN (MODIFICADO PARA ONESIGNAL) =====
   onAuthStateChanged(auth, async user => {
-      // Asegurar tema antes de mostrar cualquier vista
-      cargarTemaLocal();
-      
-      document.getElementById('loading-screen').classList.add('hidden');
-      if (window._adminCreatingUser) return;
+    // Asegurar tema antes de mostrar cualquier vista
+    cargarTemaLocal();
+    
+    document.getElementById('loading-screen').classList.add('hidden');
+    if (window._adminCreatingUser) return;
 
-      if (!user) {
-          if (mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
-          loadGlobalSettings(); 
-          showView('view-landing');
-          return;
-      }
-      
-      // 🔹 VINCULACIÓN CON ONESIGNAL (Usuario individual)
-   if (typeof OneSignal !== 'undefined' && user) {
-    OneSignal.login(user.uid);
-    console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
-}
-
-          // 🔹 Cargar lista de todos los usuarios para notificaciones masivas
-      cargarTodosLosUids();
-
-      // Ocultar landing inmediatamente
-      showView('view-landing', false); // ocultar sin mostrar otra
-      document.getElementById('view-landing').classList.add('hidden');
-      
-      const userSnap = await getDoc(doc(db, 'users', user.uid));
-      if (userSnap.exists()) { 
-          window.currentUserDoc = userSnap.data(); 
-          window.currentUserDoc.id = user.uid; 
-      } else { 
-          window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; 
-      }
-
-      // Verificar bloqueo/pausa
-      if (window.currentUserDoc && window.currentUserDoc.bloqueado) {
-          signOut(auth).then(() => {
-              document.getElementById('out-of-zone-modal').classList.remove('hidden');
-              showView('view-landing');
-          });
-          return;
-      }
-
-      // Verificar firstLogin (solo para clientes)
-      if (window.currentUserDoc && window.currentUserDoc.firstLogin && 
-          !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
-          showView('view-force-setup');
-          return;
-      }
-
-      // ===== ADMIN / MECÁNICO / TALLER / SOCIO =====
-      if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
-          const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
-          startMechanicTracking();
-          if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
-          globalSettings.centerLat = TALLER_LAT;
-          globalSettings.centerLng = TALLER_LNG;
-          showView('app-admin');
-
-          // Mostrar nombre del usuario en el header
-          const adminDisplay = document.getElementById('admin-phone-display');
-          if (adminDisplay) {
-              const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
-              adminDisplay.innerText = nombre;
-          } else {
-              setTimeout(() => {
-                  const el = document.getElementById('admin-phone-display');
-                  if (el) {
-                      const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
-                      el.innerText = nombre;
-                  }
-              }, 200);
-          }
-
-          document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
-          iniciarListenerGlobalSOS();
-          setTimeout(() => {
-              window.adminRefreshConfigUI();
-              window.adminLoadInventory();
-              window.adminLoadSales();
-              window.filterSOS('pending');
-              window.adminListenServices();
-              window.adminLoadCitas();
-              window.loadChatList();
-              window.applyViewPermissions?.();
-          }, 100);
-          if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
-
-      // ===== CLIENTE / MEMBRESÍA =====
-      } else {
-          showView('app-client');
-          setTimeout(() => {
-              if (typeof window.updateEmergencyButtonState === 'function') {
-                  const now = new Date();
-                  const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
-                  const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
-                  const [hOpen, mOpen] = sched.o.split(':').map(Number);
-                  const [hClose, mClose] = sched.c.split(':').map(Number);
-                  const nowMins = now.getHours() * 60 + now.getMinutes();
-                  const openMins = hOpen * 60 + mOpen;
-                  const closeMins = hClose * 60 + mClose;
-                  const isOpen = nowMins >= openMins && nowMins < closeMins;
-                  window.updateEmergencyButtonState(isOpen, sched);
-              }
-          }, 100);
-          document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
-          window.loadClientHistory(); 
-          listenToMySOS();
-          listenToMyDeliveries(); 
-          window.loadClientCitas();
-          console.log('Cargando tienda para usuario:', window.currentUserDoc?.phone);
-          loadPublicStore();
-          window.loadMyOrders();
-          updateLandingStatus();
-
-          // Iniciar seguimiento de ubicación solo si los permisos ya fueron aceptados
-          if (localStorage.getItem('obr_permissions_granted') === 'true') {
-              startClientLocationTracking();
-          }
-
-          // Mostrar modal de permisos si no están concedidos y no estamos en registro
-          maybeShowPermissionsModal();
-// --- TRIGGER CLIMA CADA 2 HORAS ---
-if (window.currentUserLocation) {
-    const DOS_HORAS = 2 * 60 * 60 * 1000;
-    let intervalClima = null;
-
-    async function enviarAlertaClima() {
-        const { lat, lng } = window.currentUserLocation;
-        if (!lat || !lng) return;
-        try {
-            const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`);
-            const data = await res.json();
-            const current = data.current_weather;
-            if (!current) return;
-            const temp = Math.round(current.temperature);
-            const weatherCode = current.weathercode;   // <-- Renombrado a weatherCode
-            const isDay = current.is_day;
-            const icon = getWeatherIcon(weatherCode, isDay);
-            const desc = getWeatherDescription(weatherCode);
-            const titulo = '🌤️ Clima OBR';
-            const mensaje = `En tu zona: ${icon} ${temp}°C, ${desc}. ¡Conduce con cuidado!`;
-            enviarNotificacion([auth.currentUser.uid], titulo, mensaje);
-        } catch (e) {
-            console.warn('No se pudo obtener el clima:', e);
+    if (!user) {
+        if (mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
+        loadGlobalSettings(); 
+        showView('view-landing');
+        return;
+    }
+    
+    // 🔹 CARGAR SDK DE ONESIGNAL MANUALMENTE Y VINCULAR USUARIO
+    try {
+        // Cargar el script si no está presente
+        if (typeof OneSignal === 'undefined') {
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+                script.onload = resolve;
+                script.onerror = () => reject(new Error('No se pudo cargar OneSignal SDK'));
+                document.head.appendChild(script);
+            });
         }
+        // Inicializar OneSignal
+        await OneSignal.init({
+            appId: "dbdeba23-a1a1-4220-8861-cbf29002d394",
+            serviceWorkerPath: "/RESCATE-OBR/onesignalsdkworker.js",
+            serviceWorkerParam: { scope: "/RESCATE-OBR/" }
+        });
+        console.log('✅ OneSignal inicializado');
+        // Vincular usuario
+        await OneSignal.login(user.uid);
+        console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
+        // Solicitar permiso si es necesario
+        if (OneSignal.Notifications.permission === 'default') {
+            await OneSignal.Notifications.requestPermission();
+        }
+    } catch (error) {
+        console.error('❌ Error al configurar OneSignal:', error);
     }
 
-    // Enviar inmediatamente al abrir la app
-    enviarAlertaClima();
-    
-    // Limpiar intervalo previo y establecer el nuevo (cada 2 horas)
-    if (intervalClima) clearInterval(intervalClima);
-    intervalClima = setInterval(enviarAlertaClima, DOS_HORAS);
-}
- }
+    // 🔹 Cargar lista de todos los usuarios para notificaciones masivas
+    cargarTodosLosUids();
 
-      // Listener de notificaciones RTDB
-      onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
-          if (snap.exists()) {
-              const notif = snap.val();
-              showToast(notif.msg);
-              playSound('notif');
-              speakTTS(notif.msg);
-              remove(dbRef(rtdb, 'notificaciones/' + user.uid));
-          }
-      });
-  });
+    // Ocultar landing inmediatamente
+    showView('view-landing', false); // ocultar sin mostrar otra
+    document.getElementById('view-landing').classList.add('hidden');
+    
+    const userSnap = await getDoc(doc(db, 'users', user.uid));
+    if (userSnap.exists()) { 
+        window.currentUserDoc = userSnap.data(); 
+        window.currentUserDoc.id = user.uid; 
+    } else { 
+        window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; 
+    }
+
+    // Verificar bloqueo/pausa
+    if (window.currentUserDoc && window.currentUserDoc.bloqueado) {
+        signOut(auth).then(() => {
+            document.getElementById('out-of-zone-modal').classList.remove('hidden');
+            showView('view-landing');
+        });
+        return;
+    }
+
+    // Verificar firstLogin (solo para clientes)
+    if (window.currentUserDoc && window.currentUserDoc.firstLogin && 
+        !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
+        showView('view-force-setup');
+        return;
+    }
+
+    // ===== ADMIN / MECÁNICO / TALLER / SOCIO =====
+    if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
+        const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
+        startMechanicTracking();
+        if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
+        globalSettings.centerLat = TALLER_LAT;
+        globalSettings.centerLng = TALLER_LNG;
+        showView('app-admin');
+
+        // Mostrar nombre del usuario en el header
+        const adminDisplay = document.getElementById('admin-phone-display');
+        if (adminDisplay) {
+            const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
+            adminDisplay.innerText = nombre;
+        } else {
+            setTimeout(() => {
+                const el = document.getElementById('admin-phone-display');
+                if (el) {
+                    const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
+                    el.innerText = nombre;
+                }
+            }, 200);
+        }
+
+        document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
+        iniciarListenerGlobalSOS();
+        setTimeout(() => {
+            window.adminRefreshConfigUI();
+            window.adminLoadInventory();
+            window.adminLoadSales();
+            window.filterSOS('pending');
+            window.adminListenServices();
+            window.adminLoadCitas();
+            window.loadChatList();
+            window.applyViewPermissions?.();
+        }, 100);
+        if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
+
+    // ===== CLIENTE / MEMBRESÍA =====
+    } else {
+        showView('app-client');
+        setTimeout(() => {
+            if (typeof window.updateEmergencyButtonState === 'function') {
+                const now = new Date();
+                const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
+                const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
+                const [hOpen, mOpen] = sched.o.split(':').map(Number);
+                const [hClose, mClose] = sched.c.split(':').map(Number);
+                const nowMins = now.getHours() * 60 + now.getMinutes();
+                const openMins = hOpen * 60 + mOpen;
+                const closeMins = hClose * 60 + mClose;
+                const isOpen = nowMins >= openMins && nowMins < closeMins;
+                window.updateEmergencyButtonState(isOpen, sched);
+            }
+        }, 100);
+        document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
+        window.loadClientHistory(); 
+        listenToMySOS();
+        listenToMyDeliveries(); 
+        window.loadClientCitas();
+        console.log('Cargando tienda para usuario:', window.currentUserDoc?.phone);
+        loadPublicStore();
+        window.loadMyOrders();
+        updateLandingStatus();
+
+        // Iniciar seguimiento de ubicación solo si los permisos ya fueron aceptados
+        if (localStorage.getItem('obr_permissions_granted') === 'true') {
+            startClientLocationTracking();
+        }
+
+        // Mostrar modal de permisos si no están concedidos y no estamos en registro
+        maybeShowPermissionsModal();
+    }
+
+    // Listener de notificaciones RTDB
+    onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
+        if (snap.exists()) {
+            const notif = snap.val();
+            showToast(notif.msg);
+            playSound('notif');
+            speakTTS(notif.msg);
+            remove(dbRef(rtdb, 'notificaciones/' + user.uid));
+        }
+    });
+});
+
 
   function showView(targetId) {
       // Modo Próximamente: redirigir a 'view-proximamente' excepto landing, login y force-setup
