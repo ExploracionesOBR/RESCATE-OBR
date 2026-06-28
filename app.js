@@ -4344,7 +4344,10 @@ if (window.currentUserLocation) {
       }
       let firstSnapshot = true;
 
-  retenesUnsubscribe = onSnapshot(q, async (snap) => {
+  
+const q = query(collection(db, "retenes"));
+    
+    retenesUnsubscribe = onSnapshot(q, async (snap) => {
     // ✅ ESPECIFICACIÓN: Asegurar que la lista de usuarios esté cargada
     if (listaTodosLosUids.length === 0) {
         await cargarTodosLosUids();
@@ -11783,24 +11786,23 @@ window.enviarBroadcast = async function() {
           document.body.appendChild(modalEl);
 document.getElementById('permisos-aceptar').onclick = async () => {
     toggleModal(modalId, false);
-    // Solicitar permiso de notificaciones nativo
+    // Permiso nativo
     if (Notification.permission === 'default') {
         await Notification.requestPermission();
     }
-    // Solicitar suscripción a OneSignal (si el SDK está cargado)
+    // Permiso y suscripción OneSignal
     if (typeof OneSignal !== 'undefined') {
-       OneSignal.login(user.uid);
+    OneSignal.login(user.uid);
+    // Forzar solicitud de permiso si no está concedido
+    if (OneSignal.Notifications.permission === 'default') {
         try {
             await OneSignal.Notifications.requestPermission();
-            // Si el usuario ya está autenticado, volver a vincular el UID
-            if (auth.currentUser) {
-                OneSignal.login(auth.currentUser.uid);
-            }
         } catch (e) {
-            console.warn('Error al solicitar permiso a OneSignal:', e);
+            console.warn('Error al solicitar permiso OneSignal:', e);
         }
     }
-    // Iniciar seguimiento de ubicación
+}
+    // Seguimiento de ubicación
     if (auth.currentUser && window.currentUserDoc && 
         ['cliente', 'membresia'].includes(window.currentUserDoc.role)) {
         startClientLocationTracking();
