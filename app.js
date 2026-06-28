@@ -11781,19 +11781,33 @@ window.enviarBroadcast = async function() {
               </div>
           `;
           document.body.appendChild(modalEl);
-          document.getElementById('permisos-aceptar').onclick = async () => {
-              toggleModal(modalId, false);
-              if (Notification.permission === 'default') {
-                  await Notification.requestPermission();
-              }
-              // 🔁 INICIAR SEGUIMIENTO DE UBICACIÓN PARA EL CLIENTE
-              if (auth.currentUser && window.currentUserDoc && 
-                  ['cliente', 'membresia'].includes(window.currentUserDoc.role)) {
-                  startClientLocationTracking();
-              }
-              localStorage.setItem('obr_permissions_granted', 'true');
-              window.initServiceWorker?.(); // opcional
-          };
+document.getElementById('permisos-aceptar').onclick = async () => {
+    toggleModal(modalId, false);
+    // Solicitar permiso de notificaciones nativo
+    if (Notification.permission === 'default') {
+        await Notification.requestPermission();
+    }
+    // Solicitar suscripción a OneSignal (si el SDK está cargado)
+    if (typeof OneSignal !== 'undefined') {
+       OneSignal.login(user.uid);
+        try {
+            await OneSignal.Notifications.requestPermission();
+            // Si el usuario ya está autenticado, volver a vincular el UID
+            if (auth.currentUser) {
+                OneSignal.login(auth.currentUser.uid);
+            }
+        } catch (e) {
+            console.warn('Error al solicitar permiso a OneSignal:', e);
+        }
+    }
+    // Iniciar seguimiento de ubicación
+    if (auth.currentUser && window.currentUserDoc && 
+        ['cliente', 'membresia'].includes(window.currentUserDoc.role)) {
+        startClientLocationTracking();
+    }
+    localStorage.setItem('obr_permissions_granted', 'true');
+    window.initServiceWorker?.();
+};
           document.getElementById('permisos-denegar').onclick = () => {
               toggleModal(modalId, false);
               localStorage.setItem('obr_permissions_granted', 'false');
