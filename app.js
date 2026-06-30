@@ -15,50 +15,6 @@
       appId: "1:444725574222:web:db1055eef17e1a5ddee11f"
   };
 
-function loadOneSignalSDK() {
-    return new Promise((resolve, reject) => {
-        if (typeof window.OneSignal !== 'undefined') {
-            resolve();
-            return;
-        }
-        const script = document.createElement('script');
-        script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
-        script.onload = () => {
-            // Esperar a que el objeto OneSignal esté disponible
-            const check = () => {
-                if (typeof window.OneSignal !== 'undefined') {
-                    resolve();
-                } else {
-                    setTimeout(check, 200);
-                }
-            };
-            check();
-        };
-        script.onerror = () => reject(new Error('No se pudo cargar OneSignal SDK'));
-        document.head.appendChild(script);
-    });
-}
-
-
-// Función para esperar a que OneSignal esté completamente inicializado
-function esperarOneSignalListo() {
-    return new Promise((resolve, reject) => {
-        const maxIntentos = 50;
-        let intentos = 0;
-        const intervalo = setInterval(() => {
-            intentos++;
-            if (typeof OneSignal !== 'undefined' && OneSignal._initialized) {
-                clearInterval(intervalo);
-                resolve();
-            } else if (intentos >= maxIntentos) {
-                clearInterval(intervalo);
-                reject(new Error('OneSignal no se inicializó a tiempo'));
-            }
-        }, 200);
-    });
-}
-
-
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   window.auth = auth;   // 👈 EXPONER GLOBALMENTE
@@ -2393,19 +2349,36 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
         return;
     }
 
-    // 🔹 ESPERAR A QUE ONESIGNAL ESTÉ INICIALIZADO Y LUEGO VINCULAR
+        // 🔹 VINCULAR USUARIO A ONESIGNAL (el SDK ya está inicializado desde index.html)
     try {
-        await esperarOneSignalListo(); // Espera hasta que OneSignal._initialized sea true
+        // Esperar a que OneSignal esté disponible (máximo 5 segundos)
+        let oneSignalReady = false;
+        for (let i = 0; i < 25; i++) {
+            if (typeof OneSignal !== 'undefined' && OneSignal.User) {
+                oneSignalReady = true;
+                break;
+            }
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        
+        if (!oneSignalReady) {
+            console.warn('⚠️ OneSignal no está disponible, pero la app continuará funcionando');
+            return;
+        }
+        
         // Vincular usuario
         await OneSignal.login(user.uid);
         console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
+        
         // Solicitar permiso si es necesario
         if (OneSignal.Notifications.permission === 'default') {
             await OneSignal.Notifications.requestPermission();
         }
     } catch (error) {
-        console.error('❌ Error al configurar OneSignal:', error);
+        console.error('❌ Error al vincular usuario a OneSignal:', error);
+        // No lanzar error, la app debe continuar funcionando
     }
+   
 
     // 🔹 Cargar lista de todos los usuarios para notificaciones masivas
     cargarTodosLosUids();
@@ -12803,67 +12776,7 @@ window.adminLoadLoyalty = async function() {
               }
           }, 300);
       }
-  };if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/RESCATE-OBR/sw.js').then(reg => {
-          console.log('SW registrado:', reg.scope);
-        }).catch(err => {
-          console.warn('Error al registrar SW:', err);
-        });
-      });
-    }
-
-  if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/RESCATE-OBR/sw.js').then(reg => {
-        console.log('SW registrado:', reg.scope);
-
-        // Si hay una nueva versión esperando, usar el modal de la app
-        const notificarActualizacion = (worker) => {
-          if (typeof window.confirmModal === 'function') {
-            window.confirmModal(
-              '📢 Nueva versión disponible. ¿Quieres actualizar ahora para ver las mejoras?',
-              () => {
-                worker.postMessage('skipWaiting');
-                setTimeout(() => window.location.reload(), 500);
-              },
-              () => { /* El usuario cancela, la actualización se aplicará en la próxima recarga */ }
-            );
-          } else {
-            // Fallback si el modal aún no está disponible
-            if (confirm('Nueva versión disponible. ¿Actualizar?')) {
-              worker.postMessage('skipWaiting');
-              window.location.reload();
-            }
-          }
-        };
-
-        // Si ya hay un worker esperando al registrar
-        if (reg.waiting) {
-          notificarActualizacion(reg.waiting);
-        }
-
-        // Cuando se detecta una nueva versión
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                notificarActualizacion(newWorker);
-              }
-            });
-          }
-        });
-      }).catch(err => console.warn('Error al registrar SW:', err));
-
-      // Recargar automáticamente cuando el SW tome el control
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-          refreshing = true;
-          window.location.reload();
-        }
-      });
-    }
+  };
   window.ingresarATaller = async () => {
       if (!currentDetalleServicioId) return;
       await updateDoc(doc(db, "rescates", currentDetalleServicioId), { 
