@@ -1,6 +1,6 @@
 importScripts('https://cdn.onesignal.com/sdks/OneSignalSDKWorker.js');
 
-const CACHE_NAME = 'obr-cache-v90';
+const CACHE_NAME = 'obr-cache-v87';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
@@ -73,7 +73,6 @@ self.addEventListener('message', event => {
   }
 });
 
-// Cuando el SW toma control, avisa a la página para que refresque
 self.addEventListener('controllerchange', () => {
-  // Esto lo maneja el script en index.html
+  // Ya se maneja en el frontend
 });
