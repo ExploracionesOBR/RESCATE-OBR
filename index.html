@@ -2186,13 +2186,8 @@
         </p>
     </div>
 </div>
-<!-- ===== REGISTRO ÚNICO DEL SERVICE WORKER ===== -->
+<!-- ===== REGISTRO ÚNICO DEL SERVICE WORKER CON VERSIÓN DINÁMICA ===== -->
 <script>
-    // ================================================
-    // CONFIGURACIÓN - CAMBIAR SOLO CUANDO CAMBIE sw.js
-    // ================================================
-    const SW_VERSION = 'v94'; // Cambiar manualmente cuando se modifique sw.js
-    
     // ================================================
     // REGISTRO DEL SERVICE WORKER - UNA SOLA VEZ
     // ================================================
@@ -2210,7 +2205,6 @@
                     swExists = true;
                     existingReg = reg;
                     console.log('✅ Service Worker ya registrado en:', reg.scope);
-                    console.log('   Versión actual:', SW_VERSION);
                     break;
                 }
             }
@@ -2218,6 +2212,11 @@
             // Si ya existe, solo verificar actualizaciones
             if (swExists && existingReg) {
                 console.log('🔍 Verificando actualizaciones del Service Worker...');
+                
+                // Obtener la versión del SW activo (si existe)
+                if (existingReg.active) {
+                    existingReg.active.postMessage({ type: 'GET_VERSION' });
+                }
                 
                 // Verificar si hay una nueva versión esperando
                 if (existingReg.waiting) {
@@ -2247,7 +2246,6 @@
             navigator.serviceWorker.register(swUrl, { scope: swScope })
                 .then(reg => {
                     console.log('✅ Service Worker registrado correctamente:', reg.scope);
-                    console.log('   Versión:', SW_VERSION);
                     
                     // Verificar si hay una nueva versión esperando
                     if (reg.waiting) {
@@ -2276,25 +2274,25 @@
     }
     
     // ================================================
-    // FUNCIÓN PARA NOTIFICAR ACTUALIZACIONES (CON CONTROL DE SESIÓN)
+    // FUNCIÓN PARA NOTIFICAR ACTUALIZACIONES
     // ================================================
     function notificarActualizacion(worker) {
         // Verificar si ya se notificó en esta sesión
-        const sessionKey = 'sw_update_notified_' + SW_VERSION;
+        // Usamos una clave genérica, ya que la versión la maneja sw.js
+        const sessionKey = 'sw_update_notified';
         if (sessionStorage.getItem(sessionKey) === 'true') {
-            console.log('⚠️ Actualización ya notificada en esta sesión:', SW_VERSION);
-            console.log('   El usuario ya fue informado sobre esta versión');
+            console.log('⚠️ Actualización ya notificada en esta sesión');
             return;
         }
         
-        console.log('📢 Mostrando modal de actualización para versión:', SW_VERSION);
+        console.log('📢 Mostrando modal de actualización');
         
         // Marcar como notificada en esta sesión
         sessionStorage.setItem(sessionKey, 'true');
         
         if (typeof window.confirmModal === 'function') {
             window.confirmModal(
-                '📢 Nueva versión disponible (' + SW_VERSION + '). ¿Quieres actualizar ahora?',
+                '📢 Nueva versión disponible. ¿Quieres actualizar ahora para ver las mejoras?',
                 () => {
                     console.log('✅ Usuario aceptó actualizar');
                     worker.postMessage('skipWaiting');
@@ -2305,12 +2303,11 @@
                 },
                 () => {
                     console.log('❌ Usuario canceló la actualización');
-                    console.log('   La nueva versión se aplicará en la próxima recarga');
                 }
             );
         } else {
             // Fallback
-            if (confirm('📢 Nueva versión disponible (' + SW_VERSION + '). ¿Actualizar?')) {
+            if (confirm('📢 Nueva versión disponible. ¿Actualizar?')) {
                 worker.postMessage('skipWaiting');
                 setTimeout(() => window.location.reload(), 500);
             }
@@ -2328,6 +2325,18 @@
             setTimeout(() => window.location.reload(), 500);
         }
     });
+    
+    // ================================================
+    // COMUNICACIÓN CON EL SERVICE WORKER (para obtener versión)
+    // ================================================
+    navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'VERSION') {
+            console.log('📌 Service Worker activo versión:', event.data.version);
+        }
+    });
 </script>
+
+<!-- Cargar OneSignal SDK -->
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" async></script>
 </body>
 </html>
