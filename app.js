@@ -40,7 +40,7 @@ function loadOneSignalSDK() {
 }
 
 
-// Función para esperar a que OneSignal esté completamente inicializado (con worker configurado)
+// Función para esperar a que OneSignal esté completamente inicializado
 function esperarOneSignalListo() {
     return new Promise((resolve, reject) => {
         const maxIntentos = 50;
