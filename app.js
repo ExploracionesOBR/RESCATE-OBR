@@ -273,24 +273,26 @@ const desc = getWeatherDescription(weatherCode);
     }
 
     // Determinar si es video o imagen
+       // Determinar si es video o imagen
     const isVideo = /\.(mp4|webm|mov)$/i.test(mediaUrl);
     
     // Limpiar contenedor
     container.innerHTML = '';
+    container.className = 'w-full h-full flex items-center justify-center bg-transparent rounded-2xl overflow-hidden';
     
-    // Configurar el contenido para pantalla completa
+    // Configurar el contenido para pantalla completa SIN márgenes
     if (isVideo) {
         container.innerHTML = `
             <video src="${mediaUrl}" autoplay muted loop playsinline 
-                  class="w-full h-full object-contain max-h-[85vh]" 
-                  style="pointer-events:none; display:block; max-height: 85vh;">
+                  class="w-full h-auto object-contain max-h-[85vh]"
+                  style="pointer-events:none; display:block; width: 100%; height: auto; max-height: 85vh;">
             </video>
         `;
     } else {
         container.innerHTML = `
             <img src="${mediaUrl}" alt="Guía de instalación" 
-                class="w-full h-full object-contain max-h-[85vh]"
-                style="max-height: 85vh;">
+                class="w-full h-auto object-contain max-h-[85vh]"
+                style="width: 100%; height: auto; max-height: 85vh;">
         `;
     }
 
