@@ -2175,19 +2175,95 @@
         <div id="install-guide-media-container" class="rounded-xl overflow-hidden bg-black/50 shadow-2xl"></div>
     </div>
 </div>
-<!-- DESPUÉS de cargar app.js y todos los demás scripts -->
+<!-- ===== REGISTRO DE SERVICE WORKERS Y ONESIGNAL ===== -->
 <script>
-  // Configurar OneSignal de forma segura
+  // 1. Registrar el Service Worker principal (sw.js)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/RESCATE-OBR/sw.js', { scope: '/RESCATE-OBR/' })
+      .then(reg => {
+        console.log('SW principal registrado:', reg.scope);
+        
+        // Manejo de actualizaciones
+        if (reg.waiting) {
+          notificarActualizacion(reg.waiting);
+        }
+        
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                notificarActualizacion(newWorker);
+              }
+            });
+          }
+        });
+      })
+      .catch(err => console.warn('Error al registrar SW principal:', err));
+  }
+
+  // 2. Registrar OneSignalSDKWorker.js (debe estar en el mismo scope)
+  const oneSignalWorkerUrl = '/RESCATE-OBR/OneSignalSDKWorker.js';
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register(oneSignalWorkerUrl, { scope: '/RESCATE-OBR/' })
+      .then(() => {
+        console.log('✅ OneSignal Service Worker registrado correctamente en:', oneSignalWorkerUrl);
+      })
+      .catch(err => {
+        console.error('❌ Error al registrar OneSignal SW:', err);
+        // Fallback: si falla el registro, intentar con la versión con parámetros
+        navigator.serviceWorker.register(oneSignalWorkerUrl + '?appId=dbdeba23-a1a1-4220-8861-cbf29002d394&sdkVersion=160607', { scope: '/RESCATE-OBR/' })
+          .then(() => console.log('✅ OneSignal SW registrado con parámetros'))
+          .catch(e => console.error('❌ Fallback también falló:', e));
+      });
+  }
+
+  // 3. Inicializar OneSignal DESPUÉS del registro del Service Worker
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   OneSignalDeferred.push(async function(OneSignal) {
+    // Esperar un momento para asegurar que el SW esté registrado
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     await OneSignal.init({
       appId: "dbdeba23-a1a1-4220-8861-cbf29002d394",
-      disableServiceWorkerRegistration: true
+      serviceWorkerPath: oneSignalWorkerUrl,
+      serviceWorkerScope: '/RESCATE-OBR/',
+      disableServiceWorkerRegistration: true, // Ya registramos manualmente
     });
+    
+    console.log('✅ OneSignal inicializado correctamente');
+  });
+
+  // Función auxiliar para notificar actualizaciones del Service Worker
+  function notificarActualizacion(worker) {
+    if (typeof window.confirmModal === 'function') {
+      window.confirmModal(
+        '📢 Nueva versión disponible. ¿Quieres actualizar ahora para ver las mejoras?',
+        () => {
+          worker.postMessage('skipWaiting');
+          setTimeout(() => window.location.reload(), 500);
+        },
+        () => { /* El usuario cancela */ }
+      );
+    } else {
+      if (confirm('Nueva versión disponible. ¿Actualizar?')) {
+        worker.postMessage('skipWaiting');
+        window.location.reload();
+      }
+    }
+  }
+
+  // Recargar automáticamente cuando el SW tome el control
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+      refreshing = true;
+      window.location.reload();
+    }
   });
 </script>
 
+<!-- Cargar OneSignal SDK -->
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" async></script>
-</body>
 </body>
 </html>
