@@ -1,7 +1,7 @@
 importScripts('https://cdn.onesignal.com/sdks/OneSignalSDKWorker.js');
 
-// Versión actual - solo cambia cuando MODIFICAS sw.js manualmente
-const CACHE_NAME = 'obr-cache-v95';
+// Versión actual - CAMBIAR SOLO AQUÍ
+const CACHE_NAME = 'obr-cache-v94';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
@@ -70,8 +70,24 @@ self.addEventListener('fetch', event => {
   );
 });
 
+// ================================================
+// MANEJO DE MENSAJES DESDE LA PÁGINA
+// ================================================
 self.addEventListener('message', event => {
+  console.log('📩 Mensaje recibido en SW:', event.data);
+  
   if (event.data === 'skipWaiting') {
+    console.log('⏩ skipWaiting recibido, activando nuevo SW');
     self.skipWaiting();
+    return;
+  }
+  
+  if (event.data && event.data.type === 'GET_VERSION') {
+    console.log('📤 Enviando versión a la página:', CACHE_NAME);
+    // Enviar la versión de vuelta al cliente
+    event.ports[0].postMessage({
+      type: 'VERSION',
+      version: CACHE_NAME
+    });
   }
 });
