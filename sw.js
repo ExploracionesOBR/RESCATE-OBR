@@ -1,7 +1,7 @@
 importScripts('https://cdn.onesignal.com/sdks/OneSignalSDKWorker.js');
 
 // Versión actual - solo cambia cuando MODIFICAS sw.js manualmente
-const CACHE_NAME = 'obr-cache-v94';
+const CACHE_NAME = 'obr-cache-v95';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
