@@ -1,6 +1,7 @@
 importScripts('https://cdn.onesignal.com/sdks/OneSignalSDKWorker.js');
 
-const CACHE_NAME = 'obr-cache-v55';
+// Versión actual - solo cambia cuando MODIFICAS sw.js manualmente
+const CACHE_NAME = 'obr-cache-v94';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
@@ -20,6 +21,7 @@ const ALL_FILES = [
 ];
 
 self.addEventListener('install', event => {
+  console.log('🔧 Instalando Service Worker, versión:', CACHE_NAME);
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
       return Promise.allSettled(ALL_FILES.map(url => 
@@ -27,9 +29,11 @@ self.addEventListener('install', event => {
       ));
     })
   );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
+  console.log('✅ Activando Service Worker, versión:', CACHE_NAME);
   event.waitUntil(
     caches.keys().then(names => Promise.all(
       names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))
@@ -66,13 +70,8 @@ self.addEventListener('fetch', event => {
   );
 });
 
-// Notificar a los clientes cuando haya una nueva versión
 self.addEventListener('message', event => {
   if (event.data === 'skipWaiting') {
     self.skipWaiting();
   }
-});
-
-self.addEventListener('controllerchange', () => {
-  // Ya se maneja en el frontend
 });
