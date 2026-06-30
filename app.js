@@ -2349,22 +2349,14 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
         return;
     }
 
-        // 🔹 VINCULAR USUARIO A ONESIGNAL (el SDK ya está inicializado desde index.html)
-    try {
-        // Esperar a que OneSignal esté disponible (máximo 5 segundos)
-        let oneSignalReady = false;
-        for (let i = 0; i < 25; i++) {
-            if (typeof OneSignal !== 'undefined' && OneSignal.User) {
-                oneSignalReady = true;
-                break;
-            }
-            await new Promise(resolve => setTimeout(resolve, 200));
-        }
-        
-        if (!oneSignalReady) {
-            console.warn('⚠️ OneSignal no está disponible, pero la app continuará funcionando');
-            return;
-        }
+      // En onAuthStateChanged, reemplazar la sección de OneSignal con:
+// 🔹 VINCULAR USUARIO A ONESIGNAL (el SDK ya está inicializado desde index.html)
+try {
+    // Usar la API oficial para esperar a que OneSignal esté listo
+    if (typeof OneSignal !== 'undefined' && OneSignal.Notifications) {
+        // Esto fuerza la espera hasta que el SDK esté completamente inicializado
+        await OneSignal.Notifications.permission;
+        console.log('✅ OneSignal completamente inicializado');
         
         // Vincular usuario
         await OneSignal.login(user.uid);
@@ -2374,11 +2366,13 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
         if (OneSignal.Notifications.permission === 'default') {
             await OneSignal.Notifications.requestPermission();
         }
-    } catch (error) {
-        console.error('❌ Error al vincular usuario a OneSignal:', error);
-        // No lanzar error, la app debe continuar funcionando
+    } else {
+        console.warn('⚠️ OneSignal no está disponible, la app continuará funcionando');
     }
-   
+} catch (error) {
+    console.error('❌ Error al vincular usuario a OneSignal:', error);
+    // La app debe continuar funcionando incluso si OneSignal falla
+}   
 
     // 🔹 Cargar lista de todos los usuarios para notificaciones masivas
     cargarTodosLosUids();
