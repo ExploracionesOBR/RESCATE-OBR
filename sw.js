@@ -1,4 +1,6 @@
-const CACHE_NAME = 'obr-cache-v87';
+importScripts('https://cdn.onesignal.com/sdks/OneSignalSDKWorker.js');
+
+const CACHE_NAME = 'obr-cache-v89';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
@@ -20,7 +22,6 @@ const ALL_FILES = [
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      // Cachea todo de golpe, si algo falla continúa
       return Promise.allSettled(ALL_FILES.map(url => 
         cache.add(url).catch(err => console.warn('No se pudo cachear:', url, err))
       ));
