@@ -276,81 +276,81 @@ const desc = getWeatherDescription(weatherCode);
 
   // ===== GUÍA DE INSTALACIÓN (modal único) =====
   async function showInstallGuideIfNeeded() {
-      if (typeof document === 'undefined' || typeof window === 'undefined') {
-          console.warn('Entorno no válido para mostrar la guía.');
-          return;
-      }
+    if (typeof document === 'undefined' || typeof window === 'undefined') {
+        console.warn('Entorno no válido para mostrar la guía.');
+        return;
+    }
 
-      // Si la app ya está instalada, no mostrar nunca
-      if (isAppInstalled()) {
-          console.log('✅ App ya instalada, no se muestra guía.');
-          return;
-      }
+    // Si la app ya está instalada, no mostrar nunca
+    if (isAppInstalled()) {
+        console.log('✅ App ya instalada, no se muestra guía.');
+        return;
+    }
 
-      // Verificar que el modal y el contenedor existan
-      const modal = document.getElementById('modal-install-guide');
-      const container = document.getElementById('install-guide-media-container');
-      if (!modal || !container) {
-          console.error('❌ Modal o contenedor no encontrado en el DOM.');
-          return;
-      }
+    // Verificar que el modal y el contenedor existan
+    const modal = document.getElementById('modal-install-guide');
+    const container = document.getElementById('install-guide-media-container');
+    if (!modal || !container) {
+        console.error('❌ Modal o contenedor no encontrado en el DOM.');
+        return;
+    }
 
-      // Cargar la URL desde Firestore (o usar la predeterminada)
-      let mediaUrl = null;
-      try {
-          const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
-          if (settingsSnap.exists()) {
-              mediaUrl = settingsSnap.data().installGuideMedia;
-          }
-      } catch (error) {
-          console.error('❌ Error al leer settings/general:', error);
-      }
+    // Cargar la URL desde Firestore (o usar la predeterminada)
+    let mediaUrl = null;
+    try {
+        const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
+        if (settingsSnap.exists()) {
+            mediaUrl = settingsSnap.data().installGuideMedia;
+        }
+    } catch (error) {
+        console.error('❌ Error al leer settings/general:', error);
+    }
 
-      // URL por defecto (cambiar por la real)
-      if (!mediaUrl) {
-          mediaUrl = 'https://ik.imagekit.io/obr/instalacion_guia.png';
-      }
+    // URL por defecto (cambiar por la real)
+    if (!mediaUrl) {
+        mediaUrl = 'https://ik.imagekit.io/obr/instalacion_guia.png';
+    }
 
-      if (!mediaUrl) {
-          console.warn('❌ No hay URL para la guía.');
-          return;
-      }
+    if (!mediaUrl) {
+        console.warn('❌ No hay URL para la guía.');
+        return;
+    }
 
-      // Determinar si es video o imagen
-      const isVideo = /\.(mp4|webm|mov)$/i.test(mediaUrl);
-      container.innerHTML = '';
-      if (isVideo) {
-          container.innerHTML = `
-              <video src="${mediaUrl}" autoplay muted loop playsinline 
-                    class="w-full h-auto max-h-[70vh] object-contain" 
-                    style="pointer-events:none; display:block;"></video>
-          `;
-      } else {
-          container.innerHTML = `
-              <img src="${mediaUrl}" alt="Guía de instalación" 
-                  class="w-full h-auto max-h-[70vh] object-contain">
-          `;
-      }
+    // Determinar si es video o imagen
+    const isVideo = /\.(mp4|webm|mov)$/i.test(mediaUrl);
+    container.innerHTML = '';
+    if (isVideo) {
+        container.innerHTML = `
+            <video src="${mediaUrl}" autoplay muted loop playsinline 
+                  class="w-full h-auto max-h-[70vh] object-contain" 
+                  style="pointer-events:none; display:block;"></video>
+        `;
+    } else {
+        container.innerHTML = `
+            <img src="${mediaUrl}" alt="Guía de instalación" 
+                class="w-full h-auto max-h-[70vh] object-contain">
+        `;
+    }
 
-      // Mostrar modal
-      toggleModal('modal-install-guide', true);
-      console.log('✅ Modal de guía mostrado.');
+    // Mostrar modal
+    toggleModal('modal-install-guide', true);
+    console.log('✅ Modal de guía mostrado.');
 
-      // Botón de cierre (solo cierra, no guarda nada)
-      const closeBtn = document.getElementById('install-guide-close');
-      if (closeBtn) {
-          closeBtn.onclick = () => {
-              toggleModal('modal-install-guide', false);
-          };
-      }
+    // Botón de cierre (solo cierra, no guarda nada)
+    const closeBtn = document.getElementById('install-guide-close');
+    if (closeBtn) {
+        closeBtn.onclick = () => {
+            toggleModal('modal-install-guide', false);
+        };
+    }
 
-      // Cerrar al hacer clic en el fondo
-      modal.addEventListener('click', (e) => {
-          if (e.target === modal) {
-              toggleModal('modal-install-guide', false);
-          }
-      });
-  }
+    // Cerrar al hacer clic en el fondo
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            toggleModal('modal-install-guide', false);
+        }
+    });
+}
 
   // ===== GUARDAR URL DE GUÍA DE INSTALACIÓN =====
   window.saveInstallGuideUrl = async function() {
