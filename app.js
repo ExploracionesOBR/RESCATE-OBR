@@ -230,7 +230,7 @@ const desc = getWeatherDescription(weatherCode);
       return false;
   }
 
-  // ===== GUÍA DE INSTALACIÓN (modal único) =====
+    // ===== GUÍA DE INSTALACIÓN (modal único con pantalla completa) =====
   async function showInstallGuideIfNeeded() {
     if (typeof document === 'undefined' || typeof window === 'undefined') {
         console.warn('Entorno no válido para mostrar la guía.');
@@ -262,7 +262,7 @@ const desc = getWeatherDescription(weatherCode);
         console.error('❌ Error al leer settings/general:', error);
     }
 
-    // URL por defecto (cambiar por la real)
+    // URL por defecto
     if (!mediaUrl) {
         mediaUrl = 'https://ik.imagekit.io/obr/instalacion_guia.png';
     }
@@ -274,37 +274,51 @@ const desc = getWeatherDescription(weatherCode);
 
     // Determinar si es video o imagen
     const isVideo = /\.(mp4|webm|mov)$/i.test(mediaUrl);
+    
+    // Limpiar contenedor
     container.innerHTML = '';
+    
+    // Configurar el contenido para pantalla completa
     if (isVideo) {
         container.innerHTML = `
             <video src="${mediaUrl}" autoplay muted loop playsinline 
-                  class="w-full h-auto max-h-[70vh] object-contain" 
-                  style="pointer-events:none; display:block;"></video>
+                  class="w-full h-full object-contain max-h-[85vh]" 
+                  style="pointer-events:none; display:block; max-height: 85vh;">
+            </video>
         `;
     } else {
         container.innerHTML = `
             <img src="${mediaUrl}" alt="Guía de instalación" 
-                class="w-full h-auto max-h-[70vh] object-contain">
+                class="w-full h-full object-contain max-h-[85vh]"
+                style="max-height: 85vh;">
         `;
     }
 
     // Mostrar modal
     toggleModal('modal-install-guide', true);
-    console.log('✅ Modal de guía mostrado.');
+    console.log('✅ Modal de guía mostrado en pantalla completa.');
 
-    // Botón de cierre (solo cierra, no guarda nada)
+    // Botón de cierre - Reasignar evento cada vez que se abre
     const closeBtn = document.getElementById('install-guide-close');
     if (closeBtn) {
+        // Eliminar eventos anteriores para evitar duplicados
+        closeBtn.onclick = null;
         closeBtn.onclick = () => {
             toggleModal('modal-install-guide', false);
+            console.log('✅ Modal de guía cerrado por el usuario.');
         };
     }
 
-    // Cerrar al hacer clic en el fondo
+    // Cerrar al hacer clic en el fondo (pero NO en el contenido)
     modal.addEventListener('click', (e) => {
         if (e.target === modal) {
             toggleModal('modal-install-guide', false);
         }
+    });
+    
+    // Prevenir que el clic en el contenido cierre el modal
+    container.addEventListener('click', (e) => {
+        e.stopPropagation();
     });
 }
 
