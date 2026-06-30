@@ -2179,19 +2179,21 @@
 <script>
   window.OneSignal_ServiceWorkerPath = "/RESCATE-OBR/onesignalsdkworker.js";
   window.OneSignal_ServiceWorkerScope = "/RESCATE-OBR/";
+<script>
+  // Forzar la ruta y el alcance del Service Worker
+  window.OneSignal_ServiceWorkerPath = "/RESCATE-OBR/OneSignalSDKWorker.js";
+  window.OneSignal_ServiceWorkerScope = "/RESCATE-OBR/";
 </script>
 
 <!-- Cargar el SDK de OneSignal -->
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" async></script>
 
-<!-- Inicialización con la ruta del worker en la raíz -->
+<!-- Inicialización (ya no necesita las rutas, porque ya las forzamos) -->
 <script>
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   OneSignalDeferred.push(async function(OneSignal) {
     await OneSignal.init({
-      appId: "dbdeba23-a1a1-4220-8861-cbf29002d394",
-      serviceWorkerPath: "/onesignalsdkworker.js",  // Ahora en la raíz
-      serviceWorkerParam: { scope: "/" }             // Scope raíz
+      appId: "dbdeba23-a1a1-4220-8861-cbf29002d394"
     });
   });
 </script>
