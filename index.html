@@ -2175,17 +2175,9 @@
         <div id="install-guide-media-container" class="rounded-xl overflow-hidden bg-black/50 shadow-2xl"></div>
     </div>
 </div>
-<!-- Desactivar registro automático del Service Worker de OneSignal -->
+<!-- DESPUÉS de cargar app.js y todos los demás scripts -->
 <script>
-  window.OneSignal = window.OneSignal || {};
-  window.OneSignal.DISABLE_SERVICE_WORKER_REGISTRATION = true;
-</script>
-
-<!-- Cargar el SDK de OneSignal -->
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" async></script>
-
-<!-- Inicialización (también con desactivación) -->
-<script>
+  // Configurar OneSignal de forma segura
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   OneSignalDeferred.push(async function(OneSignal) {
     await OneSignal.init({
@@ -2194,5 +2186,8 @@
     });
   });
 </script>
+
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" async></script>
+</body>
 </body>
 </html>
