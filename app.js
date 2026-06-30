@@ -40,16 +40,19 @@ function loadOneSignalSDK() {
 }
 
 
-function esperarOneSignal() {
-    return new Promise((resolve) => {
-        if (typeof OneSignal !== 'undefined') {
-            resolve();
-            return;
-        }
+// Función para esperar a que OneSignal esté completamente inicializado (con worker configurado)
+function esperarOneSignalListo() {
+    return new Promise((resolve, reject) => {
+        const maxIntentos = 50;
+        let intentos = 0;
         const intervalo = setInterval(() => {
-            if (typeof OneSignal !== 'undefined') {
+            intentos++;
+            if (typeof OneSignal !== 'undefined' && OneSignal._initialized) {
                 clearInterval(intervalo);
                 resolve();
+            } else if (intentos >= maxIntentos) {
+                clearInterval(intervalo);
+                reject(new Error('OneSignal no se inicializó a tiempo'));
             }
         }, 200);
     });
@@ -2390,10 +2393,10 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
         return;
     }
 
-    // 🔹 ESPERAR A QUE ONESIGNAL ESTÉ DISPONIBLE Y LUEGO VINCULAR (SIN INIT)
+    // 🔹 ESPERAR A QUE ONESIGNAL ESTÉ INICIALIZADO Y LUEGO VINCULAR
     try {
-        await esperarOneSignal(); // Función definida al inicio del archivo
-        // No inicializamos, ya lo hizo el HTML
+        await esperarOneSignalListo(); // Espera hasta que OneSignal._initialized sea true
+        // Vincular usuario
         await OneSignal.login(user.uid);
         console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
         // Solicitar permiso si es necesario
