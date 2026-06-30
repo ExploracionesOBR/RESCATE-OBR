@@ -1,6 +1,6 @@
 importScripts('https://cdn.onesignal.com/sdks/OneSignalSDKWorker.js');
 
-const CACHE_NAME = 'obr-cache-v87';
+const CACHE_NAME = 'obr-cache-v91';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
