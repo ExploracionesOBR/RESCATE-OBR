@@ -2175,21 +2175,16 @@
         <div id="install-guide-media-container" class="rounded-xl overflow-hidden bg-black/50 shadow-2xl"></div>
     </div>
 </div>
-<!-- Variables globales para forzar la ruta del Service Worker -->
-<script>
-  window.OneSignal_ServiceWorkerPath = "/RESCATE-OBR/OneSignalSDKWorker.js";
-  window.OneSignal_ServiceWorkerScope = "/RESCATE-OBR/";
-</script>
-
-<!-- Cargar el SDK de OneSignal -->
+<!-- Carga del SDK de OneSignal -->
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" async></script>
 
-<!-- Inicialización (ya no necesita las rutas, porque ya las forzamos) -->
+<!-- Inicialización con desactivación del registro automático -->
 <script>
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   OneSignalDeferred.push(async function(OneSignal) {
     await OneSignal.init({
-      appId: "dbdeba23-a1a1-4220-8861-cbf29002d394"
+      appId: "dbdeba23-a1a1-4220-8861-cbf29002d394",
+      disableServiceWorkerRegistration: true
     });
   });
 </script>
