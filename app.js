@@ -2354,8 +2354,8 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
     }
 }
 
-  // ===== FLUJO DE VISTAS Y AUTENTICACIÓN (MODIFICADO PARA ONESIGNAL) =====
- onAuthStateChanged(auth, async user => {
+ // ===== FLUJO DE VISTAS Y AUTENTICACIÓN (MODIFICADO PARA ONESIGNAL) =====
+onAuthStateChanged(auth, async user => {
     // Asegurar tema antes de mostrar cualquier vista
     cargarTemaLocal();
     
@@ -2486,60 +2486,13 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
         }
 
         // ============================================================
-        // FLUJO SECUNDARIO: ONESIGNAL (NO BLOQUEANTE)
+        // FLUJO SECUNDARIO: ONESIGNAL (NO BLOQUEANTE Y CON MODAL PERSONALIZADO)
         // ============================================================
-        // NOTA: Esta parte se ejecuta en segundo plano. Si falla, la app YA funcionó.
+        // NOTA: Esta función se ejecuta en segundo plano después de que la app ya cargó.
         // NO debe afectar la carga de la vista ni la autenticación.
-        (async function vinculaOneSignal() {
-            try {
-                // Esperar a que OneSignal esté disponible (máximo 5 segundos)
-                let oneSignalReady = false;
-                for (let i = 0; i < 25; i++) {
-                    if (typeof OneSignal !== 'undefined' && OneSignal.User) {
-                        oneSignalReady = true;
-                        break;
-                    }
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                }
-
-                if (!oneSignalReady) {
-                    console.warn('⚠️ OneSignal no está disponible (no crítico para la app)');
-                    return; // SALIMOS SIN BLOQUEAR LA APP
-                }
-
-                // Verificar que OneSignal esté completamente inicializado
-                let userId = null;
-                let attempts = 0;
-                while (!userId && attempts < 20) {
-                    try {
-                        userId = OneSignal.User.getUserId();
-                    } catch (e) {
-                        // Aún no está listo
-                    }
-                    if (!userId) {
-                        await new Promise(resolve => setTimeout(resolve, 200));
-                        attempts++;
-                    }
-                }
-
-                if (!userId) {
-                    console.warn('⚠️ OneSignal no está completamente inicializado (no crítico)');
-                    return; // SALIMOS SIN BLOQUEAR LA APP
-                }
-
-                console.log('✅ OneSignal completamente listo, UserId:', userId);
-                await OneSignal.login(user.uid);
-                console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
-
-                if (OneSignal.Notifications.permission === 'default') {
-                    await OneSignal.Notifications.requestPermission();
-                }
-
-            } catch (error) {
-                console.error('❌ Error al vincular OneSignal (no crítico):', error);
-                // LA APP YA ESTÁ CARGADA, ESTO NO DEBE ROMPERLA
-            }
-        })();
+        setTimeout(() => {
+            vincularOneSignalSeguro();
+        }, 2000);
 
         // ============================================================
         // LISTENER DE NOTIFICACIONES RTDB (siempre activo)
@@ -2560,6 +2513,116 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
         showView('view-login');
     }
 });
+
+// ============================================================
+// FUNCIÓN SEGURA PARA VINCULAR ONESIGNAL (DEFINIDA FUERA)
+// ============================================================
+function vincularOneSignalSeguro() {
+    try {
+        const user = auth.currentUser;
+        if (!user) {
+            console.warn('⚠️ No hay usuario autenticado para vincular a OneSignal');
+            return;
+        }
+
+        // Verificar si el SDK de OneSignal está disponible
+        if (typeof OneSignal === 'undefined' || !OneSignal.User) {
+            console.warn('⚠️ OneSignal no está disponible, la app continuará funcionando');
+            return;
+        }
+
+        // Verificar que OneSignal esté completamente inicializado
+        let userId = null;
+        try {
+            userId = OneSignal.User.getUserId();
+        } catch (e) {
+            console.warn('⚠️ OneSignal aún no está completamente inicializado');
+            return;
+        }
+
+        if (!userId) {
+            console.warn('⚠️ OneSignal no está completamente inicializado');
+            return;
+        }
+
+        console.log('✅ OneSignal completamente listo, UserId:', userId);
+        
+        // Vincular usuario de forma asíncrona (no bloqueante)
+        OneSignal.login(user.uid)
+            .then(() => {
+                console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
+                
+                // Solicitar permiso solo si es necesario y si no se ha mostrado antes
+                if (OneSignal.Notifications.permission === 'default' && !localStorage.getItem('onesignal_permission_shown')) {
+                    // Mostrar nuestro modal personalizado en español
+                    mostrarModalSuscripcionPersonalizado();
+                }
+            })
+            .catch(error => {
+                console.error('❌ Error al vincular usuario a OneSignal:', error);
+            });
+
+    } catch (error) {
+        console.error('❌ Error crítico en vincularOneSignalSeguro:', error);
+        // La app ya está cargada, este error no la bloquea
+    }
+}
+
+// ============================================================
+// MODAL PERSONALIZADO DE SUSCRIPCIÓN (EN ESPAÑOL)
+// ============================================================
+function mostrarModalSuscripcionPersonalizado() {
+    const modalId = 'modal-suscripcion-personalizado';
+    let modalEl = document.getElementById(modalId);
+    
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'fixed inset-0 bg-black/80 backdrop-blur-sm z-[1000003] flex items-center justify-center p-4 hidden';
+        modalEl.innerHTML = `
+            <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl text-center">
+                <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-bell text-3xl text-blue-600"></i>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">¡No te pierdas nada!</h3>
+                <p class="text-sm text-gray-600 mb-6">
+                    Recibe notificaciones en tiempo real sobre el estado de tus servicios, 
+                    promociones y actualizaciones importantes.
+                </p>
+                <div class="flex space-x-3">
+                    <button id="btn-suscribirme" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors shadow-lg">
+                        <i class="fas fa-check mr-2"></i> Suscribirme
+                    </button>
+                    <button id="btn-suscribirme-luego" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 rounded-xl transition-colors">
+                        Ahora no
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modalEl);
+        
+        // Configurar botones
+        document.getElementById('btn-suscribirme').onclick = async () => {
+            toggleModal(modalId, false);
+            localStorage.setItem('onesignal_permission_shown', 'true');
+            try {
+                const result = await OneSignal.Notifications.requestPermission();
+                console.log('✅ Permiso de notificaciones:', result);
+            } catch (error) {
+                console.error('❌ Error al solicitar permiso:', error);
+            }
+        };
+        
+        document.getElementById('btn-suscribirme-luego').onclick = () => {
+            toggleModal(modalId, false);
+            localStorage.setItem('onesignal_permission_shown', 'true');
+            console.log('⏰ Usuario pospuso la suscripción');
+        };
+    }
+    
+    // Mostrar el modal
+    toggleModal(modalId, true);
+}
 
   function showView(targetId) {
       // Modo Próximamente: redirigir a 'view-proximamente' excepto landing, login y force-setup
