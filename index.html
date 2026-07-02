@@ -2186,30 +2186,33 @@
         </p>
     </div>
 </div>
-    <!-- ===========================================================================
-     REGISTRO ÚNICO DEL SERVICE WORKER Y ONESIGNAL (ARQUITECTURA FINAL)
+<!-- ===========================================================================
+     REGISTRO DEL SERVICE WORKER DE ONESIGNAL E INICIALIZACIÓN
      =========================================================================== -->
 <script>
     // ============================================================
-    // 1. CONFIGURACIÓN DE ONESIGNAL
+    // 1. CONFIGURACIÓN DE ONESIGNAL (DEFINIDA ANTES DE USARSE)
     // ============================================================
-        // ============================================================
-    // 5. REGISTRO DEL SERVICE WORKER DE ONESIGNAL (MANUAL Y OBLIGATORIO)
-    // ============================================================
+    const ONESIGNAL_APP_ID = "dbdeba23-a1a1-4220-8861-cbf29002d394";
     const ONESIGNAL_SW_URL = '/RESCATE-OBR/OneSignalSDKWorker.js';
-    
+
+    // ============================================================
+    // 2. REGISTRO DEL SERVICE WORKER DE ONESIGNAL (MANUAL Y OBLIGATORIO)
+    // ============================================================
     if ('serviceWorker' in navigator) {
         // Registrar el SW de OneSignal en el subdirectorio correcto
         navigator.serviceWorker.register(ONESIGNAL_SW_URL, { scope: '/RESCATE-OBR/' })
             .then(() => {
                 console.log('✅ OneSignal SW registrado manualmente en:', ONESIGNAL_SW_URL);
                 
-                // Ahora que el SW está registrado, inicializar OneSignal
+                // ============================================================
+                // 3. INICIALIZACIÓN DE ONESIGNAL (DESPUÉS DE QUE EL SW ESTÉ REGISTRADO)
+                // ============================================================
                 window.OneSignalDeferred = window.OneSignalDeferred || [];
                 OneSignalDeferred.push(async function(OneSignal) {
                     try {
                         await OneSignal.init({
-                            appId: "dbdeba23-a1a1-4220-8861-cbf29002d394",
+                            appId: ONESIGNAL_APP_ID,
                             serviceWorkerPath: ONESIGNAL_SW_URL,
                             serviceWorkerScope: '/RESCATE-OBR/',
                             disableServiceWorkerRegistration: true, // Ya registramos manualmente
@@ -2222,72 +2225,8 @@
             })
             .catch(err => {
                 console.error('❌ Error crítico al registrar OneSignal SW:', err);
-                // Fallback: intentar con la versión con parámetros (aunque probablemente falle)
-                navigator.serviceWorker.register(ONESIGNAL_SW_URL + '?appId=dbdeba23-a1a1-4220-8861-cbf29002d394&sdkVersion=160607', { scope: '/RESCATE-OBR/' })
-                    .then(() => console.log('✅ OneSignal SW registrado con parámetros'))
-                    .catch(e => console.error('❌ Fallback también falló:', e));
             });
     }
-    // ============================================================
-    // 3. NOTIFICACIÓN DE ACTUALIZACIÓN
-    // ============================================================
-    function notificarActualizacion(worker) {
-        if (sessionStorage.getItem('sw_update_notified')) {
-            console.log('⚠️ Actualización ya notificada.');
-            return;
-        }
-
-        console.log('📢 Mostrando modal de actualización');
-        sessionStorage.setItem('sw_update_notified', 'true');
-
-        if (typeof window.confirmModal === 'function') {
-            window.confirmModal(
-                '📢 Nueva versión disponible. ¿Quieres actualizar ahora?',
-                () => {
-                    console.log('✅ Usuario aceptó actualizar');
-                    worker.postMessage('skipWaiting');
-                },
-                () => {
-                    console.log('❌ Usuario canceló la actualización');
-                }
-            );
-        } else {
-            if (confirm('📢 Nueva versión disponible. ¿Actualizar?')) {
-                worker.postMessage('skipWaiting');
-            }
-        }
-    }
-
-    // ============================================================
-    // 4. RECARGA AUTOMÁTICA CUANDO EL SW TOMA CONTROL
-    // ============================================================
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-            refreshing = true;
-            console.log('🔄 SW tomó el control. Recargando...');
-        }
-    });
-
-    // ============================================================
-    // 5. INICIALIZACIÓN DE ONESIGNAL (SIN REGISTRO MANUAL DE SW)
-    // ============================================================
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    OneSignalDeferred.push(async function(OneSignal) {
-        try {
-            await OneSignal.init({
-                appId: ONESIGNAL_APP_ID
-                // NOTA: El SDK de OneSignal v16 registrará automáticamente su
-                // propio Service Worker (OneSignalSDKWorker.js) en el dominio raíz
-                // si no se especifica serviceWorkerPath.
-                // Como estás en GitHub Pages en un subdirectorio (/RESCATE-OBR/),
-                // el SDK detectará automáticamente la ruta correcta.
-            });
-            console.log('✅ OneSignal inicializado correctamente');
-        } catch (error) {
-            console.error('❌ Error al inicializar OneSignal:', error);
-        }
-    });
 </script>
 
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
