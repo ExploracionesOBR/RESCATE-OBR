@@ -1,7 +1,7 @@
 // ============================================================
 // VERSIÓN DE LA CACHÉ (ÚNICO LUGAR DONDE SE DEFINE)
 // ============================================================
-const CACHE_NAME = 'obr-cache-v10';  // <--- CAMBIAR SOLO AQUÍ PARA ACTUALIZAR
+const CACHE_NAME = 'obr-cache-v95';  // <--- CAMBIAR SOLO AQUÍ PARA ACTUALIZAR
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
@@ -21,7 +21,7 @@ const ALL_FILES = [
 ];
 
 // ============================================================
-// INSTALL - SOLO INSTALA, NO ACTIVA AUTOMÁTICAMENTE
+// INSTALL - INSTALA PERO NO ACTIVA AUTOMÁTICAMENTE
 // ============================================================
 self.addEventListener('install', event => {
   console.log('🔧 Instalando SW, versión:', CACHE_NAME);
@@ -32,8 +32,8 @@ self.addEventListener('install', event => {
       ));
     })
   );
-  // IMPORTANTE: NO llamamos a self.skipWaiting() aquí.
-  // El SW se quedará en 'waiting' hasta que la página le indique que se active.
+  // NO llamamos a self.skipWaiting() aquí.
+  // El SW se quedará en 'waiting' hasta que la página indique la activación.
 });
 
 // ============================================================
