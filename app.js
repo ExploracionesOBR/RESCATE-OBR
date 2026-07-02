@@ -231,6 +231,7 @@ const desc = getWeatherDescription(weatherCode);
   }
 
      // ===== GUÍA DE INSTALACIÓN (modal único con pantalla completa) =====
+    // ===== GUÍA DE INSTALACIÓN (modal único con pantalla completa) =====
   async function showInstallGuideIfNeeded() {
     if (typeof document === 'undefined' || typeof window === 'undefined') {
         console.warn('Entorno no válido para mostrar la guía.');
@@ -2361,6 +2362,9 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
     document.getElementById('loading-screen').classList.add('hidden');
     if (window._adminCreatingUser) return;
 
+    // ============================================================
+    // CASO 1: NO HAY USUARIO AUTENTICADO
+    // ============================================================
     if (!user) {
         if (mechWatchId) navigator.geolocation.clearWatch(mechWatchId);
         loadGlobalSettings(); 
@@ -2368,155 +2372,193 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
         return;
     }
 
-    // 🔹 VINCULAR USUARIO A ONESIGNAL
+    // ============================================================
+    // CASO 2: HAY USUARIO AUTENTICADO - FLUJO CRÍTICO (SIEMPRE DEBE EJECUTARSE)
+    // ============================================================
     try {
-        // Esperar a que OneSignal esté completamente inicializado (API pública)
-        let userId = null;
-        let attempts = 0;
-        while (!userId && attempts < 20) {
-            try {
-                userId = OneSignal.User.getUserId();
-            } catch (e) {
-                // Aún no está listo
-            }
-            if (!userId) {
-                await new Promise(resolve => setTimeout(resolve, 200));
-                attempts++;
-            }
+        // Ocultar landing inmediatamente
+        showView('view-landing', false);
+        document.getElementById('view-landing').classList.add('hidden');
+        
+        // Cargar datos del usuario (esto es lo que realmente importa)
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (userSnap.exists()) { 
+            window.currentUserDoc = userSnap.data(); 
+            window.currentUserDoc.id = user.uid; 
+        } else { 
+            window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; 
         }
 
-        if (!userId) {
-            console.warn('⚠️ OneSignal no está disponible después de 4 segundos');
+        // Verificar bloqueo/pausa
+        if (window.currentUserDoc && window.currentUserDoc.bloqueado) {
+            signOut(auth).then(() => {
+                document.getElementById('out-of-zone-modal').classList.remove('hidden');
+                showView('view-landing');
+            });
             return;
         }
 
-        console.log('✅ OneSignal completamente listo, UserId:', userId);
-        await OneSignal.login(user.uid);
-        console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
-
-        if (OneSignal.Notifications.permission === 'default') {
-            await OneSignal.Notifications.requestPermission();
+        // Verificar firstLogin (solo para clientes)
+        if (window.currentUserDoc && window.currentUserDoc.firstLogin && 
+            !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
+            showView('view-force-setup');
+            return;
         }
+
+        // ============================================================
+        // RUTA ADMIN / MECÁNICO / TALLER / SOCIO
+        // ============================================================
+        if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
+            const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
+            startMechanicTracking();
+            if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
+            globalSettings.centerLat = TALLER_LAT;
+            globalSettings.centerLng = TALLER_LNG;
+            showView('app-admin');
+
+            // Mostrar nombre del usuario en el header
+            const adminDisplay = document.getElementById('admin-phone-display');
+            if (adminDisplay) {
+                const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
+                adminDisplay.innerText = nombre;
+            } else {
+                setTimeout(() => {
+                    const el = document.getElementById('admin-phone-display');
+                    if (el) {
+                        const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
+                        el.innerText = nombre;
+                    }
+                }, 200);
+            }
+
+            iniciarListenerGlobalSOS();
+            setTimeout(() => {
+                window.adminRefreshConfigUI();
+                window.adminLoadInventory();
+                window.adminLoadSales();
+                window.filterSOS('pending');
+                window.adminListenServices();
+                window.adminLoadCitas();
+                window.loadChatList();
+                window.applyViewPermissions?.();
+            }, 100);
+            if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
+
+        // ============================================================
+        // RUTA CLIENTE / MEMBRESÍA (EL FLUJO MÁS PROPENSO A FALLAR)
+        // ============================================================
+        } else {
+            showView('app-client');
+            
+            // Asegurar que el botón de emergencia se actualice correctamente
+            setTimeout(() => {
+                if (typeof window.updateEmergencyButtonState === 'function') {
+                    const now = new Date();
+                    const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
+                    const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
+                    const [hOpen, mOpen] = sched.o.split(':').map(Number);
+                    const [hClose, mClose] = sched.c.split(':').map(Number);
+                    const nowMins = now.getHours() * 60 + now.getMinutes();
+                    const openMins = hOpen * 60 + mOpen;
+                    const closeMins = hClose * 60 + mClose;
+                    const isOpen = nowMins >= openMins && nowMins < closeMins;
+                    window.updateEmergencyButtonState(isOpen, sched);
+                }
+            }, 100);
+
+            // Cargar todos los datos del cliente
+            document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
+            window.loadClientHistory(); 
+            listenToMySOS();
+            listenToMyDeliveries(); 
+            window.loadClientCitas();
+            loadPublicStore();
+            window.loadMyOrders();
+            updateLandingStatus();
+
+            // Iniciar seguimiento de ubicación solo si los permisos ya fueron aceptados
+            if (localStorage.getItem('obr_permissions_granted') === 'true') {
+                startClientLocationTracking();
+            }
+
+            // Mostrar modal de permisos si no están concedidos y no estamos en registro
+            maybeShowPermissionsModal();
+        }
+
+        // ============================================================
+        // FLUJO SECUNDARIO: ONESIGNAL (NO BLOQUEANTE)
+        // ============================================================
+        // NOTA: Esta parte se ejecuta en segundo plano. Si falla, la app YA funcionó.
+        // NO debe afectar la carga de la vista ni la autenticación.
+        (async function vinculaOneSignal() {
+            try {
+                // Esperar a que OneSignal esté disponible (máximo 5 segundos)
+                let oneSignalReady = false;
+                for (let i = 0; i < 25; i++) {
+                    if (typeof OneSignal !== 'undefined' && OneSignal.User) {
+                        oneSignalReady = true;
+                        break;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+
+                if (!oneSignalReady) {
+                    console.warn('⚠️ OneSignal no está disponible (no crítico para la app)');
+                    return; // SALIMOS SIN BLOQUEAR LA APP
+                }
+
+                // Verificar que OneSignal esté completamente inicializado
+                let userId = null;
+                let attempts = 0;
+                while (!userId && attempts < 20) {
+                    try {
+                        userId = OneSignal.User.getUserId();
+                    } catch (e) {
+                        // Aún no está listo
+                    }
+                    if (!userId) {
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                        attempts++;
+                    }
+                }
+
+                if (!userId) {
+                    console.warn('⚠️ OneSignal no está completamente inicializado (no crítico)');
+                    return; // SALIMOS SIN BLOQUEAR LA APP
+                }
+
+                console.log('✅ OneSignal completamente listo, UserId:', userId);
+                await OneSignal.login(user.uid);
+                console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
+
+                if (OneSignal.Notifications.permission === 'default') {
+                    await OneSignal.Notifications.requestPermission();
+                }
+
+            } catch (error) {
+                console.error('❌ Error al vincular OneSignal (no crítico):', error);
+                // LA APP YA ESTÁ CARGADA, ESTO NO DEBE ROMPERLA
+            }
+        })();
+
+        // ============================================================
+        // LISTENER DE NOTIFICACIONES RTDB (siempre activo)
+        // ============================================================
+        onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
+            if (snap.exists()) {
+                const notif = snap.val();
+                showToast(notif.msg);
+                playSound('notif');
+                speakTTS(notif.msg);
+                remove(dbRef(rtdb, 'notificaciones/' + user.uid));
+            }
+        });
 
     } catch (error) {
-        console.error('❌ Error al vincular usuario a OneSignal:', error);
+        console.error('❌ Error crítico en el flujo de autenticación:', error);
+        // Si algo falla, al menos mostrar la vista de login
+        showView('view-login');
     }
-   
-    // 🔹 Cargar lista de todos los usuarios para notificaciones masivas
-    cargarTodosLosUids();
-
-    // Ocultar landing inmediatamente
-    showView('view-landing', false); // ocultar sin mostrar otra
-    document.getElementById('view-landing').classList.add('hidden');
-    
-    const userSnap = await getDoc(doc(db, 'users', user.uid));
-    if (userSnap.exists()) { 
-        window.currentUserDoc = userSnap.data(); 
-        window.currentUserDoc.id = user.uid; 
-    } else { 
-        window.currentUserDoc = { phone: '', role: 'cliente', name: '' }; 
-    }
-
-    // Verificar bloqueo/pausa
-    if (window.currentUserDoc && window.currentUserDoc.bloqueado) {
-        signOut(auth).then(() => {
-            document.getElementById('out-of-zone-modal').classList.remove('hidden');
-            showView('view-landing');
-        });
-        return;
-    }
-
-    // Verificar firstLogin (solo para clientes)
-    if (window.currentUserDoc && window.currentUserDoc.firstLogin && 
-        !['admin','mecanico','taller','socio'].includes(window.currentUserDoc.role)) {
-        showView('view-force-setup');
-        return;
-    }
-
-    // ===== ADMIN / MECÁNICO / TALLER / SOCIO =====
-    if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
-        const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
-        startMechanicTracking();
-        if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
-        globalSettings.centerLat = TALLER_LAT;
-        globalSettings.centerLng = TALLER_LNG;
-        showView('app-admin');
-
-        // Mostrar nombre del usuario en el header
-        const adminDisplay = document.getElementById('admin-phone-display');
-        if (adminDisplay) {
-            const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
-            adminDisplay.innerText = nombre;
-        } else {
-            setTimeout(() => {
-                const el = document.getElementById('admin-phone-display');
-                if (el) {
-                    const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
-                    el.innerText = nombre;
-                }
-            }, 200);
-        }
-
-        document.getElementById('admin-phone-display').innerText = window.currentUserDoc.name || 'Admin';
-        iniciarListenerGlobalSOS();
-        setTimeout(() => {
-            window.adminRefreshConfigUI();
-            window.adminLoadInventory();
-            window.adminLoadSales();
-            window.filterSOS('pending');
-            window.adminListenServices();
-            window.adminLoadCitas();
-            window.loadChatList();
-            window.applyViewPermissions?.();
-        }, 100);
-        if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
-
-    // ===== CLIENTE / MEMBRESÍA =====
-    } else {
-        showView('app-client');
-        setTimeout(() => {
-            if (typeof window.updateEmergencyButtonState === 'function') {
-                const now = new Date();
-                const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
-                const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
-                const [hOpen, mOpen] = sched.o.split(':').map(Number);
-                const [hClose, mClose] = sched.c.split(':').map(Number);
-                const nowMins = now.getHours() * 60 + now.getMinutes();
-                const openMins = hOpen * 60 + mOpen;
-                const closeMins = hClose * 60 + mClose;
-                const isOpen = nowMins >= openMins && nowMins < closeMins;
-                window.updateEmergencyButtonState(isOpen, sched);
-            }
-        }, 100);
-        document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
-        window.loadClientHistory(); 
-        listenToMySOS();
-        listenToMyDeliveries(); 
-        window.loadClientCitas();
-        console.log('Cargando tienda para usuario:', window.currentUserDoc?.phone);
-        loadPublicStore();
-        window.loadMyOrders();
-        updateLandingStatus();
-
-        // Iniciar seguimiento de ubicación solo si los permisos ya fueron aceptados
-        if (localStorage.getItem('obr_permissions_granted') === 'true') {
-            startClientLocationTracking();
-        }
-
-        // Mostrar modal de permisos si no están concedidos y no estamos en registro
-        maybeShowPermissionsModal();
-    }
-
-    // Listener de notificaciones RTDB
-    onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
-        if (snap.exists()) {
-            const notif = snap.val();
-            showToast(notif.msg);
-            playSound('notif');
-            speakTTS(notif.msg);
-            remove(dbRef(rtdb, 'notificaciones/' + user.uid));
-        }
-    });
 });
 
   function showView(targetId) {
