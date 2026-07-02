@@ -1,10 +1,9 @@
 // ============================================================
 // VERSIÓN DE LA CACHÉ (ÚNICO LUGAR DONDE SE DEFINE)
 // ============================================================
-const CACHE_NAME = 'obr-cache-v30';  // <--- CAMBIAR SOLO AQUÍ PARA ACTUALIZAR
+const CACHE_NAME = 'obr-cache-v95';  // <--- CAMBIAR SOLO AQUÍ PARA ACTUALIZAR
 const BASE_PATH = '/RESCATE-OBR';
 
-// Archivos a cachear
 const ALL_FILES = [
   `${BASE_PATH}/`,
   `${BASE_PATH}/index.html`,
@@ -22,34 +21,19 @@ const ALL_FILES = [
 ];
 
 // ============================================================
-// INSTALL - CON VERIFICACIÓN DE VERSIÓN
+// INSTALL - SOLO INSTALA, NO ACTIVA AUTOMÁTICAMENTE
 // ============================================================
 self.addEventListener('install', event => {
-  console.log('🔧 Intentando instalar SW, versión:', CACHE_NAME);
-
-  // Verificar si ya existe una versión anterior y si es la misma
+  console.log('🔧 Instalando SW, versión:', CACHE_NAME);
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      // Si la caché ya existe, significa que ya tenemos esta versión
-      // No hacemos nada y saltamos la instalación
-      return cache.keys().then(keys => {
-        if (keys.length > 0) {
-          console.log('⚠️ La versión', CACHE_NAME, 'ya está instalada. Saltando instalación.');
-          return Promise.resolve();
-        }
-        
-        // Si la caché no existe, es una nueva versión
-        console.log('📦 Instalando nueva versión:', CACHE_NAME);
-        return Promise.allSettled(ALL_FILES.map(url => 
-          cache.add(url).catch(err => console.warn('No se pudo cachear:', url, err))
-        ));
-      });
+      return Promise.allSettled(ALL_FILES.map(url => 
+        cache.add(url).catch(err => console.warn('No se pudo cachear:', url, err))
+      ));
     })
   );
-
-  // Si la versión es nueva, forzamos la activación inmediata
-  // Si ya existía, skipWaiting no hará nada porque el SW ya está activo
-  self.skipWaiting();
+  // IMPORTANTE: NO llamamos a self.skipWaiting() aquí.
+  // El SW se quedará en 'waiting' hasta que la página le indique que se active.
 });
 
 // ============================================================
@@ -72,13 +56,11 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET') return;
 
-  // Firebase: solo red (no cachear)
   if (url.hostname.includes('firestore') || url.hostname.includes('googleapis') || url.hostname.includes('rtdb')) {
     event.respondWith(fetch(event.request).catch(() => new Response('{}', { status: 200 })));
     return;
   }
 
-  // Cache First para el resto
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
@@ -97,7 +79,7 @@ self.addEventListener('fetch', event => {
 });
 
 // ============================================================
-// MANEJO DE MENSAJES
+// MANEJO DE MENSAJES - SOLO ACTIVACIÓN POR MENSAJE
 // ============================================================
 self.addEventListener('message', event => {
   if (event.data === 'skipWaiting') {
