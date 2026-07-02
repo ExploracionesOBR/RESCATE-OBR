@@ -2515,56 +2515,43 @@ onAuthStateChanged(auth, async user => {
 });
 
 // ============================================================
-// FUNCIÓN SEGURA PARA VINCULAR ONESIGNAL (DEFINIDA FUERA)
+// VINCULACIÓN SEGURA DE ONESIGNAL (DESPUÉS DE LA CARGA)
 // ============================================================
-function vincularOneSignalSeguro() {
+function vincularOneSignal() {
+    // Verificar si OneSignal está disponible
+    if (typeof OneSignal === 'undefined' || !OneSignal.User) {
+        console.warn('⚠️ OneSignal no disponible, la app seguirá funcionando');
+        return;
+    }
+
+    // Verificar que el usuario esté autenticado
+    const user = auth.currentUser;
+    if (!user) {
+        console.warn('⚠️ No hay usuario autenticado');
+        return;
+    }
+
+    // Verificar que OneSignal esté completamente inicializado
     try {
-        const user = auth.currentUser;
-        if (!user) {
-            console.warn('⚠️ No hay usuario autenticado para vincular a OneSignal');
-            return;
-        }
-
-        // Verificar si el SDK de OneSignal está disponible
-        if (typeof OneSignal === 'undefined' || !OneSignal.User) {
-            console.warn('⚠️ OneSignal no está disponible, la app continuará funcionando');
-            return;
-        }
-
-        // Verificar que OneSignal esté completamente inicializado
-        let userId = null;
-        try {
-            userId = OneSignal.User.getUserId();
-        } catch (e) {
-            console.warn('⚠️ OneSignal aún no está completamente inicializado');
-            return;
-        }
-
+        const userId = OneSignal.User.getUserId();
         if (!userId) {
             console.warn('⚠️ OneSignal no está completamente inicializado');
             return;
         }
 
         console.log('✅ OneSignal completamente listo, UserId:', userId);
-        
-        // Vincular usuario de forma asíncrona (no bloqueante)
-        OneSignal.login(user.uid)
-            .then(() => {
-                console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
-                
-                // Solicitar permiso solo si es necesario y si no se ha mostrado antes
-                if (OneSignal.Notifications.permission === 'default' && !localStorage.getItem('onesignal_permission_shown')) {
-                    // Mostrar nuestro modal personalizado en español
-                    mostrarModalSuscripcionPersonalizado();
-                }
-            })
-            .catch(error => {
-                console.error('❌ Error al vincular usuario a OneSignal:', error);
-            });
-
+        OneSignal.login(user.uid).then(() => {
+            console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
+            
+            // Solicitar permiso si es necesario y no se ha mostrado antes
+            if (OneSignal.Notifications.permission === 'default' && !localStorage.getItem('onesignal_permission_shown')) {
+                mostrarModalSuscripcionPersonalizado();
+            }
+        }).catch(error => {
+            console.error('❌ Error al vincular usuario a OneSignal:', error);
+        });
     } catch (error) {
-        console.error('❌ Error crítico en vincularOneSignalSeguro:', error);
-        // La app ya está cargada, este error no la bloquea
+        console.warn('⚠️ OneSignal aún no está completamente inicializado');
     }
 }
 
@@ -2601,7 +2588,6 @@ function mostrarModalSuscripcionPersonalizado() {
         `;
         document.body.appendChild(modalEl);
         
-        // Configurar botones
         document.getElementById('btn-suscribirme').onclick = async () => {
             toggleModal(modalId, false);
             localStorage.setItem('onesignal_permission_shown', 'true');
@@ -2620,9 +2606,14 @@ function mostrarModalSuscripcionPersonalizado() {
         };
     }
     
-    // Mostrar el modal
     toggleModal(modalId, true);
 }
+
+// ============================================================
+// EJECUTAR VINCULACIÓN DESPUÉS DE LA CARGA
+// ============================================================
+setTimeout(vincularOneSignal, 3000);
+
 
   function showView(targetId) {
       // Modo Próximamente: redirigir a 'view-proximamente' excepto landing, login y force-setup
