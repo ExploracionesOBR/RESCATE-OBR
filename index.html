@@ -2187,48 +2187,65 @@
     </div>
 </div>
 <!-- ===========================================================================
-     REGISTRO DEL SERVICE WORKER DE ONESIGNAL E INICIALIZACIÓN
+     REGISTRO DE ONESIGNAL Y SERVICE WORKER (CORRECCIÓN FINAL)
      =========================================================================== -->
 <script>
     // ============================================================
-    // 1. CONFIGURACIÓN DE ONESIGNAL (DEFINIDA ANTES DE USARSE)
+    // 1. CONFIGURACIÓN DE ONESIGNAL
     // ============================================================
     const ONESIGNAL_APP_ID = "dbdeba23-a1a1-4220-8861-cbf29002d394";
     const ONESIGNAL_SW_URL = '/RESCATE-OBR/OneSignalSDKWorker.js';
 
     // ============================================================
-    // 2. REGISTRO DEL SERVICE WORKER DE ONESIGNAL (MANUAL Y OBLIGATORIO)
+    // 2. REGISTRO DEL SERVICE WORKER DE LA APP (sw.js) - UNA SOLA VEZ
     // ============================================================
-    if ('serviceWorker' in navigator) {
-        // Registrar el SW de OneSignal en el subdirectorio correcto
-        navigator.serviceWorker.register(ONESIGNAL_SW_URL, { scope: '/RESCATE-OBR/' })
-            .then(() => {
-                console.log('✅ OneSignal SW registrado manualmente en:', ONESIGNAL_SW_URL);
-                
-                // ============================================================
-                // 3. INICIALIZACIÓN DE ONESIGNAL (DESPUÉS DE QUE EL SW ESTÉ REGISTRADO)
-                // ============================================================
-                window.OneSignalDeferred = window.OneSignalDeferred || [];
-                OneSignalDeferred.push(async function(OneSignal) {
-                    try {
-                        await OneSignal.init({
-                            appId: ONESIGNAL_APP_ID,
-                            serviceWorkerPath: ONESIGNAL_SW_URL,
-                            serviceWorkerScope: '/RESCATE-OBR/',
-                            disableServiceWorkerRegistration: true, // Ya registramos manualmente
-                        });
-                        console.log('✅ OneSignal inicializado correctamente');
-                    } catch (error) {
-                        console.error('❌ Error al inicializar OneSignal:', error);
-                    }
-                });
-            })
-            .catch(err => {
-                console.error('❌ Error crítico al registrar OneSignal SW:', err);
+    // (Ya lo tienes en la parte de arriba, no lo modifiques)
+
+    // ============================================================
+    // 3. INICIALIZACIÓN DE ONESIGNAL (Dejamos que el SDK registre su SW)
+    // ============================================================
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+        try {
+            await OneSignal.init({
+                appId: ONESIGNAL_APP_ID
             });
+            console.log('✅ OneSignal inicializado correctamente (SDK v16)');
+        } catch (error) {
+            console.error('❌ Error al inicializar OneSignal:', error);
+        }
+    });
+
+    // ============================================================
+    // 4. INTERCEPTAR EL REGISTRO DE ONESIGNAL PARA CORREGIR EL SCOPE
+    // ============================================================
+    // OneSignal intentará registrar su SW en la raíz (scope "/").
+    // Lo interceptamos y lo redirigimos a nuestro subdirectorio.
+    if ('serviceWorker' in navigator) {
+        // Esperar a que OneSignal registre su SW
+        const originalRegister = navigator.serviceWorker.register;
+        navigator.serviceWorker.register = function(scriptURL, options) {
+            // Si el script es de OneSignal, forzamos el scope a /RESCATE-OBR/
+            if (scriptURL.includes('OneSignalSDKWorker.js')) {
+                console.log('🔧 Interceptando registro de OneSignal SW...');
+                console.log('   Original scope:', options?.scope || 'raíz');
+                
+                // Forzar el scope al subdirectorio
+                const newOptions = {
+                    ...options,
+                    scope: '/RESCATE-OBR/'
+                };
+                console.log('   Nuevo scope:', newOptions.scope);
+                
+                // Devolver el registro con el nuevo scope
+                return originalRegister.call(navigator.serviceWorker, scriptURL, newOptions);
+            }
+            // Si no es de OneSignal, comportamiento normal
+            return originalRegister.call(navigator.serviceWorker, scriptURL, options);
+        };
     }
 </script>
 
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" async></script>
 </body>
 </html>
