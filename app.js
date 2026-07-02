@@ -2365,31 +2365,40 @@ async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
         return;
     }
 
-      // En onAuthStateChanged, reemplazar la sección de OneSignal con:
-// 🔹 VINCULAR USUARIO A ONESIGNAL (el SDK ya está inicializado desde index.html)
-try {
-    // Usar la API oficial para esperar a que OneSignal esté listo
-    if (typeof OneSignal !== 'undefined' && OneSignal.Notifications) {
-        // Esto fuerza la espera hasta que el SDK esté completamente inicializado
-        await OneSignal.Notifications.permission;
-        console.log('✅ OneSignal completamente inicializado');
-        
-        // Vincular usuario
+    // 🔹 VINCULAR USUARIO A ONESIGNAL
+    try {
+        // Esperar a que OneSignal esté completamente inicializado (API pública)
+        let userId = null;
+        let attempts = 0;
+        while (!userId && attempts < 20) {
+            try {
+                userId = OneSignal.User.getUserId();
+            } catch (e) {
+                // Aún no está listo
+            }
+            if (!userId) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+                attempts++;
+            }
+        }
+
+        if (!userId) {
+            console.warn('⚠️ OneSignal no está disponible después de 4 segundos');
+            return;
+        }
+
+        console.log('✅ OneSignal completamente listo, UserId:', userId);
         await OneSignal.login(user.uid);
         console.log('✅ Usuario vinculado a OneSignal con UID:', user.uid);
-        
-        // Solicitar permiso si es necesario
+
         if (OneSignal.Notifications.permission === 'default') {
             await OneSignal.Notifications.requestPermission();
         }
-    } else {
-        console.warn('⚠️ OneSignal no está disponible, la app continuará funcionando');
-    }
-} catch (error) {
-    console.error('❌ Error al vincular usuario a OneSignal:', error);
-    // La app debe continuar funcionando incluso si OneSignal falla
-}   
 
+    } catch (error) {
+        console.error('❌ Error al vincular usuario a OneSignal:', error);
+    }
+   
     // 🔹 Cargar lista de todos los usuarios para notificaciones masivas
     cargarTodosLosUids();
 
