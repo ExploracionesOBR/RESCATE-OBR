@@ -230,7 +230,7 @@ const desc = getWeatherDescription(weatherCode);
       return false;
   }
 
-    // ===== GUÍA DE INSTALACIÓN (modal único con pantalla completa) =====
+     // ===== GUÍA DE INSTALACIÓN (modal único con pantalla completa) =====
   async function showInstallGuideIfNeeded() {
     if (typeof document === 'undefined' || typeof window === 'undefined') {
         console.warn('Entorno no válido para mostrar la guía.');
@@ -273,14 +273,13 @@ const desc = getWeatherDescription(weatherCode);
     }
 
     // Determinar si es video o imagen
-       // Determinar si es video o imagen
     const isVideo = /\.(mp4|webm|mov)$/i.test(mediaUrl);
     
     // Limpiar contenedor
     container.innerHTML = '';
     container.className = 'w-full h-full flex items-center justify-center bg-transparent rounded-2xl overflow-hidden';
     
-    // Configurar el contenido para pantalla completa SIN márgenes
+    // Configurar el contenido
     if (isVideo) {
         container.innerHTML = `
             <video src="${mediaUrl}" autoplay muted loop playsinline 
@@ -303,25 +302,29 @@ const desc = getWeatherDescription(weatherCode);
     // Botón de cierre - Reasignar evento cada vez que se abre
     const closeBtn = document.getElementById('install-guide-close');
     if (closeBtn) {
-        // Eliminar eventos anteriores para evitar duplicados
         closeBtn.onclick = null;
-        closeBtn.onclick = () => {
+        closeBtn.onclick = (e) => {
+            e.stopPropagation(); // Evitar propagación
             toggleModal('modal-install-guide', false);
             console.log('✅ Modal de guía cerrado por el usuario.');
         };
     }
 
     // Cerrar al hacer clic en el fondo (pero NO en el contenido)
-    modal.addEventListener('click', (e) => {
+    modal.onclick = null;
+    modal.onclick = (e) => {
         if (e.target === modal) {
             toggleModal('modal-install-guide', false);
         }
-    });
+    };
     
-    // Prevenir que el clic en el contenido cierre el modal
-    container.addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
+    // PREVENIR QUE EL CLIC EN EL CONTENIDO RECARGUE LA PÁGINA
+    container.onclick = null;
+    container.onclick = (e) => {
+        e.stopPropagation(); // Evitar que el evento burbujee al modal
+        console.log('👆 Clic en el contenido del modal (prevenido)');
+        // NO hacer nada más
+    };
 }
 
   // ===== GUARDAR URL DE GUÍA DE INSTALACIÓN =====
