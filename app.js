@@ -2491,7 +2491,7 @@ onAuthStateChanged(auth, async user => {
         // NOTA: Esta función se ejecuta en segundo plano después de que la app ya cargó.
         // NO debe afectar la carga de la vista ni la autenticación.
         setTimeout(() => {
-            vincularOneSignalSeguro();
+            vincularOneSignal();
         }, 2000);
 
         // ============================================================
