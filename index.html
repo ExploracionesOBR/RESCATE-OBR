@@ -2186,5 +2186,171 @@
         </p>
     </div>
 </div>
+    <!-- ===========================================================================
+     REGISTRO ÚNICO DEL SERVICE WORKER Y ONESIGNAL (ARQUITECTURA FINAL)
+     =========================================================================== -->
+<script>
+    // ============================================================
+    // 1. CONFIGURACIÓN DE ONESIGNAL
+    // ============================================================
+    const ONESIGNAL_APP_ID = "dbdeba23-a1a1-4220-8861-cbf29002d394";
+    const ONESIGNAL_SW_URL = '/RESCATE-OBR/OneSignalSDKWorker.js';
+
+    // ============================================================
+    // 2. REGISTRO DEL SERVICE WORKER PRINCIPAL (sw.js)
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        if ('serviceWorker' in navigator) {
+            const swUrl = '/RESCATE-OBR/sw.js';
+            const swScope = '/RESCATE-OBR/';
+
+            // Verificar si ya hay un Service Worker registrado
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                let existingReg = null;
+                for (const reg of registrations) {
+                    if (reg.scope === window.location.origin + swScope) {
+                        existingReg = reg;
+                        console.log('✅ SW ya registrado en:', reg.scope);
+                        break;
+                    }
+                }
+
+                // Si ya existe, solo escuchar eventos de actualización
+                if (existingReg) {
+                    console.log('🔍 Escuchando eventos de actualización...');
+
+                    // Verificar si hay una versión esperando
+                    if (existingReg.waiting && !sessionStorage.getItem('sw_update_notified')) {
+                        console.log('📢 Nuevo SW detectado (waiting)');
+                        notificarActualizacion(existingReg.waiting);
+                    }
+
+                    // Escuchar el evento 'updatefound'
+                    existingReg.addEventListener('updatefound', () => {
+                        if (sessionStorage.getItem('sw_update_notified')) {
+                            console.log('⚠️ Actualización ya notificada. Ignorando.');
+                            return;
+                        }
+
+                        const newWorker = existingReg.installing;
+                        if (newWorker) {
+                            console.log('🔍 updatefound: Nueva versión detectada');
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller && !sessionStorage.getItem('sw_update_notified')) {
+                                    console.log('📢 Nueva versión instalada y esperando activación');
+                                    notificarActualizacion(newWorker);
+                                }
+                            });
+                        }
+                    });
+
+                    return;
+                }
+
+                // Si no existe, registrar por primera vez
+                console.log('📝 Registrando SW por primera vez...');
+                navigator.serviceWorker.register(swUrl, { scope: swScope })
+                    .then(reg => {
+                        console.log('✅ SW registrado correctamente en:', reg.scope);
+
+                        if (reg.waiting && !sessionStorage.getItem('sw_update_notified')) {
+                            console.log('📢 Nuevo SW detectado al registrar');
+                            notificarActualizacion(reg.waiting);
+                        }
+
+                        reg.addEventListener('updatefound', () => {
+                            if (sessionStorage.getItem('sw_update_notified')) {
+                                console.log('⚠️ Actualización ya notificada. Ignorando.');
+                                return;
+                            }
+
+                            const newWorker = reg.installing;
+                            if (newWorker) {
+                                console.log('🔍 updatefound: Nueva versión detectada');
+                                newWorker.addEventListener('statechange', () => {
+                                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller && !sessionStorage.getItem('sw_update_notified')) {
+                                        console.log('📢 Nueva versión instalada');
+                                        notificarActualizacion(newWorker);
+                                    }
+                                });
+                            }
+                        });
+                    })
+                    .catch(err => console.error('❌ Error al registrar SW:', err));
+            });
+        }
+    });
+
+    // ============================================================
+    // 3. NOTIFICACIÓN DE ACTUALIZACIÓN
+    // ============================================================
+    function notificarActualizacion(worker) {
+        if (sessionStorage.getItem('sw_update_notified')) {
+            console.log('⚠️ Actualización ya notificada.');
+            return;
+        }
+
+        console.log('📢 Mostrando modal de actualización');
+        sessionStorage.setItem('sw_update_notified', 'true');
+
+        if (typeof window.confirmModal === 'function') {
+            window.confirmModal(
+                '📢 Nueva versión disponible. ¿Quieres actualizar ahora?',
+                () => {
+                    console.log('✅ Usuario aceptó actualizar');
+                    worker.postMessage('skipWaiting');
+                },
+                () => {
+                    console.log('❌ Usuario canceló la actualización');
+                }
+            );
+        } else {
+            if (confirm('📢 Nueva versión disponible. ¿Actualizar?')) {
+                worker.postMessage('skipWaiting');
+            }
+        }
+    }
+
+    // ============================================================
+    // 4. RECARGA AUTOMÁTICA CUANDO EL SW TOMA CONTROL
+    // ============================================================
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+            refreshing = true;
+            console.log('🔄 SW tomó el control. Recargando...');
+            // El navegador recargará automáticamente.
+        }
+    });
+
+    // ============================================================
+    // 5. REGISTRO DE ONESIGNAL (DESACOPLADO DEL SW PRINCIPAL)
+    // ============================================================
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register(ONESIGNAL_SW_URL, { scope: '/RESCATE-OBR/' })
+            .then(() => console.log('✅ OneSignal SW registrado correctamente'))
+            .catch(err => console.error('❌ Error al registrar OneSignal SW:', err));
+    }
+
+    // ============================================================
+    // 6. INICIALIZACIÓN DE ONESIGNAL (CON API OFICIAL)
+    // ============================================================
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+        try {
+            await OneSignal.init({
+                appId: ONESIGNAL_APP_ID,
+                serviceWorkerPath: ONESIGNAL_SW_URL,
+                serviceWorkerScope: '/RESCATE-OBR/',
+                disableServiceWorkerRegistration: true,
+            });
+            console.log('✅ OneSignal inicializado correctamente');
+        } catch (error) {
+            console.error('❌ Error al inicializar OneSignal:', error);
+        }
+    });
+</script>
+
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" async></script>
 </body>
 </html>
