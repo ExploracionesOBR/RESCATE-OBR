@@ -2193,89 +2193,41 @@
     // ============================================================
     // 1. CONFIGURACIÓN DE ONESIGNAL
     // ============================================================
-    const ONESIGNAL_APP_ID = "dbdeba23-a1a1-4220-8861-cbf29002d394";
-    // NOTA: Ya no necesitamos ONESIGNAL_SW_URL porque el SDK lo gestiona automáticamente.
-
+        // ============================================================
+    // 5. REGISTRO DEL SERVICE WORKER DE ONESIGNAL (MANUAL Y OBLIGATORIO)
     // ============================================================
-    // 2. REGISTRO DEL SERVICE WORKER PRINCIPAL (sw.js)
-    // ============================================================
-    document.addEventListener('DOMContentLoaded', function() {
-        if ('serviceWorker' in navigator) {
-            const swUrl = '/RESCATE-OBR/sw.js';
-            const swScope = '/RESCATE-OBR/';
-
-            navigator.serviceWorker.getRegistrations().then(registrations => {
-                let existingReg = null;
-                for (const reg of registrations) {
-                    if (reg.scope === window.location.origin + swScope) {
-                        existingReg = reg;
-                        console.log('✅ SW ya registrado en:', reg.scope);
-                        break;
-                    }
-                }
-
-                if (existingReg) {
-                    console.log('🔍 Escuchando eventos de actualización...');
-
-                    if (existingReg.waiting && !sessionStorage.getItem('sw_update_notified')) {
-                        console.log('📢 Nuevo SW detectado (waiting)');
-                        notificarActualizacion(existingReg.waiting);
-                    }
-
-                    existingReg.addEventListener('updatefound', () => {
-                        if (sessionStorage.getItem('sw_update_notified')) {
-                            console.log('⚠️ Actualización ya notificada. Ignorando.');
-                            return;
-                        }
-
-                        const newWorker = existingReg.installing;
-                        if (newWorker) {
-                            console.log('🔍 updatefound: Nueva versión detectada');
-                            newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller && !sessionStorage.getItem('sw_update_notified')) {
-                                    console.log('📢 Nueva versión instalada y esperando activación');
-                                    notificarActualizacion(newWorker);
-                                }
-                            });
-                        }
-                    });
-
-                    return;
-                }
-
-                console.log('📝 Registrando SW por primera vez...');
-                navigator.serviceWorker.register(swUrl, { scope: swScope })
-                    .then(reg => {
-                        console.log('✅ SW registrado correctamente en:', reg.scope);
-
-                        if (reg.waiting && !sessionStorage.getItem('sw_update_notified')) {
-                            console.log('📢 Nuevo SW detectado al registrar');
-                            notificarActualizacion(reg.waiting);
-                        }
-
-                        reg.addEventListener('updatefound', () => {
-                            if (sessionStorage.getItem('sw_update_notified')) {
-                                console.log('⚠️ Actualización ya notificada. Ignorando.');
-                                return;
-                            }
-
-                            const newWorker = reg.installing;
-                            if (newWorker) {
-                                console.log('🔍 updatefound: Nueva versión detectada');
-                                newWorker.addEventListener('statechange', () => {
-                                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller && !sessionStorage.getItem('sw_update_notified')) {
-                                        console.log('📢 Nueva versión instalada');
-                                        notificarActualizacion(newWorker);
-                                    }
-                                });
-                            }
+    const ONESIGNAL_SW_URL = '/RESCATE-OBR/OneSignalSDKWorker.js';
+    
+    if ('serviceWorker' in navigator) {
+        // Registrar el SW de OneSignal en el subdirectorio correcto
+        navigator.serviceWorker.register(ONESIGNAL_SW_URL, { scope: '/RESCATE-OBR/' })
+            .then(() => {
+                console.log('✅ OneSignal SW registrado manualmente en:', ONESIGNAL_SW_URL);
+                
+                // Ahora que el SW está registrado, inicializar OneSignal
+                window.OneSignalDeferred = window.OneSignalDeferred || [];
+                OneSignalDeferred.push(async function(OneSignal) {
+                    try {
+                        await OneSignal.init({
+                            appId: "dbdeba23-a1a1-4220-8861-cbf29002d394",
+                            serviceWorkerPath: ONESIGNAL_SW_URL,
+                            serviceWorkerScope: '/RESCATE-OBR/',
+                            disableServiceWorkerRegistration: true, // Ya registramos manualmente
                         });
-                    })
-                    .catch(err => console.error('❌ Error al registrar SW:', err));
+                        console.log('✅ OneSignal inicializado correctamente');
+                    } catch (error) {
+                        console.error('❌ Error al inicializar OneSignal:', error);
+                    }
+                });
+            })
+            .catch(err => {
+                console.error('❌ Error crítico al registrar OneSignal SW:', err);
+                // Fallback: intentar con la versión con parámetros (aunque probablemente falle)
+                navigator.serviceWorker.register(ONESIGNAL_SW_URL + '?appId=dbdeba23-a1a1-4220-8861-cbf29002d394&sdkVersion=160607', { scope: '/RESCATE-OBR/' })
+                    .then(() => console.log('✅ OneSignal SW registrado con parámetros'))
+                    .catch(e => console.error('❌ Fallback también falló:', e));
             });
-        }
-    });
-
+    }
     // ============================================================
     // 3. NOTIFICACIÓN DE ACTUALIZACIÓN
     // ============================================================
