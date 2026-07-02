@@ -13281,3 +13281,107 @@ function mostrarModalSuscripcionPersonalizado() {
 // EJECUTAR VINCULACIÓN DESPUÉS DE QUE LA APP ESTÉ CARGADA
 // ============================================================
 setTimeout(vincularOneSignal, 3000);
+
+// ============================================================
+// SUSCRIPCIÓN A NOTIFICACIONES PUSH NATIVAS
+// ============================================================
+async function suscribirPushNativo() {
+    try {
+        // 1. Verificar que el navegador soporte push
+        if (!('PushManager' in window)) {
+            console.warn('⚠️ El navegador no soporta notificaciones push.');
+            return;
+        }
+
+        // 2. Obtener el registro del Service Worker
+        const registration = await navigator.serviceWorker.ready;
+        
+        // 3. Solicitar permiso al usuario
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            console.warn('⚠️ Permiso de notificaciones denegado por el usuario.');
+            return;
+        }
+        
+        // 4. Verificar si ya hay una suscripción activa
+        let subscription = await registration.pushManager.getSubscription();
+        
+        if (!subscription) {
+            // 5. Si no hay suscripción, crear una nueva
+            // 🔴 IMPORTANTE: Reemplaza 'BG...' con tu VAPID Public Key de OneSignal
+            // Puedes obtenerla en: Dashboard de OneSignal > Settings > Keys & IDs
+            const vapidPublicKey = 'dbdeba23-a1a1-4220-8861-cbf29002d394'; 
+            
+            subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+            });
+        }
+        
+        console.log('✅ Suscripción push nativa obtenida exitosamente.');
+        console.log('   Endpoint:', subscription.endpoint);
+        
+        // 6. Enviar la suscripción a OneSignal (o a tu propio backend)
+        const user = auth.currentUser;
+        if (user) {
+            // NOTA: Esta llamada se hace desde el frontend.
+            // Si prefieres no exponer tu REST API Key, deberías enviar la suscripción
+            // a tu propio backend y que ese backend la envíe a OneSignal.
+            
+            // 🔴 Reemplaza 'TU_REST_API_KEY' con tu REST API Key de OneSignal
+            const response = await fetch('https://onesignal.com/api/v1/players', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'jgztqampoe2g4xx7g3eq3tav2'
+                },
+                body: JSON.stringify({
+                    app_id: 'dbdeba23-a1a1-4220-8861-cbf29002d394',
+                    device_type: 5, // 5 = Web Push
+                    identifier: subscription.endpoint,
+                    subscription: subscription.toJSON(),
+                    external_user_id: user.uid
+                })
+            });
+            
+            if (response.ok) {
+                console.log('✅ Suscripción registrada exitosamente en OneSignal.');
+            } else {
+                const errorData = await response.json();
+                console.error('❌ Error al registrar en OneSignal:', errorData);
+            }
+        }
+        
+        return subscription;
+        
+    } catch (error) {
+        console.error('❌ Error crítico al suscribirse a push nativo:', error);
+    }
+}
+
+// ============================================================
+// UTILIDAD PARA CONVERTIR VAPID KEY (Base64 a Uint8Array)
+// ============================================================
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+        .replace(/\-/g, '+')
+        .replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+// ============================================================
+// EJECUTAR LA SUSCRIPCIÓN DESPUÉS DE QUE EL USUARIO INICIE SESIÓN
+// ============================================================
+// Esta línea va al final de app.js. Se ejecutará 3 segundos después
+// de que la app esté completamente cargada.
+setTimeout(() => {
+    if (auth.currentUser) {
+        suscribirPushNativo();
+    }
+}, 3000);
