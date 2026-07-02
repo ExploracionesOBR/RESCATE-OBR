@@ -2185,7 +2185,8 @@
             Presiona la <span class="text-red-400 font-bold">X</span> para cerrar
         </p>
     </div>
-</div><script>
+</div>
+    <script>
     // ============================================================
     // 1. REGISTRO DEL SERVICE WORKER PRINCIPAL (sw.js)
     // ============================================================
@@ -2193,7 +2194,11 @@
         const swUrl = '/RESCATE-OBR/sw.js';
         const swScope = '/RESCATE-OBR/';
 
-        // Verificar si ya hay un Service Worker registrado
+        // Variable global para evitar el bucle infinito
+        if (!window._swUpdated) {
+            window._swUpdated = false;
+        }
+
         navigator.serviceWorker.getRegistrations().then(registrations => {
             let swExists = false;
             let existingReg = null;
@@ -2207,23 +2212,23 @@
                 }
             }
 
-            // Si ya existe, solo verificamos actualizaciones (eventos nativos del navegador)
+            // Si ya existe, escuchar eventos de actualización
             if (swExists && existingReg) {
                 console.log('🔍 Escuchando eventos de actualización del SW...');
 
-                // Verificar si hay una versión nueva esperando (instalada pero no activa)
-                if (existingReg.waiting) {
+                // Verificar si hay una versión nueva esperando
+                if (existingReg.waiting && !window._swUpdated) {
                     console.log('📢 Nueva versión del SW detectada (waiting)');
                     notificarActualizacion(existingReg.waiting);
                 }
 
-                // Escuchar el evento nativo 'updatefound'
+                // Escuchar el evento 'updatefound' (se dispara cuando el navegador detecta un cambio en sw.js)
                 existingReg.addEventListener('updatefound', () => {
                     const newWorker = existingReg.installing;
-                    if (newWorker) {
+                    if (newWorker && !window._swUpdated) {
                         console.log('🔍 updatefound: Nueva versión del SW encontrada');
                         newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller && !window._swUpdated) {
                                 console.log('📢 Nueva versión instalada y lista para activarse');
                                 notificarActualizacion(newWorker);
                             }
@@ -2231,7 +2236,7 @@
                     }
                 });
 
-                return; // No registrar de nuevo
+                return;
             }
 
             // Si no existe, registrar por primera vez
@@ -2240,17 +2245,17 @@
                 .then(reg => {
                     console.log('✅ SW registrado correctamente en:', reg.scope);
 
-                    if (reg.waiting) {
+                    if (reg.waiting && !window._swUpdated) {
                         console.log('📢 Nueva versión detectada al registrar');
                         notificarActualizacion(reg.waiting);
                     }
 
                     reg.addEventListener('updatefound', () => {
                         const newWorker = reg.installing;
-                        if (newWorker) {
+                        if (newWorker && !window._swUpdated) {
                             console.log('🔍 updatefound: Nueva versión encontrada');
                             newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller && !window._swUpdated) {
                                     console.log('📢 Nueva versión instalada');
                                     notificarActualizacion(newWorker);
                                 }
@@ -2263,24 +2268,23 @@
     }
 
     // ============================================================
-    // 2. FUNCIÓN PARA NOTIFICAR ACTUALIZACIONES (Control por sesión)
+    // 2. FUNCIÓN PARA NOTIFICAR ACTUALIZACIONES (con control global)
     // ============================================================
     function notificarActualizacion(worker) {
-        // Usamos una clave genérica porque la versión la decide el navegador/sw.js
-        const sessionKey = 'sw_update_notified';
-        if (sessionStorage.getItem(sessionKey) === 'true') {
-            console.log('⚠️ Ya se notificó una actualización en esta sesión. No se volverá a preguntar.');
+        // Si ya se actualizó en esta sesión, no hacer nada
+        if (window._swUpdated) {
+            console.log('⚠️ Ya se actualizó el SW en esta sesión. No se volverá a preguntar.');
             return;
         }
 
         console.log('📢 Mostrando modal de actualización');
-        sessionStorage.setItem(sessionKey, 'true');
 
         if (typeof window.confirmModal === 'function') {
             window.confirmModal(
                 '📢 Nueva versión disponible. ¿Quieres actualizar ahora?',
                 () => {
                     console.log('✅ Usuario aceptó actualizar');
+                    window._swUpdated = true; // Marcar como actualizado
                     worker.postMessage('skipWaiting');
                     setTimeout(() => {
                         console.log('🔄 Recargando página...');
@@ -2293,6 +2297,7 @@
             );
         } else {
             if (confirm('📢 Nueva versión disponible. ¿Actualizar?')) {
+                window._swUpdated = true;
                 worker.postMessage('skipWaiting');
                 setTimeout(() => window.location.reload(), 500);
             }
@@ -2312,7 +2317,7 @@
     });
 
     // ============================================================
-    // 4. REGISTRO DE ONESIGNAL (totalmente independiente)
+    // 4. REGISTRO DE ONESIGNAL (independiente)
     // ============================================================
     const oneSignalWorkerUrl = '/RESCATE-OBR/OneSignalSDKWorker.js';
     if ('serviceWorker' in navigator) {
@@ -2326,7 +2331,7 @@
     // ============================================================
     window.OneSignalDeferred = window.OneSignalDeferred || [];
     OneSignalDeferred.push(async function(OneSignal) {
-        await new Promise(resolve => setTimeout(resolve, 500)); // Esperar registro SW
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         try {
             await OneSignal.init({
