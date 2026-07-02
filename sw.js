@@ -3,7 +3,7 @@ importScripts('https://cdn.onesignal.com/sdks/OneSignalSDKWorker.js');
 // ============================================================
 // VERSIÓN DE LA CACHÉ (ÚNICO LUGAR DONDE SE DEFINE)
 // ============================================================
-const CACHE_NAME = 'obr-cache-v94';
+const CACHE_NAME = 'obr-cache-v10';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
