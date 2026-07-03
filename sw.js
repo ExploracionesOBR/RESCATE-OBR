@@ -1,7 +1,7 @@
 // ============================================================
 // VERSIÓN DE LA CACHÉ
 // ============================================================
-const CACHE_NAME = 'obr-cache-v12';
+const CACHE_NAME = 'obr-cache-v15';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
@@ -73,23 +73,30 @@ self.addEventListener('push', event => {
   event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
+// ============================================================
+// NOTIFICATION CLICK - Abrir la URL dentro de la app
+// ============================================================
 self.addEventListener('notificationclick', event => {
-  event.notification.close();
-  const url = event.notification.data.url || BASE_PATH + '/?view=home';
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then(clients => {
-        // Si hay una ventana abierta, enfocarla y navegar a la URL
-        for (let client of clients) {
-          if (client.url.includes(BASE_PATH) && 'focus' in client) {
-            client.navigate(url);
-            return client.focus();
-          }
-        }
-        // Si no, abrir una nueva
-        if (clients.openWindow) return clients.openWindow(url);
-      })
-  );
+    console.log('👆 Usuario hizo clic en la notificación:', event.notification.data);
+    event.notification.close();
+    
+    const url = event.notification.data.url || BASE_PATH + '/?view=home';
+    
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true })
+            .then(clients => {
+                // Buscar una ventana abierta de la app
+                for (let client of clients) {
+                    if (client.url.includes(BASE_PATH) && 'focus' in client) {
+                        // Navegar dentro de la ventana existente
+                        client.navigate(url).then(() => client.focus());
+                        return;
+                    }
+                }
+                // Si no hay ventana abierta, abrir una nueva
+                if (clients.openWindow) return clients.openWindow(url);
+            })
+    );
 });
 
 self.addEventListener('message', event => {
