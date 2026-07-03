@@ -13297,13 +13297,18 @@ function iniciarListenerColaPush() {
 // ============================================================
 // 5. INICIAR TODO AL CARGAR LA APP (CON CONTROL DE DUPLICADOS)
 // ============================================================
-let _pushQueueStarted = false; // Variable global de control
-
 setTimeout(() => {
-    if (auth.currentUser && !_pushQueueStarted) {
-        _pushQueueStarted = true;
+    // Usamos window._pushQueueStarted para que sea global y no dé errores
+    if (typeof window._pushQueueStarted === 'undefined') {
+        window._pushQueueStarted = false; // Inicializar si no existe
+    }
+
+    if (auth.currentUser && !window._pushQueueStarted) {
+        window._pushQueueStarted = true; // Marcar como iniciado
         suscribirPushNativo();
         iniciarListenerColaPush(); // Solo se llama UNA VEZ
         console.log('🚀 Sistema de notificaciones iniciado (único).');
+    } else {
+        console.log('⏳ Sistema de notificaciones ya iniciado o usuario no autenticado.');
     }
 }, 3000);
