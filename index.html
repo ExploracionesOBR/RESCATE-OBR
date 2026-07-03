@@ -2186,5 +2186,52 @@
         </p>
     </div>
 </div>
+    <script>
+    // ============================================================
+    // 1. CONFIGURACIÓN DE ONESIGNAL
+    // ============================================================
+    const ONESIGNAL_APP_ID = "dbdeba23-a1a1-4220-8861-cbf29002d394";
+
+    // ============================================================
+    // 2. INTERCEPTOR DE REGISTRO (Se ejecuta antes de cargar OneSignal)
+    // ============================================================
+    if ('serviceWorker' in navigator) {
+        const originalRegister = navigator.serviceWorker.register;
+        
+        navigator.serviceWorker.register = function(scriptURL, options) {
+            // Si el script es de OneSignal, forzamos el scope al subdirectorio
+            if (scriptURL.includes('OneSignalSDKWorker.js')) {
+                console.log('🔧 [OneSignal] Interceptando registro SW...');
+                const newOptions = { ...options, scope: '/RESCATE-OBR/' };
+                return originalRegister.call(navigator.serviceWorker, scriptURL, newOptions);
+            }
+            return originalRegister.call(navigator.serviceWorker, scriptURL, options);
+        };
+    }
+
+    // ============================================================
+    // 3. CONFIGURACIÓN DE ONESIGNAL (Usando el evento nativo)
+    // ============================================================
+    document.addEventListener('OneSignalSDKLoaded', async function() {
+        try {
+            // Inicializar OneSignal con la configuración deseada
+            await OneSignal.init({
+                appId: ONESIGNAL_APP_ID
+            });
+            console.log('✅ OneSignal inicializado correctamente con evento nativo.');
+        } catch (error) {
+            console.error('❌ Error al inicializar OneSignal:', error);
+        }
+    });
+
+    // ============================================================
+    // 4. SOLICITUD DE PERMISO DESPUÉS DE LA CARGA
+    // ============================================================
+    // Esperamos a que el usuario interactúe antes de pedir permiso.
+    // La lógica de pedir permiso se maneja desde `app.js` con `OneSignal.login()`.
+</script>
+
+<!-- Cargar OneSignal SDK al final del archivo -->
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" async></script>
 </body>
 </html>
