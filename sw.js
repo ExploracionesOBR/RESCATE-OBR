@@ -1,7 +1,7 @@
 // ============================================================
-// VERSIÓN DE LA CACHÉ (ÚNICO LUGAR DONDE SE DEFINE)
+// VERSIÓN DE LA CACHÉ (CAMBIA ESTO CUANDO ACTUALICES LA APP)
 // ============================================================
-const CACHE_NAME = 'obr-cache-v30';  // <--- CAMBIAR SOLO AQUÍ PARA ACTUALIZAR
+const CACHE_NAME = 'obr-cache-v102';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
@@ -10,37 +10,26 @@ const ALL_FILES = [
   `${BASE_PATH}/app.js`,
   `${BASE_PATH}/styles.css`,
   `${BASE_PATH}/icono.png`,
-  `${BASE_PATH}/sw.js`,
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js',
-  'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'
+  `${BASE_PATH}/sw.js`
 ];
 
 // ============================================================
-// INSTALL - INSTALA PERO NO ACTIVA AUTOMÁTICAMENTE
+// INSTALL
 // ============================================================
 self.addEventListener('install', event => {
-  console.log('🔧 Instalando SW, versión:', CACHE_NAME);
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return Promise.allSettled(ALL_FILES.map(url => 
+    caches.open(CACHE_NAME).then(cache => 
+      Promise.allSettled(ALL_FILES.map(url => 
         cache.add(url).catch(err => console.warn('No se pudo cachear:', url, err))
-      ));
-    })
+      ))
+    )
   );
-  // NO llamamos a self.skipWaiting() aquí.
-  // El SW se quedará en 'waiting' hasta que la página indique la activación.
 });
 
 // ============================================================
-// ACTIVATE - LIMPIAR CACHÉS ANTIGUAS
+// ACTIVATE
 // ============================================================
 self.addEventListener('activate', event => {
-  console.log('✅ Activando SW, versión:', CACHE_NAME);
   event.waitUntil(
     caches.keys().then(names => Promise.all(
       names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))
@@ -50,13 +39,13 @@ self.addEventListener('activate', event => {
 });
 
 // ============================================================
-// FETCH (Estrategia Cache First)
+// FETCH (Cache First)
 // ============================================================
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET') return;
 
-  if (url.hostname.includes('firestore') || url.hostname.includes('googleapis') || url.hostname.includes('rtdb')) {
+  if (url.hostname.includes('firestore') || url.hostname.includes('googleapis')) {
     event.respondWith(fetch(event.request).catch(() => new Response('{}', { status: 200 })));
     return;
   }
@@ -79,11 +68,46 @@ self.addEventListener('fetch', event => {
 });
 
 // ============================================================
-// MANEJO DE MENSAJES - SOLO ACTIVACIÓN POR MENSAJE
+// PUSH - Recibir notificaciones nativas (Firebase VAPID)
+// ============================================================
+self.addEventListener('push', event => {
+  let data = { title: 'OBR', body: 'Tienes una notificación' };
+  if (event.data) {
+    try {
+      data = event.data.json();
+    } catch (e) {
+      data.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon || '/RESCATE-OBR/icono.png',
+    data: { url: data.url || '/RESCATE-OBR/' }
+  };
+  event.waitUntil(self.registration.showNotification(data.title, options));
+});
+
+// ============================================================
+// NOTIFICATION CLICK
+// ============================================================
+self.addEventListener('notificationclick', event => {
+  event.notification.close();
+  const url = event.notification.data.url || '/RESCATE-OBR/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then(clients => {
+        for (let client of clients) {
+          if (client.url.includes(url) && 'focus' in client) return client.focus();
+        }
+        if (clients.openWindow) return clients.openWindow(url);
+      })
+  );
+});
+
+// ============================================================
+// MESSAGE - Recibir mensajes desde app.js (para activación)
 // ============================================================
 self.addEventListener('message', event => {
-  if (event.data === 'skipWaiting') {
-    console.log('⏩ skipWaiting recibido, activando nuevo SW');
-    self.skipWaiting();
-  }
+  if (event.data === 'skipWaiting') self.skipWaiting();
 });
