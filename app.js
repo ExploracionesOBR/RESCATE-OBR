@@ -13220,7 +13220,6 @@ function vincularOneSignal() {
         // La app ya está cargada, este error no la bloquea
     }
 }
-
 // ============================================================
 // MODAL PERSONALIZADO DE SUSCRIPCIÓN (EN ESPAÑOL)
 // ============================================================
