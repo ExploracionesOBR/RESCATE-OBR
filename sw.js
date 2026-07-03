@@ -1,14 +1,18 @@
+// ============================================================
+// VERSIÓN DE LA CACHÉ (ÚNICO LUGAR DONDE SE DEFINE)
+// CAMBIA ESTE VALOR CUANDO ACTUALICES LA APP
+// ============================================================
 const CACHE_NAME = 'obr-cache-v100';
 const BASE_PATH = '/RESCATE-OBR';
 
-// Archivos a cachear
+// Archivos a cachear (SOLO archivos locales de tu PWA)
 const ALL_FILES = [
-  `${BASE_PATH}/`,
-  `${BASE_PATH}/index.html`,
-  `${BASE_PATH}/app.js`,
-  `${BASE_PATH}/styles.css`,
-  `${BASE_PATH}/icono.png`,
-  `${BASE_PATH}/sw.js`
+  BASE_PATH + '/',
+  BASE_PATH + '/index.html',
+  BASE_PATH + '/app.js',
+  BASE_PATH + '/styles.css',
+  BASE_PATH + '/icono.png',
+  BASE_PATH + '/sw.js'
 ];
 
 // ============================================================
@@ -64,7 +68,7 @@ self.addEventListener('fetch', event => {
         return response;
       }).catch(() => {
         if (event.request.mode === 'navigate') {
-          return caches.match(`${BASE_PATH}/index.html`);
+          return caches.match(BASE_PATH + '/index.html');
         }
       });
     })
@@ -86,9 +90,9 @@ self.addEventListener('push', event => {
 
   const options = {
     body: data.body,
-    icon: data.icon || '/RESCATE-OBR/icono.png',
-    badge: data.badge || '/RESCATE-OBR/icono.png',
-    data: { url: data.url || '/RESCATE-OBR/' }
+    icon: data.icon || BASE_PATH + '/icono.png',
+    badge: data.badge || BASE_PATH + '/icono.png',
+    data: { url: data.url || BASE_PATH + '/' }
   };
   event.waitUntil(self.registration.showNotification(data.title, options));
 });
@@ -100,7 +104,7 @@ self.addEventListener('notificationclick', event => {
   console.log('👆 Usuario hizo clic en la notificación:', event.notification.data);
   event.notification.close();
   
-  const url = event.notification.data.url || '/RESCATE-OBR/';
+  const url = event.notification.data.url || BASE_PATH + '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(clients => {
@@ -136,9 +140,9 @@ self.addEventListener('message', event => {
     // Mostrar la notificación usando la Push API nativa
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: payload.icon || '/RESCATE-OBR/icono.png',
-      badge: payload.badge || '/RESCATE-OBR/icono.png',
-      data: { url: payload.url || '/RESCATE-OBR/' }
+      icon: payload.icon || BASE_PATH + '/icono.png',
+      badge: payload.badge || BASE_PATH + '/icono.png',
+      data: { url: payload.url || BASE_PATH + '/' }
     }).then(() => {
       console.log('✅ Notificación mostrada por el SW.');
     }).catch(error => {
