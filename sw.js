@@ -1,7 +1,7 @@
 // ============================================================
 // VERSIÓN DE LA CACHÉ (CAMBIA ESTO CUANDO ACTUALICES LA APP)
 // ============================================================
-const CACHE_NAME = 'obr-cache-v102';
+const CACHE_NAME = 'obr-cache-v14';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
