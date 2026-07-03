@@ -2266,5 +2266,65 @@
         }
     });
 </script>
+<!-- ============================================================
+     MODAL DE VIDEO (Se abre con ?view=video&src=...)
+     ============================================================ -->
+<div id="modal-video" class="fixed inset-0 bg-black/95 z-[1000003] flex items-center justify-center hidden">
+    <div class="relative w-full h-full flex items-center justify-center bg-black">
+        <!-- Botón de cierre (X) -->
+        <button id="modal-video-close" class="absolute top-4 right-4 text-white text-4xl z-10 hover:text-naranja transition-colors">
+            <i class="fas fa-times"></i>
+        </button>
+        
+        <!-- Video (autoplay, mute, sin controles, loop) -->
+        <video id="modal-video-player" autoplay muted loop playsinline class="w-full h-full object-contain max-h-[90vh]">
+            <source src="" type="video/mp4">
+        </video>
+    </div>
+</div>
+
+<script>
+    // ============================================================
+    // LÓGICA PARA ABRIR EL MODAL DE VIDEO DESDE LA URL
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', function() {
+        const params = new URLSearchParams(window.location.search);
+        const view = params.get('view');
+        const src = params.get('src');
+
+        if (view === 'video' && src) {
+            const modal = document.getElementById('modal-video');
+            const player = document.getElementById('modal-video-player');
+            const closeBtn = document.getElementById('modal-video-close');
+
+            // Cargar el video y mostrar el modal
+            player.src = src;
+            player.load();
+            modal.classList.remove('hidden');
+            modal.style.display = 'flex';
+
+            // Cerrar al hacer clic en la X
+            closeBtn.onclick = function() {
+                modal.classList.add('hidden');
+                modal.style.display = 'none';
+                player.pause();
+                player.src = '';
+                // Limpiar la URL sin recargar
+                window.history.replaceState({}, document.title, window.location.pathname);
+            };
+
+            // Cerrar al hacer clic en el fondo
+            modal.onclick = function(e) {
+                if (e.target === modal) {
+                    modal.classList.add('hidden');
+                    modal.style.display = 'none';
+                    player.pause();
+                    player.src = '';
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            };
+        }
+    });
+</script>
 </body>
 </html>
