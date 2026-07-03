@@ -2186,50 +2186,5 @@
         </p>
     </div>
 </div>
-    <script>
-    // ============================================================
-    // CONFIGURACIÓN DE ONESIGNAL (SOLO APP ID)
-    // ============================================================
-    const ONESIGNAL_APP_ID = "dbdeba23-a1a1-4220-8861-cbf29002d394";
-
-    // ============================================================
-    // INICIALIZACIÓN DE ONESIGNAL (DEJAMOS QUE EL SDK REGISTRE SU SW)
-    // ============================================================
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    OneSignalDeferred.push(async function(OneSignal) {
-        try {
-            await OneSignal.init({
-                appId: ONESIGNAL_APP_ID
-            });
-            console.log('✅ OneSignal inicializado correctamente (SDK v16)');
-        } catch (error) {
-            console.error('❌ Error al inicializar OneSignal:', error);
-        }
-    });
-
-    // ============================================================
-    // INTERCEPTOR PARA CORREGIR EL SCOPE DEL SERVICE WORKER
-    // ============================================================
-    // OneSignal intentará registrar su SW en la raíz. Lo interceptamos.
-    if ('serviceWorker' in navigator) {
-        const originalRegister = navigator.serviceWorker.register;
-        
-        navigator.serviceWorker.register = function(scriptURL, options) {
-            if (scriptURL.includes('OneSignalSDKWorker.js')) {
-                console.log('🔧 Interceptando registro de OneSignal SW...');
-                console.log('   Redirigiendo scope a /RESCATE-OBR/');
-                
-                const newOptions = {
-                    ...options,
-                    scope: '/RESCATE-OBR/'
-                };
-                return originalRegister.call(navigator.serviceWorker, scriptURL, newOptions);
-            }
-            return originalRegister.call(navigator.serviceWorker, scriptURL, options);
-        };
-    }
-</script>
-
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" async></script>
 </body>
 </html>
