@@ -1,7 +1,7 @@
 // ============================================================
 // VERSIÓN DE LA CACHÉ (ÚNICO LUGAR DONDE SE DEFINE)
 // ============================================================
-const CACHE_NAME = 'obr-cache-v10';
+const CACHE_NAME = 'obr-cache-v100';
 const BASE_PATH = '/RESCATE-OBR';
 
 // Archivos a cachear (SOLO archivos locales)
@@ -119,67 +119,23 @@ self.addEventListener('message', event => {
     return;
   }
 
-  // 2. Envío de notificación manual (El TRUCO)
+  // 2. Envío de notificación manual (TRUCO CORRECTO)
   if (event.data && event.data.type === 'SEND_PUSH') {
     const { payload } = event.data;
-    console.log('📩 SEND_PUSH recibido:', payload);
+    console.log('📩 SEND_PUSH recibido en el SW:', payload);
     
-    // 🔥 TRUCO: Forzar al navegador a aceptar la notificación
-    forcePushNotification(payload);
-  }
-});
-
-// ============================================================
-// FUNCIÓN TRUCO: Simula una notificación push real
-// ============================================================
-async function forcePushNotification(payload) {
-  try {
-    // 1. Obtener la suscripción actual (o crearla con la VAPID Key de Firebase)
-    let subscription = await self.registration.pushManager.getSubscription();
-    if (!subscription) {
-      // 🔴 Aquí iría tu VAPID Public Key de Firebase (si la tienes)
-      // Si no la tienes, el pushManager no puede suscribirse sin VAPID.
-      // Para este truco usamos un método alternativo si falla.
-      console.warn('⚠️ No hay suscripción push activa. Usando método alternativo.');
-      
-      // 2. Método alternativo (fallback para cuando no hay VAPID)
-      // Mostramos la notificación directamente y forzamos la recarga
-      self.registration.showNotification(payload.title, {
-        body: payload.body,
-        icon: payload.icon || BASE_PATH + '/icono.png',
-        data: { url: payload.url || BASE_PATH + '/' }
-      }).then(() => {
-        console.log('✅ Notificación mostrada (método alternativo)');
-      });
-      return;
-    }
-
-    // 3. Simular un evento push "falso" usando el Push API
-    // (Esta es la parte que Chrome acepta como "push real")
-    const data = JSON.stringify({
-      title: payload.title,
-      body: payload.body,
-      icon: payload.icon,
-      url: payload.url
-    });
-
-    // Crear un evento push simulado
-    const pushEvent = new PushEvent('push', {
-      data: new TextEncoder().encode(data),
-      waitUntil: (promise) => self.waitUntil(promise)
-    });
-
-    // Disparar el evento push simulado
-    self.dispatchEvent(pushEvent);
-    console.log('✅ Evento push simulado disparado correctamente.');
-
-  } catch (error) {
-    console.error('❌ Error en forcePushNotification:', error);
-    // Fallback: mostrar la notificación directamente
+    // 🔥 TRUCO CORRECTO: Mostrar la notificación directamente.
+    // El navegador NO bloquea las notificaciones cuando se llaman
+    // desde el evento 'message' de un Service Worker activo.
+    // Esto funciona en Chrome, Firefox y Edge.
     self.registration.showNotification(payload.title, {
       body: payload.body,
       icon: payload.icon || BASE_PATH + '/icono.png',
       data: { url: payload.url || BASE_PATH + '/' }
+    }).then(() => {
+      console.log('✅ Notificación mostrada por el SW.');
+    }).catch(error => {
+      console.error('❌ Error al mostrar la notificación en el SW:', error);
     });
   }
-}
+});
