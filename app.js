@@ -7937,7 +7937,9 @@ const q = query(collection(db, "retenes"));
       }
   }
 
-// ===== BROADCAST (Notificaciones masivas) =====
+// ============================================================
+// ENVIAR NOTIFICACIÓN MASIVA (Nuevo sistema nativo sin OneSignal)
+// ============================================================
 window.enviarBroadcast = async function() {
     const titleInput = document.getElementById('broadcast-title');
     const bodyInput = document.getElementById('broadcast-body');
@@ -7951,24 +7953,48 @@ window.enviarBroadcast = async function() {
         window.showToast("❌ El título y el mensaje son obligatorios.", true);
         return;
     }
-    
-    window.confirmModal(`¿Enviar notificación masiva a TODOS los usuarios registrados?\n\nTítulo: ${title}\nMensaje: ${body}`, async () => {
+
+    // Confirmación antes de enviar
+    window.confirmModal(`¿Enviar notificación masiva a TODOS los usuarios?\n\nTítulo: ${title}\nMensaje: ${body}`, async () => {
         const btn = document.querySelector('#a-view-promos button[onclick*="enviarBroadcast"]');
         if (!btn) return;
+        
         const originalText = btn.innerText;
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
         
         try {
-            if (listaTodosLosUids.length === 0) {
-                await cargarTodosLosUids();
+            // 1. Obtener todos los usuarios que tengan suscripción push
+            const usersSnap = await getDocs(collection(db, "users"));
+            let enviados = 0;
+            let errores = 0;
+
+            // 2. Enviar una notificación a cada usuario con suscripción
+            for (const docSnap of usersSnap.docs) {
+                const userData = docSnap.data();
+                if (userData.pushSubscription && userData.pushSubscription.endpoint) {
+                    try {
+                        await encolarNotificacionPush(docSnap.id, title, body, url);
+                        enviados++;
+                    } catch (e) {
+                        errores++;
+                        console.warn(`Error al encolar para ${docSnap.id}:`, e);
+                    }
+                }
             }
-            await enviarNotificacion(listaTodosLosUids, title, body, url);
-            window.showToast(`✅ Notificación enviada a ${listaTodosLosUids.length} usuarios.`);
+
+            // 3. Mostrar resultado
+            if (enviados === 0) {
+                window.showToast("❌ No se encontraron usuarios suscritos a notificaciones push.", true);
+            } else {
+                window.showToast(`✅ Notificación encolada para ${enviados} usuarios. ${errores > 0 ? `(${errores} errores)` : ''}`);
+            }
+
             // Limpiar campos
             if (titleInput) titleInput.value = '';
             if (bodyInput) bodyInput.value = '';
             if (urlInput) urlInput.value = '';
+
         } catch (error) {
             console.error('Error al enviar broadcast:', error);
             window.showToast(`❌ Error: ${error.message}`, true);
@@ -7978,6 +8004,7 @@ window.enviarBroadcast = async function() {
         }
     });
 };
+
   // ======================================================
   // === VIDEO BANNER (con previsualización) ===
   // ======================================================
