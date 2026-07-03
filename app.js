@@ -13294,15 +13294,15 @@ function iniciarListenerColaPush() {
     console.log('✅ Listener de push_queue iniciado.');
 }
 // ============================================================
-// 5. INICIAR TODO AL CARGAR LA APP
+// 5. INICIAR TODO AL CARGAR LA APP (CON CONTROL DE DUPLICADOS)
 // ============================================================
-let _alreadyInitialized = false;
+let _pushQueueStarted = false; // Variable global de control
 
 setTimeout(() => {
-    if (auth.currentUser && !_alreadyInitialized) {
-        _alreadyInitialized = true;
+    if (auth.currentUser && !_pushQueueStarted) {
+        _pushQueueStarted = true;
         suscribirPushNativo();
-        iniciarListenerColaPush();
-        console.log('🚀 Sistema de notificaciones iniciado.');
+        iniciarListenerColaPush(); // Solo se llama UNA VEZ
+        console.log('🚀 Sistema de notificaciones iniciado (único).');
     }
 }, 3000);
