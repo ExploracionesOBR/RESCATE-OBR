@@ -1,11 +1,10 @@
 // ============================================================
 // VERSIÓN DE LA CACHÉ (ÚNICO LUGAR DONDE SE DEFINE)
-// CAMBIA ESTE VALOR CUANDO ACTUALICES LA APP
 // ============================================================
-const CACHE_NAME = 'obr-cache-v100';
+const CACHE_NAME = 'obr-cache-v10';
 const BASE_PATH = '/RESCATE-OBR';
 
-// Archivos a cachear (SOLO archivos locales de tu PWA)
+// Archivos a cachear (SOLO archivos locales)
 const ALL_FILES = [
   BASE_PATH + '/',
   BASE_PATH + '/index.html',
@@ -16,7 +15,7 @@ const ALL_FILES = [
 ];
 
 // ============================================================
-// INSTALL - Instala los archivos en la caché
+// INSTALL
 // ============================================================
 self.addEventListener('install', event => {
   console.log('🔧 Instalando Service Worker, versión:', CACHE_NAME);
@@ -27,12 +26,10 @@ self.addEventListener('install', event => {
       ));
     })
   );
-  // No llamamos a self.skipWaiting() aquí.
-  // La activación se controla desde la página mediante postMessage.
 });
 
 // ============================================================
-// ACTIVATE - Limpia cachés antiguas y toma el control
+// ACTIVATE
 // ============================================================
 self.addEventListener('activate', event => {
   console.log('✅ Activando Service Worker, versión:', CACHE_NAME);
@@ -41,23 +38,21 @@ self.addEventListener('activate', event => {
       names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))
     ))
   );
-  event.waitUntil(self.clients.claim()); // Toma el control de las páginas abiertas
+  event.waitUntil(self.clients.claim());
 });
 
 // ============================================================
-// FETCH - Estrategia Cache First
+// FETCH (Cache First)
 // ============================================================
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET') return;
 
-  // Firebase y llamadas a APIs externas: solo red (no cachear)
   if (url.hostname.includes('firestore') || url.hostname.includes('googleapis') || url.hostname.includes('rtdb')) {
     event.respondWith(fetch(event.request).catch(() => new Response('{}', { status: 200 })));
     return;
   }
 
-  // Cache First para el resto
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
@@ -76,7 +71,7 @@ self.addEventListener('fetch', event => {
 });
 
 // ============================================================
-// PUSH - Manejo de notificaciones push nativas (Firebase VAPID)
+// PUSH - Recibe notificaciones push nativas
 // ============================================================
 self.addEventListener('push', event => {
   let data = { title: 'OBR', body: 'Tienes una notificación' };
@@ -91,62 +86,100 @@ self.addEventListener('push', event => {
   const options = {
     body: data.body,
     icon: data.icon || BASE_PATH + '/icono.png',
-    badge: data.badge || BASE_PATH + '/icono.png',
     data: { url: data.url || BASE_PATH + '/' }
   };
   event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
 // ============================================================
-// NOTIFICATION CLICK - Acción al hacer clic en una notificación
+// NOTIFICATION CLICK
 // ============================================================
 self.addEventListener('notificationclick', event => {
-  console.log('👆 Usuario hizo clic en la notificación:', event.notification.data);
   event.notification.close();
-  
   const url = event.notification.data.url || BASE_PATH + '/';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(clients => {
         for (let client of clients) {
-          if (client.url.includes(url) && 'focus' in client) {
-            return client.focus();
-          }
+          if (client.url.includes(url) && 'focus' in client) return client.focus();
         }
-        if (clients.openWindow) {
-          return clients.openWindow(url);
-        }
+        if (clients.openWindow) return clients.openWindow(url);
       })
   );
 });
 
 // ============================================================
-// MESSAGE - Escucha mensajes desde la página (app.js)
+// MESSAGE - Recibe comandos desde app.js
 // ============================================================
 self.addEventListener('message', event => {
-  // 1. Recibir el comando para activar una actualización del SW
+  // 1. Activación del SW
   if (event.data === 'skipWaiting') {
-    console.log('⏩ skipWaiting recibido, activando nuevo Service Worker');
+    console.log('⏩ skipWaiting recibido');
     self.skipWaiting();
     return;
   }
 
-  // 2. Recibir el comando para mostrar una notificación (SEND_PUSH)
+  // 2. Envío de notificación manual (El TRUCO)
   if (event.data && event.data.type === 'SEND_PUSH') {
-    const { subscription, payload } = event.data;
+    const { payload } = event.data;
+    console.log('📩 SEND_PUSH recibido:', payload);
     
-    console.log('📩 Mensaje SEND_PUSH recibido en el SW:', payload);
-    
-    // Mostrar la notificación usando la Push API nativa
+    // 🔥 TRUCO: Forzar al navegador a aceptar la notificación
+    forcePushNotification(payload);
+  }
+});
+
+// ============================================================
+// FUNCIÓN TRUCO: Simula una notificación push real
+// ============================================================
+async function forcePushNotification(payload) {
+  try {
+    // 1. Obtener la suscripción actual (o crearla con la VAPID Key de Firebase)
+    let subscription = await self.registration.pushManager.getSubscription();
+    if (!subscription) {
+      // 🔴 Aquí iría tu VAPID Public Key de Firebase (si la tienes)
+      // Si no la tienes, el pushManager no puede suscribirse sin VAPID.
+      // Para este truco usamos un método alternativo si falla.
+      console.warn('⚠️ No hay suscripción push activa. Usando método alternativo.');
+      
+      // 2. Método alternativo (fallback para cuando no hay VAPID)
+      // Mostramos la notificación directamente y forzamos la recarga
+      self.registration.showNotification(payload.title, {
+        body: payload.body,
+        icon: payload.icon || BASE_PATH + '/icono.png',
+        data: { url: payload.url || BASE_PATH + '/' }
+      }).then(() => {
+        console.log('✅ Notificación mostrada (método alternativo)');
+      });
+      return;
+    }
+
+    // 3. Simular un evento push "falso" usando el Push API
+    // (Esta es la parte que Chrome acepta como "push real")
+    const data = JSON.stringify({
+      title: payload.title,
+      body: payload.body,
+      icon: payload.icon,
+      url: payload.url
+    });
+
+    // Crear un evento push simulado
+    const pushEvent = new PushEvent('push', {
+      data: new TextEncoder().encode(data),
+      waitUntil: (promise) => self.waitUntil(promise)
+    });
+
+    // Disparar el evento push simulado
+    self.dispatchEvent(pushEvent);
+    console.log('✅ Evento push simulado disparado correctamente.');
+
+  } catch (error) {
+    console.error('❌ Error en forcePushNotification:', error);
+    // Fallback: mostrar la notificación directamente
     self.registration.showNotification(payload.title, {
       body: payload.body,
       icon: payload.icon || BASE_PATH + '/icono.png',
-      badge: payload.badge || BASE_PATH + '/icono.png',
       data: { url: payload.url || BASE_PATH + '/' }
-    }).then(() => {
-      console.log('✅ Notificación mostrada por el SW.');
-    }).catch(error => {
-      console.error('❌ Error al mostrar la notificación en el SW:', error);
     });
   }
-});
+}
