@@ -1,10 +1,9 @@
 // ============================================================
-// VERSIÓN DE LA CACHÉ (ÚNICO LUGAR DONDE SE DEFINE)
+// VERSIÓN DE LA CACHÉ
 // ============================================================
-const CACHE_NAME = 'obr-cache-v100';
+const CACHE_NAME = 'obr-cache-v10';
 const BASE_PATH = '/RESCATE-OBR';
 
-// Archivos a cachear (SOLO archivos locales)
 const ALL_FILES = [
   BASE_PATH + '/',
   BASE_PATH + '/index.html',
@@ -14,25 +13,17 @@ const ALL_FILES = [
   BASE_PATH + '/sw.js'
 ];
 
-// ============================================================
-// INSTALL
-// ============================================================
 self.addEventListener('install', event => {
-  console.log('🔧 Instalando Service Worker, versión:', CACHE_NAME);
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return Promise.allSettled(ALL_FILES.map(url => 
+    caches.open(CACHE_NAME).then(cache => 
+      Promise.allSettled(ALL_FILES.map(url => 
         cache.add(url).catch(err => console.warn('No se pudo cachear:', url, err))
-      ));
-    })
+      ))
+    )
   );
 });
 
-// ============================================================
-// ACTIVATE
-// ============================================================
 self.addEventListener('activate', event => {
-  console.log('✅ Activando Service Worker, versión:', CACHE_NAME);
   event.waitUntil(
     caches.keys().then(names => Promise.all(
       names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))
@@ -41,18 +32,13 @@ self.addEventListener('activate', event => {
   event.waitUntil(self.clients.claim());
 });
 
-// ============================================================
-// FETCH (Cache First)
-// ============================================================
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET') return;
-
-  if (url.hostname.includes('firestore') || url.hostname.includes('googleapis') || url.hostname.includes('rtdb')) {
+  if (url.hostname.includes('firestore') || url.hostname.includes('googleapis')) {
     event.respondWith(fetch(event.request).catch(() => new Response('{}', { status: 200 })));
     return;
   }
-
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
@@ -70,9 +56,6 @@ self.addEventListener('fetch', event => {
   );
 });
 
-// ============================================================
-// PUSH - Recibe notificaciones push nativas
-// ============================================================
 self.addEventListener('push', event => {
   let data = { title: 'OBR', body: 'Tienes una notificación' };
   if (event.data) {
@@ -82,60 +65,41 @@ self.addEventListener('push', event => {
       data.body = event.data.text();
     }
   }
-
   const options = {
     body: data.body,
     icon: data.icon || BASE_PATH + '/icono.png',
-    data: { url: data.url || BASE_PATH + '/' }
+    data: { url: data.url || BASE_PATH + '/?view=home' }
   };
   event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
-// ============================================================
-// NOTIFICATION CLICK
-// ============================================================
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const url = event.notification.data.url || BASE_PATH + '/';
+  const url = event.notification.data.url || BASE_PATH + '/?view=home';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(clients => {
+        // Si hay una ventana abierta, enfocarla y navegar a la URL
         for (let client of clients) {
-          if (client.url.includes(url) && 'focus' in client) return client.focus();
+          if (client.url.includes(BASE_PATH) && 'focus' in client) {
+            client.navigate(url);
+            return client.focus();
+          }
         }
+        // Si no, abrir una nueva
         if (clients.openWindow) return clients.openWindow(url);
       })
   );
 });
 
-// ============================================================
-// MESSAGE - Recibe comandos desde app.js
-// ============================================================
 self.addEventListener('message', event => {
-  // 1. Activación del SW
-  if (event.data === 'skipWaiting') {
-    console.log('⏩ skipWaiting recibido');
-    self.skipWaiting();
-    return;
-  }
-
-  // 2. Envío de notificación manual (TRUCO CORRECTO)
+  if (event.data === 'skipWaiting') self.skipWaiting();
   if (event.data && event.data.type === 'SEND_PUSH') {
     const { payload } = event.data;
-    console.log('📩 SEND_PUSH recibido en el SW:', payload);
-    
-    // 🔥 TRUCO CORRECTO: Mostrar la notificación directamente.
-    // El navegador NO bloquea las notificaciones cuando se llaman
-    // desde el evento 'message' de un Service Worker activo.
-    // Esto funciona en Chrome, Firefox y Edge.
     self.registration.showNotification(payload.title, {
       body: payload.body,
       icon: payload.icon || BASE_PATH + '/icono.png',
-      data: { url: payload.url || BASE_PATH + '/' }
-    }).then(() => {
-      console.log('✅ Notificación mostrada por el SW.');
-    }).catch(error => {
-      console.error('❌ Error al mostrar la notificación en el SW:', error);
-    });
+      data: { url: payload.url || BASE_PATH + '/?view=home' }
+    }).then(() => console.log('✅ Notificación mostrada por el SW.'));
   }
 });
