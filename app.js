@@ -7894,24 +7894,23 @@ retenesUnsubscribe = onSnapshot(q, async (snap) => {
   }
 
 // ============================================================
-// ENVIAR NOTIFICACIÓN MASIVA (Nuevo sistema nativo sin OneSignal)
+// ENVIAR NOTIFICACIÓN MASIVA (CON URL DE DESTINO)
 // ============================================================
 window.enviarBroadcast = async function() {
     const titleInput = document.getElementById('broadcast-title');
     const bodyInput = document.getElementById('broadcast-body');
-    const urlInput = document.getElementById('broadcast-url');
+    const urlInput = document.getElementById('broadcast-url'); // ✅ AHORA SE USA
     
     const title = titleInput ? titleInput.value.trim() : '';
     const body = bodyInput ? bodyInput.value.trim() : '';
-    const url = urlInput ? urlInput.value.trim() : '/RESCATE-OBR/';
+    const url = urlInput ? urlInput.value.trim() : '/RESCATE-OBR/?view=home';
     
     if (!title || !body) {
         window.showToast("❌ El título y el mensaje son obligatorios.", true);
         return;
     }
 
-    // Confirmación antes de enviar
-    window.confirmModal(`¿Enviar notificación masiva a TODOS los usuarios?\n\nTítulo: ${title}\nMensaje: ${body}`, async () => {
+    window.confirmModal(`¿Enviar notificación masiva?\n\nTítulo: ${title}\nMensaje: ${body}\nDestino: ${url}`, async () => {
         const btn = document.querySelector('#a-view-promos button[onclick*="enviarBroadcast"]');
         if (!btn) return;
         
@@ -7920,12 +7919,11 @@ window.enviarBroadcast = async function() {
         btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
         
         try {
-            // 1. Obtener todos los usuarios que tengan suscripción push
+            // Obtener TODOS los usuarios que tengan una suscripción push activa
             const usersSnap = await getDocs(collection(db, "users"));
             let enviados = 0;
             let errores = 0;
 
-            // 2. Enviar una notificación a cada usuario con suscripción
             for (const docSnap of usersSnap.docs) {
                 const userData = docSnap.data();
                 if (userData.pushSubscription && userData.pushSubscription.endpoint) {
@@ -7939,14 +7937,12 @@ window.enviarBroadcast = async function() {
                 }
             }
 
-            // 3. Mostrar resultado
             if (enviados === 0) {
-                window.showToast("❌ No se encontraron usuarios suscritos a notificaciones push.", true);
+                window.showToast("❌ No se encontraron usuarios suscritos.", true);
             } else {
                 window.showToast(`✅ Notificación encolada para ${enviados} usuarios. ${errores > 0 ? `(${errores} errores)` : ''}`);
             }
 
-            // Limpiar campos
             if (titleInput) titleInput.value = '';
             if (bodyInput) bodyInput.value = '';
             if (urlInput) urlInput.value = '';
@@ -13228,20 +13224,39 @@ window.encolarNotificacionPush = async function(userId, title, body, url = '/RES
 };
 
 // ============================================================
-// 4. ESCUCHAR LA COLA DE NOTIFICACIONES EN TIEMPO REAL
+// 4. ESCUCHAR LA COLA DE NOTIFICACIONES - CON CONTROL DE DUPLICADOS
 // ============================================================
+let _pushQueueUnsubscribe = null; // Variable global para controlar el listener
+
 function iniciarListenerColaPush() {
+    // Si ya hay un listener activo, lo cancelamos para evitar duplicados
+    if (_pushQueueUnsubscribe) {
+        _pushQueueUnsubscribe();
+        _pushQueueUnsubscribe = null;
+        console.log('🔄 Listener anterior de push_queue cancelado.');
+    }
+
     const q = query(collection(db, 'push_queue'));
-    onSnapshot(q, (snapshot) => {
+    _pushQueueUnsubscribe = onSnapshot(q, (snapshot) => {
         snapshot.docChanges().forEach(async (change) => {
             if (change.type === 'added') {
                 const data = change.doc.data();
+                console.log('📩 Nueva notificación en cola para:', data.userId);
                 
                 const userSnap = await getDoc(doc(db, 'users', data.userId));
-                if (!userSnap.exists()) return;
+                if (!userSnap.exists()) {
+                    console.warn('⚠️ Usuario no encontrado:', data.userId);
+                    await deleteDoc(change.doc.ref);
+                    return;
+                }
                 const subscriptionData = userSnap.data().pushSubscription;
-                if (!subscriptionData) return;
+                if (!subscriptionData) {
+                    console.warn('⚠️ Usuario sin suscripción push:', data.userId);
+                    await deleteDoc(change.doc.ref);
+                    return;
+                }
 
+                // Convertir a objeto PushSubscription
                 const subscription = {
                     endpoint: subscriptionData.endpoint,
                     keys: {
@@ -13250,32 +13265,44 @@ function iniciarListenerColaPush() {
                     }
                 };
 
+                // Verificar que el Service Worker esté activo
                 if (navigator.serviceWorker.controller) {
+                    // 🔥 INCLUIR LA URL DE DESTINO EN EL PAYLOAD
+                    const payload = {
+                        title: data.title || 'OBR Moto Rescate',
+                        body: data.body || 'Tienes una nueva notificación.',
+                        url: data.url || '/RESCATE-OBR/?view=home',
+                        icon: '/RESCATE-OBR/icono.png'
+                    };
+                    console.log('📤 Enviando notificación con URL:', payload.url);
+                    
                     navigator.serviceWorker.controller.postMessage({
                         type: 'SEND_PUSH',
                         subscription: subscription,
-                        payload: {
-                            title: data.title,
-                            body: data.body,
-                            url: data.url,
-                            icon: '/RESCATE-OBR/icono.png'
-                        }
+                        payload: payload
                     });
+                } else {
+                    console.warn('⚠️ Service Worker no controla la página.');
                 }
 
+                // Eliminar el documento de la cola (para no reprocesarlo)
                 await deleteDoc(change.doc.ref);
-                console.log('✅ Notificación enviada desde la cola.');
+                console.log('✅ Notificación procesada y eliminada de la cola.');
             }
         });
     });
+    console.log('✅ Listener de push_queue iniciado.');
 }
-
 // ============================================================
 // 5. INICIAR TODO AL CARGAR LA APP
 // ============================================================
+let _alreadyInitialized = false;
+
 setTimeout(() => {
-    if (auth.currentUser) {
+    if (auth.currentUser && !_alreadyInitialized) {
+        _alreadyInitialized = true;
         suscribirPushNativo();
         iniciarListenerColaPush();
+        console.log('🚀 Sistema de notificaciones iniciado.');
     }
 }, 3000);
