@@ -74,7 +74,7 @@ self.addEventListener('push', event => {
 });
 
 // ============================================================
-// NOTIFICATION CLICK - Abrir la URL dentro de la app (CORREGIDO)
+// NOTIFICATION CLICK - Abrir la URL dentro de la app (VERSIÓN ESTABLE)
 // ============================================================
 self.addEventListener('notificationclick', event => {
     console.log('👆 Usuario hizo clic en la notificación:', event.notification.data);
@@ -88,28 +88,25 @@ self.addEventListener('notificationclick', event => {
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true })
             .then(clients => {
-                // Buscar una ventana abierta de la app
+                // 1. Buscar si ya hay una ventana abierta de nuestra app
                 for (let client of clients) {
-                    // Verificar si la ventana pertenece a nuestra app
-                    if (client.url.includes('/RESCATE-OBR/') && 'focus' in client) {
-                        // Usar el método que SÍ funciona en todos los navegadores:
-                        // Redirigir la ventana existente a la nueva URL
-                        return client.focus().then(() => {
-                            // Si la URL es diferente a la actual, navegamos
-                            if (client.url !== url && client.navigate) {
-                                // Nota: algunos navegadores no soportan client.navigate.
-                                // En ese caso, simplemente enfocamos la ventana.
-                                try {
-                                    return client.navigate(url);
-                                } catch (e) {
-                                    // Fallback: abrir en nueva pestaña
-                                    return clients.openWindow(url);
-                                }
-                            }
-                        });
+                    if (client.url.includes('/RESCATE-OBR/')) {
+                        // ✅ SOLUCIÓN UNIVERSAL: Enfocamos la ventana
+                        // Luego, si la URL es distinta, forzamos una recarga
+                        // (esto funciona en todos los navegadores)
+                        if (client.url !== url) {
+                            return client.focus().then(() => {
+                                // Forzar la navegación a la nueva URL recargando la página
+                                client.navigate(url);
+                            });
+                        } else {
+                            // Si ya está en la URL correcta, solo enfocar
+                            return client.focus();
+                        }
                     }
                 }
-                // Si no hay ventana abierta, abrir una nueva
+                
+                // 2. Si no hay ventana abierta, abrir una nueva
                 return clients.openWindow(url);
             })
     );
