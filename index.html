@@ -2186,52 +2186,85 @@
         </p>
     </div>
 </div>
-    <script>
-    // ============================================================
-    // 1. CONFIGURACIÓN DE ONESIGNAL
-    // ============================================================
-    const ONESIGNAL_APP_ID = "dbdeba23-a1a1-4220-8861-cbf29002d394";
+<!-- ===========================================================================
+     REGISTRO DEL SERVICE WORKER (sw.js) Y CONTROL DE ACTUALIZACIONES
+     =========================================================================== -->
+<script>
+    // Registro único del Service Worker
+    document.addEventListener('DOMContentLoaded', function() {
+        if ('serviceWorker' in navigator) {
+            const swUrl = '/RESCATE-OBR/sw.js';
+            const swScope = '/RESCATE-OBR/';
 
-    // ============================================================
-    // 2. INTERCEPTOR DE REGISTRO (Se ejecuta antes de cargar OneSignal)
-    // ============================================================
-    if ('serviceWorker' in navigator) {
-        const originalRegister = navigator.serviceWorker.register;
-        
-        navigator.serviceWorker.register = function(scriptURL, options) {
-            // Si el script es de OneSignal, forzamos el scope al subdirectorio
-            if (scriptURL.includes('OneSignalSDKWorker.js')) {
-                console.log('🔧 [OneSignal] Interceptando registro SW...');
-                const newOptions = { ...options, scope: '/RESCATE-OBR/' };
-                return originalRegister.call(navigator.serviceWorker, scriptURL, newOptions);
-            }
-            return originalRegister.call(navigator.serviceWorker, scriptURL, options);
-        };
-    }
+            navigator.serviceWorker.getRegistrations().then(registrations => {
+                let existingReg = null;
+                for (const reg of registrations) {
+                    if (reg.scope === window.location.origin + swScope) {
+                        existingReg = reg;
+                        break;
+                    }
+                }
 
-    // ============================================================
-    // 3. CONFIGURACIÓN DE ONESIGNAL (Usando el evento nativo)
-    // ============================================================
-    document.addEventListener('OneSignalSDKLoaded', async function() {
-        try {
-            // Inicializar OneSignal con la configuración deseada
-            await OneSignal.init({
-                appId: ONESIGNAL_APP_ID
+                if (existingReg) {
+                    if (existingReg.waiting && !sessionStorage.getItem('sw_update_notified')) {
+                        notificarActualizacion(existingReg.waiting);
+                    }
+
+                    existingReg.addEventListener('updatefound', () => {
+                        if (sessionStorage.getItem('sw_update_notified')) return;
+                        const newWorker = existingReg.installing;
+                        if (newWorker) {
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller && !sessionStorage.getItem('sw_update_notified')) {
+                                    notificarActualizacion(newWorker);
+                                }
+                            });
+                        }
+                    });
+                    return;
+                }
+
+                navigator.serviceWorker.register(swUrl, { scope: swScope })
+                    .then(reg => {
+                        if (reg.waiting && !sessionStorage.getItem('sw_update_notified')) {
+                            notificarActualizacion(reg.waiting);
+                        }
+                        reg.addEventListener('updatefound', () => {
+                            if (sessionStorage.getItem('sw_update_notified')) return;
+                            const newWorker = reg.installing;
+                            if (newWorker) {
+                                newWorker.addEventListener('statechange', () => {
+                                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller && !sessionStorage.getItem('sw_update_notified')) {
+                                        notificarActualizacion(newWorker);
+                                    }
+                                });
+                            }
+                        });
+                    });
             });
-            console.log('✅ OneSignal inicializado correctamente con evento nativo.');
-        } catch (error) {
-            console.error('❌ Error al inicializar OneSignal:', error);
         }
     });
 
-    // ============================================================
-    // 4. SOLICITUD DE PERMISO DESPUÉS DE LA CARGA
-    // ============================================================
-    // Esperamos a que el usuario interactúe antes de pedir permiso.
-    // La lógica de pedir permiso se maneja desde `app.js` con `OneSignal.login()`.
-</script>
+    function notificarActualizacion(worker) {
+        if (sessionStorage.getItem('sw_update_notified')) return;
+        sessionStorage.setItem('sw_update_notified', 'true');
 
-<!-- Cargar OneSignal SDK al final del archivo -->
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" async></script>
+        if (typeof window.confirmModal === 'function') {
+            window.confirmModal(
+                '📢 Nueva versión disponible. ¿Quieres actualizar ahora?',
+                () => worker.postMessage('skipWaiting'),
+                () => {}
+            );
+        }
+    }
+
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+            refreshing = true;
+            console.log('🔄 SW tomó el control. Recargando...');
+        }
+    });
+</script>
 </body>
 </html>
