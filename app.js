@@ -13152,14 +13152,30 @@ function urlBase64ToUint8Array(base64String) {
 // ============================================================
 // 2. SUSCRIBIR AL USUARIO AL PUSH NATIVO
 // ============================================================
+// ============================================================
+// 2. SUSCRIBIR AL USUARIO AL PUSH NATIVO (CORREGIDA PARA TODOS)
+// ============================================================
 async function suscribirPushNativo() {
     try {
-        if (!('PushManager' in window)) return;
+        if (!('PushManager' in window)) {
+            console.warn('⚠️ El navegador no soporta notificaciones push.');
+            return;
+        }
 
+        // 1. Obtener el registro del Service Worker
         const registration = await navigator.serviceWorker.ready;
-        const permission = await Notification.requestPermission();
-        if (permission !== 'granted') return;
+        
+        // 2. Solicitar permiso (si no está ya concedido)
+        let permission = Notification.permission;
+        if (permission !== 'granted') {
+            permission = await Notification.requestPermission();
+        }
+        if (permission !== 'granted') {
+            console.warn('⚠️ Permiso de notificaciones denegado por el usuario.');
+            return;
+        }
 
+        // 3. Verificar si ya hay una suscripción activa
         let subscription = await registration.pushManager.getSubscription();
         if (!subscription) {
             // ✅ TU VAPID PUBLIC KEY DE FIREBASE
@@ -13171,18 +13187,28 @@ async function suscribirPushNativo() {
             });
         }
 
+        // 4. Guardar la suscripción en Firestore (PARA CUALQUIER ROL)
         const user = auth.currentUser;
         if (user) {
-            await updateDoc(doc(db, 'users', user.uid), {
+            // USAMOS setDoc CON merge: true PARA CREAR EL CAMPO SI NO EXISTE
+            await setDoc(doc(db, 'users', user.uid), {
                 pushSubscription: subscription.toJSON()
-            });
-            console.log('✅ Suscripción push guardada en Firestore.');
+            }, { merge: true });
+            
+            console.log('✅ Suscripción push guardada en Firestore para el usuario:', user.uid);
+            console.log('   Rol del usuario:', window.currentUserDoc?.role || 'desconocido');
+        } else {
+            console.warn('⚠️ No hay usuario autenticado para guardar la suscripción.');
         }
     } catch (error) {
-        console.error('❌ Error al suscribir:', error);
+        console.error('❌ Error crítico al suscribir al usuario:', error);
+        console.error('   Detalles del error:', error.message);
+        // Si el error es por permisos de Firestore, mostrar un mensaje amigable
+        if (error.code === 'permission-denied') {
+            console.warn('⚠️ El usuario no tiene permisos de escritura en Firestore.');
+        }
     }
 }
-
 // ============================================================
 // 3. ENCOLAR UNA NOTIFICACIÓN (DESDE LA APP O CONSOLA)
 // ============================================================
