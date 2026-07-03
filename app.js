@@ -1370,6 +1370,7 @@ const desc = getWeatherDescription(weatherCode);
   window.pendingItemToBuy = null;
   const TALLER_LAT = 27.44678301871637;
   const TALLER_LNG = -109.94388280415251;
+let _pushQueueStarted = false;
   let globalSettings = {
       schedule: { 0: { o: "08:00", c: "20:00" }, 1: { o: "08:00", c: "20:00" }, 2: { o: "08:00", c: "20:00" }, 3: { o: "08:00", c: "20:00" }, 4: { o: "08:00", c: "20:00" }, 5: { o: "08:00", c: "20:00" }, 6: { o: "08:00", c: "20:00" } },
       centerLat: TALLER_LAT, centerLng: TALLER_LNG, radiusKm: 15,
