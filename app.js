@@ -1370,19 +1370,6 @@ const desc = getWeatherDescription(weatherCode);
   window.pendingItemToBuy = null;
   const TALLER_LAT = 27.44678301871637;
   const TALLER_LNG = -109.94388280415251;
-  // --- LISTA DE TODOS LOS USUARIOS PARA NOTIFICACIONES MASIVAS ---
-  let listaTodosLosUids = [];
-let intervalClima = null;
-  async function cargarTodosLosUids() {
-      try {
-          const snap = await getDocs(collection(db, "users"));
-          listaTodosLosUids = snap.docs.map(doc => doc.id);
-          console.log(`✅ Lista de ${listaTodosLosUids.length} usuarios cargada para notificaciones masivas.`);
-      } catch (error) {
-          console.error('❌ Error al cargar la lista de usuarios:', error);
-      }
-  }
-
   let globalSettings = {
       schedule: { 0: { o: "08:00", c: "20:00" }, 1: { o: "08:00", c: "20:00" }, 2: { o: "08:00", c: "20:00" }, 3: { o: "08:00", c: "20:00" }, 4: { o: "08:00", c: "20:00" }, 5: { o: "08:00", c: "20:00" }, 6: { o: "08:00", c: "20:00" } },
       centerLat: TALLER_LAT, centerLng: TALLER_LNG, radiusKm: 15,
@@ -2311,48 +2298,6 @@ let intervalClima = null;
           }, 200);
       }
   })();
-
-  // =============================================
-  // === FUNCIÓN PARA ENVIAR NOTIFICACIONES (Vía Cloudflare Worker) ===
-  // =============================================
-async function enviarNotificacion(userIds, title, body, url = '/RESCATE-OBR/') {
-    if (!userIds || userIds.length === 0) {
-        console.warn('⚠️ No se envió notificación: faltan destinatarios.');
-        return;
-    }
-
-    const workerUrl = 'https://obr-notify.eder-villarreal26.workers.dev/send';
-
-    try {
-        const response = await fetch(workerUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                userIds: userIds,
-                title: title,
-                body: body,
-                url: url
-            })
-        });
-
-        const data = await response.json();
-
-        // 🔥 Si el Worker devolvió un error explícito
-        if (data.error) {
-            throw new Error(data.error);
-        }
-
-        if (!response.ok) {
-            throw new Error(`Worker error: ${response.status} - ${data.error || 'Unknown error'}`);
-        }
-
-        console.log('✅ Notificación enviada exitosamente:', data);
-        return data;
-    } catch (error) {
-        console.error('❌ Error al comunicarse con el Worker:', error);
-        throw error;
-    }
-}
 
  // ===== FLUJO DE VISTAS Y AUTENTICACIÓN (MODIFICADO PARA ONESIGNAL) =====
 onAuthStateChanged(auth, async user => {
@@ -4346,86 +4291,97 @@ onAuthStateChanged(auth, async user => {
       retenesMarkers = {};
       retenesData = [];
 
-      // --- CONFIGURACIÓN DE NOTIFICACIONES ---
-      if (!window._reteneSeenIds) {
-          window._reteneSeenIds = new Set();
-      }
-      let firstSnapshot = true;
+      // ---------- CONFIGURACIÓN DE NOTIFICACIONES RETENES ----------
+if (!window._reteneSeenIds) {
+    window._reteneSeenIds = new Set();
+}
+let firstSnapshot = true;
 
-  
+// 🔥 LISTENER DE RETENES (Sin OneSignal, sin lista global)
 const q = query(collection(db, "retenes"));
-    
-    retenesUnsubscribe = onSnapshot(q, async (snap) => {
-    // ✅ ESPECIFICACIÓN: Asegurar que la lista de usuarios esté cargada
-    if (listaTodosLosUids.length === 0) {
-        await cargarTodosLosUids();
-    }
-    
-    // --- TRIGGER RETENES: Notificar a todos los usuarios al cambiar ---
+
+retenesUnsubscribe = onSnapshot(q, async (snap) => {
+    // --- TRIGGER RETENES: Notificar a todos los usuarios suscritos al cambiar ---
     if (!window._primerSnapshotRetenes) {
         window._primerSnapshotRetenes = true;
     } else {
-             snap.docChanges().forEach(change => {
-          const data = change.doc.data();
-          const direccion = data.direccion || 'ubicación desconocida';
-          let titulo = '', mensaje = '';
-          if (change.type === 'added') {
-              titulo = '🚨 Nuevo retén detectado';
-              mensaje = `Se ha reportado un retén en ${direccion}. Circula con precaución.`;
-          } else if (change.type === 'modified') {
-              titulo = '🔄 Retén modificado';
-              mensaje = `El retén en ${direccion} ha sido actualizado.`;
-          } else if (change.type === 'removed') {
-              titulo = '✅ Retén despejado';
-              mensaje = `El retén en ${direccion} ha sido retirado. Vía libre.`;
-          }
-          if (titulo && listaTodosLosUids.length > 0) {
-              enviarNotificacion(listaTodosLosUids, titulo, mensaje);
-          }
-      });
-  }
-          // Primera carga: poblar el set con todos los IDs existentes
-          if (firstSnapshot) {
-              snap.docs.forEach(doc => window._reteneSeenIds.add(doc.id));
-              firstSnapshot = false;
-          } else {
-              // Procesar cambios incrementales
-              snap.docChanges().forEach(change => {
-                  if (change.type === 'added') {
-                      const id = change.doc.id;
-                      if (!window._reteneSeenIds.has(id)) {
-                          window._reteneSeenIds.add(id);
-                          // 🔔 Notificación: sonido y toast
-                          playSound('alert');
-                          showToast('🚨 ¡Nuevo retén reportado en tu zona!', false);
-                      }
-                  }
-              });
-          }
+        snap.docChanges().forEach(change => {
+            const data = change.doc.data();
+            const direccion = data.direccion || 'ubicación desconocida';
+            let titulo = '', mensaje = '';
+            if (change.type === 'added') {
+                titulo = '🚨 Nuevo retén detectado';
+                mensaje = `Se ha reportado un retén en ${direccion}. Circula con precaución.`;
+            } else if (change.type === 'modified') {
+                titulo = '🔄 Retén modificado';
+                mensaje = `El retén en ${direccion} ha sido actualizado.`;
+            } else if (change.type === 'removed') {
+                titulo = '✅ Retén despejado';
+                mensaje = `El retén en ${direccion} ha sido retirado. Vía libre.`;
+            }
 
-          // Actualizar marcadores de retenes
-          retenesData = [];
-          snap.forEach(doc => {
-              const data = doc.data();
-              data.id = doc.id;
-              retenesData.push(data);
-              crearMarcadorReten(data, isAdmin);
-          });
+            // 🔥 ENVÍO A TODOS LOS USUARIOS SUSCRITOS (Sin OneSignal)
+            if (titulo) {
+                // Iteramos sobre todos los usuarios de la colección 'users'
+                getDocs(collection(db, "users")).then(async (usersSnap) => {
+                    for (const docSnap of usersSnap.docs) {
+                        const userData = docSnap.data();
+                        // Solo enviamos si tienen una suscripción push activa
+                        if (userData.pushSubscription && userData.pushSubscription.endpoint) {
+                            try {
+                                await encolarNotificacionPush(docSnap.id, titulo, mensaje);
+                            } catch (e) {
+                                console.warn(`Error al notificar a ${docSnap.id}:`, e);
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    }
 
-          // Ajustar límites y forzar redibujo
-          actualizarLimitesMapa();
-          setTimeout(() => {
-              if (retenesMapInstance) {
-                  retenesMapInstance.invalidateSize();
-                  actualizarLimitesMapa();
-              }
-          }, 200);
+    // Primera carga: poblar el set con todos los IDs existentes
+    if (firstSnapshot) {
+        snap.docs.forEach(doc => window._reteneSeenIds.add(doc.id));
+        firstSnapshot = false;
+    } else {
+        // Procesar cambios incrementales
+        snap.docChanges().forEach(change => {
+            if (change.type === 'added') {
+                const id = change.doc.id;
+                if (!window._reteneSeenIds.has(id)) {
+                    window._reteneSeenIds.add(id);
+                    // 🔔 Notificación: sonido y toast
+                    playSound('alert');
+                    showToast('🚨 ¡Nuevo retén reportado en tu zona!', false);
+                }
+            }
+        });
+    }
 
-          if (isAdmin) cargarListaRetenesAdmin();
-      }, (error) => {
-          console.error('Error en listener de retenes:', error);
-          window.showToast('Error al cargar retenes.', true);
-      });
+    // Actualizar marcadores de retenes
+    retenesData = [];
+    snap.forEach(doc => {
+        const data = doc.data();
+        data.id = doc.id;
+        retenesData.push(data);
+        crearMarcadorReten(data, isAdmin);
+    });
+
+    // Ajustar límites y forzar redibujo
+    actualizarLimitesMapa();
+    setTimeout(() => {
+        if (retenesMapInstance) {
+            retenesMapInstance.invalidateSize();
+            actualizarLimitesMapa();
+        }
+    }, 200);
+
+    if (isAdmin) cargarListaRetenesAdmin();
+}, (error) => {
+    console.error('Error en listener de retenes:', error);
+    window.showToast('Error al cargar retenes.', true);
+});
       let weatherLoc = window.currentUserLocation || { lat: TALLER_LAT, lng: TALLER_LNG };
       addWeatherLayer(retenesMapInstance, weatherLoc.lat, weatherLoc.lng);
   };
