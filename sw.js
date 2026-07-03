@@ -1,11 +1,9 @@
 // ============================================================
 // VERSIÓN DE LA CACHÉ (ÚNICO LUGAR DONDE SE DEFINE)
-// CAMBIA ESTE VALOR CUANDO ACTUALICES LA APP
 // ============================================================
-const CACHE_NAME = 'obr-cache-v11';
+const CACHE_NAME = 'obr-cache-v40';  // <--- CAMBIAR SOLO AQUÍ PARA ACTUALIZAR
 const BASE_PATH = '/RESCATE-OBR';
 
-// Archivos a cachear (asegúrate de que todas las rutas sean correctas)
 const ALL_FILES = [
   `${BASE_PATH}/`,
   `${BASE_PATH}/index.html`,
@@ -23,10 +21,10 @@ const ALL_FILES = [
 ];
 
 // ============================================================
-// INSTALL - Instala los archivos en la caché
+// INSTALL - INSTALA PERO NO ACTIVA AUTOMÁTICAMENTE
 // ============================================================
 self.addEventListener('install', event => {
-  console.log('🔧 Instalando Service Worker, versión:', CACHE_NAME);
+  console.log('🔧 Instalando SW, versión:', CACHE_NAME);
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
       return Promise.allSettled(ALL_FILES.map(url => 
@@ -34,37 +32,35 @@ self.addEventListener('install', event => {
       ));
     })
   );
-  // No llamamos a self.skipWaiting() aquí.
-  // La activación se controla desde la página mediante postMessage.
+  // NO llamamos a self.skipWaiting() aquí.
+  // El SW se quedará en 'waiting' hasta que la página indique la activación.
 });
 
 // ============================================================
-// ACTIVATE - Limpia cachés antiguas y toma el control
+// ACTIVATE - LIMPIAR CACHÉS ANTIGUAS
 // ============================================================
 self.addEventListener('activate', event => {
-  console.log('✅ Activando Service Worker, versión:', CACHE_NAME);
+  console.log('✅ Activando SW, versión:', CACHE_NAME);
   event.waitUntil(
     caches.keys().then(names => Promise.all(
       names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))
     ))
   );
-  event.waitUntil(self.clients.claim()); // Toma el control de las páginas abiertas
+  event.waitUntil(self.clients.claim());
 });
 
 // ============================================================
-// FETCH - Estrategia Cache First
+// FETCH (Estrategia Cache First)
 // ============================================================
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET') return;
 
-  // Firebase y llamadas a APIs externas: solo red (no cachear)
   if (url.hostname.includes('firestore') || url.hostname.includes('googleapis') || url.hostname.includes('rtdb')) {
     event.respondWith(fetch(event.request).catch(() => new Response('{}', { status: 200 })));
     return;
   }
 
-  // Cache First para el resto
   event.respondWith(
     caches.match(event.request).then(cached => {
       if (cached) return cached;
@@ -83,71 +79,11 @@ self.addEventListener('fetch', event => {
 });
 
 // ============================================================
-// PUSH - Manejo de notificaciones push nativas
-// ============================================================
-self.addEventListener('push', event => {
-  console.log('📩 Notificación push recibida:', event.data ? event.data.text() : 'Sin datos');
-  
-  let data = {};
-  if (event.data) {
-    try {
-      data = event.data.json();
-    } catch (e) {
-      data = { title: 'OBR Moto Rescate', body: event.data.text() };
-    }
-  }
-  
-  const title = data.title || 'OBR Moto Rescate';
-  const body = data.body || 'Tienes una nueva notificación.';
-  const icon = data.icon || '/RESCATE-OBR/icono.png';
-  const badge = data.badge || '/RESCATE-OBR/icono.png';
-  
-  const options = {
-    body: body,
-    icon: icon,
-    badge: badge,
-    vibrate: [200, 100, 200],
-    data: data,
-    actions: data.actions || []
-  };
-  
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
-});
-
-// ============================================================
-// NOTIFICATION CLICK - Acción al hacer clic en una notificación
-// ============================================================
-self.addEventListener('notificationclick', event => {
-  console.log('👆 Usuario hizo clic en la notificación:', event.notification.data);
-  event.notification.close();
-  
-  // Abrir la app cuando el usuario hace clic
-  const urlToOpen = event.notification.data.url || '/RESCATE-OBR/';
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then(windowClients => {
-        // Si ya hay una ventana abierta, enfocarla
-        for (let client of windowClients) {
-          if (client.url.includes(urlToOpen) && 'focus' in client) {
-            return client.focus();
-          }
-        }
-        // Si no, abrir una nueva
-        if (clients.openWindow) {
-          return clients.openWindow(urlToOpen);
-        }
-      })
-  );
-});
-
-// ============================================================
-// MESSAGE - Escucha mensajes desde la página (para skipWaiting)
+// MANEJO DE MENSAJES - SOLO ACTIVACIÓN POR MENSAJE
 // ============================================================
 self.addEventListener('message', event => {
   if (event.data === 'skipWaiting') {
-    console.log('⏩ skipWaiting recibido, activando nuevo Service Worker');
+    console.log('⏩ skipWaiting recibido, activando nuevo SW');
     self.skipWaiting();
   }
 });
