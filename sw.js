@@ -74,27 +74,43 @@ self.addEventListener('push', event => {
 });
 
 // ============================================================
-// NOTIFICATION CLICK - Abrir la URL dentro de la app
+// NOTIFICATION CLICK - Abrir la URL dentro de la app (CORREGIDO)
 // ============================================================
 self.addEventListener('notificationclick', event => {
     console.log('👆 Usuario hizo clic en la notificación:', event.notification.data);
     event.notification.close();
     
-    const url = event.notification.data.url || BASE_PATH + '/?view=home';
-    
+    // Obtener la URL de los datos de la notificación
+    const url = event.notification.data && event.notification.data.url 
+        ? event.notification.data.url 
+        : '/RESCATE-OBR/?view=home';
+
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true })
             .then(clients => {
                 // Buscar una ventana abierta de la app
                 for (let client of clients) {
-                    if (client.url.includes(BASE_PATH) && 'focus' in client) {
-                        // Navegar dentro de la ventana existente
-                        client.navigate(url).then(() => client.focus());
-                        return;
+                    // Verificar si la ventana pertenece a nuestra app
+                    if (client.url.includes('/RESCATE-OBR/') && 'focus' in client) {
+                        // Usar el método que SÍ funciona en todos los navegadores:
+                        // Redirigir la ventana existente a la nueva URL
+                        return client.focus().then(() => {
+                            // Si la URL es diferente a la actual, navegamos
+                            if (client.url !== url && client.navigate) {
+                                // Nota: algunos navegadores no soportan client.navigate.
+                                // En ese caso, simplemente enfocamos la ventana.
+                                try {
+                                    return client.navigate(url);
+                                } catch (e) {
+                                    // Fallback: abrir en nueva pestaña
+                                    return clients.openWindow(url);
+                                }
+                            }
+                        });
                     }
                 }
                 // Si no hay ventana abierta, abrir una nueva
-                if (clients.openWindow) return clients.openWindow(url);
+                return clients.openWindow(url);
             })
     );
 });
