@@ -13280,3 +13280,121 @@ function mostrarModalSuscripcionPersonalizado() {
 // EJECUTAR VINCULACIÓN DESPUÉS DE QUE LA APP ESTÉ CARGADA
 // ============================================================
 setTimeout(vincularOneSignal, 3000);
+
+
+// ============================================================
+// 1. CONVERTIR VAPID KEY (Base64 a Uint8Array)
+// ============================================================
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+}
+
+// ============================================================
+// 2. SUSCRIBIR AL USUARIO AL PUSH NATIVO
+// ============================================================
+async function suscribirPushNativo() {
+    try {
+        if (!('PushManager' in window)) return;
+
+        const registration = await navigator.serviceWorker.ready;
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') return;
+
+        let subscription = await registration.pushManager.getSubscription();
+        if (!subscription) {
+            // ✅ TU VAPID PUBLIC KEY DE FIREBASE
+            const vapidPublicKey = 'BPniCqKtWVA4KB14QDZhbn7r9Nls5UmHN-RJ_kbFXi8BGS6lJ1Q2h-sXTLo3A3klMYGheu-Gf7yBKtf7eQhKqE8';
+            
+            subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+            });
+        }
+
+        const user = auth.currentUser;
+        if (user) {
+            await updateDoc(doc(db, 'users', user.uid), {
+                pushSubscription: subscription.toJSON()
+            });
+            console.log('✅ Suscripción push guardada en Firestore.');
+        }
+    } catch (error) {
+        console.error('❌ Error al suscribir:', error);
+    }
+}
+
+// ============================================================
+// 3. ENCOLAR UNA NOTIFICACIÓN (DESDE LA APP)
+// ============================================================
+async function encolarNotificacionPush(userId, title, body, url = '/RESCATE-OBR/') {
+    try {
+        await addDoc(collection(db, 'push_queue'), {
+            userId: userId,
+            title: title,
+            body: body,
+            url: url,
+            timestamp: Date.now()
+        });
+        console.log(`✅ Notificación encolada para ${userId}`);
+    } catch (error) {
+        console.error('❌ Error al encolar:', error);
+    }
+}
+
+// ============================================================
+// 4. ESCUCHAR LA COLA DE NOTIFICACIONES EN TIEMPO REAL
+// ============================================================
+function iniciarListenerColaPush() {
+    const q = query(collection(db, 'push_queue'));
+    onSnapshot(q, (snapshot) => {
+        snapshot.docChanges().forEach(async (change) => {
+            if (change.type === 'added') {
+                const data = change.doc.data();
+                
+                const userSnap = await getDoc(doc(db, 'users', data.userId));
+                if (!userSnap.exists()) return;
+                const subscriptionData = userSnap.data().pushSubscription;
+                if (!subscriptionData) return;
+
+                const subscription = {
+                    endpoint: subscriptionData.endpoint,
+                    keys: {
+                        p256dh: subscriptionData.keys.p256dh,
+                        auth: subscriptionData.keys.auth
+                    }
+                };
+
+                if (navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({
+                        type: 'SEND_PUSH',
+                        subscription: subscription,
+                        payload: {
+                            title: data.title,
+                            body: data.body,
+                            url: data.url,
+                            icon: '/RESCATE-OBR/icono.png'
+                        }
+                    });
+                }
+
+                await deleteDoc(change.doc.ref);
+                console.log('✅ Notificación enviada desde la cola.');
+            }
+        });
+    });
+}
+
+// ============================================================
+// 5. INICIAR TODO AL CARGAR LA APP
+// ============================================================
+setTimeout(() => {
+    if (auth.currentUser) {
+        suscribirPushNativo();
+        iniciarListenerColaPush();
+    }
+}, 3000);
