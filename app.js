@@ -2304,7 +2304,7 @@ let _pushQueueStarted = false;
 onAuthStateChanged(auth, async user => {
     // Asegurar tema antes de mostrar cualquier vista
     cargarTemaLocal();
-    
+  
     document.getElementById('loading-screen').classList.add('hidden');
     if (window._adminCreatingUser) return;
 
@@ -2438,7 +2438,10 @@ onAuthStateChanged(auth, async user => {
         // NO debe afectar la carga de la vista ni la autenticación.
         setTimeout(() => {
         }, 2000);
-
+        // ============================================================
+        // 🟢 ACTIVAR WAKE LOCK (Pantalla siempre encendida)
+        // ============================================================
+        setTimeout(activarWakeLockGlobal, 2000);
         // ============================================================
         // LISTENER DE NOTIFICACIONES RTDB (siempre activo)
         // ============================================================
@@ -3503,7 +3506,7 @@ onAuthStateChanged(auth, async user => {
       // ✅ Notificación al usuario
       showToast("🚨 Solicitud de Rescate generada. Espera mientras el taller lo acepta.");
       speakTTS("Solicitud de rescate generada. Espera mientras el taller lo acepta.");
-      
+      mostrarBannerMantenerAppAbierta();
       } catch (e) {
           console.warn('SOS enviado con posibles demoras:', e);
           showToast("Solicitud enviada. Te notificaremos cuando el taller confirme.");
@@ -3705,9 +3708,14 @@ onAuthStateChanged(auth, async user => {
                   'ready': '✅ Listo para entrega',
                   'completed': '✅ Servicio finalizado'
               };
-              statusDesc.innerText = estados[data.status] || 'Esperando confirmación';
-          }
+             statusDesc.innerText = estados[data.status] || 'Esperando confirmación';
 
+            // 🟢 ACTIVAR BANNER CUANDO EL MECÁNICO ESTÁ EN CAMINO O REPARANDO
+            if (data.status === 'accepted' || data.status === 'repairing') {
+                mostrarBannerMantenerAppAbierta();
+            }
+        }
+        
           // 📌 Chat button
           if (data.mech_uid && data.chatId) {
               chatBtn.classList.remove('hidden');
@@ -4034,9 +4042,12 @@ onAuthStateChanged(auth, async user => {
           if (statusDesc) {
               if (data.estado_entrega === 'pendiente') statusDesc.innerText = "Preparando entrega";
               else if (data.estado_entrega === 'en_camino') statusDesc.innerText = "Repartidor en camino";
-              else statusDesc.innerText = "Estado desconocido";
-          }
-
+               // 🟢 ACTIVAR BANNER CUANDO EL REPARTIDOR ESTÁ EN CAMINO
+                mostrarBannerMantenerAppAbierta();
+            } else {
+                statusDesc.innerText = "Estado desconocido";
+            }
+        }
           // --- MAPA Y RUTA (similar a SOS pero con repartidor) ---
           if (data.estado_entrega === 'pendiente' || data.estado_entrega === 'en_camino') {
               const initClientMapIfNeeded = () => {
@@ -13312,3 +13323,73 @@ setTimeout(() => {
         console.log('⏳ Sistema de notificaciones ya iniciado o usuario no autenticado.');
     }
 }, 3000);
+// ============================================================
+// WAKE LOCK - Mantener la pantalla encendida mientras la app esté abierta
+// ============================================================
+let _wakeLock = null;
+
+async function activarWakeLockGlobal() {
+    try {
+        // Si el navegador no soporta la API, salimos sin errores
+        if (!('wakeLock' in navigator)) {
+            console.warn('⚠️ Wake Lock API no soportada en este navegador.');
+            return;
+        }
+
+        // Si ya está activo, no hacemos nada
+        if (_wakeLock) return;
+
+        _wakeLock = await navigator.wakeLock.request('screen');
+        console.log('✅ Wake Lock activado (pantalla siempre encendida dentro de la app).');
+
+        // Reactivar automáticamente si el navegador lo libera (ej. al cambiar de pestaña)
+        _wakeLock.addEventListener('release', () => {
+            console.log('⚠️ Wake Lock liberado. Intentando reactivar...');
+            setTimeout(activarWakeLockGlobal, 1000);
+        });
+
+    } catch (error) {
+        console.error('❌ Error al activar Wake Lock:', error);
+        // Reintentar en 5 segundos si falla
+        setTimeout(activarWakeLockGlobal, 5000);
+    }
+}
+// ============================================================
+// CONTROL DEL BANNER "MANTENER APP ABIERTA"
+// ============================================================
+let _bannerTimeout = null;
+
+function mostrarBannerMantenerAppAbierta() {
+    const banner = document.getElementById('keep-app-open-banner');
+    if (!banner) return;
+
+    // Mostrar el banner (remover hidden y animar entrada)
+    banner.classList.remove('hidden');
+    banner.classList.add('translate-y-0', 'opacity-100');
+
+    // Configurar el botón de cerrar
+    const dismissBtn = document.getElementById('dismiss-keep-open-banner');
+    if (dismissBtn) {
+        dismissBtn.onclick = () => ocultarBannerMantenerAppAbierta();
+    }
+
+    // Auto-ocultar después de 8 segundos (si el usuario no lo cierra antes)
+    if (_bannerTimeout) clearTimeout(_bannerTimeout);
+    _bannerTimeout = setTimeout(() => {
+        ocultarBannerMantenerAppAbierta();
+    }, 8000);
+}
+
+function ocultarBannerMantenerAppAbierta() {
+    const banner = document.getElementById('keep-app-open-banner');
+    if (!banner) return;
+
+    // Animar salida
+    banner.classList.remove('translate-y-0', 'opacity-100');
+    banner.classList.add('opacity-0', 'translate-y-4');
+    
+    // Ocultar completamente después de la animación
+    setTimeout(() => {
+        banner.classList.add('hidden');
+    }, 400);
+}
