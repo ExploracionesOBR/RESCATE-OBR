@@ -8844,6 +8844,7 @@ filtered.forEach(r => {
     const serviceCost = r.costoServicio || 0;
     const deliveryCost = r.tarifaDomicilio || 0;
 
+    // ✅ AQUÍ ESTÁ EL CAMBIO: Desglose CON etiquetas dentro de la tarjeta
     listaDiv.innerHTML += `
         <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')">
             <div class="flex justify-between items-center">
@@ -8851,14 +8852,23 @@ filtered.forEach(r => {
                 <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${colorClase}">${estadoTexto}</span>
             </div>
             <p class="text-[0.7rem] text-gray-400 truncate">${escapeHtml(r.falla || '')}</p>
-            <div class="flex justify-between items-center mt-1">
-                <span class="text-naranja text-xs font-bold flex justify-between w-full">
-                    <span class="w-1/3 text-left">$${totalCost.toFixed(2)}</span>
-                    <span class="w-1/3 text-center">$${serviceCost.toFixed(2)}</span>
-                    <span class="w-1/3 text-right">$${deliveryCost.toFixed(2)}</span>
-                </span>
-                <span class="text-[9px] text-gray-500">${new Date(r.timestamp).toLocaleDateString()}</span>
+            
+            <!-- ✅ DESGLOSE DE COSTOS CON ETIQUETAS INTEGRADAS (Formato columna) -->
+            <div class="flex justify-between items-center mt-1 bg-white/5 p-1.5 rounded-lg">
+                <div class="flex flex-col items-center w-1/3">
+                    <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">Total</span>
+                    <span class="text-naranja font-bold text-xs">$${totalCost.toFixed(2)}</span>
+                </div>
+                <div class="flex flex-col items-center w-1/3 border-l border-r border-white/10 px-1">
+                    <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">Servicio</span>
+                    <span class="text-blue-400 font-bold text-xs">$${serviceCost.toFixed(2)}</span>
+                </div>
+                <div class="flex flex-col items-center w-1/3">
+                    <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">Domicilio</span>
+                    <span class="text-green-400 font-bold text-xs">$${deliveryCost.toFixed(2)}</span>
+                </div>
             </div>
+
             <div class="flex gap-1 mt-1 flex-wrap">
                 ${navBtn}
                 ${detailBtn}
