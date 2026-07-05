@@ -8831,10 +8831,6 @@ window.enviarBroadcast = async function() {
           const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
           const detailBtn = `<button onclick="event.stopPropagation(); window.openDetalleServicio('${r.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">VER DETALLES</button>`;
 
-          const totalCost = r.costoRescateEstimado || 0;
-const serviceCost = r.costoServicio || 0;
-const deliveryCost = r.tarifaDomicilio || 0;
-
 listaDiv.innerHTML += `
     <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')">
         <div class="flex justify-between items-center">
