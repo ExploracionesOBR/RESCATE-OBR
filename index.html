@@ -2100,13 +2100,14 @@
             }).catch(err => console.warn('Error al registrar SW:', err));
 
             // Recargar automáticamente cuando el SW tome el control
-            let refreshing = false;
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (!refreshing) {
-                    refreshing = true;
-                    window.location.reload();
-                }
-            });
+let refreshing = false;
+navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!refreshing) {
+        refreshing = true;
+        console.log('🔄 SW tomó el control. Recargando completamente...');
+        setTimeout(() => window.location.reload(true), 500);
+    }
+});
         }
     </script>
     <script>
@@ -2264,26 +2265,42 @@
         }
     });
 
-    function notificarActualizacion(worker) {
-        if (sessionStorage.getItem('sw_update_notified')) return;
-        sessionStorage.setItem('sw_update_notified', 'true');
-
-        if (typeof window.confirmModal === 'function') {
-            window.confirmModal(
-                '📢 Nueva versión disponible. ¿Quieres actualizar ahora?',
-                () => worker.postMessage('skipWaiting'),
-                () => {}
-            );
-        }
+function notificarActualizacion(worker) {
+    if (sessionStorage.getItem('sw_update_notified')) {
+        console.log('⚠️ Actualización ya notificada.');
+        return;
     }
 
-    let refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-            refreshing = true;
-            console.log('🔄 SW tomó el control. Recargando...');
+    console.log('📢 Mostrando modal de actualización');
+    sessionStorage.setItem('sw_update_notified', 'true');
+
+    if (typeof window.confirmModal === 'function') {
+        window.confirmModal(
+            '📢 Nueva versión disponible. ¿Quieres actualizar ahora?',
+            () => {
+                console.log('✅ Usuario aceptó actualizar');
+                worker.postMessage('skipWaiting');
+                // 🔥 FORZAR RECARGA COMPLETA DESDE EL SERVIDOR
+                setTimeout(() => {
+                    console.log('🔄 Forzando recarga completa desde el servidor...');
+                    window.location.reload(true); // true = ignora la caché
+                }, 500);
+            },
+            () => {
+                console.log('❌ Usuario canceló la actualización');
+            }
+        );
+    } else {
+        if (confirm('📢 Nueva versión disponible. ¿Actualizar?')) {
+            worker.postMessage('skipWaiting');
+            // 🔥 FORZAR RECARGA COMPLETA DESDE EL SERVIDOR
+            setTimeout(() => {
+                console.log('🔄 Forzando recarga completa desde el servidor...');
+                window.location.reload(true);
+            }, 500);
         }
-    });
+    }
+}
 </script>
 <!-- ============================================================
      MODAL DE VIDEO (Se abre con ?view=video&src=...)
