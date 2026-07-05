@@ -8810,15 +8810,6 @@ if (filtered.length === 0) {
     return;
 }
 
-// ✅ ENCABEZADO DE DESGLOSE DE COSTOS
-listaDiv.innerHTML = `
-    <div class="text-[9px] font-black text-gray-400 uppercase tracking-widest flex justify-between px-1 pb-2 border-b border-white/10 mb-2">
-        <span class="w-1/3 text-left">Total</span>
-        <span class="w-1/3 text-center">Servicio</span>
-        <span class="w-1/3 text-right">Domicilio</span>
-    </div>
-`;
-
 filtered.forEach(r => {
     const estadoTexto = r.status === 'completed' ? '✅ Completado' : 
                       (r.status === 'accepted' ? '🚚 En camino' : 
