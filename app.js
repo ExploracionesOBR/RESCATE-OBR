@@ -2351,6 +2351,10 @@ onAuthStateChanged(auth, async user => {
             return;
         }
 
+      // ============================================================
+        // 🟢 ACTIVAR WAKE LOCK (Pantalla siempre encendida) - PARA TODOS
+        // ============================================================
+        setTimeout(activarWakeLockGlobal, 2000);
         // ============================================================
         // RUTA ADMIN / MECÁNICO / TALLER / SOCIO
         // ============================================================
