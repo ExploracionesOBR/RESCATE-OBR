@@ -127,7 +127,6 @@ const desc = getWeatherDescription(weatherCode);
           })
           .catch(() => { _cachedWeatherData = null; });
   }
-
   // 🔥 NUEVA VERSIÓN CON EXPIRACIÓN DE 2 HORAS
   function addWeatherLayer(map, lat, lng) {
     if (typeof document === 'undefined' || document === null || !map) return;
