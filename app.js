@@ -13397,41 +13397,52 @@ async function activarWakeLockGlobal() {
     }
 }
 // ============================================================
-// CONTROL DEL BANNER "MANTENER APP ABIERTA"
+// CONTROL DEL BANNER "MANTENER APP ABIERTA" (VERSIÓN REFINADA)
 // ============================================================
 let _bannerTimeout = null;
+let _bannerDismissed = false;
 
 function mostrarBannerMantenerAppAbierta() {
     const banner = document.getElementById('keep-app-open-banner');
-    if (!banner) return;
+    if (!banner || _bannerDismissed) return;
 
-    // Mostrar el banner (remover hidden y animar entrada)
+    // Mostrar el banner con animación
     banner.classList.remove('hidden');
-    banner.classList.add('translate-y-0', 'opacity-100');
+    // Esperar un frame para que la animación funcione
+    requestAnimationFrame(() => {
+        banner.classList.remove('hide');
+        banner.classList.add('show');
+    });
 
     // Configurar el botón de cerrar
     const dismissBtn = document.getElementById('dismiss-keep-open-banner');
     if (dismissBtn) {
-        dismissBtn.onclick = () => ocultarBannerMantenerAppAbierta();
+        // Eliminar eventos anteriores para evitar duplicados
+        dismissBtn.onclick = null;
+        dismissBtn.onclick = () => {
+            _bannerDismissed = true; // No volver a mostrar en esta sesión
+            ocultarBannerMantenerAppAbierta();
+        };
     }
 
-    // Auto-ocultar después de 8 segundos (si el usuario no lo cierra antes)
+    // Auto-ocultar después de 10 segundos (si el usuario no lo cierra antes)
     if (_bannerTimeout) clearTimeout(_bannerTimeout);
     _bannerTimeout = setTimeout(() => {
         ocultarBannerMantenerAppAbierta();
-    }, 8000);
+    }, 10000);
 }
 
 function ocultarBannerMantenerAppAbierta() {
     const banner = document.getElementById('keep-app-open-banner');
     if (!banner) return;
 
-    // Animar salida
-    banner.classList.remove('translate-y-0', 'opacity-100');
-    banner.classList.add('opacity-0', 'translate-y-4');
+    // Ocultar con animación
+    banner.classList.remove('show');
+    banner.classList.add('hide');
     
     // Ocultar completamente después de la animación
     setTimeout(() => {
         banner.classList.add('hidden');
-    }, 400);
+        banner.classList.remove('hide');
+    }, 500);
 }
