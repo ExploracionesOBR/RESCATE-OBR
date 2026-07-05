@@ -7104,30 +7104,48 @@ retenesUnsubscribe = onSnapshot(q, async (snap) => {
                   pdfDoc.text("ARTÍCULOS ADQUIRIDOS:", 12, y);
                   y += 4;
 
-                  let ticketItems = [];
-                  // Servicio de rescate
-                  if (saleData.servicioNombre) {
-                      let nombreLimpio = saleData.servicioNombre.replace(/\[.*?\]/g, '').replace(/\*/g, '').replace(/\[|\]/g, '').trim();
-                      if (!nombreLimpio) nombreLimpio = saleData.servicioNombre;
-                      ticketItems.push([nombreLimpio, 'Sin garantía', `$${saleData.rescueCost?.toFixed(2) || '$0.00'}`]);
-                  }
-                  // Productos del ticket
-                  if (saleData.ticket && saleData.ticket.length > 0) {
-                      saleData.ticket.forEach(item => {
-                          if (item.type !== 'servicio' && item.type !== 'rescate') {
-                              ticketItems.push([item.name, item.garantia || 'Sin garantía', `$${item.price.toFixed(2)}`]);
-                          }
-                      });
-                  }
-                  if (saleData.costoEnvio && saleData.costoEnvio > 0) {
-                      ticketItems.push(['Costo de envío', 'N/A', `$${saleData.costoEnvio.toFixed(2)}`]);
-                  }
-                  if (saleData.descuento && saleData.descuento > 0) {
-                      ticketItems.push(['Descuento aplicado', 'N/A', `-$${saleData.descuento.toFixed(2)}`]);
-                  }
-                  if (ticketItems.length === 0) ticketItems.push(['Sin productos', 'N/A', '$0.00']);
+                  // Dentro de imprimirTicketVenta, en la parte donde se construye ticketItems
+let ticketItems = [];
 
-                  pdfDoc.autoTable({
+// Servicio de rescate (si existe)
+if (saleData.servicioNombre) {
+    let nombreLimpio = saleData.servicioNombre.replace(/\[.*?\]/g, '').replace(/\*/g, '').replace(/\[|\]/g, '').trim();
+    if (!nombreLimpio) nombreLimpio = saleData.servicioNombre;
+    ticketItems.push([nombreLimpio, 'Sin garantía', `$${saleData.rescueCost?.toFixed(2) || '$0.00'}`]);
+}
+
+// ✅ COSTO DE SERVICIO (mano de obra)
+if (saleData.costoServicio && saleData.costoServicio > 0) {
+    ticketItems.push(['Mano de obra / Servicio', 'N/A', `$${saleData.costoServicio.toFixed(2)}`]);
+}
+
+// ✅ TARIFA DE DOMICILIO (envío)
+if (saleData.tarifaDomicilio && saleData.tarifaDomicilio > 0) {
+    ticketItems.push(['Tarifa de envío a domicilio', 'N/A', `$${saleData.tarifaDomicilio.toFixed(2)}`]);
+}
+
+// Productos del ticket
+if (saleData.ticket && saleData.ticket.length > 0) {
+    saleData.ticket.forEach(item => {
+        if (item.type !== 'servicio' && item.type !== 'rescate') {
+            ticketItems.push([item.name, item.garantia || 'Sin garantía', `$${item.price.toFixed(2)}`]);
+        }
+    });
+}
+
+// Costo de envío (si existe como campo separado)
+if (saleData.costoEnvio && saleData.costoEnvio > 0) {
+    ticketItems.push(['Costo de envío', 'N/A', `$${saleData.costoEnvio.toFixed(2)}`]);
+}
+
+// Descuento aplicado
+if (saleData.descuento && saleData.descuento > 0) {
+    ticketItems.push(['Descuento aplicado', 'N/A', `-$${saleData.descuento.toFixed(2)}`]);
+}
+
+if (ticketItems.length === 0) ticketItems.push(['Sin productos', 'N/A', '$0.00']);
+                  
+                pdfDoc.autoTable({
                       startY: y,
                       head: [['Descripción del Producto', 'Garantía Oficial', 'Precio Unitario']],
                       body: ticketItems,
@@ -8813,24 +8831,30 @@ window.enviarBroadcast = async function() {
           const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
           const detailBtn = `<button onclick="event.stopPropagation(); window.openDetalleServicio('${r.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">VER DETALLES</button>`;
 
-          listaDiv.innerHTML += `
-              <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')">
-                  <div class="flex justify-between items-center">
-                      <span class="text-[0.8rem] font-bold">${escapeHtml(r.phone) || ''}</span>
-                      <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${colorClase}">${estadoTexto}</span>
-                  </div>
-                  <p class="text-[0.7rem] text-gray-400 truncate">${escapeHtml(r.falla || '')}</p>
-                  <div class="flex justify-between items-center mt-1">
-                      <span class="text-naranja text-xs font-bold">$${r.costoRescateEstimado?.toFixed(2) || 0}</span>
-                      <span class="text-[9px] text-gray-500">${new Date(r.timestamp).toLocaleDateString()}</span>
-                  </div>
-                  <div class="flex gap-1 mt-1 flex-wrap">
-                      ${navBtn}
-                      ${detailBtn}
-                  </div>
-                  ${botonesContacto}
-              </div>
-          `;
+          const totalCost = r.costoRescateEstimado || 0;
+const serviceCost = r.costoServicio || 0;
+const deliveryCost = r.tarifaDomicilio || 0;
+
+listaDiv.innerHTML += `
+    <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')">
+        <div class="flex justify-between items-center">
+            <span class="text-[0.8rem] font-bold">${escapeHtml(r.phone) || ''}</span>
+            <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${colorClase}">${estadoTexto}</span>
+        </div>
+        <p class="text-[0.7rem] text-gray-400 truncate">${escapeHtml(r.falla || '')}</p>
+        <div class="flex justify-between items-center mt-1">
+            <span class="text-naranja text-xs font-bold">
+                $${totalCost.toFixed(2)} | $${serviceCost.toFixed(2)} | $${deliveryCost.toFixed(2)}
+            </span>
+            <span class="text-[9px] text-gray-500">${new Date(r.timestamp).toLocaleDateString()}</span>
+        </div>
+        <div class="flex gap-1 mt-1 flex-wrap">
+            ${navBtn}
+            ${detailBtn}
+        </div>
+        ${botonesContacto}
+    </div>
+`;
       });
   }
   window.cargarListadoSOS = cargarListadoSOS;
@@ -9361,26 +9385,39 @@ window.enviarBroadcast = async function() {
   let mechanicRescueCost = 0;
   let mechanicTicket = []; // { type, id, name, price, cost, garantia? }
 
-  // Abrir POS mecánico para un servicio específico
-  window.openMechanicPOS = async (sosId) => {
-      currentMechanicSOSId = sosId;
-      mechanicTicket = [];
-      
-      // Obtener costo del rescate
-      const sosSnap = await getDoc(doc(db, "rescates", sosId));
-      if (sosSnap.exists()) {
-          mechanicRescueCost = sosSnap.data().costoRescateEstimado || 0;
-      } else {
-          mechanicRescueCost = 0;
-      }
-      
-      // Renderizar productos y ticket
-      renderMechanicProducts();
-      renderMechanicTicket();
-      updateMechanicTotal();
-      
-      toggleModal('modal-mechanic-pos', true);
-  };
+// Abrir POS mecánico para un servicio específico
+window.openMechanicPOS = async (sosId) => {
+    currentMechanicSOSId = sosId;
+    mechanicTicket = [];
+    
+    // Obtener costo del rescate
+    const sosSnap = await getDoc(doc(db, "rescates", sosId));
+    if (sosSnap.exists()) {
+        mechanicRescueCost = sosSnap.data().costoRescateEstimado || 0;
+    } else {
+        mechanicRescueCost = 0;
+    }
+
+    // ✅ AUTOMÁTICAMENTE AGREGAR EL RESCATE AL TICKET SI HAY COSTO
+    if (mechanicRescueCost > 0) {
+        mechanicTicket.push({
+            type: 'rescate',
+            id: 'rescate',
+            name: 'Servicio de Rescate OBR',
+            price: mechanicRescueCost,
+            cost: 0,
+            garantia: 'N/A'
+        });
+    }
+    
+    // Renderizar productos y ticket
+    renderMechanicProducts();
+    renderMechanicTicket();
+    updateMechanicTotal();
+    
+    toggleModal('modal-mechanic-pos', true);
+};
+
 
   // Renderizar productos del almacén (con imagen, nombre, precio, stock)
   function renderMechanicProducts() {
