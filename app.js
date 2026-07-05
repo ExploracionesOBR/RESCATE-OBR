@@ -8805,58 +8805,68 @@ window.enviarBroadcast = async function() {
       }
       
       listaDiv.innerHTML = '';
-      if (filtered.length === 0) {
-          listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">No hay solicitudes con los filtros seleccionados.</p>';
-          return;
-      }
+if (filtered.length === 0) {
+    listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">No hay solicitudes con los filtros seleccionados.</p>';
+    return;
+}
 
-           filtered.forEach(r => {
-          const estadoTexto = r.status === 'completed' ? '✅ Completado' : 
-                            (r.status === 'accepted' ? '🚚 En camino' : 
-                            (r.status === 'repairing' ? '🔧 Reparando' : 
-                            (r.status === 'cancelled' ? '❌ Cancelado' : '🆕 Pendiente')));
-          const colorClase = r.status === 'completed' ? 'text-green-400' :
-                            (r.status === 'cancelled' ? 'text-red-400' :
-                            (r.status === 'accepted' ? 'text-blue-400' : 'text-yellow-400'));
+// ✅ ENCABEZADO DE DESGLOSE DE COSTOS
+listaDiv.innerHTML = `
+    <div class="text-[9px] font-black text-gray-400 uppercase tracking-widest flex justify-between px-1 pb-2 border-b border-white/10 mb-2">
+        <span class="w-1/3 text-left">Total</span>
+        <span class="w-1/3 text-center">Servicio</span>
+        <span class="w-1/3 text-right">Domicilio</span>
+    </div>
+`;
 
-          const telefonoCliente = r.phone || '';
-          const telefonoClean = telefonoCliente.replace('+52', '');
-          const botonesContacto = telefonoClean ? `
-              <div class="flex space-x-2 mt-2">
-                  <button onclick="event.stopPropagation(); window.open('tel:+52${telefonoClean}', '_self')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">📞 Llamar</button>
-                  <button onclick="event.stopPropagation(); window.open('https://wa.me/+52${telefonoClean}', '_blank')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">💬 WhatsApp</button>
-              </div>
-          ` : '';
+filtered.forEach(r => {
+    const estadoTexto = r.status === 'completed' ? '✅ Completado' : 
+                      (r.status === 'accepted' ? '🚚 En camino' : 
+                      (r.status === 'repairing' ? '🔧 Reparando' : 
+                      (r.status === 'cancelled' ? '❌ Cancelado' : '🆕 Pendiente')));
+    const colorClase = r.status === 'completed' ? 'text-green-400' :
+                      (r.status === 'cancelled' ? 'text-red-400' :
+                      (r.status === 'accepted' ? 'text-blue-400' : 'text-yellow-400'));
 
-          const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
-          const detailBtn = `<button onclick="event.stopPropagation(); window.openDetalleServicio('${r.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">VER DETALLES</button>`;
+    const telefonoCliente = r.phone || '';
+    const telefonoClean = telefonoCliente.replace('+52', '');
+    const botonesContacto = telefonoClean ? `
+        <div class="flex space-x-2 mt-2">
+            <button onclick="event.stopPropagation(); window.open('tel:+52${telefonoClean}', '_self')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">📞 Llamar</button>
+            <button onclick="event.stopPropagation(); window.open('https://wa.me/+52${telefonoClean}', '_blank')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">💬 WhatsApp</button>
+        </div>
+    ` : '';
 
-          // ✅ DECLARAR VARIABLES DE COSTO AQUÍ (ANTES DE LA CONCATENACIÓN)
-          const totalCost = r.costoRescateEstimado || 0;
-          const serviceCost = r.costoServicio || 0;
-          const deliveryCost = r.tarifaDomicilio || 0;
+    const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
+    const detailBtn = `<button onclick="event.stopPropagation(); window.openDetalleServicio('${r.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">VER DETALLES</button>`;
 
-          listaDiv.innerHTML += `
-              <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')">
-                  <div class="flex justify-between items-center">
-                      <span class="text-[0.8rem] font-bold">${escapeHtml(r.phone) || ''}</span>
-                      <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${colorClase}">${estadoTexto}</span>
-                  </div>
-                  <p class="text-[0.7rem] text-gray-400 truncate">${escapeHtml(r.falla || '')}</p>
-                  <div class="flex justify-between items-center mt-1">
-                      <span class="text-naranja text-xs font-bold">
-                          $${totalCost.toFixed(2)} | $${serviceCost.toFixed(2)} | $${deliveryCost.toFixed(2)}
-                      </span>
-                      <span class="text-[9px] text-gray-500">${new Date(r.timestamp).toLocaleDateString()}</span>
-                  </div>
-                  <div class="flex gap-1 mt-1 flex-wrap">
-                      ${navBtn}
-                      ${detailBtn}
-                  </div>
-                  ${botonesContacto}
-              </div>
-          `;
-      });
+    const totalCost = r.costoRescateEstimado || 0;
+    const serviceCost = r.costoServicio || 0;
+    const deliveryCost = r.tarifaDomicilio || 0;
+
+    listaDiv.innerHTML += `
+        <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')">
+            <div class="flex justify-between items-center">
+                <span class="text-[0.8rem] font-bold">${escapeHtml(r.phone) || ''}</span>
+                <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${colorClase}">${estadoTexto}</span>
+            </div>
+            <p class="text-[0.7rem] text-gray-400 truncate">${escapeHtml(r.falla || '')}</p>
+            <div class="flex justify-between items-center mt-1">
+                <span class="text-naranja text-xs font-bold flex justify-between w-full">
+                    <span class="w-1/3 text-left">$${totalCost.toFixed(2)}</span>
+                    <span class="w-1/3 text-center">$${serviceCost.toFixed(2)}</span>
+                    <span class="w-1/3 text-right">$${deliveryCost.toFixed(2)}</span>
+                </span>
+                <span class="text-[9px] text-gray-500">${new Date(r.timestamp).toLocaleDateString()}</span>
+            </div>
+            <div class="flex gap-1 mt-1 flex-wrap">
+                ${navBtn}
+                ${detailBtn}
+            </div>
+            ${botonesContacto}
+        </div>
+    `;
+});
   }
     window.cargarListadoSOS = cargarListadoSOS;
   window.renderSOSMapa = renderSOSMapa;
