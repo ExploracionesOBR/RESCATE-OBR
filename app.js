@@ -4051,7 +4051,7 @@ onAuthStateChanged(auth, async user => {
             } else {
                 statusDesc.innerText = "Estado desconocido";
             }
-        }
+        
           // --- MAPA Y RUTA (similar a SOS pero con repartidor) ---
           if (data.estado_entrega === 'pendiente' || data.estado_entrega === 'en_camino') {
               const initClientMapIfNeeded = () => {
