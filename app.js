@@ -73,44 +73,181 @@
       return map[code] || 'Actual';
   }
 
-  // Actualiza la posición del widget según la vista actual
-  function updateWeatherWidgetPosition() {
-      if (!weatherWidget) return;
-      const retenesView = document.getElementById('c-view-retenes');
-      const isRetenes = retenesView && !retenesView.classList.contains('hidden');
-      if (isRetenes) {
-          weatherWidget.style.position = 'fixed';
-          weatherWidget.style.bottom = '120px';
-          weatherWidget.style.right = '10px';
-          weatherWidget.style.zIndex = '400';
-          if (weatherWidget.parentNode !== document.body) document.body.appendChild(weatherWidget);
-      } else {
-          if (_currentWeatherMap) {
-              const container = _currentWeatherMap.getContainer();
-              weatherWidget.style.position = 'absolute';
-              weatherWidget.style.bottom = '10px';
-              weatherWidget.style.right = '10px';
-              weatherWidget.style.zIndex = '1000';
-              if (weatherWidget.parentNode !== container) container.appendChild(weatherWidget);
-          }
-      }
-  }
+function updateWeatherWidgetPosition() {
+    console.log('🔄 updateWeatherWidgetPosition() ejecutada');
 
-  function updateWeatherWidgetWithData(current) {
-      if (!weatherWidget || !current) return;
-      const temp = Math.round(current.temperature);
-      const weatherCode = current.weathercode;
-      const isDay = current.is_day;
-      const icon = getWeatherIcon(weatherCode, isDay);
-const desc = getWeatherDescription(weatherCode);
-      weatherWidget.innerHTML = `
-          <span style="font-size:24px;">${icon}</span>
-          <div style="display:flex; flex-direction:column; line-height:1.1;">
-              <span style="font-weight:bold;">${temp}°C</span>
-              <span style="font-size:9px; text-transform:capitalize; color:#aaa;">${desc}</span>
-          </div>
-      `;
-  }
+    // 1. Crear el widget si no existe
+    if (!weatherWidget) {
+        weatherWidget = document.createElement('div');
+        weatherWidget.id = 'weather-widget';
+        weatherWidget.style.cssText = `
+            position: fixed;
+            z-index: 9999;
+            background: rgba(30, 30, 30, 0.7);
+            backdrop-filter: blur(8px);
+            border-radius: 12px;
+            padding: 6px 12px;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            font-family: sans-serif;
+            font-size: 13px;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            pointer-events: none;
+            user-select: none;
+            display: none;
+        `;
+        document.body.appendChild(weatherWidget);
+        weatherWidget.innerHTML = `<span style="font-size:24px;">⏳</span><div><span>Cargando...</span></div>`;
+        console.log('✅ Widget creado');
+    }
+
+    // 2. Ocultar siempre al inicio
+    weatherWidget.classList.remove('visible');
+    weatherWidget.style.display = 'none';
+
+    // 3. Detectar vistas activas (admin y cliente)
+    const isAdminSOS = document.getElementById('a-view-alertas') && !document.getElementById('a-view-alertas').classList.contains('hidden');
+    const isAdminEntregas = document.getElementById('a-view-entregas') && !document.getElementById('a-view-entregas').classList.contains('hidden');
+    const isAdminRetenes = document.getElementById('a-view-retenes') && !document.getElementById('a-view-retenes').classList.contains('hidden');
+    const isConfig = document.getElementById('a-view-config') && !document.getElementById('a-view-config').classList.contains('hidden');
+
+    const isClientSOS = document.getElementById('c-view-rescate') && !document.getElementById('c-view-rescate').classList.contains('hidden');
+    const isClientEntrega = document.getElementById('c-view-entregas') && !document.getElementById('c-view-entregas').classList.contains('hidden');
+    const isClientRetenes = document.getElementById('c-view-retenes') && !document.getElementById('c-view-retenes').classList.contains('hidden');
+
+    const shouldShow = isAdminSOS || isAdminEntregas || isAdminRetenes || isConfig ||
+                       isClientSOS || isClientEntrega || isClientRetenes;
+
+    console.log('📌 shouldShow:', shouldShow);
+
+    if (!shouldShow) {
+        console.log('❌ Ninguna vista de mapa activa');
+        return;
+    }
+
+    // 4. Elegir el contenedor del mapa
+    let container = null;
+    if (isConfig) container = document.getElementById('admin-geofence-map');
+    else if (isAdminSOS) container = document.getElementById('sos-map-wrapper');
+    else if (isAdminEntregas) container = document.getElementById('entregas-map-wrapper');
+    else if (isAdminRetenes) container = document.getElementById('retenes-map-wrapper');
+    else if (isClientSOS) container = document.getElementById('client-sos-map-container');
+    else if (isClientEntrega) container = document.getElementById('client-delivery-map-container');
+    else if (isClientRetenes) container = document.getElementById('retenes-map-wrapper');
+
+    if (!container) return;
+
+    // 5. Calcular barra de navegación y margen
+    const navBar = document.querySelector('nav.fixed.bottom-0');
+    const navHeight = navBar ? navBar.offsetHeight : 0;
+    const margin = 10; // Aumentamos un poco el margen base para que no se pegue
+
+    // 6. Calcular el offset del banner SOLO si está visible y en fase de entrada/estable
+    let bannerOffset = 0;
+    const bannerContainer = document.getElementById('phrase-banner-container');
+    const banner = document.getElementById('phrase-banner');
+    
+    if (bannerContainer && banner && !bannerContainer.classList.contains('hidden') && banner.style.display !== 'none') {
+        // ✅ SI EL BANNER ESTÁ EN FASE DE SALIDA, EL OFFSET DEBE SER 0 (PARA QUE EL WIDGET BAJE)
+        if (banner.classList.contains('phrase-exit')) {
+            bannerOffset = 0;
+        } else {
+            // Si está entrando o ya está visible, calculamos el offset
+            const bannerHeight = banner.offsetHeight || 55;
+            bannerOffset = bannerHeight + 4; // 20px extra para que quede flotando arriba
+        }
+    }
+
+    // 7. Obtener posición del contenedor
+    const rect = container.getBoundingClientRect();
+
+    // 8. Posicionar el widget en la esquina inferior derecha
+    const totalBottom = window.innerHeight - rect.bottom + margin + navHeight + bannerOffset;
+    const totalRight = window.innerWidth - rect.right + margin;
+
+    weatherWidget.style.right = totalRight + 'px';
+    weatherWidget.style.bottom = totalBottom + 'px';
+
+    // 9. Mostrar el widget
+    weatherWidget.classList.add('visible');
+    weatherWidget.style.display = 'flex';
+    console.log('✅ Widget visible, bottom:', totalBottom, 'right:', totalRight, 'offset:', bannerOffset);
+}
+
+
+let baseFloatInviteBottom = null;
+let baseFloatInviteRight = null;
+
+function updateFloatButtonPosition() {
+    const floatBtn = document.getElementById('float-invite-btn');
+    if (!floatBtn) return;
+
+    // 1. Capturar la posición base UNA SOLA VEZ
+    if (baseFloatInviteBottom === null) {
+        if (floatBtn.style.bottom) {
+            baseFloatInviteBottom = parseFloat(floatBtn.style.bottom);
+        } else {
+            const computed = window.getComputedStyle(floatBtn);
+            baseFloatInviteBottom = parseFloat(computed.bottom) || 140;
+        }
+        if (floatBtn.style.right) {
+            baseFloatInviteRight = parseFloat(floatBtn.style.right);
+        } else {
+            const computed = window.getComputedStyle(floatBtn);
+            baseFloatInviteRight = parseFloat(computed.right) || 20;
+        }
+        console.log('📌 baseFloatInviteBottom capturado:', baseFloatInviteBottom);
+        return;
+    }
+
+let bannerOffset = 0;
+const retenesView = document.getElementById('c-view-retenes');
+const isRetenes = retenesView && !retenesView.classList.contains('hidden');
+
+if (isRetenes) {
+    const bannerContainer = document.getElementById('phrase-banner-container');
+    const banner = document.getElementById('phrase-banner');
+    if (bannerContainer && banner && !bannerContainer.classList.contains('hidden') && banner.style.display !== 'none') {
+        const isExiting = banner.classList.contains('phrase-exit');
+        const isEntering = banner.classList.contains('phrase-enter');
+        const opacity = parseFloat(window.getComputedStyle(banner).opacity);
+
+        if (!isExiting && (isEntering || opacity > 0)) {
+            const bannerHeight = banner.offsetHeight || 55;
+            bannerOffset = bannerHeight + 20;
+        } else {
+            bannerOffset = 0;
+        }
+    }
+} else {
+        console.log('📍 No estamos en Retenes, offset 0');
+    }
+
+    // 3. Aplicar la nueva posición
+    floatBtn.style.bottom = (baseFloatInviteBottom + bannerOffset) + 'px';
+    // El right se mantiene fijo
+    // floatBtn.style.right = baseFloatInviteRight + 'px';
+
+    console.log('🔄 Botón flotante actualizado, bottom:', floatBtn.style.bottom, 'en Retenes:', isRetenes);
+}
+
+function updateWeatherWidgetWithData(current) {
+    if (!weatherWidget || !current) return;
+    const temp = Math.round(current.temperature);
+    const weatherCode = current.weathercode;
+    const isDay = current.is_day;
+    const icon = getWeatherIcon(weatherCode, isDay);
+    const desc = getWeatherDescription(weatherCode);
+    weatherWidget.innerHTML = `
+        <span style="font-size:24px;">${icon}</span>
+        <div style="display:flex; flex-direction:column; line-height:1.1;">
+            <span style="font-weight:bold;">${temp}°C</span>
+            <span style="font-size:9px; text-transform:capitalize; color:#aaa;">${desc}</span>
+        </div>
+    `;
+}
 
   // Función de precarga (también actualiza el timestamp)
   function preloadWeather(lat, lng) {
@@ -127,8 +264,8 @@ const desc = getWeatherDescription(weatherCode);
           })
           .catch(() => { _cachedWeatherData = null; });
   }
-  // 🔥 NUEVA VERSIÓN CON EXPIRACIÓN DE 2 HORAS
-  function addWeatherLayer(map, lat, lng) {
+// 🔥 NUEVA VERSIÓN CON EXPIRACIÓN DE 2 HORAS (TU VERSIÓN)
+function addWeatherLayer(map, lat, lng) {
     if (typeof document === 'undefined' || document === null || !map) return;
 
     _currentWeatherMap = map;
@@ -155,6 +292,7 @@ const desc = getWeatherDescription(weatherCode);
         weatherWidget.innerHTML = `<span style="font-size:24px;">⏳</span><div><span>Cargando...</span></div>`;
     }
 
+    // Actualizar posición (esto ahora no creará otro widget)
     updateWeatherWidgetPosition();
 
     // Verificar coordenadas y expiración
@@ -217,19 +355,7 @@ const desc = getWeatherDescription(weatherCode);
       
       console.log('✅ Iconos de clima actualizados para esta ubicación');
   }
-
-  // ===== DETECCIÓN DE INSTALACIÓN PWA =====
-  function isAppInstalled() {
-      if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
-          return true;
-      }
-      if (navigator.standalone) {
-          return true;
-      }
-      return false;
-  }
-
-     // ===== GUÍA DE INSTALACIÓN (modal único con pantalla completa) =====
+  
     // ===== GUÍA DE INSTALACIÓN (modal único con pantalla completa) =====
   async function showInstallGuideIfNeeded() {
     if (typeof document === 'undefined' || typeof window === 'undefined') {
@@ -2396,44 +2522,56 @@ onAuthStateChanged(auth, async user => {
         // ============================================================
         // RUTA CLIENTE / MEMBRESÍA (EL FLUJO MÁS PROPENSO A FALLAR)
         // ============================================================
-        } else {
-            showView('app-client');
-            
-            // Asegurar que el botón de emergencia se actualice correctamente
-            setTimeout(() => {
-                if (typeof window.updateEmergencyButtonState === 'function') {
-                    const now = new Date();
-                    const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
-                    const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
-                    const [hOpen, mOpen] = sched.o.split(':').map(Number);
-                    const [hClose, mClose] = sched.c.split(':').map(Number);
-                    const nowMins = now.getHours() * 60 + now.getMinutes();
-                    const openMins = hOpen * 60 + mOpen;
-                    const closeMins = hClose * 60 + mClose;
-                    const isOpen = nowMins >= openMins && nowMins < closeMins;
-                    window.updateEmergencyButtonState(isOpen, sched);
-                }
-            }, 100);
-
-            // Cargar todos los datos del cliente
-            document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
-            window.loadClientHistory(); 
-            listenToMySOS();
-            listenToMyDeliveries(); 
-            window.loadClientCitas();
-            loadPublicStore();
-            window.loadMyOrders();
-            updateLandingStatus();
-
-            // Iniciar seguimiento de ubicación solo si los permisos ya fueron aceptados
-            if (localStorage.getItem('obr_permissions_granted') === 'true') {
-                startClientLocationTracking();
-            }
-
-            // Mostrar modal de permisos si no están concedidos y no estamos en registro
-            maybeShowPermissionsModal();
+        // ============================================================
+// RUTA CLIENTE / MEMBRESÍA (EL FLUJO MÁS PROPENSO A FALLAR)
+// ============================================================
+} else {
+    showView('app-client');
+    
+    // Asegurar que el botón de emergencia se actualice correctamente
+    setTimeout(() => {
+        if (typeof window.updateEmergencyButtonState === 'function') {
+            const now = new Date();
+            const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
+            const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
+            const [hOpen, mOpen] = sched.o.split(':').map(Number);
+            const [hClose, mClose] = sched.c.split(':').map(Number);
+            const nowMins = now.getHours() * 60 + now.getMinutes();
+            const openMins = hOpen * 60 + mOpen;
+            const closeMins = hClose * 60 + mClose;
+            const isOpen = nowMins >= openMins && nowMins < closeMins;
+            window.updateEmergencyButtonState(isOpen, sched);
         }
+    }, 100);
 
+    // Cargar todos los datos del cliente
+    document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
+    window.loadClientHistory(); 
+    listenToMySOS();
+    listenToMyDeliveries(); 
+    window.loadClientCitas();
+    loadPublicStore();
+    window.loadMyOrders();
+    updateLandingStatus();
+
+    // ✅ AQUÍ INSERTAMOS EL INICIO DEL BANNER DE FRASES
+    setTimeout(() => {
+        if (typeof window.iniciarBannerFrases === 'function') {
+            window.iniciarBannerFrases();
+            console.log('✅ Banner de frases iniciado');
+        } else {
+            console.warn('⚠️ iniciarBannerFrases no está definida');
+        }
+    }, 500);
+
+    // Iniciar seguimiento de ubicación solo si los permisos ya fueron aceptados
+    if (localStorage.getItem('obr_permissions_granted') === 'true') {
+        startClientLocationTracking();
+    }
+
+    // Mostrar modal de permisos si no están concedidos y no estamos en registro
+    maybeShowPermissionsModal();
+}
         // ============================================================
         // FLUJO SECUNDARIO: ONESIGNAL (NO BLOQUEANTE Y CON MODAL PERSONALIZADO)
         // ============================================================
@@ -2712,10 +2850,12 @@ onAuthStateChanged(auth, async user => {
           document.getElementById('c-view-retenes').classList.add('hidden');
       }
 
-      // ✅ ACTUALIZAR POSICIÓN DEL WIDGET DE CLIMA AL CAMBIAR DE VISTA
       if (typeof updateWeatherWidgetPosition === 'function') {
-          updateWeatherWidgetPosition();
-      }
+        setTimeout(updateWeatherWidgetPosition, 200);
+    }
+    if (typeof updateFloatButtonPosition === 'function') {
+        setTimeout(updateFloatButtonPosition, 200);
+    }
 
       window.fixMaps?.();
   };
@@ -2724,11 +2864,11 @@ onAuthStateChanged(auth, async user => {
       toggleModal('modal-user-detail', false);
       
       // Mostrar/ocultar botón flotante del chat IA
-      const chatAiBtn = document.getElementById('btn-chat-ai-float');
-      if (chatAiBtn) {
-          chatAiBtn.style.display = id === 'a-view-servicios' ? 'flex' : 'none';
-      }
-      
+        const chatAiBtn = document.getElementById('btn-chat-ai-float');
+    if (chatAiBtn) {
+        chatAiBtn.style.display = id === 'a-view-servicios' ? 'flex' : 'none';
+    }
+    
       // Mostrar/ocultar botón de chat de soporte (solo en POS y Alertas)
       const chatBtn = document.getElementById('admin-chat-float-btn');
       if (chatBtn) chatBtn.classList.toggle('hidden', !['a-view-pos', 'a-view-alertas'].includes(id));
@@ -4218,24 +4358,37 @@ onAuthStateChanged(auth, async user => {
   }
 
   window.renderRetenMap = async (isAdmin = false) => {
-      const containerId = isAdmin ? 'admin-retenes-map-container' : 'retenes-map-container';
-      const mapEl = document.getElementById(containerId);
-      if (!mapEl) return;
+    const containerId = isAdmin ? 'admin-retenes-map-container' : 'retenes-map-container';
+    const mapEl = document.getElementById(containerId);
+    if (!mapEl) return;
 
-      // Crear o reutilizar el mapa
-      if (retenesMapInstance) {
-          retenesMapInstance.invalidateSize();
-      } else {
-          const isLight = document.body.classList.contains('light-mode');
-          const layerUrl = isLight
-              ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-              : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-          retenesMapInstance = L.map(mapEl, {
-              zoomControl: true,
-              attributionControl: false
-          }).setView([TALLER_LAT, TALLER_LNG], 14);
-          L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(retenesMapInstance);
-      }
+    // Crear o reutilizar el mapa
+    if (retenesMapInstance) {
+        retenesMapInstance.invalidateSize();
+    } else {
+        const isLight = document.body.classList.contains('light-mode');
+        const layerUrl = isLight
+            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        retenesMapInstance = L.map(mapEl, {
+            zoomControl: true,
+            attributionControl: false
+        }).setView([TALLER_LAT, TALLER_LNG], 14);
+        
+        // Capa de tiles
+        L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(retenesMapInstance);
+
+        // ✅ AQUÍ INSERTAMOS EL MARCADOR DEL TALLER (justo después de la capa de tiles)
+        L.marker([TALLER_LAT, TALLER_LNG], {
+            icon: L.divIcon({
+                className: 'obr-pin-marker',
+                html: '<div class="obr-pin-icon"><i class="fas fa-store-alt text-white"></i></div>',
+                iconSize: [36, 36],
+                iconAnchor: [18, 36]
+            }),
+            interactive: false // para que no interfiera con clics
+        }).addTo(retenesMapInstance);
+    }
 
       // --- MARCADOR DE UBICACIÓN DEL USUARIO (🏍️) ---
       if (!isAdmin && auth.currentUser) {
@@ -4803,26 +4956,28 @@ retenesUnsubscribe = onSnapshot(q, async (snap) => {
   };
 
   // ---------- ADMIN: LISTA DE RETENES ----------
-  window.cargarListaRetenesAdmin = async () => {
-      const container = document.getElementById('admin-retenes-list');
-      if (!container) return;
-      const snap = await getDocs(collection(db, "retenes"));
-      container.innerHTML = '';
-      snap.forEach(doc => {
-          const data = doc.data();
-          container.innerHTML += `
-              <div class="bg-white/5 p-3 rounded-xl border border-yellow-500/30 hover:bg-white/10 cursor-pointer" 
-                  onclick="window.focusRetenAdmin('${doc.id}', ${data.lat}, ${data.lng})">
-                  <div class="flex justify-between items-center">
-                      <span class="font-bold text-sm text-yellow-400">🚨 ${new Date(data.timestamp).toLocaleString()}</span>
-                      <span class="text-[10px] px-2 py-0.5 rounded bg-gray-600/50 text-gray-300">${data.negativeVotes?.length || 0} votos NO</span>
-                  </div>
-                  <p class="text-xs text-gray-400 truncate">
-                      ${data.direccion || `Lat: ${data.lat?.toFixed(4) || ''}, Lng: ${data.lng?.toFixed(4) || ''}`}
-                  </p>
-              </div>`;
-      });
-  };
+  // ===== CARGAR LISTA RETENES ADMIN (CORREGIDO) =====
+window.cargarListaRetenesAdmin = async function() {
+    const container = document.getElementById('admin-retenes-list-content');
+    if (!container) return;
+    container.innerHTML = '<p style="text-align: center; color: #999; font-size: 13px; padding: 20px 0; margin: 0;">Cargando retenes...</p>';
+    const snap = await getDocs(collection(db, "retenes"));
+    container.innerHTML = '';
+    snap.forEach(doc => {
+        const data = doc.data();
+        container.innerHTML += `
+            <div class="bg-white/5 p-3 rounded-xl border border-yellow-500/30 hover:bg-white/10 cursor-pointer" 
+                onclick="window.focusRetenAdmin('${doc.id}', ${data.lat}, ${data.lng})">
+                <div class="flex justify-between items-center">
+                    <span class="font-bold text-sm text-yellow-400">🚨 ${new Date(data.timestamp).toLocaleString()}</span>
+                    <span class="text-[10px] px-2 py-0.5 rounded bg-gray-600/50 text-gray-300">${data.negativeVotes?.length || 0} votos NO</span>
+                </div>
+                <p class="text-xs text-gray-400 truncate">Lat: ${data.lat.toFixed(4)}, Lng: ${data.lng.toFixed(4)}</p>
+            </div>
+        `;
+    });
+    if (snap.empty) container.innerHTML = '<p style="text-align: center; color: #999; font-size: 13px; padding: 20px 0; margin: 0;">No hay retenes activos.</p>';
+};
 
   window.focusRetenAdmin = (id, lat, lng) => {
       if (retenesMapInstance) {
@@ -8763,111 +8918,106 @@ window.enviarBroadcast = async function() {
   }
 
   // ---------- Cargar listado lateral de SOS ----------
-  async function cargarListadoSOS() {
-      const listaDiv = document.getElementById('admin-sos-list-lateral');
-      if (!listaDiv) {
-          console.warn('No se encontró el contenedor admin-sos-list-lateral');
-          return;
-      }
-      listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">Cargando...</p>';
+  // ===== CARGAR LISTADO SOS (CORREGIDO) =====
+window.cargarListadoSOS = async function() {
+    const listaDiv = document.getElementById('admin-sos-list-content');
+    if (!listaDiv) {
+        console.warn('No se encontró el contenedor admin-sos-list-content');
+        return;
+    }
+    listaDiv.innerHTML = '<p class="empty-message" style="text-align: center; color: #999; font-size: 13px; padding: 20px 0; margin: 0;">Cargando solicitudes...</p>';
 
-      let q = query(collection(db, "rescates"));
-      if (sosFechaInicio && sosFechaFin) {
-          const startDate = new Date(sosFechaInicio);
-          startDate.setHours(0,0,0,0);
-          const endDate = new Date(sosFechaFin);
-          endDate.setHours(23,59,59,999);
-          q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
-      }
-      const snap = await getDocs(q);
-      const rescates = [];
-      snap.forEach(doc => {
-          const data = doc.data();
-          data.id = doc.id;
-          rescates.push(data);
-      });
+    let q = query(collection(db, "rescates"));
+    if (sosFechaInicio && sosFechaFin) {
+        const startDate = new Date(sosFechaInicio);
+        startDate.setHours(0,0,0,0);
+        const endDate = new Date(sosFechaFin);
+        endDate.setHours(23,59,59,999);
+        q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
+    }
+    const snap = await getDocs(q);
+    const rescates = [];
+    snap.forEach(doc => {
+        const data = doc.data();
+        data.id = doc.id;
+        rescates.push(data);
+    });
 
-      // Filtrar según filtro individual o por estatus
-      let filtered = rescates;
-      if (window.sosFiltroUnicoId) {
-          filtered = rescates.filter(r => r.id === window.sosFiltroUnicoId);
-      } else {
-          if (window.currentSOSFilter === 'pending') {
-              filtered = rescates.filter(r => r.status === 'pending');
-          } else if (window.currentSOSFilter === 'accepted') {
-              filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
-          } else if (window.currentSOSFilter === 'completed') {
-              filtered = rescates.filter(r => r.status === 'completed');
-          } else if (window.currentSOSFilter === 'cancelled') {
-              filtered = rescates.filter(r => r.status === 'cancelled');
-          }
-      }
-      
-      listaDiv.innerHTML = '';
-if (filtered.length === 0) {
-    listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">No hay solicitudes con los filtros seleccionados.</p>';
-    return;
-}
+    // Filtrar según filtro individual o por estatus
+    let filtered = rescates;
+    if (window.sosFiltroUnicoId) {
+        filtered = rescates.filter(r => r.id === window.sosFiltroUnicoId);
+    } else {
+        if (window.currentSOSFilter === 'pending') {
+            filtered = rescates.filter(r => r.status === 'pending');
+        } else if (window.currentSOSFilter === 'accepted') {
+            filtered = rescates.filter(r => r.status === 'accepted' || r.status === 'repairing');
+        } else if (window.currentSOSFilter === 'completed') {
+            filtered = rescates.filter(r => r.status === 'completed');
+        } else if (window.currentSOSFilter === 'cancelled') {
+            filtered = rescates.filter(r => r.status === 'cancelled');
+        }
+    }
+    
+    listaDiv.innerHTML = '';
+    if (filtered.length === 0) {
+        listaDiv.innerHTML = '<p style="text-align: center; color: #999; font-size: 13px; padding: 20px 0; margin: 0;">No hay solicitudes con los filtros seleccionados.</p>';
+        return;
+    }
 
-filtered.forEach(r => {
-    const estadoTexto = r.status === 'completed' ? '✅ Completado' : 
-                      (r.status === 'accepted' ? '🚚 En camino' : 
-                      (r.status === 'repairing' ? '🔧 Reparando' : 
-                      (r.status === 'cancelled' ? '❌ Cancelado' : '🆕 Pendiente')));
-    const colorClase = r.status === 'completed' ? 'text-green-400' :
-                      (r.status === 'cancelled' ? 'text-red-400' :
-                      (r.status === 'accepted' ? 'text-blue-400' : 'text-yellow-400'));
+    filtered.forEach(r => {
+        const estadoTexto = r.status === 'completed' ? '✅ Completado' : 
+                          (r.status === 'accepted' ? '🚚 En camino' : 
+                          (r.status === 'repairing' ? '🔧 Reparando' : 
+                          (r.status === 'cancelled' ? '❌ Cancelado' : '🆕 Pendiente')));
+        const colorClase = r.status === 'completed' ? 'text-green-400' :
+                          (r.status === 'cancelled' ? 'text-red-400' :
+                          (r.status === 'accepted' ? 'text-blue-400' : 'text-yellow-400'));
 
-    const telefonoCliente = r.phone || '';
-    const telefonoClean = telefonoCliente.replace('+52', '');
-    const botonesContacto = telefonoClean ? `
-        <div class="flex space-x-2 mt-2">
-            <button onclick="event.stopPropagation(); window.open('tel:+52${telefonoClean}', '_self')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">📞 Llamar</button>
-            <button onclick="event.stopPropagation(); window.open('https://wa.me/+52${telefonoClean}', '_blank')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">💬 WhatsApp</button>
-        </div>
-    ` : '';
-
-    const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
-    const detailBtn = `<button onclick="event.stopPropagation(); window.openDetalleServicio('${r.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">VER DETALLES</button>`;
-
-    const totalCost = r.costoRescateEstimado || 0;
-    const serviceCost = r.costoServicio || 0;
-    const deliveryCost = r.tarifaDomicilio || 0;
-
-    // ✅ AQUÍ ESTÁ EL CAMBIO: Desglose CON etiquetas dentro de la tarjeta
-    listaDiv.innerHTML += `
-        <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')">
-            <div class="flex justify-between items-center">
-                <span class="text-[0.8rem] font-bold">${escapeHtml(r.phone) || ''}</span>
-                <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${colorClase}">${estadoTexto}</span>
+        const telefonoCliente = r.phone || '';
+        const telefonoClean = telefonoCliente.replace('+52', '');
+        const botonesContacto = telefonoClean ? `
+            <div class="flex space-x-2 mt-2">
+                <button onclick="event.stopPropagation(); window.open('tel:+52${telefonoClean}', '_self')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">📞 Llamar</button>
+                <button onclick="event.stopPropagation(); window.open('https://wa.me/+52${telefonoClean}', '_blank')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">💬 WhatsApp</button>
             </div>
-            <p class="text-[0.7rem] text-gray-400 truncate">${escapeHtml(r.falla || '')}</p>
-            
-            <!-- ✅ DESGLOSE DE COSTOS CON ETIQUETAS INTEGRADAS (Formato columna) -->
-            <div class="flex justify-between items-center mt-1 bg-white/5 p-1.5 rounded-lg">
-                <div class="flex flex-col items-center w-1/3">
-                    <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">Total</span>
-                    <span class="text-naranja font-bold text-xs">$${totalCost.toFixed(2)}</span>
-                </div>
-                <div class="flex flex-col items-center w-1/3 border-l border-r border-white/10 px-1">
-                    <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">Servicio</span>
-                    <span class="text-blue-400 font-bold text-xs">$${serviceCost.toFixed(2)}</span>
-                </div>
-                <div class="flex flex-col items-center w-1/3">
-                    <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">Domicilio</span>
-                    <span class="text-green-400 font-bold text-xs">$${deliveryCost.toFixed(2)}</span>
-                </div>
-            </div>
+        ` : '';
 
-            <div class="flex gap-1 mt-1 flex-wrap">
-                ${navBtn}
-                ${detailBtn}
+        const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
+        const detailBtn = `<button onclick="event.stopPropagation(); window.openDetalleServicio('${r.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">VER DETALLES</button>`;
+
+        listaDiv.innerHTML += `
+            <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; cursor: pointer; transition: background 0.2s;">
+                <div class="flex justify-between items-center">
+                    <span class="text-[0.8rem] font-bold">${escapeHtml(r.phone) || ''}</span>
+                    <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${colorClase}">${estadoTexto}</span>
+                </div>
+                <p class="text-[0.7rem] text-gray-400 truncate">${escapeHtml(r.falla || '')}</p>
+                
+                <div class="flex justify-between items-center mt-1 bg-white/5 p-1.5 rounded-lg">
+                    <div class="flex flex-col items-center w-1/3">
+                        <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">Total</span>
+                        <span class="text-naranja font-bold text-xs">$${(r.costoRescateEstimado || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="flex flex-col items-center w-1/3 border-l border-r border-white/10 px-1">
+                        <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">Servicio</span>
+                        <span class="text-blue-400 font-bold text-xs">$${(r.costoServicio || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="flex flex-col items-center w-1/3">
+                        <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">Domicilio</span>
+                        <span class="text-green-400 font-bold text-xs">$${(r.tarifaDomicilio || 0).toFixed(2)}</span>
+                    </div>
+                </div>
+
+                <div class="flex gap-1 mt-1 flex-wrap">
+                    ${navBtn}
+                    ${detailBtn}
+                </div>
+                ${botonesContacto}
             </div>
-            ${botonesContacto}
-        </div>
-    `;
-});
-  }
+        `;
+    });
+};
     window.cargarListadoSOS = cargarListadoSOS;
   window.renderSOSMapa = renderSOSMapa;
   window.mostrarOpcionesContacto = mostrarOpcionesContacto;
@@ -9072,111 +9222,131 @@ filtered.forEach(r => {
   // aqui finaliza renderSOSMapa
 
   // aqui inicia iniciarSeguimientoPersonalSOS mejorado
-  function iniciarSeguimientoPersonalSOS() {
-      if (sosPersonalUnsubscribe) {
-          sosPersonalUnsubscribe();
-          sosPersonalUnsubscribe = null;
-      }
+  // ===== SEGUIMIENTO DE PERSONAL EN EL MAPA SOS (MECÁNICOS, ADMINS, REPARTIDORES) =====
+function iniciarSeguimientoPersonalSOS() {
+    // Limpiar listener anterior
+    if (sosPersonalUnsubscribe) {
+        sosPersonalUnsubscribe();
+        sosPersonalUnsubscribe = null;
+    }
 
-      sosPersonalUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
-          if (!adminSOSGlobalMapInst) return;
+    sosPersonalUnsubscribe = onValue(dbRef(rtdb, 'mecanicos_activos'), async (snap) => {
+        if (!adminSOSGlobalMapInst) return;
 
-          const userMap = new Map();
-          const promises = [];
-          snap.forEach(child => {
-              const uid = child.key;
-              promises.push(getDoc(doc(db, "users", uid)).then(docSnap => {
-                  if (docSnap.exists()) userMap.set(uid, docSnap.data());
-              }));
-          });
-          await Promise.all(promises);
+        // 1. Obtener datos de usuarios (nombre, teléfono, calificación)
+        const userMap = new Map();
+        const promises = [];
+        snap.forEach(child => {
+            const uid = child.key;
+            promises.push(getDoc(doc(db, "users", uid)).then(docSnap => {
+                if (docSnap.exists()) userMap.set(uid, docSnap.data());
+            }));
+        });
+        await Promise.all(promises);
 
-          const currentUids = new Set();
-          snap.forEach(child => currentUids.add(child.key));
-          Object.keys(sosPersonalMarkers).forEach(uid => {
-              if (!currentUids.has(uid)) {
-                  adminSOSGlobalMapInst.removeLayer(sosPersonalMarkers[uid]);
-                  delete sosPersonalMarkers[uid];
-              }
-          });
+        // 2. Eliminar marcadores de usuarios que ya no están activos
+        const currentUids = new Set();
+        snap.forEach(child => currentUids.add(child.key));
+        Object.keys(sosPersonalMarkers).forEach(uid => {
+            if (!currentUids.has(uid)) {
+                adminSOSGlobalMapInst.removeLayer(sosPersonalMarkers[uid]);
+                delete sosPersonalMarkers[uid];
+            }
+        });
 
-          const tasks = [];
-          snap.forEach(child => {
-              tasks.push((async () => {
-                  const pos = child.val();
-                  const uid = child.key;
-                  const userData = userMap.get(uid);
-                  const nombre = userData?.name || 'Personal';
-                  const telefono = userData?.phone || '';
-                  const telefonoClean = telefono.replace('+52', '');
-                  const calificacion = await obtenerPromedioCalificacion(uid);
-                  const stars = calificacion ? '★'.repeat(Math.round(calificacion.promedio)) + '☆'.repeat(5 - Math.round(calificacion.promedio)) : '☆☆☆☆☆';
-                  const ratingText = calificacion ? `${calificacion.promedio} ⭐ (${calificacion.total} reseñas)` : 'Sin reseñas';
+        // 3. Procesar cada posición activa
+        const tasks = [];
+        snap.forEach(child => {
+            tasks.push((async () => {
+                const pos = child.val();
+                const uid = child.key;
+                const userData = userMap.get(uid);
+                const nombre = userData?.name || 'Personal';
+                const telefono = userData?.phone || '';
+                const telefonoClean = telefono.replace('+52', '');
+                
+                // Calificación
+                const calificacion = await obtenerPromedioCalificacion(uid);
+                const stars = calificacion ? '★'.repeat(Math.round(calificacion.promedio)) + '☆'.repeat(5 - Math.round(calificacion.promedio)) : '☆☆☆☆☆';
+                const ratingText = calificacion ? `${calificacion.promedio} ⭐ (${calificacion.total} reseñas)` : 'Sin reseñas';
 
-                  if (pos && pos.lat && pos.lng) {
-  // Dentro de iniciarSeguimientoPersonal(), en la creación del popupContent
-  const esModoClaro = document.body.classList.contains('light-mode');
-  const bgColor = esModoClaro ? '#ffffff' : '#1A1A1A';
-  const textColor = esModoClaro ? '#111111' : '#ffffff';
-  const borderColor = esModoClaro ? '#FF6B00' : '#FF6B00'; // el naranja igual
+                if (pos && pos.lat && pos.lng) {
+                    const esModoClaro = document.body.classList.contains('light-mode');
+                    const bgColor = esModoClaro ? '#ffffff' : '#1A1A1A';
+                    const textColor = esModoClaro ? '#111111' : '#ffffff';
+                    const borderColor = '#FF6B00';
 
-  const popupContent = `
-      <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${bgColor}; color:${textColor}; border-radius:16px; padding:10px; border:1px solid ${borderColor};">
-          <b>${escapeHtml(nombre)}</b><br>
-          <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
-          ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
-          <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-              ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
-              ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
-              <button onclick="window.openStaffDetail('${uid}')" style="background:#3b82f6; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">Ver perfil</button>
-          </div>
-      </div>
-  `;
-                      let marker = sosPersonalMarkers[uid];
-                      if (marker) {
-                          marker.setLatLng([pos.lat, pos.lng]);
-                          marker.setPopupContent(popupContent);
-                      } else {
-                          marker = L.marker([pos.lat, pos.lng], {
-                              icon: L.divIcon({
-                                  className: 'sos-personal-marker',
-                                  html: `<div style="background:#3b82f6; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:14px; color:white;">🏍️</div>`,
-                                  iconSize: [28,28],
-                                  iconAnchor: [14,14]
-                              })
-                          }).addTo(adminSOSGlobalMapInst);
-                          marker.bindPopup(popupContent);
-                          sosPersonalMarkers[uid] = marker;
-                      }
-                  } else {
-                      if (sosPersonalMarkers[uid]) {
-                          adminSOSGlobalMapInst.removeLayer(sosPersonalMarkers[uid]);
-                          delete sosPersonalMarkers[uid];
-                      }
-                  }
-              })());
-          });
-          await Promise.all(tasks);
-      });
-  }
-  // aqui finaliza iniciarSeguimientoPersonalSOS
-  // ---------- Funciones de filtro (respetando el nombre usado en HTML) ----------
-  window.filtrarSOSPorEstatus = (estatus) => {
-      window.currentSOSFilter = estatus; // 'todos', 'pending', 'accepted', 'completed'
-      window.sosFiltroUnicoId = null;   // Resetear filtro individual
-      // Actualizar la UI de los botones
-      document.querySelectorAll('.filter-btn-sos-estatus').forEach(btn => {
-          btn.classList.remove('bg-white/20', 'border-white/30');
-          btn.classList.add('bg-white/5', 'border-white/10');
-          if (btn.getAttribute('data-sos-estatus') === estatus) {
-              btn.classList.remove('bg-white/5', 'border-white/10');
-              btn.classList.add('bg-white/20', 'border-white/30');
-          }
-      });
-      // Refrescar listado y mapa
-      cargarListadoSOS();
-      renderSOSMapa();
-  };
+                    const popupContent = `
+                        <div style="font-size:12px; font-family:sans-serif; min-width:220px; background:${bgColor}; color:${textColor}; border-radius:16px; padding:10px; border:1px solid ${borderColor};">
+                            <b>${escapeHtml(nombre)}</b><br>
+                            <span style="color:#FFD700; font-size:14px;">${stars}</span> <span style="font-size:10px;">${ratingText}</span><br>
+                            ${telefono ? `📞 ${escapeHtml(telefono)}<br>` : ''}
+                            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+                                ${telefonoClean ? `<button onclick="window.open('tel:+52${telefonoClean}', '_self')" style="background:#22c55e; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">📞 Llamar</button>` : ''}
+                                ${telefonoClean ? `<button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" style="background:#25D366; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">💬 WhatsApp</button>` : ''}
+                                <button onclick="window.openStaffDetail('${uid}')" style="background:#3b82f6; color:white; border:none; border-radius:20px; padding:5px 10px; font-size:10px; font-weight:bold; cursor:pointer;">Ver perfil</button>
+                            </div>
+                        </div>
+                    `;
+
+                    let marker = sosPersonalMarkers[uid];
+                    if (marker) {
+                        marker.setLatLng([pos.lat, pos.lng]);
+                        marker.setPopupContent(popupContent);
+                    } else {
+                        marker = L.marker([pos.lat, pos.lng], {
+                            icon: L.divIcon({
+                                className: 'sos-personal-marker',
+                                html: `<div style="background:#3b82f6; width:28px; height:28px; border-radius:50%; border:2px solid white; display:flex; align-items:center; justify-content:center; font-size:14px; color:white;">🏍️</div>`,
+                                iconSize: [28,28],
+                                iconAnchor: [14,14]
+                            })
+                        }).addTo(adminSOSGlobalMapInst);
+                        marker.bindPopup(popupContent);
+                        sosPersonalMarkers[uid] = marker;
+                    }
+                } else {
+                    if (sosPersonalMarkers[uid]) {
+                        adminSOSGlobalMapInst.removeLayer(sosPersonalMarkers[uid]);
+                        delete sosPersonalMarkers[uid];
+                    }
+                }
+            })());
+        });
+        await Promise.all(tasks);
+    });
+}
+
+window.iniciarSeguimientoPersonalSOS = iniciarSeguimientoPersonalSOS;
+
+// ===== FILTRO SOS (CORREGIDO) =====
+window.filtrarSOSPorEstatus = (estatus) => {
+    window.currentSOSFilter = estatus;
+    window.sosFiltroUnicoId = null;
+    // Actualizar la UI de los botones
+    document.querySelectorAll('.filter-btn-sos-estatus').forEach(btn => {
+        btn.classList.remove('active');
+        // Restablecer estilos (se manejan con CSS)
+        if (btn.getAttribute('data-sos-estatus') === estatus) {
+            btn.classList.add('active');
+        }
+    });
+    cargarListadoSOS();
+    renderSOSMapa();
+};
+
+// ===== FILTRO ENTREGAS (CORREGIDO) =====
+window.filtrarEntregasPorEstatus = (estatus) => {
+    currentEntregaFilter = estatus;
+    document.querySelectorAll('.filter-btn-estatus').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.getAttribute('data-estatus') === estatus) {
+            btn.classList.add('active');
+        }
+    });
+    cargarListadoEntregas();
+    renderEntregasMapa();
+};
 
   // Mantener compatibilidad con la función antigua (si se llama)
   window.filterSOS = (status) => {
@@ -9202,8 +9372,12 @@ filtered.forEach(r => {
       }
       await cargarListadoSOS();
       await renderSOSMapa();
-      iniciarSeguimientoPersonalSOS();
-  };
+     if (typeof window.iniciarSeguimientoPersonalSOS === 'function') {
+        window.iniciarSeguimientoPersonalSOS();
+    } else {
+        console.warn('⚠️ iniciarSeguimientoPersonalSOS no está definida');
+    }
+};
 
   // ---------- Filtro por fecha ----------
   window.cargarSOSConFiltroFecha = async () => {
@@ -10923,66 +11097,67 @@ window.openMechanicPOS = async (sosId) => {
   let currentFechaFin = null;
 
   // ---------- Cargar listado lateral ----------
-  window.cargarListadoEntregas = async () => {
-      const listaDiv = document.getElementById('entregas-lista-lateral');
-      if (!listaDiv) return;
-      listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">Cargando...</p>';
+  // ===== CARGAR LISTADO ENTREGAS (CORREGIDO) =====
+window.cargarListadoEntregas = async function() {
+    const listaDiv = document.getElementById('entregas-list-content');
+    if (!listaDiv) return;
+    listaDiv.innerHTML = '<p style="text-align: center; color: #999; font-size: 13px; padding: 20px 0; margin: 0;">Cargando entregas...</p>';
 
-      let q = query(collection(db, "pedidos_online"));
-      if (currentFechaInicio && currentFechaFin) {
-          const startDate = new Date(currentFechaInicio);
-          startDate.setHours(0,0,0,0);
-          const endDate = new Date(currentFechaFin);
-          endDate.setHours(23,59,59,999);
-          q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
-      }
-      const snap = await getDocs(q);
-      const pedidos = [];
-      snap.forEach(doc => {
-          const data = doc.data();
-          data.id = doc.id;
-          pedidos.push(data);
-      });
+    let q = query(collection(db, "pedidos_online"));
+    if (currentFechaInicio && currentFechaFin) {
+        const startDate = new Date(currentFechaInicio);
+        startDate.setHours(0,0,0,0);
+        const endDate = new Date(currentFechaFin);
+        endDate.setHours(23,59,59,999);
+        q = query(q, where("timestamp", ">=", startDate.getTime()), where("timestamp", "<=", endDate.getTime()));
+    }
+    const snap = await getDocs(q);
+    const pedidos = [];
+    snap.forEach(doc => {
+        const data = doc.data();
+        data.id = doc.id;
+        pedidos.push(data);
+    });
 
-      let filtered = pedidos;
-      if (currentEntregaFilter === 'pendiente_asignar') filtered = pedidos.filter(p => p.status === 'pendiente');
-      else if (currentEntregaFilter === 'pendiente') filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
-      else if (currentEntregaFilter === 'en_camino') filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
-      else if (currentEntregaFilter === 'entregado') filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
+    let filtered = pedidos;
+    if (currentEntregaFilter === 'pendiente_asignar') filtered = pedidos.filter(p => p.status === 'pendiente');
+    else if (currentEntregaFilter === 'pendiente') filtered = pedidos.filter(p => p.status === 'aceptado' && (!p.estado_entrega || p.estado_entrega === 'pendiente'));
+    else if (currentEntregaFilter === 'en_camino') filtered = pedidos.filter(p => p.estado_entrega === 'en_camino');
+    else if (currentEntregaFilter === 'entregado') filtered = pedidos.filter(p => p.estado_entrega === 'entregado');
 
-      listaDiv.innerHTML = '';
-      if (filtered.length === 0) {
-          listaDiv.innerHTML = '<p class="text-xs text-gray-400 text-center">No hay entregas con los filtros seleccionados.</p>';
-          return;
-      }
-      filtered.forEach(p => {
-          const estadoTexto = p.estado_entrega === 'entregado' ? '✅ Entregado' : 
-                            (p.estado_entrega === 'en_camino' ? '🚚 En camino' : 
-                            (p.status === 'aceptado' ? '⏳ Pendiente' : '🆕 Por asignar'));
-          const colorClase = p.estado_entrega === 'entregado' ? 'text-green-400' :
-                            (p.estado_entrega === 'en_camino' ? 'text-purple-400' : 'text-yellow-400');
-          const telefonoCliente = p.phone || '';
-          const telefonoClean = telefonoCliente.replace('+52', '');
-          const botonesContacto = telefonoClean ? `
-              <div class="flex space-x-2 mt-2">
-                  <button onclick="event.stopPropagation(); window.open('tel:+52${telefonoClean}', '_self')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">📞 Llamar</button>
-                  <button onclick="event.stopPropagation(); window.open('https://wa.me/+52${telefonoClean}', '_blank')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">💬 WhatsApp</button>
-              </div>
-          ` : '';
-          listaDiv.innerHTML += `
-              <div class="bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 transition-all border-l-4 border-l-naranja" onclick="window.seleccionarEntregaDesdeMarker('${p.id}')">
-                  <div class="flex justify-between items-center">
-                      <span class="font-bold text-sm">${escapeHtml(p.cliente) || 'Cliente'}</span>
-                      <span class="text-[10px] ${colorClase} font-black">${estadoTexto}</span>
-                  </div>
-                  <p class="text-xs text-gray-400 truncate">${escapeHtml(p.items.map(i=>i.name).join(', '))}</p>
-                  <p class="text-xs font-bold text-naranja">$${p.total?.toFixed(2)}</p>
-                  <p class="text-[9px] text-gray-500">${new Date(p.timestamp).toLocaleDateString()}</p>
-                  ${botonesContacto}
-              </div>
-          `;
-      });
-  };
+    listaDiv.innerHTML = '';
+    if (filtered.length === 0) {
+        listaDiv.innerHTML = '<p style="text-align: center; color: #999; font-size: 13px; padding: 20px 0; margin: 0;">No hay entregas con los filtros seleccionados.</p>';
+        return;
+    }
+    filtered.forEach(p => {
+        const estadoTexto = p.estado_entrega === 'entregado' ? '✅ Entregado' : 
+                          (p.estado_entrega === 'en_camino' ? '🚚 En camino' : 
+                          (p.status === 'aceptado' ? '⏳ Pendiente' : '🆕 Por asignar'));
+        const colorClase = p.estado_entrega === 'entregado' ? 'text-green-400' :
+                          (p.estado_entrega === 'en_camino' ? 'text-purple-400' : 'text-yellow-400');
+        const telefonoCliente = p.phone || '';
+        const telefonoClean = telefonoCliente.replace('+52', '');
+        const botonesContacto = telefonoClean ? `
+            <div class="flex space-x-2 mt-2">
+                <button onclick="event.stopPropagation(); window.open('tel:+52${telefonoClean}', '_self')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">📞 Llamar</button>
+                <button onclick="event.stopPropagation(); window.open('https://wa.me/+52${telefonoClean}', '_blank')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">💬 WhatsApp</button>
+            </div>
+        ` : '';
+        listaDiv.innerHTML += `
+            <div class="bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 transition-all border-l-4 border-l-naranja" onclick="window.seleccionarEntregaDesdeMarker('${p.id}')">
+                <div class="flex justify-between items-center">
+                    <span class="font-bold text-sm">${escapeHtml(p.cliente) || 'Cliente'}</span>
+                    <span class="text-[10px] ${colorClase} font-black">${estadoTexto}</span>
+                </div>
+                <p class="text-xs text-gray-400 truncate">${escapeHtml(p.items.map(i=>i.name).join(', '))}</p>
+                <p class="text-xs font-bold text-naranja">$${p.total?.toFixed(2)}</p>
+                <p class="text-[9px] text-gray-500">${new Date(p.timestamp).toLocaleDateString()}</p>
+                ${botonesContacto}
+            </div>
+        `;
+    });
+};
 
   // ---------- Renderizar mapa con pedidos y rutas reales (Leaflet Routing Machine) ----------
   window.renderEntregasMapa = async () => {
@@ -10995,7 +11170,7 @@ window.openMechanicPOS = async (sosId) => {
         if (!entregasMapInst) {
           entregasMapInst = L.map(mapEl, { 
               zoomControl: true, 
-              scrollWheelZoom: false,
+              scrollWheelZoom: true,
               attributionControl: false      
           }).setView([TALLER_LAT, TALLER_LNG], 11);
           L.tileLayer(layerUrl, { attribution: '© <a href="https://carto.com/">CARTO</a>' }).addTo(entregasMapInst);
@@ -11145,12 +11320,14 @@ window.openMechanicPOS = async (sosId) => {
       });
 
       // Ajustar vista a todos los puntos
-      if (allBounds.length > 0) {
-          const bounds = L.latLngBounds(allBounds);
-          entregasMapInst.fitBounds(bounds, { padding: [50, 50] });
-      } else {
-          entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 11);
-      }
+if (allBounds.length > 0) {
+    const bounds = L.latLngBounds(allBounds);
+    // Aumentar el padding para alejar el zoom
+    entregasMapInst.fitBounds(bounds, { padding: [100, 100] });
+} else {
+    // Si solo hay el taller, usar un zoom más alejado (12 en lugar de 11)
+    entregasMapInst.setView([TALLER_LAT, TALLER_LNG], 12);
+}
         window.fixMaps?.();
       let weatherLoc = window.currentUserLocation || { lat: TALLER_LAT, lng: TALLER_LNG };
       addWeatherLayer(entregasMapInst, weatherLoc.lat, weatherLoc.lng);
@@ -13456,3 +13633,286 @@ function ocultarBannerMantenerAppAbierta() {
         banner.classList.remove('hide');
     }, 500);
 }
+// ===== CONTROL DE LISTAS FLOTANTES CON BOTÓN DE RETRACCIÓN =====
+// ===== CONTROL DE LISTAS FLOTANTES CON BOTÓN DE RETRACCIÓN =====
+function toggleFloatingList(listId, btnId) {
+    const list = document.getElementById(listId);
+    const btn = document.getElementById(btnId);
+    if (!list) return;
+    
+    const isOpen = list.classList.contains('open');
+    
+    // Ocultar todas las listas primero
+    ['admin-sos-list', 'entregas-list', 'retenes-list'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el !== list) {
+            el.classList.remove('open');
+            const btnIdMap = {
+                'admin-sos-list': 'sos-hamburger-btn',
+                'entregas-list': 'entregas-hamburger-btn',
+                'retenes-list': 'retenes-hamburger-btn'
+            };
+            const otherBtn = document.getElementById(btnIdMap[id]);
+            if (otherBtn) otherBtn.classList.remove('hidden-btn');
+        }
+    });
+    
+    if (isOpen) {
+        list.classList.remove('open');
+        btn.classList.remove('hidden-btn');
+    } else {
+        list.classList.add('open');
+        btn.classList.add('hidden-btn');
+        
+        // Cargar contenido dinámico
+        if (listId === 'admin-sos-list') {
+            window.cargarListadoSOS?.();
+            window.renderSOSMapa?.();
+        }
+        if (listId === 'entregas-list') {
+            window.cargarListadoEntregas?.();
+            window.renderEntregasMapa?.();
+        }
+        if (listId === 'retenes-list') {
+            window.cargarListaRetenesAdmin?.();
+            window.renderRetenMap?.(true);
+        }
+    }
+}
+
+// Exportar funciones específicas
+window.toggleSOSPanel = function() {
+    toggleFloatingList('admin-sos-list', 'sos-hamburger-btn');
+};
+window.toggleEntregasPanel = function() {
+    toggleFloatingList('entregas-list', 'entregas-hamburger-btn');
+};
+window.toggleRetenesPanel = function() {
+    toggleFloatingList('retenes-list', 'retenes-hamburger-btn');
+};
+
+// ============================================================
+// LIMPIEZA DE UBICACIONES INACTIVAS (más de 5 horas)
+// ============================================================
+function cleanupStaleLocations() {
+    const ref = dbRef(rtdb, 'mecanicos_activos');
+    get(ref).then(snap => {
+        if (!snap.exists()) return;
+        const now = Date.now();
+        const FIVE_HOURS = 5 * 60 * 60 * 1000;
+        snap.forEach(child => {
+            const data = child.val();
+            if (data.ts && (now - data.ts) > FIVE_HOURS) {
+                // Eliminar este nodo
+                remove(dbRef(rtdb, `mecanicos_activos/${child.key}`))
+                    .catch(err => console.warn('Error eliminando ubicación inactiva:', err));
+                console.log(`🗑️ Eliminada ubicación inactiva de ${child.key}`);
+            }
+        });
+    }).catch(err => console.warn('Error al limpiar ubicaciones inactivas:', err));
+}
+
+// Ejecutar cada 30 minutos
+setInterval(cleanupStaleLocations, 30 * 60 * 1000);
+// Ejecutar una vez al inicio (con retraso para que la app cargue)
+setTimeout(cleanupStaleLocations, 5000);
+
+// ============================================================
+// LIMPIEZA DE RETENES (4 horas sin votos + medianoche)
+// ============================================================
+function cleanupRetenes() {
+    const now = Date.now();
+    const FOUR_HOURS = 4 * 60 * 60 * 1000;
+
+    // Verificar si ya se limpió hoy a medianoche
+    const today = new Date().toDateString();
+    const lastCleanup = localStorage.getItem('retenes_midnight_cleanup_date');
+    let midnightCleanupDone = (lastCleanup === today);
+
+    // Si no se ha hecho la limpieza de medianoche y ya pasaron las 00:00 (o son las primeras horas del día)
+    if (!midnightCleanupDone) {
+        // Comprobamos si es después de medianoche (hora actual >= 0:00 y < 6:00 para evitar desfases)
+        const hour = new Date().getHours();
+        if (hour >= 0 && hour < 6) {
+            midnightCleanupDone = true; // marcar como hecho
+            localStorage.setItem('retenes_midnight_cleanup_date', today);
+            console.log('🌙 Limpieza de medianoche activada');
+        }
+    }
+
+    getDocs(collection(db, 'retenes')).then(snap => {
+        const batch = [];
+        snap.forEach(doc => {
+            const data = doc.data();
+            const age = now - data.timestamp;
+
+            // Condición 1: Más de 4 horas y sin votos negativos
+            const noVotes = !data.negativeVotes || data.negativeVotes.length === 0;
+            if (age > FOUR_HOURS && noVotes) {
+                batch.push(doc.id);
+            }
+
+            // Condición 2: Limpieza de medianoche (eliminar todos)
+            if (midnightCleanupDone) {
+                batch.push(doc.id);
+            }
+        });
+
+        // Eliminar en lote (evitar duplicados)
+        const uniqueIds = [...new Set(batch)];
+        if (uniqueIds.length === 0) return;
+
+        console.log(`🗑️ Eliminando ${uniqueIds.length} retenes...`);
+        uniqueIds.forEach(async (id) => {
+            try {
+                // Si tiene imagen, eliminarla también (opcional)
+                const snapDoc = await getDoc(doc(db, 'retenes', id));
+                if (snapDoc.exists() && snapDoc.data().imageUrl) {
+                    const imageRef = sRef(storage, snapDoc.data().imageUrl);
+                    try { await deleteObject(imageRef); } catch (e) { /* ignorar */ }
+                }
+                await deleteDoc(doc(db, 'retenes', id));
+            } catch (err) {
+                console.warn(`Error eliminando retén ${id}:`, err);
+            }
+        });
+
+        // Refrescar el mapa si está visible
+        if (typeof window.renderRetenMap === 'function') {
+            // Determinar si es admin o cliente
+            const isAdmin = document.getElementById('a-view-retenes') && !document.getElementById('a-view-retenes').classList.contains('hidden');
+            window.renderRetenMap(isAdmin);
+        }
+    }).catch(err => console.warn('Error al limpiar retenes:', err));
+}
+
+// Ejecutar cada 10 minutos
+setInterval(cleanupRetenes, 10 * 60 * 1000);
+// Ejecutar al inicio
+setTimeout(cleanupRetenes, 3000);
+
+// ============================================================
+// BANNER DE FRASES PARA CLIENTES (50 frases mecánicas)
+// ============================================================
+const frasesMecanicas = [
+    "¿Sabías que una bujía desgastada puede reducir la potencia de tu moto hasta un 20%?",
+    "El filtro de aire sucio es una de las causas más comunes de bajo rendimiento.",
+    "Revisar la presión de llantas cada 15 días alarga su vida útil y ahorra gasolina.",
+    "El aceite de motor debe cambiarse cada 3,000 km para evitar daños internos.",
+    "Una cadena bien lubricada reduce el desgaste de la transmisión y mejora la seguridad.",
+    "Las pastillas de freno se desgastan más rápido si frenas bruscamente con frecuencia.",
+    "¿Sabías que una moto con el carburador sucio consume hasta un 15% más de combustible?",
+    "El nivel de líquido refrigerante es vital para evitar sobrecalentamientos en climas cálidos.",
+    "Revisar los faros y luces direccionales previene accidentes y multas.",
+    "Un neumático con baja presión se calienta más y puede reventar en carretera.",
+    "La batería de tu moto dura más si la mantienes cargada y limpias los bornes.",
+    "El aceite de transmisión también se degrada; cámbialo cada 6,000 km.",
+    "El filtro de gasolina atrapa impurezas; si se obstruye, la moto se ahoga.",
+    "¿Sabías que una marcha incorrecta puede sobrecargar el motor y acortar su vida?",
+    "Los frenos de disco se benefician de un líquido de frenos en buen estado.",
+    "Una moto bien balanceada consume menos combustible y es más estable.",
+    "El embrague se desgasta por el uso constante; ajustarlo prolonga su vida.",
+    "La suspensión trasera se encarga de la estabilidad en curvas; revisa sus bujes.",
+    "Un escape obstruido reduce la potencia y puede dañar las válvulas.",
+    "¿Sabías que el 90% de las fallas eléctricas vienen de los fusibles?",
+    "La correa de transmisión debe inspeccionarse cada 5,000 km.",
+    "Un kit de arrastre desgastado hace que la moto se sienta 'perezosa'.",
+    "El nivel de aceite debe revisarse con la moto en terreno plano y fría.",
+    "Las llantas con más de 5 años de uso pierden adherencia, aunque tengan dibujo.",
+    "El mantenimiento preventivo es más barato que una reparación mayor.",
+    "¿Sabías que una fuga de aceite puede dañar la llanta trasera?",
+    "El carburador se sincroniza para que el motor funcione suavemente.",
+    "Las balatas de freno traseras duran más que las delanteras en uso cotidiano.",
+    "Una moto que no se usa mucho necesita arranque periódico para evitar la batería muerta.",
+    "El sistema de inyección electrónica (EFI) requiere menos mantenimiento que el carburador.",
+    "El tensor de la cadena debe ajustarse para evitar ruidos y desgaste prematuro.",
+    "¿Sabías que un motor con bujía nueva arranca más rápido y consume menos?",
+    "El líquido de frenos absorbe humedad; cámbialo cada 2 años.",
+    "Los rodamientos de la rueda delantera sufren más en terrenos bacheados.",
+    "Una moto con el sistema de escape modificado puede perder garantía.",
+    "El asiento del conductor influye en la postura y la fatiga en viajes largos.",
+    "El manubrio debe estar alineado para evitar que la moto se desvíe.",
+    "El soporte del motor (silentblocks) se degrada con el calor y el tiempo.",
+    "Una llanta con parche mal hecho puede perder presión lentamente.",
+    "El sistema de carga (alternador) se prueba midiendo el voltaje en la batería.",
+    "La temperatura ambiente afecta el rendimiento del aceite del motor.",
+    "¿Sabías que la moto puede perder potencia si el escape está obstruido?",
+    "El pedal de freno debe tener un juego libre de aproximadamente 2 cm.",
+    "La horquilla delantera se beneficia de un cambio de aceite cada 10,000 km.",
+    "Un faro desalineado encandila a otros conductores y reduce tu visibilidad.",
+    "La tapa del tanque debe tener ventilación para evitar que se haga vacío.",
+    "El interruptor de la parada de emergencia (kill switch) ahorra combustible al apagar el motor.",
+    "Una moto con el tren de rodaje bien alineado se maneja con mayor precisión.",
+    "El mantenimiento regular de tu moto es la mejor inversión para su durabilidad.",
+    "Confía en OBR para mantener tu moto siempre en su mejor estado."
+];
+
+let intervaloFrases = null;
+
+function cambiarFrase() {
+    // ✅ DECLARAR LAS VARIABLES AL INICIO
+    const banner = document.getElementById('phrase-banner');
+    const texto = document.getElementById('phrase-text');
+    if (!banner || !texto) return;
+
+    // 1. Animación de salida
+    banner.classList.remove('phrase-enter');
+    banner.classList.add('phrase-exit');
+
+    // BAJAR EL WIDGET Y EL BOTÓN (offset 0)
+    if (typeof updateWeatherWidgetPosition === 'function') {
+        updateWeatherWidgetPosition();
+    }
+    if (typeof updateFloatButtonPosition === 'function') {
+        updateFloatButtonPosition();
+    }
+
+    // 2. Esperar a que termine la salida + 10 segundos de pausa
+    setTimeout(() => {
+        // 3. Cambiar el texto (aleatorio y diferente al anterior)
+        let nuevaFrase;
+        do {
+            nuevaFrase = frasesMecanicas[Math.floor(Math.random() * frasesMecanicas.length)];
+        } while (nuevaFrase === texto.innerText && frasesMecanicas.length > 1);
+        texto.innerText = nuevaFrase;
+
+        // 4. Animación de entrada
+        banner.classList.remove('phrase-exit');
+        banner.classList.add('phrase-enter');
+
+        // SUBIR EL WIDGET Y EL BOTÓN (después de la animación de entrada)
+        setTimeout(() => {
+            if (typeof updateWeatherWidgetPosition === 'function') {
+                updateWeatherWidgetPosition();
+            }
+            if (typeof updateFloatButtonPosition === 'function') {
+                updateFloatButtonPosition();
+            }
+        }, 600); // 600ms = duración de la animación de entrada
+
+        // 5. Programar la siguiente frase (15s después de la entrada)
+        setTimeout(cambiarFrase, 15000);
+    }, 10600); // 600ms (salida) + 10000ms (pausa) = 10600ms
+}
+
+
+function iniciarBannerFrases() {
+    if (intervaloFrases) {
+        clearTimeout(intervaloFrases);
+        intervaloFrases = null;
+    }
+    
+    // Mostrar una frase inicial con entrada
+    const banner = document.getElementById('phrase-banner');
+    const texto = document.getElementById('phrase-text');
+    if (texto) {
+        texto.innerText = frasesMecanicas[Math.floor(Math.random() * frasesMecanicas.length)];
+        if (banner) banner.classList.add('phrase-enter');
+    }
+
+    // Iniciar el ciclo (la primera vez se inicia después de un tiempo de lectura)
+    intervaloFrases = setTimeout(cambiarFrase, 15000); // 15s para la primera lectura
+}
+
+// Exponer la función globalmente
+window.iniciarBannerFrases = iniciarBannerFrases;
