@@ -447,28 +447,28 @@
     <p id="sos-status-desc-client" class="text-xs text-gray-300 mb-4">Esperando confirmación</p>
 
     <!-- ✅ CONTENEDOR PADRE con altura fija (250px) -->
-    <div class="relative w-full h-[250px] rounded-xl mb-4 overflow-hidden border border-red-500/30">
-        <!-- ✅ VIDEO PROMOCIONAL (con efecto de desenfoque) -->
-        <div id="promo-video-container" class="absolute inset-0 w-full h-full" style="display: block;">
-            <div style="pointer-events: none; user-select: none; width: 100%; height: 100%;">
-                <video 
-                    src="https://ik.imagekit.io/1usn8i4fi/b2db6519-e838-45bf-b076-1f12aa2728e5.mp4" 
-                    autoplay 
-                    muted 
-                    loop 
-                    playsinline 
-                    controlslist="nodownload nofullscreen" 
-                    class="w-full h-full object-cover rounded-xl" 
-                    style="height: 100%; width: 100%;" 
-                    oncontextmenu="return false">
-                </video>
-            </div>
-            <!-- Efecto de desenfoque en el marco -->
-            <div class="absolute inset-0 border border-red-500/20 rounded-xl shadow-[0_0_30px_rgba(255,107,0,0.2)] pointer-events-none"></div>
+    <div id="client-sos-map-container" class="relative w-full h-[250px] rounded-xl mb-4 overflow-hidden border border-red-500/30">
+    <!-- ✅ VIDEO PROMOCIONAL (con efecto de desenfoque) -->
+    <div id="promo-video-container" class="absolute inset-0 w-full h-full" style="display: block;">
+        <div style="pointer-events: none; user-select: none; width: 100%; height: 100%;">
+            <video 
+                src="https://ik.imagekit.io/1usn8i4fi/b2db6519-e838-45bf-b076-1f12aa2728e5.mp4" 
+                autoplay 
+                muted 
+                loop 
+                playsinline 
+                controlslist="nodownload nofullscreen" 
+                class="w-full h-full object-cover rounded-xl" 
+                style="height: 100%; width: 100%;" 
+                oncontextmenu="return false">
+            </video>
         </div>
-        <!-- ✅ MAPA (oculto por defecto) -->
-        <div id="mechanic-live-map" class="absolute inset-0 w-full h-full bg-gray-800 rounded-xl" style="display: none; z-index: 2;"></div>
+        <!-- Efecto de desenfoque en el marco -->
+        <div class="absolute inset-0 border border-red-500/20 rounded-xl shadow-[0_0_30px_rgba(255,107,0,0.2)] pointer-events-none"></div>
     </div>
+    <!-- ✅ MAPA (oculto por defecto) -->
+    <div id="mechanic-live-map" class="absolute inset-0 w-full h-full bg-gray-800 rounded-xl" style="display: none; z-index: 2;"></div>
+</div>
 
     <div class="flex space-x-2 mt-4">
         <button id="btn-contacto-taller" onclick="window.mostrarOpcionesContacto()" class="flex-1 bg-blue-600 text-white text-[10px] px-4 py-3 rounded-xl font-black uppercase flex items-center justify-center">
@@ -508,7 +508,9 @@
                     </div>
                     <p id="delivery-status-desc-client" class="text-xs text-gray-300 mb-4">Pedido recibido</p>
 
-                    <div id="delivery-live-map" class="h-64 w-full rounded-xl mb-4 border border-green-500/30 z-0" style="min-height: 250px; background-color: rgb(55, 65, 81); display: none;"></div>
+                    <div id="client-delivery-map-container" class="relative w-full h-[250px] rounded-xl mb-4 border border-green-500/30" style="min-height: 250px; background-color: rgb(55, 65, 81); display: none;">
+    <div id="delivery-live-map" class="absolute inset-0 w-full h-full rounded-xl"></div>
+</div>
 
                     <div class="flex space-x-2 mt-4">
                         <button id="btn-contacto-taller-delivery" onclick="window.mostrarOpcionesContacto()" class="flex-1 bg-blue-600 text-white text-[10px] px-4 py-3 rounded-xl font-black uppercase flex items-center justify-center">
@@ -576,7 +578,9 @@
                     Sin entregas activas.
                 </div>
                 <div id="active-delivery-card" class="hidden bg-gradient-to-br from-green-900/40 to-asfalto border border-green-500 p-6 rounded-3xl shadow-xl">
-                    <div id="delivery-live-map" class="h-64 w-full rounded-xl border border-green-500/30" style="min-height:250px;"></div>
+                    <div id="client-delivery-map-container" class="relative w-full h-[250px] rounded-xl border border-green-500/30" style="min-height:250px;">
+    <div id="delivery-live-map" class="absolute inset-0 w-full h-full rounded-xl"></div>
+</div>
                     <div class="mt-4">
                         <div class="flex justify-between text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
                             <span id="delivery-step-1">Preparando</span>
@@ -611,6 +615,12 @@
             </section>
         </main>
         <!-- Barra de navegación inferior con el orden solicitado -->
+        <!-- ===== BANNER DE FRASES MOTIVACIONALES ===== -->
+<div id="phrase-banner-container" class="fixed bottom-[90px] left-0 right-0 z-40 px-3 pointer-events-none">
+    <div id="phrase-banner" class="...">
+        <span id="phrase-text">Cargando frases...</span>
+    </div>
+</div>
         <nav class="fixed bottom-0 w-full glass border-t border-white/5 flex justify-around p-3 z-50 bg-asfalto/90 backdrop-blur-lg lg:max-w-[600px] lg:mx-auto lg:left-0 lg:right-0 lg:rounded-t-3xl">
             <button onclick="window.switchClientView?.('c-view-rescate')" class="c-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all w-full py-2">
                 <i class="fas fa-ambulance text-2xl mb-1"></i>
@@ -797,35 +807,58 @@
             </section>
 
             <!-- SECCIÓN SOS MEJORADA -->
-            <section id="a-view-alertas" class="a-view hidden flex-col h-full space-y-0">
-                <div class="flex flex-wrap justify-between items-center p-4 border-b border-white/10">
-                    <h3 class="text-2xl font-black italic uppercase text-white">SOS <span class="text-red-500">Emergencias</span></h3>
-                    <div class="flex items-center space-x-2">
-                        <input type="date" id="sos-fecha-inicio" class="bg-asfalto border border-white/10 p-2 rounded-xl text-white text-xs color-scheme-dark">
-                        <input type="date" id="sos-fecha-fin" class="bg-asfalto border border-white/10 p-2 rounded-xl text-white text-xs color-scheme-dark">
-                        <button onclick="window.cargarSOSConFiltroFecha?.()" class="bg-naranja px-3 py-2 rounded-xl text-xs font-black uppercase"><i class="fas fa-filter"></i> Filtrar</button>
-                        <button onclick="window.generarReporteSOS?.()" class="bg-blue-600 px-3 py-2 rounded-xl text-xs font-black uppercase"><i class="fas fa-file-alt"></i> Reporte</button>
-                    </div>
-                </div>
+            <section id="a-view-alertas" class="a-view hidden" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 5; overflow: hidden; padding: 0; margin: 0; background-color: #f0f2f5;">
 
-                <!-- Barra de filtros por estatus (con doble clic para quitar filtro) -->
-                <div id="sos-filter-bar" class="flex space-x-2 overflow-x-auto hide-scroll pb-2 border-b border-white/10 shrink-0 px-4">
-    <button data-sos-estatus="todos" class="filter-btn-sos-estatus bg-white/10 text-white px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-white/20" onclick="window.filtrarSOSPorEstatus?.('todos')">Todos</button>
-    <button data-sos-estatus="pending" class="filter-btn-sos-estatus bg-yellow-600/20 text-yellow-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-yellow-500/30" onclick="window.filtrarSOSPorEstatus?.('pending')">Pendientes</button>
-    <button data-sos-estatus="accepted" class="filter-btn-sos-estatus bg-blue-600/20 text-blue-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-blue-500/30" onclick="window.filtrarSOSPorEstatus?.('accepted')">Aceptados</button>
-    <button data-sos-estatus="completed" class="filter-btn-sos-estatus bg-green-600/20 text-green-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-green-500/30" onclick="window.filtrarSOSPorEstatus?.('completed')">Completados</button>
-    <button data-sos-estatus="cancelled" class="filter-btn-sos-estatus bg-red-600/20 text-red-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-red-500/30" onclick="window.filtrarSOSPorEstatus?.('cancelled')">Cancelados</button>
-</div>
+    <!-- Contenedor del Mapa (Relative para que los botones floten dentro) -->
+    <div id="sos-map-wrapper" style="position: relative; width: 100%; height: 100%; overflow: hidden;">
+        
+        <!-- Botón Hamburguesa SOS (Dentro del mapa) -->
+        <button id="sos-hamburger-btn" class="map-hamburger-btn" onclick="window.toggleSOSPanel()">
+            <i class="fas fa-bars"></i>
+        </button>
 
-                <div class="flex flex-col lg:flex-row flex-grow min-h-[500px]">
-                    <!-- Listado lateral de SOS -->
-                    <div id="admin-sos-list-lateral" class="lg:w-1/3 bg-black/20 p-3 overflow-y-auto hide-scroll border-r border-white/10 space-y-2 max-h-[500px] lg:max-h-[calc(100vh-250px)]">
-                        <p class="text-xs text-gray-400 text-center">Cargando solicitudes...</p>
-                    </div>
-                    <!-- Mapa -->
-                    <div id="admin-sos-global-map" class="flex-grow w-full bg-white rounded-3xl z-0 border border-red-500/20 shadow-xl relative" style="min-height:60vh;"></div>
-                </div>
-            </section>
+        <!-- Controles superiores derecha (Dentro del mapa) -->
+        <div class="map-top-right-controls">
+            <button onclick="window.cargarSOSConFiltroFecha()" class="map-control-btn btn-filtrar">
+                <i class="fas fa-filter"></i> Filtrar
+            </button>
+            <button onclick="window.generarReporteSOS()" class="map-control-btn btn-reporte">
+                <i class="fas fa-file-alt"></i> Reporte
+            </button>
+        </div>
+
+        <!-- El mapa Leaflet se renderiza aquí -->
+        <div id="admin-sos-global-map" style="width: 100%; height: 100%; min-height: 100vh; display: block; position: relative; background: #f0f2f5;"></div>
+    </div>
+
+    <!-- Lista flotante (Fuera del mapa, fija en la pantalla) -->
+    <div id="admin-sos-list" class="floating-list">
+        <button class="floating-list-close-btn" onclick="window.toggleSOSPanel()">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+
+        <div class="floating-list-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="font-size: 14px; font-weight: 800; text-transform: uppercase; color: #FF6B00; margin: 0;">
+                    <i class="fas fa-list-ul" style="margin-right: 8px;"></i> Solicitudes
+                </h4>
+                <span id="sos-count-badge" style="font-size: 12px; font-weight: 600; color: #888;">0</span>
+            </div>
+        </div>
+
+        <div class="floating-list-filters">
+            <button data-sos-estatus="todos" class="filter-btn-sos-estatus" onclick="window.filtrarSOSPorEstatus?.('todos')">Todos</button>
+            <button data-sos-estatus="pending" class="filter-btn-sos-estatus active" onclick="window.filtrarSOSPorEstatus?.('pending')">Pendientes</button>
+            <button data-sos-estatus="accepted" class="filter-btn-sos-estatus" onclick="window.filtrarSOSPorEstatus?.('accepted')">Aceptados</button>
+            <button data-sos-estatus="completed" class="filter-btn-sos-estatus" onclick="window.filtrarSOSPorEstatus?.('completed')">Completados</button>
+            <button data-sos-estatus="cancelled" class="filter-btn-sos-estatus" onclick="window.filtrarSOSPorEstatus?.('cancelled')">Cancelados</button>
+        </div>
+
+        <div class="floating-list-content" id="admin-sos-list-content">
+            <p style="text-align: center; color: #999; font-size: 13px; padding: 20px 0; margin: 0;">Cargando solicitudes...</p>
+        </div>
+    </div>
+</section>
 
             <!-- ALMACÉN E INVENTARIO -->
             <section id="a-view-inventario" class="a-view hidden space-y-6">
@@ -1296,63 +1329,91 @@
             </section>
 
             <!-- ENTREGAS A DOMICILIO (MAPA) -->
-            <section id="a-view-entregas" class="a-view hidden flex-col h-full space-y-0">
-                <div class="flex flex-wrap justify-between items-center p-4 border-b border-white/10">
-                    <h3 class="text-2xl font-black italic uppercase text-white">Entregas <span class="text-green-400">Control</span></h3>
-                    <div class="flex items-center space-x-2">
-                        <input type="date" id="entregas-fecha-inicio" class="bg-asfalto border border-white/10 p-2 rounded-xl text-white text-xs color-scheme-dark">
-                        <input type="date" id="entregas-fecha-fin" class="bg-asfalto border border-white/10 p-2 rounded-xl text-white text-xs color-scheme-dark">
-                        <button onclick="window.cargarEntregasConFiltroFecha?.()" class="bg-naranja px-3 py-2 rounded-xl text-xs font-black uppercase"><i class="fas fa-filter"></i> Filtrar</button>
-                        <button onclick="window.generarReporteEntregas?.()" class="bg-blue-600 px-3 py-2 rounded-xl text-xs font-black uppercase"><i class="fas fa-file-alt"></i> Reporte</button>
-                    </div>
-                </div>
+            <section id="a-view-entregas" class="a-view hidden" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 5; overflow: hidden; padding: 0; margin: 0; background-color: #f0f2f5;">
 
-                <!-- Barra de filtros por estatus (con doble clic para quitar filtro) -->
-                <div id="entregas-filter-bar" class="flex space-x-2 overflow-x-auto hide-scroll pb-2 border-b border-white/10 shrink-0 px-4">
-                    <button data-estatus="todos" class="filter-btn-estatus bg-white/10 text-white px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-white/20" onclick="window.filtrarEntregasPorEstatus?.('todos')">Todos</button>
-                    <button data-estatus="pendiente_asignar" class="filter-btn-estatus bg-yellow-600/20 text-yellow-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-yellow-500/30" onclick="window.filtrarEntregasPorEstatus?.('pendiente_asignar')">Por Asignar</button>
-                    <button data-estatus="pendiente" class="filter-btn-estatus bg-blue-600/20 text-blue-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-blue-500/30" onclick="window.filtrarEntregasPorEstatus?.('pendiente')">Pendientes</button>
-                    <button data-estatus="en_camino" class="filter-btn-estatus bg-purple-600/20 text-purple-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-purple-500/30" onclick="window.filtrarEntregasPorEstatus?.('en_camino')">En Camino</button>
-                    <button data-estatus="entregado" class="filter-btn-estatus bg-green-600/20 text-green-400 px-3 py-1 rounded-xl text-[9px] font-black uppercase min-w-max border border-green-500/30" onclick="window.filtrarEntregasPorEstatus?.('entregado')">Entregados</button>
-                </div>
+    <div id="entregas-map-wrapper" style="position: relative; width: 100%; height: 100%; overflow: hidden;">
+        
+        <button id="entregas-hamburger-btn" class="map-hamburger-btn" onclick="window.toggleEntregasPanel()">
+            <i class="fas fa-bars"></i>
+        </button>
 
-                <div class="flex flex-col lg:flex-row flex-grow min-h-[500px]">
-                    <!-- Listado lateral -->
-                    <div id="entregas-lista-lateral" class="lg:w-1/3 bg-black/20 p-3 overflow-y-auto hide-scroll border-r border-white/10 space-y-2 max-h-[500px] lg:max-h-[calc(100vh-250px)]">
-                        <p class="text-xs text-gray-400 text-center">Selecciona una entrega para ver detalles</p>
-                    </div>
-                    <!-- Mapa -->
-                    <div id="entregas-map-container" class="flex-grow w-full bg-white rounded-3xl z-0 border border-green-500/20 shadow-xl relative" style="min-height:60vh;"></div>
-                </div>
-
-                <!-- Panel de acciones (flotante o inferior) -->
-                <div id="entrega-actions-panel" class="p-4 bg-asfalto border-t border-white/10 hidden">
-                    <div class="flex space-x-2">
-                        <button onclick="window.iniciarEntrega?.()" id="btn-iniciar-entrega-main" class="flex-1 bg-blue-600 text-white p-3 rounded-xl font-black uppercase text-xs">Iniciar Entrega</button>
-                        <button onclick="window.abrirCobroEntrega?.()" id="btn-cobrar-entrega-main" class="flex-1 bg-naranja text-white p-3 rounded-xl font-black uppercase text-xs">Cobrar / Finalizar</button>
-                    </div>
-                </div>
-            </section>
-            <!-- ================= PESTAÑA RETENES (ADMIN) ================= -->
-<section id="a-view-retenes" class="a-view hidden flex-col h-full space-y-4">
-    <div class="flex justify-between items-center">
-        <h2 class="text-2xl font-black italic uppercase text-yellow-400">Gestión de Retenes</h2>
-        <div class="flex space-x-2">
-            <button onclick="window.abrirFormularioReten()" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-xl font-black uppercase text-xs flex items-center shadow-lg transition-all active:scale-95">
-                <i class="fas fa-plus mr-2"></i> Crear Retén
+        <div class="map-top-right-controls">
+            <button onclick="window.cargarEntregasConFiltroFecha()" class="map-control-btn btn-filtrar">
+                <i class="fas fa-filter"></i> Filtrar
             </button>
-            <button onclick="window.renderRetenMap(true)" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl font-black uppercase text-xs flex items-center shadow-lg transition-all active:scale-95">
-                <i class="fas fa-sync-alt mr-2"></i> Actualizar Mapa
+            <button onclick="window.generarReporteEntregas()" class="map-control-btn btn-reporte">
+                <i class="fas fa-file-alt"></i> Reporte
             </button>
         </div>
+
+        <div id="entregas-map-container" style="width: 100%; height: 100%; min-height: 100vh; display: block; position: relative; background: #f0f2f5;"></div>
     </div>
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-grow" style="height: calc(100vh - 120px);">
-        <div id="admin-retenes-list" class="lg:col-span-1 bg-white/5 border border-white/10 rounded-3xl p-4 overflow-y-auto space-y-3 max-h-[500px]">
-            <p class="text-gray-400 text-center text-xs">Cargando retenes...</p>
+
+    <div id="entregas-list" class="floating-list">
+        <button class="floating-list-close-btn" onclick="window.toggleEntregasPanel()">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+
+        <div class="floating-list-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="font-size: 14px; font-weight: 800; text-transform: uppercase; color: #22c55e; margin: 0;">
+                    <i class="fas fa-truck" style="margin-right: 8px;"></i> Entregas
+                </h4>
+                <span id="entregas-count-badge" style="font-size: 12px; font-weight: 600; color: #888;">0</span>
+            </div>
         </div>
-        <div id="admin-retenes-map-container" class="lg:col-span-2 w-full bg-white rounded-3xl z-0 border border-yellow-500/30 shadow-xl relative" style="height: 100%; min-height: 500px;"></div>
+
+        <div class="floating-list-filters">
+            <button data-estatus="todos" class="filter-btn-estatus" onclick="window.filtrarEntregasPorEstatus?.('todos')">Todos</button>
+            <button data-estatus="pendiente_asignar" class="filter-btn-estatus active" onclick="window.filtrarEntregasPorEstatus?.('pendiente_asignar')">Por Asignar</button>
+            <button data-estatus="pendiente" class="filter-btn-estatus" onclick="window.filtrarEntregasPorEstatus?.('pendiente')">Pendientes</button>
+            <button data-estatus="en_camino" class="filter-btn-estatus" onclick="window.filtrarEntregasPorEstatus?.('en_camino')">En Camino</button>
+            <button data-estatus="entregado" class="filter-btn-estatus" onclick="window.filtrarEntregasPorEstatus?.('entregado')">Entregados</button>
+        </div>
+
+        <div class="floating-list-content" id="entregas-list-content">
+            <p style="text-align: center; color: #999; font-size: 13px; padding: 20px 0; margin: 0;">Cargando entregas...</p>
+        </div>
     </div>
 </section>
+            <!-- ================= PESTAÑA RETENES (ADMIN) ================= -->
+<section id="a-view-retenes" class="a-view hidden" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 5; overflow: hidden; padding: 0; margin: 0; background-color: #f0f2f5;">
+
+    <div id="retenes-map-wrapper" style="position: relative; width: 100%; height: 100%; overflow: hidden;">
+        
+        <button id="retenes-hamburger-btn" class="map-hamburger-btn" onclick="window.toggleRetenesPanel()">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <div class="map-top-right-controls">
+            <button onclick="window.abrirFormularioReten()" class="map-control-btn" style="background: #eab308 !important; color: white !important;">
+                <i class="fas fa-plus-circle"></i> Nuevo Retén
+            </button>
+        </div>
+
+        <div id="admin-retenes-map-container" style="width: 100%; height: 100%; min-height: 100vh; display: block; position: relative; background: #f0f2f5;"></div>
+    </div>
+
+    <div id="retenes-list" class="floating-list">
+        <button class="floating-list-close-btn" onclick="window.toggleRetenesPanel()">
+            <i class="fas fa-chevron-left"></i>
+        </button>
+
+        <div class="floating-list-header">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h4 style="font-size: 14px; font-weight: 800; text-transform: uppercase; color: #eab308; margin: 0;">
+                    <i class="fas fa-shield-alt" style="margin-right: 8px;"></i> Retenes Activos
+                </h4>
+                <span id="retenes-count-badge" style="font-size: 12px; font-weight: 600; color: #888;">0</span>
+            </div>
+        </div>
+
+        <div class="floating-list-content" id="admin-retenes-list-content">
+            <p style="text-align: center; color: #999; font-size: 13px; padding: 20px 0; margin: 0;">Cargando retenes...</p>
+        </div>
+    </div>
+</section>
+
             <button id="btn-chat-ai-float" class="fixed bottom-24 right-20 w-14 h-14 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl z-40 hover:bg-orange-500 transition-all animate-pulse-soft" title="Chat con IA (Mecánico Virtual)" style="display: none;">
                 <i class="fas fa-robot text-2xl"></i>
             </button>
