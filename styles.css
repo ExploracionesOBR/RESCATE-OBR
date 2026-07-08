@@ -906,11 +906,26 @@ header.sticky,
 .fixed.top-0 {
     padding-top: calc(1rem + var(--safe-area-top));
 }
-#btn-chat-ai-float,
+
 #float-invite-btn {
-    bottom: calc(100px + var(--safe-area-bottom)) !important;
-    right: calc(20px + var(--safe-area-right)) !important;
+    position: fixed !important;
+    z-index: 100 !important;
+    width: 56px !important;
+    height: 56px !important;
+    border-radius: 50% !important;
+    background: #efb810 !important;
+    color: white !important;
+    font-size: 1.5rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important;
+
+    /* ✅ AÑADIR TRANSICIÓN PARA ANIMACIÓN SUAVE */
+    transition: bottom 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), right 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    will-change: bottom, right;
 }
+
 #admin-chat-float-btn {
     bottom: calc(100px + var(--safe-area-bottom)) !important;
     left: calc(12px + var(--safe-area-left)) !important;
@@ -1560,4 +1575,561 @@ body.light-mode #chat-ia-modal-dinamico {
                      0 0 20px rgba(0, 0, 255, 0.6),
                      0 0 40px rgba(0, 0, 255, 0.3);
     }
+}
+/* ===== CONTROLES FLOTANTES DENTRO DEL MAPA - VERSIÓN FINAL ===== */
+
+/* CONTENEDOR DEL MAPA (Debe ser relative para que los controles sean absolutos) */
+#sos-map-wrapper, #entregas-map-wrapper, #retenes-map-wrapper {
+    position: relative !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+}
+
+/* BOTÓN DE HAMBURGUESA (Dentro del mapa, esquina superior izquierda) */
+.map-hamburger-btn {
+    position: absolute !important;
+    top: 20px !important;  /* 20px desde el borde superior del mapa */
+    left: 20px !important;
+    z-index: 2000 !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #333333 !important;
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    border: 1px solid rgba(0,0,0,0.05) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    font-size: 20px !important;
+    transition: all 0.2s ease !important;
+}
+.map-hamburger-btn:hover {
+    transform: scale(1.05) !important;
+}
+
+/* Ocultar el botón de hamburguesa cuando la lista está abierta */
+.map-hamburger-btn.hidden-btn {
+    display: none !important;
+}
+
+/* CONTROLES SUPERIORES DERECHA (Filtro y Reporte) - DENTRO DEL MAPA */
+.map-top-right-controls {
+    position: absolute !important;
+    top: 20px !important;
+    right: 20px !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    pointer-events: none !important;
+}
+.map-top-right-controls > * {
+    pointer-events: auto !important;
+}
+
+/* BOTONES DE CONTROL (Filtro, Reporte, Nuevo Retén) */
+.map-control-btn {
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #333333 !important;
+    padding: 8px 20px !important;
+    border-radius: 25px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    border: 1px solid rgba(0,0,0,0.05) !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    font-family: 'Inter', sans-serif !important;
+}
+.map-control-btn:hover {
+    transform: scale(1.05) !important;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2) !important;
+}
+
+/* Colores específicos para Filtro y Reporte */
+.map-control-btn.btn-filtrar {
+    background: #FF6B00 !important;
+    color: white !important;
+}
+.map-control-btn.btn-reporte {
+    background: #3b82f6 !important;
+    color: white !important;
+}
+
+/* Widget del Clima (Solo en mapas) */
+#weather-widget {
+    position: fixed !important;
+    z-index: 9999 !important;
+    background: rgba(30, 30, 30, 0.7) !important;
+    backdrop-filter: blur(8px) !important;
+    border-radius: 25px !important;
+    padding: 8px 16px !important;
+    color: white !important;
+    font-family: 'Inter', sans-serif !important;
+    display: none !important; /* Oculto por defecto */
+    align-items: center !important;
+    gap: 12px !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    pointer-events: none !important;
+
+    /* ✅ NUEVO: Animación suave al subir y bajar */
+    transition: bottom 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), right 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    will-change: bottom, right; /* Optimiza el rendimiento de la animación */
+}
+#weather-widget.visible {
+    display: flex !important;
+}
+
+/* Clima dentro del mapa de cobertura (Configuración) */
+#admin-geofence-map #weather-widget {
+    position: absolute !important;
+    bottom: 15px !important;
+    right: 15px !important;
+    display: none !important;
+}
+#admin-geofence-map #weather-widget.visible {
+    display: flex !important;
+}
+
+/* LISTA FLOTANTE (Altura completa entre header y nav, pegada a la izquierda) */
+.floating-list {
+    position: fixed !important;
+    top: 80px !important; /* Justo debajo del header */
+    bottom: 80px !important; /* Justo encima del nav */
+    left: 0 !important;
+    width: 420px !important;
+    max-width: 88vw !important;
+    background: white !important;
+    box-shadow: 4px 0 30px rgba(0,0,0,0.15) !important;
+    z-index: 1500 !important;
+    color: #333 !important;
+    display: none !important; /* Oculto por defecto */
+    flex-direction: column !important;
+    border-radius: 0 16px 16px 0 !important;
+    overflow: hidden !important;
+    transition: transform 0.3s ease !important;
+}
+.floating-list.open {
+    display: flex !important;
+}
+
+/* Botón de retracción (<) a la derecha de la lista */
+.floating-list-close-btn {
+    position: absolute !important;
+    right: -14px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 28px !important;
+    height: 48px !important;
+    background: #FF6B00 !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 0 8px 8px 0 !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.1) !important;
+    z-index: 1501 !important;
+    transition: all 0.2s ease !important;
+}
+.floating-list-close-btn:hover {
+    background: #e05a00 !important;
+    transform: translateY(-50%) scale(1.05) !important;
+}
+
+/* Contenido de la lista */
+.floating-list-content {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    padding: 16px !important;
+}
+
+/* Encabezado de la lista */
+.floating-list-header {
+    padding: 16px 20px 12px 20px !important;
+    border-bottom: 1px solid #eee !important;
+    flex-shrink: 0 !important;
+}
+
+/* Filtros dentro de la lista */
+.floating-list-filters {
+    padding: 12px 20px !important;
+    border-bottom: 1px solid #eee !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+}
+
+.filter-btn-sos-estatus, .filter-btn-estatus {
+    padding: 4px 12px !important;
+    border-radius: 20px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    border: 1px solid #ddd !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    background: #f5f5f5 !important;
+    color: #666 !important;
+}
+.filter-btn-sos-estatus.active, .filter-btn-estatus.active {
+    border-color: #facc15 !important;
+    background: #fef9c3 !important;
+    color: #854d0e !important;
+}
+
+/* Ocultar controles de zoom de Leaflet */
+.leaflet-control-zoom {
+    display: none !important;
+}
+.leaflet-control-zoom-in, .leaflet-control-zoom-out {
+    display: none !important;
+}
+
+/* ===== RESPONSIVE MÓVIL (Evita que los botones queden detrás del header/nav) ===== */
+@media (max-width: 768px) {
+    /* Ajuste de los controles dentro del mapa en móviles */
+    .map-hamburger-btn {
+        top: 15px !important;
+        left: 15px !important;
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 16px !important;
+    }
+    
+    .map-top-right-controls {
+        top: 15px !important;
+        right: 15px !important;
+        gap: 6px !important;
+    }
+    
+    .map-control-btn {
+        padding: 6px 12px !important;
+        font-size: 10px !important;
+    }
+
+    .floating-list {
+        top: 60px !important;
+        bottom: 60px !important;
+        width: 92vw !important;
+        max-width: 92vw !important;
+    }
+    
+    .floating-list-close-btn {
+        right: -12px !important;
+        width: 24px !important;
+        height: 40px !important;
+        font-size: 14px !important;
+    }
+}
+
+/* ===== CONTROLES FLOTANTES SOBRE EL MAPA - VERSIÓN FINAL ===== */
+
+/* Botón de hamburguesa (Arriba izquierda, despegado del header) */
+.map-hamburger-btn {
+    position: fixed !important;
+    top: 85px !important; /* Despegado del header (header tiene ~80px) */
+    left: 20px !important;
+    z-index: 2000 !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #333333 !important;
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    border: 1px solid rgba(0,0,0,0.05) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    font-size: 20px !important;
+    transition: all 0.2s ease !important;
+}
+.map-hamburger-btn:hover {
+    transform: scale(1.05) !important;
+}
+
+/* Ocultar el botón de hamburguesa cuando la lista está abierta */
+.map-hamburger-btn.hidden-btn {
+    display: none !important;
+}
+
+/* Controles superiores derecha (Filtro y Reporte) */
+.map-top-right-controls {
+    position: fixed !important;
+    top: 85px !important;
+    right: 20px !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    pointer-events: none !important;
+}
+.map-top-right-controls > * {
+    pointer-events: auto !important;
+}
+
+/* Botones de control (Filtro, Reporte, Nuevo Retén) */
+.map-control-btn {
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #333333 !important;
+    padding: 8px 20px !important;
+    border-radius: 25px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    border: 1px solid rgba(0,0,0,0.05) !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    font-family: 'Inter', sans-serif !important;
+}
+.map-control-btn:hover {
+    transform: scale(1.05) !important;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2) !important;
+}
+
+/* Colores específicos para Filtro y Reporte */
+.map-control-btn.btn-filtrar {
+    background: #FF6B00 !important;
+    color: white !important;
+}
+.map-control-btn.btn-reporte {
+    background: #3b82f6 !important;
+    color: white !important;
+}
+/* Lista flotante (Altura completa entre header y nav, pegada a la izquierda) */
+.floating-list {
+    position: fixed !important;
+    top: 80px !important; /* Justo debajo del header */
+    bottom: 80px !important; /* Justo encima del nav */
+    left: 0 !important;
+    width: 420px !important;
+    max-width: 88vw !important;
+    background: white !important;
+    box-shadow: 4px 0 30px rgba(0,0,0,0.15) !important;
+    z-index: 1500 !important;
+    color: #333 !important;
+    display: none !important; /* Oculto por defecto */
+    flex-direction: column !important;
+    border-radius: 0 16px 16px 0 !important;
+    overflow: hidden !important;
+    transition: transform 0.3s ease !important;
+}
+.floating-list.open {
+    display: flex !important;
+}
+
+/* Botón de retracción (<) a la derecha de la lista */
+.floating-list-close-btn {
+    position: absolute !important;
+    right: -14px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 28px !important;
+    height: 48px !important;
+    background: #FF6B00 !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 0 8px 8px 0 !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.1) !important;
+    z-index: 1501 !important;
+    transition: all 0.2s ease !important;
+}
+.floating-list-close-btn:hover {
+    background: #e05a00 !important;
+    transform: translateY(-50%) scale(1.05) !important;
+}
+
+/* Contenido de la lista */
+.floating-list-content {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    padding: 16px !important;
+}
+
+/* Encabezado de la lista */
+.floating-list-header {
+    padding: 16px 20px 12px 20px !important;
+    border-bottom: 1px solid #eee !important;
+    flex-shrink: 0 !important;
+}
+
+/* Filtros dentro de la lista */
+.floating-list-filters {
+    padding: 12px 20px !important;
+    border-bottom: 1px solid #eee !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+}
+
+.filter-btn-sos-estatus, .filter-btn-estatus {
+    padding: 4px 12px !important;
+    border-radius: 20px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    border: 1px solid #ddd !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    background: #f5f5f5 !important;
+    color: #666 !important;
+}
+.filter-btn-sos-estatus.active, .filter-btn-estatus.active {
+    border-color: #facc15 !important;
+    background: #fef9c3 !important;
+    color: #854d0e !important;
+}
+
+/* Ocultar controles de zoom de Leaflet */
+.leaflet-control-zoom {
+    display: none !important;
+}
+.leaflet-control-zoom-in, .leaflet-control-zoom-out {
+    display: none !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .map-control-btn { padding: 6px 14px !important; font-size: 11px !important; }
+    .map-top-right-controls { top: 70px !important; right: 10px !important; gap: 6px !important; }
+    .map-hamburger-btn { top: 70px !important; left: 10px !important; width: 40px !important; height: 40px !important; }
+    .floating-list { width: 92vw !important; top: 70px !important; bottom: 70px !important; }
+    .floating-list-close-btn { right: -12px !important; width: 24px !important; height: 40px !important; font-size: 14px !important; }
+}
+
+@media (max-width: 768px) {
+    /* Ajuste de controles dentro del mapa en móviles */
+    .map-hamburger-btn {
+        top: 15px !important;
+        left: 15px !important;
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 16px !important;
+    }
+    
+    .map-top-right-controls {
+        top: 15px !important;
+        right: 15px !important;
+        gap: 6px !important;
+    }
+    
+    .map-control-btn {
+        padding: 6px 12px !important;
+        font-size: 10px !important;
+    }
+
+    /* Ajuste de la lista flotante para que ocupe toda la altura disponible */
+    .floating-list {
+        top: 60px !important;   /* Debajo del header en móviles */
+        bottom: 60px !important; /* Encima del nav en móviles */
+        width: 92vw !important;
+        max-width: 92vw !important;
+        height: auto !important;
+        max-height: calc(100vh - 120px) !important; /* Altura total menos header y nav */
+    }
+    
+    .floating-list-close-btn {
+        right: -12px !important;
+        width: 24px !important;
+        height: 40px !important;
+        font-size: 14px !important;
+    }
+    
+    /* Asegurar que el contenido de la lista ocupe el espacio restante */
+    .floating-list-content {
+        flex: 1 !important;
+        overflow-y: auto !important;
+        min-height: 0 !important;
+    }
+}
+
+.floating-list {
+    position: fixed !important;
+    top: 80px !important;
+    bottom: 80px !important;
+    /* ... */
+    height: auto !important;
+    max-height: calc(100vh - 160px) !important;
+}
+/* ===== BANNER DE FRASES (MEJORADO Y MÁS COLORIDO) ===== */
+#phrase-banner-container {
+    pointer-events: none;
+    bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+#phrase-banner {
+    pointer-events: none;
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.4;
+    /* Fondo con degradado naranja-dorado (colores de la marca OBR) */
+    background: linear-gradient(90deg, rgba(255, 107, 0, 0.85), rgba(255, 159, 74, 0.85), rgba(255, 107, 0, 0.85)) !important;
+    border: 1px solid rgba(255, 107, 0, 0.4) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 20px rgba(255, 107, 0, 0.25) !important;
+    padding: 8px 18px !important;
+    margin: 0 12px !important;
+    transform-origin: bottom center;
+}
+
+/* Texto con brillo dorado */
+#phrase-text {
+    background: linear-gradient(90deg, #ffffff, #ffd700, #ffffff);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800;
+    font-size: 14px;
+    text-shadow: 0 0 15px rgba(255, 215, 0, 0.15);
+    animation: shimmerText 4s linear infinite;
+}
+
+@keyframes shimmerText {
+    0% { background-position: 0% center; }
+    100% { background-position: 200% center; }
+}
+
+/* Animaciones de entrada y salida */
+.phrase-enter {
+    animation: slideInUp 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+.phrase-exit {
+    animation: fadeOutDown 0.5s ease forwards;
+}
+@keyframes slideInUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+@keyframes fadeOutDown {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(15px); opacity: 0; }
+}
+#float-invite-btn {
+    /* tus estilos existentes */
+    transition: bottom 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    will-change: bottom;
 }
