@@ -2174,3 +2174,52 @@ nav.fixed.bottom-0 {
     z-index: 1 !important; /* El widget dentro tendrá z-index 1000, pero el contenedor está abajo */
     position: relative !important;
 }
+
+/* ============================================================
+   MODALES RESPONSIVOS (Pantalla completa en móvil)
+   ============================================================ */
+@media (max-width: 768px) {
+    /* Base para todos los modales que deben ser full-screen en móvil */
+    #modal-checklist-ingreso,
+    #modal-detalle-servicio,
+    #modal-nueva-cita,
+    #modal-chat {
+        padding: 0 !important;
+        align-items: stretch !important; /* Para que el contenido ocupe todo el alto */
+    }
+
+    #modal-checklist-ingreso > .bg-asfalto,
+    #modal-detalle-servicio > .bg-asfalto,
+    #modal-nueva-cita > .bg-asfalto,
+    #modal-chat > .bg-asfalto {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        border-radius: 0 !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 1rem !important;
+        overflow-y: auto !important;
+    }
+
+    /* Ajuste específico para el modal de chat (porque tiene estructura interna) */
+    #modal-chat > .bg-asfalto {
+        display: flex !important;
+        flex-direction: column !important;
+        padding: 0 !important;
+    }
+    #modal-chat .flex-grow {
+        flex-grow: 1 !important;
+        overflow-y: auto !important;
+    }
+    #modal-chat .p-3.border-t {
+        flex-shrink: 0 !important;
+    }
+
+    /* Ajuste específico para el modal detalle servicio (para que las columnas se apilen bien) */
+    #modal-detalle-servicio .flex-grow {
+        overflow-y: auto !important;
+        max-height: none !important;
+    }
+}
