@@ -249,7 +249,7 @@ function updateWeatherWidgetWithData(current) {
   function preloadWeather(lat, lng) {
       if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) return;
       _cachedWeatherCoords = { lat, lng };
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}¤t_weather=true&timezone=auto`)
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
           .then(res => res.ok ? res.json() : Promise.reject())
           .then(data => {
               if (data.current_weather) {
@@ -300,7 +300,7 @@ function addWeatherLayer(map, lat, lng) {
 
     if (!coordsMatch || !_cachedWeatherData || isStale) {
         console.log('🌤️ Actualizando clima (coordenadas diferentes o datos expirados)');
-        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}¤t_weather=true&timezone=auto`)
+        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
             .then(res => res.ok ? res.json() : Promise.reject())
             .then(data => {
                 const current = data.current_weather;
@@ -2543,45 +2543,45 @@ onAuthStateChanged(auth, async user => {
         // RUTA ADMIN / MECÁNICO / TALLER / SOCIO
         // ============================================================
         if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
-            const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
-            startMechanicTracking();
-            if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
-            globalSettings.centerLat = TALLER_LAT;
-            globalSettings.centerLng = TALLER_LNG;
-            showView('app-admin');
+    const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
+    startMechanicTracking();
+    if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
+    globalSettings.centerLat = TALLER_LAT;
+    globalSettings.centerLng = TALLER_LNG;
+    showView('app-admin');
 
-            // Mostrar nombre del usuario en el header
-            const adminDisplay = document.getElementById('admin-phone-display');
-            if (adminDisplay) {
+    // Mostrar nombre del usuario en el header
+    const adminDisplay = document.getElementById('admin-phone-display');
+    if (adminDisplay) {
+        const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
+        adminDisplay.innerText = nombre;
+    } else {
+        setTimeout(() => {
+            const el = document.getElementById('admin-phone-display');
+            if (el) {
                 const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
-                adminDisplay.innerText = nombre;
-            } else {
-                setTimeout(() => {
-                    const el = document.getElementById('admin-phone-display');
-                    if (el) {
-                        const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
-                        el.innerText = nombre;
-                    }
-                }, 200);
+                el.innerText = nombre;
             }
+        }, 200);
+    }
 
-            iniciarListenerGlobalSOS();
-            setTimeout(() => {
-                window.adminRefreshConfigUI();
-                window.adminLoadInventory();
-                window.adminLoadSales();
-                window.filterSOS('pending');
-                window.adminListenServices();
-                window.adminLoadCitas();
-                window.loadChatList();
-                window.applyViewPermissions?.();
-            }, 100);
-            if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
+    // ✅ AQUÍ SE AGREGA LA CARGA DE RETIROS DEL DÍA
+    await cargarRetirosDelDia();
 
-        // ============================================================
-        // RUTA CLIENTE / MEMBRESÍA (EL FLUJO MÁS PROPENSO A FALLAR)
-        // ============================================================
-        // ============================================================
+    iniciarListenerGlobalSOS();
+    setTimeout(() => {
+        window.adminRefreshConfigUI();
+        window.adminLoadInventory();
+        window.adminLoadSales();
+        window.filterSOS('pending');
+        window.adminListenServices();
+        window.adminLoadCitas();
+        window.loadChatList();
+        window.applyViewPermissions?.();
+    }, 100);
+    if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
+
+// ============================================================
 // RUTA CLIENTE / MEMBRESÍA (EL FLUJO MÁS PROPENSO A FALLAR)
 // ============================================================
 } else {
@@ -6821,13 +6821,36 @@ window.cargarListaRetenesAdmin = async function() {
   };
   window.closeCaja = () => { window.showAdminCorte(); };
   window.addRetiro = () => toggleModal('modal-retiro', true);
-  window.confirmRetiro = () => {
-      const monto = parseFloat(document.getElementById('retiro-monto')?.value);
-      const concepto = document.getElementById('retiro-concepto')?.value.trim();
-      if (!monto || !concepto) return showToast("Completa los datos", true);
-      window.retiros.push({ monto, concepto, timestamp: Date.now() });
-      toggleModal('modal-retiro', false); showToast(`Retiro: $${monto.toFixed(2)}`);
-  };
+  window.confirmRetiro = async () => {
+    const monto = parseFloat(document.getElementById('retiro-monto')?.value);
+    const concepto = document.getElementById('retiro-concepto')?.value.trim();
+    if (!monto || !concepto) return showToast("Completa los datos", true);
+
+    // ✅ Guardar en Firestore (colección "retiros")
+    try {
+        await addDoc(collection(db, "retiros"), {
+            monto: monto,
+            concepto: concepto,
+            timestamp: Date.now(),
+            uid: auth.currentUser.uid,
+            nombre: window.currentUserDoc?.name || 'Admin'
+        });
+
+        // ✅ También mantener en memoria local para la sesión actual
+        window.retiros.push({ monto, concepto, timestamp: Date.now() });
+
+        toggleModal('modal-retiro', false);
+        showToast(`Retiro registrado: $${monto.toFixed(2)}`);
+        
+        // ✅ Refrescar estadísticas si la vista está abierta
+        if (typeof window.loadStats === 'function') {
+            window.loadStats();
+        }
+    } catch (error) {
+        console.error('Error al guardar retiro:', error);
+        showToast("Error al guardar el retiro", true);
+    }
+};
 
   // Filtros de productos por categoría
   window.posFilterProducts = () => {
@@ -7385,41 +7408,37 @@ if (ticketItems.length === 0) ticketItems.push(['Sin productos', 'N/A', '$0.00']
 
                   // --- Desglose de precios (corregido: sin sumar IVA de nuevo) ---
                   // Usamos el total ya guardado en saleData.total
-                  const totalFinal = saleData.total || 0;
-                  // Para mostrar subtotal e IVA (opcional)
-                  const subTotalSinIVA = totalFinal / 1.16;
-                  const ivaCalculado = totalFinal - subTotalSinIVA;
-                  // Nota: el total final no cambia, es el mismo que se cobró
+const totalFinal = saleData.total || 0;
 
-                  pdfDoc.setFont("helvetica", "normal");
-                  pdfDoc.setFontSize(10);
-                  pdfDoc.setTextColor(15, 23, 42);
+// Si es una COTIZACIÓN, mostramos solo el total sin desglosar IVA
+if (esCotizacion) {
+    pdfDoc.setFont("helvetica", "normal");
+    pdfDoc.setFontSize(10);
+    pdfDoc.setTextColor(15, 23, 42);
+    
+    // ✅ Mostramos solo el total estimado (sin cálculos extra)
+    pdfDoc.text(`Total Estimado: $${totalFinal.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+    y += 6;
 
-                  // Mostrar subtotal (sin IVA) y IVA solo si no es cotización
-                  if (!esCotizacion) {
-                      pdfDoc.text(`Subtotal (sin IVA): $${subTotalSinIVA.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-                      y += 6;
-                      pdfDoc.text(`IVA (16%): $${ivaCalculado.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-                      y += 8;
-                  } else {
-                      // En cotización, solo mostrar el total estimado
-                      pdfDoc.text(`Total Estimado: $${totalFinal.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-                      y += 6;
-                  }
+} else {
+    // Si es un TICKET DE VENTA, mostramos el desglose completo
+    const subTotalSinIVA = totalFinal / 1.16;
+    const ivaCalculado = totalFinal - subTotalSinIVA;
 
-                  pdfDoc.setFont("helvetica", "bold");
-                  pdfDoc.setFontSize(12);
-                  if (esCotizacion) {
-                      pdfDoc.text(`Total Estimado: $${totalFinal.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-                      y += 6;
-                      pdfDoc.setFontSize(8);
-                      pdfDoc.setTextColor(148, 163, 184);
-                      pdfDoc.text('* Esta cotización no representa un comprobante de pago. Los precios son referenciales y pueden cambiar.', 12, y);
-                      y += 10;
-                  } else {
-                      pdfDoc.text(`Total Neto: $${totalFinal.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-                      y += 10;
-                  }
+    pdfDoc.setFont("helvetica", "normal");
+    pdfDoc.setFontSize(10);
+    pdfDoc.setTextColor(15, 23, 42);
+
+    pdfDoc.text(`Subtotal (sin IVA): $${subTotalSinIVA.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+    y += 6;
+    pdfDoc.text(`IVA (16%): $${ivaCalculado.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+    y += 8;
+
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.setFontSize(12);
+    pdfDoc.text(`Total Neto: $${totalFinal.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+    y += 10;
+}
 
                   // --- Footer profesional ---
                   const addFooter = window._setupProfessionalPDF(pdfDoc, esCotizacion ? 'COTIZACIÓN OBR' : 'COMPROBANTE DE VENTA', logoImg);
@@ -7726,19 +7745,26 @@ if (ticketItems.length === 0) ticketItems.push(['Sin productos', 'N/A', '$0.00']
           }
 
           // 📌 Construir datos de cotización
-          const cotizacionData = {
-              shortId: 'COT-' + new Date().toISOString().slice(0,10),
-              fecha: new Date().toISOString(),
-              clienteCel: nombreCliente,
-              uid: uidCliente,
-              ticket: window.posTicket,
-              total: window.posTicket.reduce((s, i) => s + i.price, 0) + 
-                    (window.posTicket.reduce((s, i) => s + i.price, 0) * 0.16) - 
-                    (window.posDescuento || 0),
-              descuento: window.posDescuento || 0,
-              metodoPago: 'Cotización',
-              clientName: nombreCliente
-          };
+const subtotal = window.posTicket.reduce((s, i) => s + i.price, 0);
+
+// El descuento ya está en window.posDescuento
+const descuento = window.posDescuento || 0;
+
+// ✅ El total estimado es: subtotal - descuento (SIN SUMAR IVA EXTRA)
+const totalEstimado = subtotal - descuento;
+
+// Construir los datos de la cotización
+const cotizacionData = {
+    shortId: 'COT-' + new Date().toISOString().slice(0,10),
+    fecha: new Date().toISOString(),
+    clienteCel: nombreCliente,
+    uid: uidCliente,
+    ticket: window.posTicket,
+    total: totalEstimado,  // ✅ Ahora enviamos el total sin IVA extra
+    descuento: descuento,
+    metodoPago: 'Cotización',
+    clientName: nombreCliente
+};
 
           // 📌 Generar PDF llamando a imprimirTicketVenta con esCotizacion = true
           const pdfBlob = await window.imprimirTicketVenta(null, cotizacionData, true);
@@ -10992,50 +11018,72 @@ window.openMechanicPOS = async (sosId) => {
   // ======================================================
   // === CORTE DE CAJA ===
   // ======================================================
-  window.showAdminCorte = () => {
-      if (!window.cajaAbierta) return;
-      const ventasHoy = (adminSalesCache?.ventas || []).filter(
-          v => new Date(v.fecha).toDateString() === new Date().toDateString()
-      );
-      const totalVentas = ventasHoy.reduce((sum, v) => sum + (v.total || 0), 0);
-      const totalRetiros = (window.retiros || []).reduce((sum, r) => sum + (r.monto || 0), 0);
-      const efectivoDisponible = window.fondoInicial + totalVentas - totalRetiros;
-      const corteHTML = `
-          <div class="text-white space-y-3 text-sm">
-              <div class="flex justify-between"><span>Fondo inicial:</span><span>$${window.fondoInicial.toFixed(2)}</span></div>
-              <div class="flex justify-between"><span>Ventas del día:</span><span>$${totalVentas.toFixed(2)}</span></div>
-              <div class="flex justify-between"><span>Retiros:</span><span>$${totalRetiros.toFixed(2)}</span></div>
-              <hr class="border-white/10"/>
-              <div class="flex justify-between font-black text-green-400"><span>Efectivo en caja:</span><span>$${efectivoDisponible.toFixed(2)}</span></div>
-          </div>
-          <div class="mt-4 flex space-x-2">
-              <button onclick="window.exportCortePDF()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl font-black uppercase text-xs">Exportar PDF</button>
-              <button onclick="toggleModal('modal-corte', false)" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-2 rounded-xl font-black uppercase text-xs">Cerrar</button>
-          </div>
-      `;
-      const modalId = 'modal-corte';
-      let modalEl = document.getElementById(modalId);
-      if (!modalEl) {
-          modalEl = document.createElement('div');
-          modalEl.id = modalId;
-          modalEl.className = 'fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm';
-          modalEl.innerHTML = `
-              <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl" id="${modalId}-content"></div>
-          `;
-          document.body.appendChild(modalEl);
-      }
-      document.getElementById(`${modalId}-content`).innerHTML = `<h2 class="text-xl font-black mb-4 text-white">Corte del día</h2>${corteHTML}`;
-      toggleModal(modalId, true);
-      window.cajaAbierta = false;
-      window.fondoInicial = 0;
-      window.retiros = [];
-      document.getElementById('btn-open-caja')?.classList.remove('hidden');
-      document.getElementById('btn-close-caja')?.classList.add('hidden');
-      document.getElementById('btn-retiro')?.classList.add('hidden');
-      document.getElementById('caja-status-bar')?.classList.add('hidden');
-      const display = document.getElementById('fondo-inicial-display');
-      if(display) display.innerText = '0.00';
-  };
+  window.showAdminCorte = async () => {
+    if (!window.cajaAbierta) return;
+
+    // ✅ Obtener retiros desde Firestore (del día actual)
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const manana = new Date(hoy);
+    manana.setDate(manana.getDate() + 1);
+
+    const q = query(
+        collection(db, "retiros"),
+        where("timestamp", ">=", hoy.getTime()),
+        where("timestamp", "<", manana.getTime())
+    );
+    const snap = await getDocs(q);
+    const retirosHoy = [];
+    snap.forEach(doc => retirosHoy.push(doc.data()));
+
+    // ✅ Ventas del día (desde la caché de adminSalesCache)
+    const ventasHoy = (adminSalesCache?.ventas || []).filter(
+        v => new Date(v.fecha).toDateString() === new Date().toDateString()
+    );
+    const totalVentas = ventasHoy.reduce((sum, v) => sum + (v.total || 0), 0);
+    const totalRetiros = retirosHoy.reduce((sum, r) => sum + (r.monto || 0), 0);
+    const efectivoDisponible = window.fondoInicial + totalVentas - totalRetiros;
+
+    // ✅ Mostrar el corte
+    const corteHTML = `
+        <div class="text-white space-y-3 text-sm">
+            <div class="flex justify-between"><span>Fondo inicial:</span><span>$${window.fondoInicial.toFixed(2)}</span></div>
+            <div class="flex justify-between"><span>Ventas del día:</span><span>$${totalVentas.toFixed(2)}</span></div>
+            <div class="flex justify-between"><span>Retiros (${retirosHoy.length}):</span><span>$${totalRetiros.toFixed(2)}</span></div>
+            <hr class="border-white/10"/>
+            <div class="flex justify-between font-black text-green-400"><span>Efectivo en caja:</span><span>$${efectivoDisponible.toFixed(2)}</span></div>
+        </div>
+        <div class="mt-4 flex space-x-2">
+            <button onclick="window.exportCortePDF()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl font-black uppercase text-xs">Exportar PDF</button>
+            <button onclick="toggleModal('modal-corte', false)" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-2 rounded-xl font-black uppercase text-xs">Cerrar</button>
+        </div>
+    `;
+
+    const modalId = 'modal-corte';
+    let modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm';
+        modalEl.innerHTML = `
+            <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative border border-green-500/30 shadow-2xl" id="${modalId}-content"></div>
+        `;
+        document.body.appendChild(modalEl);
+    }
+    document.getElementById(`${modalId}-content`).innerHTML = `<h2 class="text-xl font-black mb-4 text-white">Corte del día</h2>${corteHTML}`;
+    toggleModal(modalId, true);
+
+    // ✅ Cerrar la caja local
+    window.cajaAbierta = false;
+    window.fondoInicial = 0;
+    window.retiros = []; // Limpiamos la memoria porque ya están en Firestore
+    document.getElementById('btn-open-caja')?.classList.remove('hidden');
+    document.getElementById('btn-close-caja')?.classList.add('hidden');
+    document.getElementById('btn-retiro')?.classList.add('hidden');
+    document.getElementById('caja-status-bar')?.classList.add('hidden');
+    const display = document.getElementById('fondo-inicial-display');
+    if(display) display.innerText = '0.00';
+};
 
   window.exportCortePDF = () => {
       const { jsPDF } = window.jspdf;
@@ -13998,3 +14046,25 @@ window.addEventListener('resize', () => {
         }, 200);
     }
 });
+
+// ============================================================
+// CARGAR RETIROS DEL DÍA DESDE FIRESTORE
+// ============================================================
+async function cargarRetirosDelDia() {
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const manana = new Date(hoy);
+    manana.setDate(manana.getDate() + 1);
+
+    const q = query(
+        collection(db, "retiros"),
+        where("timestamp", ">=", hoy.getTime()),
+        where("timestamp", "<", manana.getTime())
+    );
+    const snap = await getDocs(q);
+    window.retiros = [];
+    snap.forEach(doc => {
+        window.retiros.push(doc.data());
+    });
+    console.log(`✅ Cargados ${window.retiros.length} retiros del día`);
+}
