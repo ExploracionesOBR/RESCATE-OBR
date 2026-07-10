@@ -80,34 +80,13 @@ function updateWeatherWidgetPosition() {
     if (!weatherWidget) {
         weatherWidget = document.createElement('div');
         weatherWidget.id = 'weather-widget';
-        weatherWidget.style.cssText = `
-            position: fixed;
-            z-index: 9999;
-            background: rgba(30, 30, 30, 0.7);
-            backdrop-filter: blur(8px);
-            border-radius: 12px;
-            padding: 6px 12px;
-            align-items: center;
-            gap: 8px;
-            color: white;
-            font-family: sans-serif;
-            font-size: 13px;
-            border: 1px solid rgba(255,255,255,0.2);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-            pointer-events: none;
-            user-select: none;
-            display: none;
-        `;
+        // Sin estilos inline, todo se controla en CSS
         document.body.appendChild(weatherWidget);
         weatherWidget.innerHTML = `<span style="font-size:24px;">⏳</span><div><span>Cargando...</span></div>`;
         console.log('✅ Widget creado');
     }
 
-    // 2. Ocultar siempre al inicio
-    weatherWidget.classList.remove('visible');
-    weatherWidget.style.display = 'none';
-
-    // 3. Detectar vistas activas (admin y cliente)
+    // 2. Detectar vistas activas
     const isAdminSOS = document.getElementById('a-view-alertas') && !document.getElementById('a-view-alertas').classList.contains('hidden');
     const isAdminEntregas = document.getElementById('a-view-entregas') && !document.getElementById('a-view-entregas').classList.contains('hidden');
     const isAdminRetenes = document.getElementById('a-view-retenes') && !document.getElementById('a-view-retenes').classList.contains('hidden');
@@ -120,14 +99,14 @@ function updateWeatherWidgetPosition() {
     const shouldShow = isAdminSOS || isAdminEntregas || isAdminRetenes || isConfig ||
                        isClientSOS || isClientEntrega || isClientRetenes;
 
-    console.log('📌 shouldShow:', shouldShow);
-
+    // ✅ OCULTAR INMEDIATAMENTE si no debe mostrarse
     if (!shouldShow) {
-        console.log('❌ Ninguna vista de mapa activa');
+        weatherWidget.classList.remove('visible');
+        weatherWidget.style.display = 'none';
         return;
     }
 
-    // 4. Elegir el contenedor del mapa
+    // 3. Elegir el contenedor del mapa
     let container = null;
     if (isConfig) container = document.getElementById('admin-geofence-map');
     else if (isAdminSOS) container = document.getElementById('sos-map-wrapper');
@@ -137,43 +116,60 @@ function updateWeatherWidgetPosition() {
     else if (isClientEntrega) container = document.getElementById('client-delivery-map-container');
     else if (isClientRetenes) container = document.getElementById('retenes-map-wrapper');
 
-    if (!container) return;
+    if (!container) {
+        weatherWidget.classList.remove('visible');
+        weatherWidget.style.display = 'none';
+        return;
+    }
 
-    // 5. Calcular barra de navegación y margen
-    const navBar = document.querySelector('nav.fixed.bottom-0');
-    const navHeight = navBar ? navBar.offsetHeight : 0;
-    const margin = 10; // Aumentamos un poco el margen base para que no se pegue
+    // 4. Asegurar que el contenedor tenga position: relative
+    if (window.getComputedStyle(container).position === 'static') {
+        container.style.position = 'relative';
+    }
 
-    // 6. Calcular el offset del banner SOLO si está visible y en fase de entrada/estable
+    // 5. Mover el widget al contenedor (si no está ya)
+    if (weatherWidget.parentNode !== container) {
+        container.appendChild(weatherWidget);
+        console.log('✅ Widget movido a', container.id);
+    }
+
+    // 6. Calcular offset del banner (solo cliente)
     let bannerOffset = 0;
     const bannerContainer = document.getElementById('phrase-banner-container');
     const banner = document.getElementById('phrase-banner');
-    
     if (bannerContainer && banner && !bannerContainer.classList.contains('hidden') && banner.style.display !== 'none') {
-        // ✅ SI EL BANNER ESTÁ EN FASE DE SALIDA, EL OFFSET DEBE SER 0 (PARA QUE EL WIDGET BAJE)
         if (banner.classList.contains('phrase-exit')) {
             bannerOffset = 0;
         } else {
-            // Si está entrando o ya está visible, calculamos el offset
             const bannerHeight = banner.offsetHeight || 55;
-            bannerOffset = bannerHeight + 4; // 20px extra para que quede flotando arriba
+            bannerOffset = bannerHeight + 10;
         }
     }
 
-    // 7. Obtener posición del contenedor
-    const rect = container.getBoundingClientRect();
+    // 7. Aplicar posición absoluta dentro del contenedor
+    const margin = 15;
+    const bottomPosition = margin + bannerOffset;
+    const rightPosition = margin;
 
-    // 8. Posicionar el widget en la esquina inferior derecha
-    const totalBottom = window.innerHeight - rect.bottom + margin + navHeight + bannerOffset;
-    const totalRight = window.innerWidth - rect.right + margin;
+    // Desactivar transición si ya estaba visible (evita saltos al cambiar de vista)
+    const wasVisible = weatherWidget.classList.contains('visible');
+    if (wasVisible) {
+        weatherWidget.style.transition = 'none';
+    }
 
-    weatherWidget.style.right = totalRight + 'px';
-    weatherWidget.style.bottom = totalBottom + 'px';
+    weatherWidget.style.bottom = bottomPosition + 'px';
+    weatherWidget.style.right = rightPosition + 'px';
 
-    // 9. Mostrar el widget
+    if (wasVisible) {
+        void weatherWidget.offsetHeight; // forzar reflow
+        weatherWidget.style.transition = 'bottom 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+    }
+
+    // 8. Mostrar el widget
     weatherWidget.classList.add('visible');
     weatherWidget.style.display = 'flex';
-    console.log('✅ Widget visible, bottom:', totalBottom, 'right:', totalRight, 'offset:', bannerOffset);
+
+    console.log('✅ Widget visible, bottom:', bottomPosition, 'right:', rightPosition);
 }
 
 
@@ -253,7 +249,7 @@ function updateWeatherWidgetWithData(current) {
   function preloadWeather(lat, lng) {
       if (typeof lat !== 'number' || typeof lng !== 'number' || isNaN(lat) || isNaN(lng)) return;
       _cachedWeatherCoords = { lat, lng };
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}¤t_weather=true&timezone=auto`)
           .then(res => res.ok ? res.json() : Promise.reject())
           .then(data => {
               if (data.current_weather) {
@@ -304,7 +300,7 @@ function addWeatherLayer(map, lat, lng) {
 
     if (!coordsMatch || !_cachedWeatherData || isStale) {
         console.log('🌤️ Actualizando clima (coordenadas diferentes o datos expirados)');
-        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true&timezone=auto`)
+        fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}¤t_weather=true&timezone=auto`)
             .then(res => res.ok ? res.json() : Promise.reject())
             .then(data => {
                 const current = data.current_weather;
@@ -1967,6 +1963,69 @@ let _pushQueueStarted = false;
       logo.src = isLight ? 'logo_claro.png' : 'logo_oscuro.png';
   }
 
+  // ============================================================
+// 1. FUNCIÓN AUXILIAR: OBTENER ALTURA DEL HEADER
+// ============================================================
+function getHeaderHeight() {
+    // Buscar el header en la vista admin o cliente
+    const adminHeader = document.querySelector('#app-admin header');
+    const clientHeader = document.querySelector('#app-client header');
+    const header = adminHeader || clientHeader;
+    if (header) {
+        return header.offsetHeight;
+    }
+    // Valor por defecto si no se encuentra
+    return 90; // 80px es el valor que tenías fijo
+}
+
+// ============================================================
+// 2. VARIABLE GLOBAL PARA EL OFFSET DEL HEADER
+// ============================================================
+let currentHeaderOffset = 0;
+
+// ============================================================
+// 3. ACTUALIZAR POSICIÓN DE CONTROLES DEL MAPA (hamburguesa, filtros, reporte, crear retén)
+// ============================================================
+function updateMapControlsPosition() {
+    // 3.1. Obtener la altura real del header
+    const headerHeight = getHeaderHeight();
+    currentHeaderOffset = headerHeight;
+    
+    // Margen extra para que no queden pegados al header (puedes ajustarlo)
+    const extraMargin = 30;
+    const topOffset = headerHeight + extraMargin;
+
+    console.log('🔄 Actualizando controles del mapa. Header height:', headerHeight, 'Top offset:', topOffset);
+
+    // 3.2. Actualizar el botón de hamburguesa en todos los mapas
+    document.querySelectorAll('.map-hamburger-btn').forEach(btn => {
+        // Solo aplicamos si no tiene la clase hidden-btn (está visible)
+        if (!btn.classList.contains('hidden-btn')) {
+            btn.style.top = topOffset + 'px';
+        }
+    });
+
+    // 3.3. Actualizar el contenedor de controles superiores (filtro, reporte, crear retén)
+    document.querySelectorAll('.map-top-right-controls').forEach(ctrl => {
+        ctrl.style.top = topOffset + 'px';
+    });
+
+    // 3.4. Actualizar las listas flotantes (SOS, Entregas, Retenes)
+    // Para esto usamos variables CSS para que el CSS pueda reaccionar
+    const navBar = document.querySelector('nav.fixed.bottom-0');
+    const navHeight = navBar ? navBar.offsetHeight : 80;
+    const navOffset = navHeight + 80; // margen extra
+
+    document.querySelectorAll('.floating-list').forEach(list => {
+        // Aplicamos las variables CSS para top y bottom
+        list.style.setProperty('--header-offset', topOffset + 'px');
+        list.style.setProperty('--nav-offset', navOffset + 'px');
+    });
+
+    // 3.5. (Opcional) También actualizar el widget del clima si está dentro del mapa
+    // El widget ya se actualiza con updateWeatherWidgetPosition, no hace falta aquí
+}
+
   // aqui inicia startMechanicTracking (automatico, un registro por usuario)
   function startMechanicTracking() {
       const role = window.currentUserDoc?.role;
@@ -2857,6 +2916,13 @@ onAuthStateChanged(auth, async user => {
         setTimeout(updateFloatButtonPosition, 200);
     }
 
+     setTimeout(() => {
+        if (typeof updateMapControlsPosition === 'function') {
+            updateMapControlsPosition();
+        }
+    }, 200);
+
+
       window.fixMaps?.();
   };
 
@@ -2931,6 +2997,12 @@ onAuthStateChanged(auth, async user => {
       if (id === 'a-view-retenes') {
           setTimeout(() => window.renderRetenMap(true), 300);
       }
+
+      setTimeout(() => {
+        if (typeof updateMapControlsPosition === 'function') {
+            updateMapControlsPosition();
+        }
+    }, 200); // 200ms para que el DOM termine de renderizar
       
       window.fixMaps?.();
   };
@@ -13387,9 +13459,6 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 // ============================================================
-// 2. SUSCRIBIR AL USUARIO AL PUSH NATIVO
-// ============================================================
-// ============================================================
 // 2. SUSCRIBIR AL USUARIO AL PUSH NATIVO (CORREGIDA PARA TODOS)
 // ============================================================
 async function suscribirPushNativo() {
@@ -13916,3 +13985,16 @@ function iniciarBannerFrases() {
 
 // Exponer la función globalmente
 window.iniciarBannerFrases = iniciarBannerFrases;
+
+// ============================================================
+// 4. LISTENER DE RESIZE PARA ACTUALIZAR POSICIONES
+// ============================================================
+window.addEventListener('resize', () => {
+    if (typeof updateMapControlsPosition === 'function') {
+        // Usamos debounce para no ejecutar demasiado seguido
+        clearTimeout(window._resizeTimeout);
+        window._resizeTimeout = setTimeout(() => {
+            updateMapControlsPosition();
+        }, 200);
+    }
+});
