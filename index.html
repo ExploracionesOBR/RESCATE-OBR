@@ -382,18 +382,19 @@
             </button>
         </header>
 
-        <main class="p-4 lg:p-8 max-w-lg lg:max-w-5xl mx-auto space-y-6 lg:space-y-10 animate-fade-in w-full flex-grow">
-            <!-- ================= PESTAÑA RESCATE ================= -->
-            <section id="c-view-rescate" class="c-view space-y-6 pb-20">
-                <!-- Botón grande de emergencia -->
-                <button id="emergency-client-btn" class="w-full rounded-3xl p-6 shadow-[0_0_20px_rgba(255,107,0,0.3)] active:scale-95 transition-transform flex items-center justify-between border border-naranja/50">
-                    <div class="text-left text-white">
-                        <h3 class="text-2xl font-black italic uppercase">Emergencia</h3>
-                        <p class="text-[10px] uppercase font-bold tracking-widest opacity-80">Solicitar rescate ahora</p>
-                        <p id="emergency-closed-text" class="text-[10px] uppercase font-bold tracking-widest text-red-300 hidden">Abrimos a las 00:00</p>
-                    </div>
-                    <i class="fas fa-ambulance text-5xl text-white opacity-80 animate-pulse"></i>
-                </button>
+            <main class="p-4 lg:p-8 max-w-lg lg:max-w-5xl mx-auto space-y-6 lg:space-y-10 animate-fade-in w-full flex-grow">
+        <!-- ================= PESTAÑA RESCATE ================= -->
+        <section id="c-view-rescate" class="c-view space-y-6">
+            <!-- Botón grande de emergencia -->
+<!-- Botón de emergencia (estilo landing, con horario) -->
+<button id="emergency-client-btn" class="w-full bg-gradient-to-r from-red-600 to-naranja rounded-3xl p-6 shadow-[0_0_20px_rgba(255,107,0,0.3)] active:scale-95 transition-transform flex items-center justify-between border border-naranja/50">
+    <div class="text-left text-white">
+        <h3 class="text-2xl font-black italic uppercase">Emergencia</h3>
+        <p class="text-[10px] uppercase font-bold tracking-widest opacity-80">Solicitar rescate ahora</p>
+        <p id="emergency-closed-text" class="text-[10px] uppercase font-bold tracking-widest text-red-300 hidden">Abrimos a las 08:00 Hrs</p>
+    </div>
+    <i class="fas fa-ambulance text-5xl text-white opacity-80 animate-pulse"></i>
+</button>
 <!-- ============================================================
      BANNER DE MANTENER APP ABIERTA (VERSIÓN REFINADA)
      ============================================================ -->
