@@ -2392,3 +2392,23 @@ nav.fixed.bottom-0 {
     color: #60a5fa;
     margin-right: 0.4rem;
 }
+
+/* ============================================================
+   CORRECCIÓN: VISIBILIDAD DEL CURSOR DEL RATÓN
+   ============================================================ */
+/* Forzamos un cursor oscuro y visible en toda la app */
+body, body * {
+    cursor: default !important;
+}
+/* Restauramos el cursor de puntero en botones y elementos cliqueables */
+button, a, [onclick], [role="button"], .cursor-pointer, .clickable, input[type="submit"], input[type="button"] {
+    cursor: pointer !important;
+}
+/* Asegurar que los mapas de Leaflet no oculten el cursor */
+.leaflet-container, .leaflet-control-zoom, .leaflet-marker-icon, .leaflet-pane {
+    cursor: default !important;
+}
+/* En caso de que algún modal tenga cursor: none, lo anulamos */
+.modal-content, .fixed.inset-0, [id*="modal"] {
+    cursor: default !important;
+}
