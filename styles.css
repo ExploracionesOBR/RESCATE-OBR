@@ -191,20 +191,35 @@ body.light-mode {
     font-size: 0.75rem;
 }
 
+/* ===== TARJETAS DE RESCATE CON MARCO VISIBLE ===== */
 .sos-card-compact {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255, 255, 255, 0.08);  /* Fondo ligeramente más visible */
+    border: 1px solid rgba(255, 255, 255, 0.25); /* Borde más grueso y marcado */
     border-radius: 0.75rem;
-    padding: 0.5rem 0.75rem;
-    margin-bottom: 0.5rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem; /* Más espacio entre tarjetas */
     cursor: pointer;
-    transition: background 0.2s;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15); /* Sombra para separar del fondo */
+    transition: all 0.2s ease;
 }
-.sos-card-compact:hover { background: rgba(255,255,255,0.1); }
-.sos-card-compact .phone { font-weight: 800; font-size: 0.8rem; }
-.sos-card-compact .falla { font-size: 0.7rem; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sos-card-compact .actions { display: flex; gap: 0.5rem; margin-top: 0.25rem; flex-wrap: wrap; }
-.sos-card-compact .actions button { padding: 0.15rem 0.5rem; border-radius: 0.5rem; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; border: none; cursor: pointer; }
+
+.sos-card-compact:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px); /* Pequeño efecto de elevación */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* ===== VERSIÓN PARA MODO CLARO (LIGHT MODE) ===== */
+.light-mode .sos-card-compact {
+    background: #ffffff !important;
+    border: 1px solid rgba(0, 0, 0, 0.15) !important; /* Borde gris visible */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06) !important; /* Sombra sutil */
+}
+
+.light-mode .sos-card-compact:hover {
+    background: #f8f9fa !important;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1) !important;
+}
 
 @media (min-width: 1024px) {
     .a-view-alertas .lg\:grid {
@@ -2222,4 +2237,158 @@ nav.fixed.bottom-0 {
         overflow-y: auto !important;
         max-height: none !important;
     }
+}
+/* ============================================================
+   ESTILOS PROFESIONALES PARA MODAL DETALLE SERVICIO (TEMA OBR)
+   ============================================================ */
+
+#modal-detalle-servicio .detail-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 1rem;
+    backdrop-filter: blur(4px);
+    margin-bottom: 0.75rem;
+}
+
+#modal-detalle-servicio .detail-card .label {
+    font-size: 0.65rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #FF6B00; /* Naranja OBR */
+    margin-bottom: 0.25rem;
+}
+
+#modal-detalle-servicio .detail-card .label i {
+    color: #FF6B00;
+    margin-right: 0.3rem;
+}
+
+#modal-detalle-servicio .detail-card .text-content {
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+#modal-detalle-servicio .detail-card .text-content.text-gray {
+    color: #9ca3af;
+}
+
+/* Tarjeta de Tipo de Servicio (borde naranja) */
+#modal-detalle-servicio .detail-card.type-card {
+    border-left: 4px solid #FF6B00;
+    background: rgba(255, 107, 0, 0.05);
+}
+
+/* Nota técnica dentro de la tarjeta de tipo */
+#modal-detalle-servicio .tech-note {
+    background: rgba(59, 130, 246, 0.1);
+    border-left: 3px solid #3b82f6;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: #93c5fd;
+}
+#modal-detalle-servicio .tech-note i {
+    color: #60a5fa;
+    margin-right: 0.4rem;
+}
+
+/* Grid de costos */
+#modal-detalle-servicio .cost-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.5rem;
+    background: var(--glass-bg);
+    border-radius: 1rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    margin-bottom: 1rem;
+}
+
+#modal-detalle-servicio .cost-item {
+    text-align: center;
+    border-right: 1px solid var(--border);
+    padding: 0 0.5rem;
+}
+#modal-detalle-servicio .cost-item:last-child {
+    border-right: none;
+}
+
+#modal-detalle-servicio .cost-item .cost-label {
+    font-size: 0.6rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: #6b7280;
+    letter-spacing: 0.05em;
+}
+
+#modal-detalle-servicio .cost-item .cost-value {
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin-top: 0.25rem;
+}
+
+#modal-detalle-servicio .cost-item .cost-value.total {
+    color: #FF6B00;
+}
+#modal-detalle-servicio .cost-item .cost-value.service {
+    color: #60a5fa;
+}
+#modal-detalle-servicio .cost-item .cost-value.delivery {
+    color: #4ade80;
+}
+
+/* Botones de contacto */
+#modal-detalle-servicio .contact-btn {
+    padding: 0.4rem 1rem;
+    border-radius: 2rem;
+    font-weight: 800;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: white;
+}
+#modal-detalle-servicio .contact-btn:hover {
+    transform: scale(1.05);
+}
+#modal-detalle-servicio .contact-btn.btn-phone {
+    background: #22c55e;
+}
+#modal-detalle-servicio .contact-btn.btn-whatsapp {
+    background: #25D366;
+}
+
+/* Ajuste para el título del reporte (parte superior del modal) */
+#modal-detalle-servicio .report-header {
+    color: #FF6B00;
+    font-weight: 900;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+}
+
+/* ============================================================
+   ESTILO DE NOTA TÉCNICA (i) DENTRO DEL DETALLE
+   ============================================================ */
+#modal-detalle-servicio .tech-note {
+    background: rgba(59, 130, 246, 0.08);
+    border-left: 3px solid #3b82f6;
+    padding: 0.6rem 0.8rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
+    color: #93c5fd;
+}
+#modal-detalle-servicio .tech-note i {
+    color: #60a5fa;
+    margin-right: 0.4rem;
 }
