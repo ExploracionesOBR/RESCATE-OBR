@@ -26,6 +26,24 @@
   window.doc = doc;
   window.dbRef = dbRef; 
 
+// ============================================================
+// EXPONER FUNCIONES DE FIRESTORE GLOBALMENTE
+// ============================================================
+window.getDocs = getDocs;
+window.collection = collection;
+window.updateDoc = updateDoc;
+window.addDoc = addDoc;
+window.deleteDoc = deleteDoc;
+window.query = query;
+window.where = where;
+window.orderBy = orderBy;
+window.limit = limit;
+window.onSnapshot = onSnapshot;
+window.setDoc = setDoc;
+window.doc = doc;
+window.dbRef = dbRef;
+
+
   // ===== CLIMA CON OPEN-METEO + MARCADORES DE ICONO (SIN TILELAYER) =====
   const OWM_API_KEY = '823d92e7c95ad088f91bebdb6995afbc'; // Se mantiene por compatibilidad
   let weatherWidget = null;
