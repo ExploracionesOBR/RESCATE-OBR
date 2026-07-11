@@ -455,6 +455,10 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* ===== NUEVOS ESTILOS Y MEJORAS ===== */
+/* Clase para ocultar el botón de emergencia cuando hay un rescate activo */
+#emergency-client-btn.emergency-hidden {
+    display: none !important;
+}
 
 #emergency-client-btn.opacity-50 {
     cursor: not-allowed;
@@ -1687,26 +1691,24 @@ body.light-mode #chat-ia-modal-dinamico {
 
 /* ===== WIDGET DEL CLIMA (dentro del mapa) ===== */
 #weather-widget {
-    position: absolute !important;  /* ✅ DENTRO del contenedor */
-    bottom: 100px !important;        /* Posición base dentro del mapa */
+    position: absolute !important;
+    bottom: 15px !important;
     right: 15px !important;
-    z-index: 1000 !important;       /* Encima del mapa, pero debajo del header/nav */
-    background: rgba(30, 30, 30, 0.7) !important;
-    backdrop-filter: blur(8px) !important;
-    border-radius: 25px !important;
-    padding: 8px 16px !important;
+    z-index: 1000 !important;
+    background: rgba(20, 20, 20, 0.7) !important;
+    backdrop-filter: blur(4px) !important;
+    border-radius: 20px !important;
+    padding: 4px 10px !important;
+    display: none !important;
+    align-items: center !important;
+    gap: 8px !important;
     color: white !important;
     font-family: 'Inter', sans-serif !important;
-    display: none !important;       /* Controlado por JS */
-    align-items: center !important;
-    gap: 12px !important;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3) !important;
+    font-size: 12px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
     border: 1px solid rgba(255,255,255,0.1) !important;
     pointer-events: none !important;
-    
-    /* ✅ TRANSICIÓN SOLO PARA EL MOVIMIENTO DEL BANNER */
-    transition: bottom 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    will-change: bottom;
+    transition: bottom 0.4s ease;
 }
 #weather-widget.visible {
     display: flex !important;
