@@ -2275,12 +2275,8 @@ function updateMapControlsPosition() {
       speakTTS(mensaje);
       // ...
   }
-  // ... después de la definición de alertarGlobal
   // ============================================================
-// LISTENER GLOBAL DE NUEVOS RESCATES (CON MODAL, TTS Y AUDIO)
-// ============================================================
-// ============================================================
-// LISTENER GLOBAL DE NUEVOS RESCATES (CON MODAL, AUDIO Y TTS)
+// LISTENER GLOBAL DE NUEVOS RESCATES (CON MODAL Y AUDIO)
 // ============================================================
 function iniciarListenerGlobalSOS() {
     let lastSOSCount = 0;
@@ -2290,25 +2286,28 @@ function iniciarListenerGlobalSOS() {
         if (lastSOSCount > 0 && currentCount > lastSOSCount) {
             const nuevaSOS = currentCount - lastSOSCount;
             if (nuevaSOS > 0) {
-                // ✅ 1. Reproducir audio (intenta forzar reproducción incluso en segundo plano)
+                // 1. Reproducir audio
                 playRescueAudio();
 
-                // ✅ 2. TTS para administrador
+                // 2. TTS para admin
                 speakTTS('Nuevo rescate solicitado, revisa ahora!');
 
-                // ✅ 3. Notificación toast
+                // 3. Toast
                 showToast(`🚨 ¡${nuevaSOS} nueva solicitud de auxilio entrante!`, false);
 
-                // ✅ 4. Mostrar modal flotante (si existe, lo mostramos siempre)
+                // 4. Modal flotante (forzar aparición)
                 const modal = document.getElementById('modal-rescue-alert');
                 if (modal) {
-                    // Forzar display y quitar clase hidden
                     modal.classList.remove('hidden');
                     modal.style.display = 'flex';
-                    // Opcional: hacer que el modal parpadee o tenga un efecto
+                    // Forzar un reinicio de la animación
+                    modal.querySelector('.animate-pulse').style.animation = 'none';
+                    setTimeout(() => {
+                        modal.querySelector('.animate-pulse').style.animation = '';
+                    }, 10);
                 }
 
-                // ✅ 5. Notificación push (si está disponible)
+                // 5. Notificación push (si existe)
                 if (navigator.serviceWorker && navigator.serviceWorker.ready) {
                     navigator.serviceWorker.ready.then(reg => {
                         reg.showNotification('🚨 Nuevo SOS', {
@@ -2337,25 +2336,28 @@ window.cerrarAlertaRescate = function() {
     }
 };
 
-// Función mejorada de reproducción de audio (con reintento)
+// Reproducción de audio con reintento forzado
 function playRescueAudio() {
     try {
         const audio = new Audio('/rescate_entrante.mp3');
-        audio.volume = 1.0;
-        // Intentar reproducir inmediatamente
-        audio.play().catch((err) => {
-            console.warn('⚠️ Audio bloqueado, reintentando con interacción...', err);
-            // Si falla, esperar a que el usuario toque la pantalla
-            const reinicio = () => {
-                audio.play().catch(e => console.warn('⚠️ Segundo intento fallido:', e));
-                document.removeEventListener('click', reinicio);
-                document.removeEventListener('touchstart', reinicio);
-            };
-            document.addEventListener('click', reinicio);
-            document.addEventListener('touchstart', reinicio);
-            // Fallback: usar sonido sintético
-            setTimeout(() => playSound('alert'), 500);
-        });
+        audio.volume = 0.9;
+        // Intentar reproducir de inmediato
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+            playPromise.catch((err) => {
+                console.warn('⚠️ Audio bloqueado. Esperando interacción del usuario...');
+                // Si falla, escuchamos un clic para forzar la reproducción
+                const unlock = () => {
+                    audio.play().catch(e => console.warn('❌ Segundo intento fallido:', e));
+                    document.removeEventListener('click', unlock);
+                    document.removeEventListener('touchstart', unlock);
+                };
+                document.addEventListener('click', unlock);
+                document.addEventListener('touchstart', unlock);
+                // Fallback: sonido sintético
+                setTimeout(() => playSound('alert'), 1000);
+            });
+        }
     } catch (e) {
         console.warn('⚠️ Error al cargar audio:', e);
         playSound('alert');
@@ -3427,7 +3429,7 @@ iniciarListenerGlobalSOS();
       });
   };
   // aqui finaliza logout
-    window.filterServiceOptions = async () => {
+ window.filterServiceOptions = async () => {
       if (typeof document === 'undefined') return;
       const input = document.getElementById('sos-service-input');
       const dropdown = document.getElementById('sos-service-dropdown');
@@ -3730,7 +3732,6 @@ iniciarListenerGlobalSOS();
       summarySpan.innerText = summary;
   }
 
-
   window.checkSOSKeywords = () => {
       const txt = document.getElementById('sos-falla').value.toLowerCase(); const llantaBox = document.getElementById('llanta-type-container');
       if(txt.includes('poncha') || txt.includes('llanta') || txt.includes('aire') || txt.includes('camara')) llantaBox.classList.remove('hidden'); else llantaBox.classList.add('hidden');
@@ -3783,14 +3784,14 @@ iniciarListenerGlobalSOS();
         mediaUrl = await Promise.race([uploadPromise, timeoutPromise.catch(() => "")]);
 
         // ============================================================
-        // ✅ CÁLCULO DE COSTOS (EXACTAMENTE IGUAL A updateSOSEstimate)
+        //  CÁLCULO DE COSTOS (igual que en updateSOSEstimate)
         // ============================================================
         let rescueCost = 0;
         let serviceCost = 0;
         let materialCost = 0;
-        let totalCost = 0;
+        let domicilioCost = 0;
 
-        // 1. Costo de rescate (kilometraje)
+        // 1. Rescate (kilometraje)
         const dist = getDistanceKm(tempSOSGps.lat, tempSOSGps.lng, globalSettings.centerLat, globalSettings.centerLng);
         if (globalSettings.priceMode === 'km') {
             let ranges = globalSettings.rescueKmRanges || [];
@@ -3810,7 +3811,7 @@ iniciarListenerGlobalSOS();
             rescueCost = globalSettings.rescueBase || 0;
         }
 
-        // 2. Costo del servicio (mano de obra + materiales)
+        // 2. Servicio (mano de obra + materiales)
         if (serviceId && serviceId !== "0") {
             const s = shopServices.find(x => x.id === serviceId);
             if (s) {
@@ -3835,17 +3836,15 @@ iniciarListenerGlobalSOS();
             }
         }
 
-        // 3. Total = rescate + servicio (esto es lo que se muestra en updateSOSEstimate)
-        totalCost = rescueCost + serviceCost;
+        // 3. Domicilio (costo de envío – se calcula igual que el rescate para este ejemplo)
+        // Si quieres un costo fijo o distinto, ajusta esta lógica.
+        domicilioCost = rescueCost; // o 0 si no quieres cargo extra
 
-        // 4. Asignar los valores para guardarlos en rData
-        const costoRescateEstimado = rescueCost;
-        const costoServicio = serviceCost;
-        const tarifaDomicilio = rescueCost; // Si quieres que domicilio sea igual al rescate, o puedes poner 0 si no aplica.
-        // Nota: Si quieres que domicilio sea un costo aparte, ajusta esta lógica.
+        // 4. Total (solo servicio + domicilio, sin rescate)
+        const totalReal = serviceCost + domicilioCost;
 
         // ============================================================
-        // 📦 CONSTRUIR DATOS DEL RESCATE
+        //  CONSTRUIR DATOS DEL RESCATE
         // ============================================================
         const rData = {
             uid: auth.currentUser.uid,
@@ -3862,11 +3861,11 @@ iniciarListenerGlobalSOS();
             lng: tempSOSGps.lng,
             manualAddress,
             
-            // ✅ CAMPOS PARA LA TARJETA DE SOS
-            costoRescateEstimado: costoRescateEstimado,
-            costoServicio: costoServicio,
-            tarifaDomicilio: tarifaDomicilio,
-            total: totalCost,
+            // Campos para la tarjeta SOS
+            costoRescateEstimado: rescueCost,
+            costoServicio: serviceCost,
+            tarifaDomicilio: domicilioCost,
+            total: totalReal,
             
             status: 'pending',
             tallerStatus: 'recibida',
@@ -4022,35 +4021,39 @@ iniciarListenerGlobalSOS();
               }
               window.lastClientSOSStatus = null;
               return;
+              if (emergencyBtn) emergencyBtn.classList.remove('emergency-hidden'); // mostrar
           }
 
           const data = snap.val();
 
-          // 📌 CASO 2: Servicio completado o cancelado
+          // CASO 2: Servicio completado o cancelado
 if (data.status === 'completed' || data.status === 'cancelled') {
     if (activeCard) activeCard.classList.add('hidden');
     if (noServicesMsg) noServicesMsg.classList.remove('hidden');
     if (emergencyBtn) emergencyBtn.style.display = 'flex';
     if (videoContainer) videoContainer.style.display = 'block';
 
-    // ✅ CORRECCIÓN: Si el servicio fue CANCELADO, notificamos al cliente AHORA
     if (data.status === 'cancelled') {
         window.showToast("❌ Tu servicio ha sido cancelado. Puedes solicitar uno nuevo.", true);
         window.speakTTS("Lo sentimos, tu servicio ha sido cancelado. Puedes solicitar un nuevo auxilio.");
-        
-        // ✅ Después de notificar, ya podemos borrar el nodo RTDB de este cliente
+        // Eliminar el nodo RTDB para este cliente (después de notificar)
         if (auth.currentUser) {
             remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid)).catch(console.warn);
         }
+        if (emergencyBtn) emergencyBtn.classList.remove('emergency-hidden'); // mostrar
     }
 
-    // ✅ Si el servicio fue COMPLETADO, mostramos la encuesta (ya lo tenías)
     if (data.status === 'completed') {
         const shortId = data.shortId || 'unknown';
         const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
         if (!yaCalifico) {
             if (survey) survey.classList.remove('hidden');
             speakTTS('Servicio finalizado. ¡Califica a tu mecánico!');
+        }
+        // Eliminar el nodo RTDB después de mostrar la encuesta (o cuando el usuario la envíe)
+        // Se puede hacer cuando el usuario envíe la encuesta o cancele, pero por ahora lo eliminamos aquí.
+        if (auth.currentUser) {
+            remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid)).catch(console.warn);
         }
     }
 
@@ -4066,7 +4069,7 @@ if (data.status === 'completed' || data.status === 'cancelled') {
           // 📌 CASO 3: Servicio activo (pending, accepted, repairing, to_shop, ready)
           if (activeCard) activeCard.classList.remove('hidden');
           if (noServicesMsg) noServicesMsg.classList.add('hidden');
-          if (emergencyBtn) emergencyBtn.style.display = 'none';
+          if (emergencyBtn) emergencyBtn.classList.add('emergency-hidden'); // ocultar
 
           // 📌 Barra de progreso según estado
           let currentStep = 0, progressPercent = 0;
@@ -4095,21 +4098,61 @@ if (data.status === 'completed' || data.status === 'cancelled') {
 
           // 📌 Texto de estado
           if (statusDesc) {
-              const estados = {
-                  'pending': 'Buscando mecánico...',
-                  'accepted': '✅ Mecánico asignado, en camino',
-                  'repairing': '🔧 Mecánico reparando tu moto',
-                  'to_shop': '🚚 En camino al taller',
-                  'ready': '✅ Listo para entrega',
-                  'completed': '✅ Servicio finalizado'
-              };
-             statusDesc.innerText = estados[data.status] || 'Esperando confirmación';
+            
+            const frasesDinamicas = [
+        "¿Sabías que una bujía desgastada puede reducir la potencia hasta un 20%?",
+        "El filtro de aire sucio es una de las causas más comunes de bajo rendimiento.",
+        "Revisar la presión de llantas cada 15 días alarga su vida útil y ahorra gasolina.",
+        "El aceite de motor debe cambiarse cada 3,000 km para evitar daños internos.",
+        "Una cadena bien lubricada reduce el desgaste de la transmisión y mejora la seguridad.",
+        "Las pastillas de freno se desgastan más rápido si frenas bruscamente con frecuencia.",
+        "¿Sabías que una moto con el carburador sucio consume hasta un 15% más de combustible?",
+        "El nivel de líquido refrigerante es vital para evitar sobrecalentamientos en climas cálidos.",
+        "Una moto bien balanceada consume menos combustible y es más estable.",
+        "El mantenimiento preventivo es más barato que una reparación mayor."
+    ];
 
-            // 🟢 ACTIVAR BANNER CUANDO EL MECÁNICO ESTÁ EN CAMINO O REPARANDO
-            if (data.status === 'accepted' || data.status === 'repairing') {
-                mostrarBannerMantenerAppAbierta();
-            }
-        }
+    // Variable para controlar el intervalo (si existe, lo limpiamos)
+    if (window._statusInterval) {
+        clearInterval(window._statusInterval);
+        window._statusInterval = null;
+    }
+
+    const estados = {
+        'pending': 'Buscando mecánico...',
+        'accepted': '✅ Mecánico asignado, en camino',
+        'repairing': '🔧 Mecánico reparando tu moto',
+        'to_shop': '🚚 En camino al taller',
+        'ready': '✅ Listo para entrega',
+        'completed': '✅ Servicio finalizado'
+    };
+
+    // Si el servicio está activo (aceptado o reparando), activamos las frases rotatorias
+    if (data.status === 'accepted' || data.status === 'repairing') {
+        let index = 0;
+        // Mostrar el texto de estado principal primero
+        statusDesc.innerText = estados[data.status];
+        
+        // Luego, cada 5 segundos, mostramos una frase aleatoria
+        window._statusInterval = setInterval(() => {
+            // Elegir una frase aleatoria diferente a la anterior
+            let nuevaFrase;
+            do {
+                nuevaFrase = frasesDinamicas[Math.floor(Math.random() * frasesDinamicas.length)];
+            } while (nuevaFrase === statusDesc.innerText && frasesDinamicas.length > 1);
+            
+            statusDesc.innerText = `💡 ${nuevaFrase}`;
+        }, 5000); // 5 segundos
+    } else {
+        // Si no está en camino o reparando, mostramos el estado fijo
+        statusDesc.innerText = estados[data.status] || 'Esperando confirmación';
+    }
+
+    // 🟢 ACTIVAR BANNER CUANDO EL MECÁNICO ESTÁ EN CAMINO O REPARANDO
+    if (data.status === 'accepted' || data.status === 'repairing') {
+        mostrarBannerMantenerAppAbierta();
+    }
+}
         
           // 📌 Chat button
           if (data.mech_uid && data.chatId) {
@@ -4293,7 +4336,6 @@ if (data.status === 'completed' || data.status === 'cancelled') {
           }
       });
       const loc = window.currentUserLocation || { lat: TALLER_LAT, lng: TALLER_LNG };
-      addWeatherLayer(retenesMapInstance, loc.lat, loc.lng);
   }
   // ========== FIN DE listenToMySOS ==========
 
@@ -4541,7 +4583,6 @@ if (data.status === 'completed' || data.status === 'cancelled') {
                           }
                       });
                       const loc = window.currentUserLocation || { lat: TALLER_LAT, lng: TALLER_LNG };
-      addWeatherLayer(retenesMapInstance, loc.lat, loc.lng);
                   }
 
                   // Ajustar límites
@@ -9900,18 +9941,17 @@ window.filtrarEntregasPorEstatus = (estatus) => {
         if (!snap.exists()) return;
         const data = snap.data();
         
-        // ✅ 1. Solo actualizamos el estado a 'cancelled' (NO borramos el nodo RTDB todavía)
         await updateDoc(docRef, { 
             status: 'cancelled',
             tallerStatus: 'cancelado',
             canceladoEn: Date.now()
         });
         
-        // ✅ 2. Notificación para el ADMINISTRADOR (solo esta, la del cliente se hará desde el móvil)
+        // Notificación para el ADMIN
         window.showToast("❌ Servicio cancelado.", true);
         window.speakTTS("Solicitud cancelada, el usuario ha sido notificado del cambio.");
         
-        // ✅ 3. Refrescar la vista del admin
+        // Refrescar la vista del admin
         window.cargarListadoSOS();
         window.renderSOSMapa();
         window.adminListenServices();
@@ -9966,21 +10006,31 @@ window.openMechanicPOS = async (sosId) => {
     currentMechanicSOSId = sosId;
     mechanicTicket = [];
     
-    // Obtener costo del rescate
     const sosSnap = await getDoc(doc(db, "rescates", sosId));
-    if (sosSnap.exists()) {
-        mechanicRescueCost = sosSnap.data().costoRescateEstimado || 0;
-    } else {
-        mechanicRescueCost = 0;
-    }
+    if (!sosSnap.exists()) return showToast("Servicio no encontrado", true);
+    const sosData = sosSnap.data();
+    const rescueCost = sosData.costoRescateEstimado || 0;
+    const serviceCost = sosData.costoServicio || 0;
 
-    // ✅ AUTOMÁTICAMENTE AGREGAR EL RESCATE AL TICKET SI HAY COSTO
-    if (mechanicRescueCost > 0) {
+    // ✅ Agregar el costo de rescate
+    if (rescueCost > 0) {
         mechanicTicket.push({
             type: 'rescate',
             id: 'rescate',
             name: 'Servicio de Rescate OBR',
-            price: mechanicRescueCost,
+            price: rescueCost,
+            cost: 0,
+            garantia: 'N/A'
+        });
+    }
+
+    // ✅ Agregar el costo del servicio (mano de obra + materiales)
+    if (serviceCost > 0) {
+        mechanicTicket.push({
+            type: 'servicio',
+            id: 'servicio',
+            name: 'Mano de obra y materiales',
+            price: serviceCost,
             cost: 0,
             garantia: 'N/A'
         });
@@ -10124,113 +10174,142 @@ window.openMechanicPOS = async (sosId) => {
   };
   // Finalizar cobro (guardar en cobros_pendientes, descontar stock y finalizar servicio para el cliente)
   window.finalizeMechanicCharge = async () => {
-      if (!currentMechanicSOSId) return window.showToast("No hay servicio activo", true);
+    if (!currentMechanicSOSId) {
+        window.showToast("No hay servicio activo", true);
+        return;
+    }
 
-      const total = mechanicRescueCost + mechanicTicket.reduce((s, i) => s + i.price, 0);
+    // Evitar doble clic
+    const btn = document.getElementById('btn-finalize-mechanic-charge');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = 'Procesando...';
+    }
 
-      // 1. Descontar stock de productos
-      for (let item of mechanicTicket) {
-          if (item.type === 'producto' && item.id) {
-              const prodRef = doc(db, "inventario", item.id);
-              const prodSnap = await getDoc(prodRef);
-              if (prodSnap.exists()) {
-                  const newStock = (prodSnap.data().stock || 0) - 1;
-                  await updateDoc(prodRef, { stock: Math.max(0, newStock) });
-              }
-          }
-      }
+    const total = (mechanicRescueCost || 0) + mechanicTicket.reduce((s, i) => s + (i.price || 0), 0) - (window.mechanicPromoDiscount || 0);
 
-      // 2. Obtener datos del servicio
-      const sosSnap = await getDoc(doc(db, "rescates", currentMechanicSOSId));
-      if (!sosSnap.exists()) return window.showToast("Servicio no encontrado", true);
-      const sosData = sosSnap.data();
-      const clienteName = sosData.clientName || sosData.phone || "Cliente";
-      const pendingId = generateShortId();
+    try {
+        // 1. Descontar stock de productos
+        for (let item of mechanicTicket) {
+            if (item.type === 'producto' && item.id) {
+                const prodRef = doc(db, "inventario", item.id);
+                const prodSnap = await getDoc(prodRef);
+                if (prodSnap.exists()) {
+                    const newStock = (prodSnap.data().stock || 0) - 1;
+                    await updateDoc(prodRef, { stock: Math.max(0, newStock) });
+                }
+            }
+        }
 
-      // 3. Registrar la venta (si total > 0)
-      if (total > 0) {
-          await addDoc(collection(db, "cobros_pendientes"), {
-              pendingId: pendingId,
-              sosId: currentMechanicSOSId,
-              cliente: clienteName,
-              mech_uid: auth.currentUser.uid,
-              mech_name: window.currentUserDoc?.name || 'Mecánico',
-              concepto: `Servicio ${sosData.shortId || currentMechanicSOSId}`,
-              monto: total,
-              ticket: mechanicTicket,
-              rescueCost: mechanicRescueCost,
-              estado: 'pendiente',
-              timestamp: Date.now(),
-              metodoPago: 'Pendiente'
-          });
+        // 2. Obtener datos del servicio
+        const sosSnap = await getDoc(doc(db, "rescates", currentMechanicSOSId));
+        if (!sosSnap.exists()) {
+            window.showToast("Servicio no encontrado", true);
+            return;
+        }
+        const sosData = sosSnap.data();
+        const clienteName = sosData.clientName || sosData.phone || "Cliente";
+        const pendingId = generateShortId();
 
-          const ventaRef = await addDoc(collection(db, "ventas"), {
-              shortId: pendingId,
-              desc: mechanicTicket.map(i => i.name).join(", "),
-              total: total,
-              costo: mechanicTicket.reduce((s, i) => s + (i.cost || 0), 0),
-              metodoPago: 'Pendiente',
-              ticket: mechanicTicket,
-              sosId: currentMechanicSOSId,
-              rescueCost: mechanicRescueCost,
-              fecha: new Date().toISOString(),
-              estado: 'pendiente'
-          });
+        // 3. Registrar la venta y el cobro pendiente
+        if (total > 0) {
+            await addDoc(collection(db, "cobros_pendientes"), {
+                pendingId: pendingId,
+                sosId: currentMechanicSOSId,
+                cliente: clienteName,
+                mech_uid: auth.currentUser.uid,
+                mech_name: window.currentUserDoc?.name || 'Mecánico',
+                concepto: `Servicio ${sosData.shortId || currentMechanicSOSId}`,
+                monto: total,
+                ticket: mechanicTicket,
+                rescueCost: mechanicRescueCost || 0,
+                estado: 'pendiente',
+                timestamp: Date.now(),
+                metodoPago: 'Pendiente'
+            });
 
-          await set(dbRef(rtdb, 'notificaciones_caja/cobro_' + Date.now()), {
-              msg: `Nuevo cobro pendiente de ${clienteName} por $${total.toFixed(2)}`,
-              type: 'cobro_mecanico',
-              pendingId: pendingId,
-              mech_name: window.currentUserDoc?.name
-          });
+            const ventaRef = await addDoc(collection(db, "ventas"), {
+                shortId: pendingId,
+                desc: mechanicTicket.map(i => i.name).join(", "),
+                total: total,
+                costo: mechanicTicket.reduce((s, i) => s + (i.cost || 0), 0),
+                metodoPago: 'Pendiente',
+                ticket: mechanicTicket,
+                sosId: currentMechanicSOSId,
+                rescueCost: mechanicRescueCost || 0,
+                fecha: new Date().toISOString(),
+                estado: 'pendiente'
+            });
 
-          window.showToast(`Cobro registrado por $${total.toFixed(2)}. Espera confirmación del administrador.`);
-      } else {
-          await updateDoc(doc(db, "rescates", currentMechanicSOSId), {
-              tallerStatus: 'pagado',
-              status: 'completed',
-              pagadoEn: Date.now()
-          });
-          window.showToast("Servicio finalizado sin costo adicional.");
-      }
+            await set(dbRef(rtdb, 'notificaciones_caja/cobro_' + Date.now()), {
+                msg: `Nuevo cobro pendiente de ${clienteName} por $${total.toFixed(2)}`,
+                type: 'cobro_mecanico',
+                pendingId: pendingId,
+                mech_name: window.currentUserDoc?.name
+            });
 
-      // 4. Finalizar servicio para el cliente
-      await finalizarServicioParaCliente(currentMechanicSOSId);
+            window.showToast(`Cobro registrado por $${total.toFixed(2)}. Espera confirmación del administrador.`);
+        } else {
+            window.showToast("Servicio finalizado sin costo adicional.");
+        }
 
-      // 5. Limpiar
-      toggleModal('modal-mechanic-pos', false);
-      currentMechanicSOSId = null;
-      mechanicTicket = [];
-      mechanicRescueCost = 0;
-  };
+        // 4. ✅ FINALIZAR SERVICIO PARA EL CLIENTE (Actualiza a 'completed' y mantiene el nodo RTDB)
+        await finalizarServicioParaCliente(currentMechanicSOSId);
+
+        // 5. Refrescar UI
+        window.adminLoadInventory();
+        if (typeof window.cargarListadoSOS === 'function') {
+            window.cargarListadoSOS();
+        }
+        if (typeof window.adminListenServices === 'function') {
+            window.adminListenServices();
+        }
+
+    } catch (error) {
+        console.error('Error al finalizar cobro:', error);
+        window.showToast("Error al procesar el cobro", true);
+    } finally {
+        // 6. Limpiar y cerrar
+        toggleModal('modal-mechanic-pos', false);
+        currentMechanicSOSId = null;
+        mechanicTicket = [];
+        mechanicRescueCost = 0;
+        window.mechanicPromoDiscount = 0;
+
+        if (btn) {
+            btn.disabled = false;
+            btn.innerText = 'Cobrar y finalizar';
+        }
+    }
+};
+
   // Función auxiliar para que el cliente vea el servicio finalizado (encuesta)
   async function finalizarServicioParaCliente(sosId) {
-      // 1. Actualizar el servicio a completado y pagado
-      await updateDoc(doc(db, "rescates", sosId), { 
-          status: 'completed',
-          tallerStatus: 'pagado' 
-      });
+    // 1. Actualizar el documento en Firestore
+    await updateDoc(doc(db, "rescates", sosId), { 
+        status: 'completed',
+        tallerStatus: 'pagado' 
+    });
 
-      // 2. Obtener datos para notificar al cliente
-      const sosSnap = await getDoc(doc(db, "rescates", sosId));
-      if (sosSnap.exists() && sosSnap.data().uid) {
-          const uid = sosSnap.data().uid;
-          const data = sosSnap.data();
-          
-          // ✅ ACTUALIZAR el nodo sos_alerts en lugar de eliminar
-          const sosAlertsRef = dbRef(rtdb, 'sos_alerts/' + uid);
-          await set(sosAlertsRef, { 
-              ...data, 
-              status: 'completed',
-              tallerStatus: 'pagado'
-          });
-          
-          // Enviar notificación al cliente
-          await push(dbRef(rtdb, 'sos_alerts/' + uid + '/notifs'), {
-              msg: '✅ Tu servicio ha sido finalizado y pagado. ¡Califícanos!'
-          });
-      }
-  }
+    // 2. Obtener datos para notificar al cliente
+    const sosSnap = await getDoc(doc(db, "rescates", sosId));
+    if (sosSnap.exists() && sosSnap.data().uid) {
+        const uid = sosSnap.data().uid;
+        const data = sosSnap.data();
+        
+        // ✅ ACTUALIZAR el nodo sos_alerts con status 'completed' (NO BORRAR)
+        const sosAlertsRef = dbRef(rtdb, 'sos_alerts/' + uid);
+        await update(sosAlertsRef, { 
+            status: 'completed',
+            tallerStatus: 'pagado'
+        });
+        
+        // Enviar notificación al cliente (para que sepa que está completado)
+        await push(dbRef(rtdb, 'sos_alerts/' + uid + '/notifs'), {
+            msg: '✅ Tu servicio ha sido finalizado y pagado. ¡Califícanos!'
+        });
+    }
+}
 
   window.mechApplyPromo = async function() {
       const code = document.getElementById('mech-promo-code')?.value.trim().toUpperCase();
@@ -10283,50 +10362,53 @@ window.openMechanicPOS = async (sosId) => {
   }
 
   window.asignarMecanicoASOS = async (mechUid, sosId) => {
-      const mechSnap = await getDoc(doc(db, "users", mechUid));
-      if (!mechSnap.exists()) return showToast("Mecánico no encontrado", true);
-      const mech = mechSnap.data();
-      const sosSnap = await getDoc(doc(db, "rescates", sosId));
-      if (!sosSnap.exists()) return showToast("SOS no encontrado", true);
-      const sosData = sosSnap.data();
+    const mechSnap = await getDoc(doc(db, "users", mechUid));
+    if (!mechSnap.exists()) return showToast("Mecánico no encontrado", true);
+    const mech = mechSnap.data();
+    const sosSnap = await getDoc(doc(db, "rescates", sosId));
+    if (!sosSnap.exists()) return showToast("SOS no encontrado", true);
+    const sosData = sosSnap.data();
 
-      await updateDoc(doc(db, "rescates", sosId), { 
-          status: 'accepted', 
-          mech_uid: mechUid, 
-          mech_name: mech.name,
-          acceptedAt: Date.now()
-      });
-      window.activeMechanicSOSId = sosId;
+    // Actualizar Firestore
+    await updateDoc(doc(db, "rescates", sosId), { 
+        status: 'accepted', 
+        mech_uid: mechUid, 
+        mech_name: mech.name,
+        acceptedAt: Date.now()
+    });
+    window.activeMechanicSOSId = sosId;
 
-      const chatRef = await addDoc(collection(db, "chats"), {
-          participantes: [sosData.uid, mechUid],
-          nombres: { [sosData.uid]: sosData.clientName || "Cliente", [mechUid]: mech.name },
-          titulo: `Servicio ${sosData.shortId}`,
-          estado: 'activo',
-          creado: Date.now()
-      });
-      window._sosChatId = chatRef.id;
-      await updateDoc(doc(db, "rescates", sosId), { chatId: chatRef.id });
+    // Crear chat
+    const chatRef = await addDoc(collection(db, "chats"), {
+        participantes: [sosData.uid, mechUid],
+        nombres: { [sosData.uid]: sosData.clientName || "Cliente", [mechUid]: mech.name },
+        titulo: `Servicio ${sosData.shortId}`,
+        estado: 'activo',
+        creado: Date.now()
+    });
+    window._sosChatId = chatRef.id;
+    await updateDoc(doc(db, "rescates", sosId), { chatId: chatRef.id });
 
-      if (sosData.uid) {
-          await set(dbRef(rtdb, 'sos_alerts/' + sosData.uid), { 
-              ...sosData, 
-              status: 'accepted', 
-              mech_uid: mechUid, 
-              mech_name: mech.name,
-              chatId: chatRef.id
-          });
-          await push(dbRef(rtdb, 'sos_alerts/' + sosData.uid + '/notifs'), { 
-              msg: '✅ ¡Tu solicitud fue aceptada! El mecánico está en camino.' 
-          });
-          speakTTS('Tu solicitud fue aceptada. El mecánico está en camino.');
-      }
+    // ✅ Actualizar RTDB con `update` (no `set` para evitar sobrescritura de campos)
+    if (sosData.uid) {
+        await update(dbRef(rtdb, 'sos_alerts/' + sosData.uid), { 
+            status: 'accepted', 
+            mech_uid: mechUid, 
+            mech_name: mech.name,
+            chatId: chatRef.id
+        });
+        // Notificación push
+        await push(dbRef(rtdb, 'sos_alerts/' + sosData.uid + '/notifs'), { 
+            msg: '✅ ¡Tu solicitud fue aceptada! El mecánico está en camino.' 
+        });
+        speakTTS('Tu solicitud fue aceptada. El mecánico está en camino.');
+    }
 
-      toggleModal('modal-asignar-mecanico', false);
-      showToast(`✅ Mecánico ${mech.name} asignado correctamente.`);
-      window.renderSOSGlobalMap?.();
-      window.cargarListadoSOS?.();
-  };
+    toggleModal('modal-asignar-mecanico', false);
+    showToast(`✅ Mecánico ${mech.name} asignado correctamente.`);
+    window.renderSOSGlobalMap?.();
+    window.cargarListadoSOS?.();
+};
 
   window.tomarCasoDirecto = async () => {
       if (!auth.currentUser || !window.currentSOSId) {
