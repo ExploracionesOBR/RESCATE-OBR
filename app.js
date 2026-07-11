@@ -3704,16 +3704,16 @@ onAuthStateChanged(auth, async user => {
 
         mediaUrl = await Promise.race([uploadPromise, timeoutPromise.catch(() => "")]);
 
-        // ===== CALCULAR COSTOS DESGLOSADOS (CORREGIDO) =====
+        // ===== CALCULAR COSTOS DESGLOSADOS =====
         let costoRescate = window.currentSOSCost || 0;
         let costoServicio = 0;
         let costoMateriales = 0;
         let tarifaDomicilio = 0;
 
-        // 1. Costo del rescate
+        // 1. Costo del rescate (ya viene de la tabla de rangos)
         costoRescate = window.currentSOSCost || 0;
 
-        // 2. Costo del servicio
+        // 2. Costo del servicio (mano de obra + materiales)
         if (serviceId && serviceId !== "0") {
             const s = shopServices.find(x => x.id === serviceId);
             if (s) {
@@ -3738,15 +3738,9 @@ onAuthStateChanged(auth, async user => {
             }
         }
 
-        // 3. ✅ TARIFA DE DOMICILIO (calculada según distancia o fija)
-        if (globalSettings.priceMode === 'km') {
-            const dist = getDistanceKm(tempSOSGps.lat, tempSOSGps.lng, globalSettings.centerLat, globalSettings.centerLng);
-            if (dist > 0) {
-                tarifaDomicilio = dist * 5; // Ejemplo: $5 por km
-            }
-        } else {
-            tarifaDomicilio = 30; // Tarifa fija por domicilio si no está en modo km
-        }
+        // 3. Tarifa de domicilio (en tu sistema, el rescate ya incluye domicilio)
+        // Si quisieras un costo extra por domicilio, cambia esto a un valor fijo (ej. 30)
+        tarifaDomicilio = 0;
 
         // 4. TOTAL REAL (suma de todos los costos)
         const totalReal = costoRescate + costoServicio + tarifaDomicilio;
@@ -14146,6 +14140,7 @@ async function cargarRetirosDelDia() {
 
 // ============================================================
 // FUNCIÓN DE MIGRACIÓN MASIVA - ACTUALIZAR TODOS LOS RESCATES
+// CORREGIDA: Respeta costoServicio y recalcula rescate por KM
 // ============================================================
 window.migrarTodosLosRescates = async function() {
     console.log("🚀 Iniciando migración masiva de rescates...");
@@ -14157,8 +14152,8 @@ window.migrarTodosLosRescates = async function() {
 
     const confirm = window.confirm(
         "⚠️ Esta acción actualizará TODOS los rescates existentes en la base de datos.\n" +
-        "   - Añadirá costoServicio (0 si no existe).\n" +
-        "   - Añadirá tarifaDomicilio (calculada según distancia).\n" +
+        "   - Recalculará costoRescateEstimado usando la tabla de rangos por KM.\n" +
+        "   - Respetará el costoServicio existente (o pondrá 0 si no tiene).\n" +
         "   - Recalculará el total (Rescate + Servicio + Domicilio).\n\n" +
         "¿Deseas continuar?"
     );
@@ -14177,28 +14172,44 @@ window.migrarTodosLosRescates = async function() {
             const id = docSnap.id;
 
             try {
-                // 1. Obtener valores actuales (o 0 si no existen)
-                const costoRescate = data.costoRescateEstimado || 0;
-                const costoServicio = data.costoServicio || 0;
-                let tarifaDomicilio = data.tarifaDomicilio || 0;
-
-                // 2. Si no tiene tarifaDomicilio y tiene coordenadas, calcularla por distancia
-                if (!data.tarifaDomicilio && data.lat && data.lng) {
-                    const dist = getDistanceKm(data.lat, data.lng, globalSettings.centerLat, globalSettings.centerLng);
-                    // Ejemplo: $5 por km (puedes cambiar este valor)
-                    tarifaDomicilio = Math.round(dist * 5 * 100) / 100; // Redondear a 2 decimales
-                    // Si prefieres una tarifa fija, descomenta la siguiente línea y comenta la de arriba:
-                    // tarifaDomicilio = 30;
-                } else if (!data.tarifaDomicilio) {
-                    // Si no tiene coordenadas, asignamos 0 o un valor fijo
-                    tarifaDomicilio = 0;
+                // 1. Obtener coordenadas y calcular distancia
+                let dist = 0;
+                if (data.lat && data.lng) {
+                    dist = getDistanceKm(data.lat, data.lng, globalSettings.centerLat, globalSettings.centerLng);
                 }
 
-                // 3. Calcular el total real
+                // 2. Calcular costoRescateEstimado usando la tabla de rangos por KM
+                let costoRescate = 0;
+                if (globalSettings.priceMode === 'km') {
+                    let ranges = globalSettings.rescueKmRanges || [];
+                    ranges.sort((a,b) => a.km - b.km);
+                    let matched = false;
+                    for (let r of ranges) {
+                        if (dist <= r.km) {
+                            costoRescate = r.price;
+                            matched = true;
+                            break;
+                        }
+                    }
+                    if (!matched && ranges.length > 0) {
+                        costoRescate = ranges[ranges.length-1].price + Math.max(0, (dist - ranges[ranges.length-1].km)) * (globalSettings.rescueKmExtra || 0);
+                    }
+                } else {
+                    costoRescate = globalSettings.rescueBase || 0;
+                }
+
+                // 3. Obtener costoServicio existente (respetarlo) o poner 0
+                const costoServicio = data.costoServicio || 0;
+
+                // 4. Obtener tarifaDomicilio existente o poner 0
+                const tarifaDomicilio = data.tarifaDomicilio || 0;
+
+                // 5. Calcular el total real
                 const total = costoRescate + costoServicio + tarifaDomicilio;
 
-                // 4. Actualizar el documento
+                // 6. Actualizar el documento en Firestore
                 await updateDoc(doc(db, "rescates", id), {
+                    costoRescateEstimado: costoRescate,
                     costoServicio: costoServicio,
                     tarifaDomicilio: tarifaDomicilio,
                     total: total
