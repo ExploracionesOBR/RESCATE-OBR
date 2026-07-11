@@ -3640,102 +3640,145 @@ onAuthStateChanged(auth, async user => {
   };
 
   window.submitFinalSOS = async () => {
-      const serviceId = document.getElementById('sos-service-select-value')?.value;
-      const serviceInputText = document.getElementById('sos-service-input')?.value.trim();
-      
-      if (serviceInputText !== "" && (serviceId === "0" || serviceId === "")) {
-          window.showToast("Por favor, selecciona un servicio de la lista (o deja el campo vacío para tarifa base).", true);
-          return;
-      }
-      
-      const falla = document.getElementById('sos-falla').value.trim();
-      const manualAddress = document.getElementById('sos-manual-address').value.trim();
-      const fileInput = document.getElementById('sos-media');
-      const btn = document.getElementById('btn-submit-sos');
-      
-      if (!falla && (!serviceId || serviceId === "0")) return showToast("Describe la falla", true);
-      if (!tempSOSGps.lat && !manualAddress) return showToast("Falta ubicación", true);
+    const serviceId = document.getElementById('sos-service-select-value')?.value;
+    const serviceInputText = document.getElementById('sos-service-input')?.value.trim();
+    
+    if (serviceInputText !== "" && (serviceId === "0" || serviceId === "")) {
+        window.showToast("Por favor, selecciona un servicio de la lista (o deja el campo vacío para tarifa base).", true);
+        return;
+    }
+    
+    const falla = document.getElementById('sos-falla').value.trim();
+    const manualAddress = document.getElementById('sos-manual-address').value.trim();
+    const fileInput = document.getElementById('sos-media');
+    const btn = document.getElementById('btn-submit-sos');
+    
+    if (!falla && (!serviceId || serviceId === "0")) return showToast("Describe la falla", true);
+    if (!tempSOSGps.lat && !manualAddress) return showToast("Falta ubicación", true);
 
-      speakTTS('Estamos notificando al taller para su solicitud. Espere un momento.');
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
-      
-      let mediaUrl = "";
-      const truePhone = window.currentUserDoc?.phone || ("+52" + (auth.currentUser.email?.replace('@motorescateobr.com','') || ''));
+    speakTTS('Estamos notificando al taller para su solicitud. Espere un momento.');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Enviando...';
+    
+    let mediaUrl = "";
+    const truePhone = window.currentUserDoc?.phone || ("+52" + (auth.currentUser.email?.replace('@motorescateobr.com','') || ''));
 
-      let srvName = (!serviceId || serviceId === "0") ? "Auxilio" : (serviceInputText || "Servicio");
-      let descFinal = `[${srvName}] ${falla}`;
-      const srvDoc = shopServices.find(x => x.id === serviceId);
-      if(srvDoc && srvDoc.desc) descFinal += ` \n*${srvDoc.desc}*`;
+    let srvName = (!serviceId || serviceId === "0") ? "Auxilio" : (serviceInputText || "Servicio");
+    let descFinal = `[${srvName}] ${falla}`;
+    const srvDoc = shopServices.find(x => x.id === serviceId);
+    if(srvDoc && srvDoc.desc) descFinal += ` \n*${srvDoc.desc}*`;
 
-      const llantaOpt = document.querySelector('input[name="llanta"]:checked');
-      if(llantaOpt) descFinal += ` (Llanta: ${llantaOpt.value})`;
+    const llantaOpt = document.querySelector('input[name="llanta"]:checked');
+    if(llantaOpt) descFinal += ` (Llanta: ${llantaOpt.value})`;
 
-      const obrId = generateShortId();
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
+    const obrId = generateShortId();
+    const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
 
-      try {
-          const uploadPromise = (async () => {
-              if (fileInput && fileInput.files.length > 0) {
-                  const url = await uploadWithTimeout(fileInput.files[0], `rescates/${auth.currentUser.uid}/${Date.now()}_${fileInput.files[0].name}`);
-                  return url || "";
-              }
-              return "";
-          })();
+    try {
+        const uploadPromise = (async () => {
+            if (fileInput && fileInput.files.length > 0) {
+                const url = await uploadWithTimeout(fileInput.files[0], `rescates/${auth.currentUser.uid}/${Date.now()}_${fileInput.files[0].name}`);
+                return url || "";
+            }
+            return "";
+        })();
 
-          mediaUrl = await Promise.race([uploadPromise, timeoutPromise.catch(() => "")]);
+        mediaUrl = await Promise.race([uploadPromise, timeoutPromise.catch(() => "")]);
 
-          const rData = {
-              uid: auth.currentUser.uid,
-              shortId: obrId,
-              clientName: window.currentUserDoc?.name || '',
-              phone: truePhone,
-              extraPhone: document.getElementById('sos-extra-phone').value.trim(),
-              marca: document.getElementById('sos-marca').value.trim(),
-              modelo: document.getElementById('sos-modelo').value.trim(),
-              cc: document.getElementById('sos-cc').value.trim(),
-              falla: descFinal,
-              mediaUrl,
-              lat: tempSOSGps.lat,
-              lng: tempSOSGps.lng,
-              manualAddress,
-              costoRescateEstimado: window.currentSOSCost,
-              status: 'pending',
-              tallerStatus: 'recibida',
-              timestamp: Date.now()
-          };
+        // ===== CALCULAR COSTOS DESGLOSADOS =====
+        let costoRescate = window.currentSOSCost || 0;
+        let costoServicio = 0;
+        let costoMateriales = 0;
+        let tarifaDomicilio = 0;
 
-          const addPromise = addDoc(collection(db, "rescates"), rData);
-          const rtdbPromise = set(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), rData);
-          await Promise.race([Promise.all([addPromise, rtdbPromise]), timeoutPromise]);
+        if (serviceId && serviceId !== "0") {
+            const s = shopServices.find(x => x.id === serviceId);
+            if (s) {
+                costoServicio = s.price || 0;
+                if (s.materiales && s.materiales.length) {
+                    for (const mat of s.materiales) {
+                        let id, quantity;
+                        if (typeof mat === 'string') {
+                            id = mat;
+                            quantity = 1;
+                        } else {
+                            id = mat.id;
+                            quantity = mat.quantity || 1;
+                        }
+                        const product = (window.publicInventory || []).find(p => p.id === id);
+                        if (product) {
+                            costoMateriales += (product.pricePublic || 0) * quantity;
+                        }
+                    }
+                }
+                costoServicio += costoMateriales;
+            }
+        }
 
-          // Éxito
-          document.getElementById('sos-falla').value = '';
-          document.getElementById('sos-media').value = '';
-          document.getElementById('llanta-type-container').classList.add('hidden');
-          showToast("¡Unidad notificada!");
-          showView('app-client');
-          window.switchClientView('c-view-rescate');
-          listenToMySOS();
+        // Nota: Si tu sistema cobra extra por domicilio, puedes calcularlo aquí.
+        // Por ahora lo dejamos en 0.
 
-      // ✅ Notificación al usuario
-      showToast("🚨 Solicitud de Rescate generada. Espera mientras el taller lo acepta.");
-      speakTTS("Solicitud de rescate generada. Espera mientras el taller lo acepta.");
-      mostrarBannerMantenerAppAbierta();
-      } catch (e) {
-          console.warn('SOS enviado con posibles demoras:', e);
-          showToast("Solicitud enviada. Te notificaremos cuando el taller confirme.");
-          document.getElementById('sos-falla').value = '';
-          document.getElementById('sos-media').value = '';
-          document.getElementById('llanta-type-container').classList.add('hidden');
-          showView('app-client');
-          window.switchClientView('c-view-rescate');
-          listenToMySOS();
-      } finally {
-          btn.disabled = false;
-          btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
-      }
-  };
+        const totalReal = costoRescate + costoServicio + tarifaDomicilio;
+
+        // ===== CONSTRUIR DATOS DEL RESCATE =====
+        const rData = {
+            uid: auth.currentUser.uid,
+            shortId: obrId,
+            clientName: window.currentUserDoc?.name || '',
+            phone: truePhone,
+            extraPhone: document.getElementById('sos-extra-phone').value.trim(),
+            marca: document.getElementById('sos-marca').value.trim(),
+            modelo: document.getElementById('sos-modelo').value.trim(),
+            cc: document.getElementById('sos-cc').value.trim(),
+            falla: descFinal,
+            mediaUrl,
+            lat: tempSOSGps.lat,
+            lng: tempSOSGps.lng,
+            manualAddress,
+            
+            // ✅ COSTOS DESGLOSADOS
+            costoRescateEstimado: costoRescate,
+            costoServicio: costoServicio,
+            tarifaDomicilio: tarifaDomicilio,
+            total: totalReal,
+            
+            status: 'pending',
+            tallerStatus: 'recibida',
+            timestamp: Date.now()
+        };
+
+        const addPromise = addDoc(collection(db, "rescates"), rData);
+        const rtdbPromise = set(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid), rData);
+        await Promise.race([Promise.all([addPromise, rtdbPromise]), timeoutPromise]);
+
+        // Éxito
+        document.getElementById('sos-falla').value = '';
+        document.getElementById('sos-media').value = '';
+        document.getElementById('llanta-type-container').classList.add('hidden');
+        showToast("¡Unidad notificada!");
+        showView('app-client');
+        window.switchClientView('c-view-rescate');
+        listenToMySOS();
+
+        // ✅ Notificación al usuario
+        showToast("🚨 Solicitud de Rescate generada. Espera mientras el taller lo acepta.");
+        speakTTS("Solicitud de rescate generada. Espera mientras el taller lo acepta.");
+        mostrarBannerMantenerAppAbierta();
+
+    } catch (e) {
+        console.warn('SOS enviado con posibles demoras:', e);
+        showToast("Solicitud enviada. Te notificaremos cuando el taller confirme.");
+        document.getElementById('sos-falla').value = '';
+        document.getElementById('sos-media').value = '';
+        document.getElementById('llanta-type-container').classList.add('hidden');
+        showView('app-client');
+        window.switchClientView('c-view-rescate');
+        listenToMySOS();
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span>SOLICITAR AUXILIO</span> <i class="fas fa-ambulance text-2xl"></i>';
+    }
+};
 
   function initClientMap() {
       if (window.clientMapInstance) {
@@ -9016,7 +9059,6 @@ window.enviarBroadcast = async function() {
   }
 
   // ---------- Cargar listado lateral de SOS ----------
-  // ===== CARGAR LISTADO SOS (CORREGIDO) =====
 window.cargarListadoSOS = async function() {
     const listaDiv = document.getElementById('admin-sos-list-content');
     if (!listaDiv) {
@@ -9084,6 +9126,9 @@ window.cargarListadoSOS = async function() {
         const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
         const detailBtn = `<button onclick="event.stopPropagation(); window.openDetalleServicio('${r.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">VER DETALLES</button>`;
 
+        // ✅ USAR r.total O LA SUMA DE LOS COSTOS
+        const totalReal = r.total || (r.costoRescateEstimado || 0) + (r.costoServicio || 0) + (r.tarifaDomicilio || 0);
+
         listaDiv.innerHTML += `
             <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; cursor: pointer; transition: background 0.2s;">
                 <div class="flex justify-between items-center">
@@ -9094,15 +9139,15 @@ window.cargarListadoSOS = async function() {
                 
                 <div class="flex justify-between items-center mt-1 bg-white/5 p-1.5 rounded-lg">
                     <div class="flex flex-col items-center w-1/3">
-                        <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">Total</span>
-                        <span class="text-naranja font-bold text-xs">$${(r.costoRescateEstimado || 0).toFixed(2)}</span>
+                        <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">TOTAL</span>
+                        <span class="text-naranja font-bold text-xs">$${totalReal.toFixed(2)}</span>
                     </div>
                     <div class="flex flex-col items-center w-1/3 border-l border-r border-white/10 px-1">
-                        <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">Servicio</span>
+                        <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">SERVICIO</span>
                         <span class="text-blue-400 font-bold text-xs">$${(r.costoServicio || 0).toFixed(2)}</span>
                     </div>
                     <div class="flex flex-col items-center w-1/3">
-                        <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">Domicilio</span>
+                        <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">DOMICILIO</span>
                         <span class="text-green-400 font-bold text-xs">$${(r.tarifaDomicilio || 0).toFixed(2)}</span>
                     </div>
                 </div>
