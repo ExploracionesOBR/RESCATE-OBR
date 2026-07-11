@@ -369,6 +369,25 @@ function addWeatherLayer(map, lat, lng) {
       
       console.log('✅ Iconos de clima actualizados para esta ubicación');
   }
+
+  // ============================================================
+// Verificar si la app está instalada (PWA)
+// ============================================================
+function isAppInstalled() {
+    // En navegadores que soportan display-mode, detectamos standalone
+    if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+        return true;
+    }
+    // En iOS, se puede detectar a través de navigator.standalone
+    if (navigator.standalone) {
+        return true;
+    }
+    // También se puede verificar si el service worker está registrado y controla la página
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        return true;
+    }
+    return false;
+}
   
     // ===== GUÍA DE INSTALACIÓN (modal único con pantalla completa) =====
   async function showInstallGuideIfNeeded() {
@@ -1920,6 +1939,22 @@ let _pushQueueStarted = false;
   }
   if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 
+// ============================================================
+// REPRODUCIR AUDIO DE RESCATE ENTRANTE
+// ============================================================
+function playRescueAudio() {
+    try {
+        const audio = new Audio('/rescate_entrante.mp3');
+        audio.play().catch((err) => {
+            console.warn('⚠️ No se pudo reproducir el audio, usando sonido alternativo:', err);
+            playSound('alert'); // fallback
+        });
+    } catch (e) {
+        console.warn('⚠️ Error al cargar el audio:', e);
+        playSound('alert');
+    }
+}
+
   function speakTTS(message) {
       if ('speechSynthesis' in window) {
           const utterance = new SpeechSynthesisUtterance(message);
@@ -2258,30 +2293,37 @@ function updateMapControlsPosition() {
   }
   // ... después de la definición de alertarGlobal
   function iniciarListenerGlobalSOS() {
-      let lastSOSCount = 0;
-      const q = query(collection(db, "rescates"), where("status", "==", "pending"));
-      onSnapshot(q, (snap) => {
-          const currentCount = snap.size;
-          if (lastSOSCount > 0 && currentCount > lastSOSCount) {
-              const nuevaSOS = currentCount - lastSOSCount;
-              if (nuevaSOS > 0) {
-                  playSound('alert');
-                  speakTTS('¡Nueva solicitud de auxilio entrante!');
-                  if (navigator.serviceWorker && navigator.serviceWorker.ready) {
-                      navigator.serviceWorker.ready.then(reg => {
-                          reg.showNotification('🚨 Nuevo SOS', {
-                              body: `Hay ${nuevaSOS} nueva(s) solicitud(es) de auxilio pendiente(s).`,
-                              icon: 'icono.png',
-                              vibrate: [200, 100, 200]
-                          });
-                      });
-                  }
-                  showToast(`🚨 ¡${nuevaSOS} nueva solicitud de auxilio entrante!`, false);
-              }
-          }
-          lastSOSCount = currentCount;
-      });
-  }
+    let lastSOSCount = 0;
+    const q = query(collection(db, "rescates"), where("status", "==", "pending"));
+    onSnapshot(q, (snap) => {
+        const currentCount = snap.size;
+        if (lastSOSCount > 0 && currentCount > lastSOSCount) {
+            const nuevaSOS = currentCount - lastSOSCount;
+            if (nuevaSOS > 0) {
+                // ✅ 1. Reproducir audio
+                playRescueAudio();
+
+                // ✅ 2. TTS con el mensaje personalizado
+                speakTTS('Nuevo rescate solicitado, revisa ahora!');
+
+                // ✅ 3. Notificación in-app (toast)
+                showToast(`🚨 ¡${nuevaSOS} nueva solicitud de auxilio entrante!`, false);
+
+                // ✅ 4. Notificación push (ya existente)
+                if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+                    navigator.serviceWorker.ready.then(reg => {
+                        reg.showNotification('🚨 Nuevo SOS', {
+                            body: `Hay ${nuevaSOS} nueva(s) solicitud(es) de auxilio pendiente(s).`,
+                            icon: 'icono.png',
+                            vibrate: [200, 100, 200]
+                        });
+                    });
+                }
+            }
+        }
+        lastSOSCount = currentCount;
+    });
+}
 
   function updateLandingStatus() {
       const now = new Date();
@@ -3703,16 +3745,14 @@ onAuthStateChanged(auth, async user => {
 
         mediaUrl = await Promise.race([uploadPromise, timeoutPromise.catch(() => "")]);
 
-        // ===== CALCULAR COSTOS DESGLOSADOS =====
-        let costoRescate = window.currentSOSCost || 0;
-        let costoServicio = 0;
+        // ============================================================
+        //  CALCULAR COSTOS DESGLOSADOS (CORRECCIÓN DEFINITIVA)
+        // ============================================================
+        let costoServicio = 0;     // Mano de obra + Materiales
         let costoMateriales = 0;
-        let tarifaDomicilio = 0;
+        let tarifaDomicilio = 0;   // Costo de envío
 
-        // 1. Costo del rescate (ya viene de la tabla de rangos)
-        costoRescate = window.currentSOSCost || 0;
-
-        // 2. Costo del servicio (mano de obra + materiales)
+        // 1. Costo del Servicio (mano de obra + materiales)
         if (serviceId && serviceId !== "0") {
             const s = shopServices.find(x => x.id === serviceId);
             if (s) {
@@ -3737,14 +3777,27 @@ onAuthStateChanged(auth, async user => {
             }
         }
 
-        // 3. Tarifa de domicilio (en tu sistema, el rescate ya incluye domicilio)
-        // Si quisieras un costo extra por domicilio, cambia esto a un valor fijo (ej. 30)
-        tarifaDomicilio = 0;
+        // 2. Tarifa de Domicilio (calculada por distancia o fija)
+        // Aquí usamos la lógica que quieras. Por ejemplo, si el rescate está dentro de la zona:
+        const dist = getDistanceKm(tempSOSGps.lat, tempSOSGps.lng, globalSettings.centerLat, globalSettings.centerLng);
+        if (globalSettings.priceMode === 'km') {
+            // Calculamos el costo de domicilio basado en la distancia (ej: $5 por km extra)
+            if (dist > 2) { // Si está a más de 2km, cobramos extra
+                tarifaDomicilio = (dist - 2) * 5; 
+            } else {
+                tarifaDomicilio = 0; // Si está cerca, no cobramos domicilio
+            }
+        } else {
+            // Si es tarifa fija, podemos poner un monto fijo
+            tarifaDomicilio = 30; // Ejemplo: $30 fijo por domicilio
+        }
 
-        // 4. TOTAL REAL (suma de todos los costos)
-        const totalReal = costoRescate + costoServicio + tarifaDomicilio;
+        // 3. TOTAL REAL = Solo la suma de SERVICIO + DOMICILIO
+        const totalReal = costoServicio + tarifaDomicilio;
 
-        // ===== CONSTRUIR DATOS DEL RESCATE =====
+        // ============================================================
+        //  CONSTRUIR DATOS DEL RESCATE
+        // ============================================================
         const rData = {
             uid: auth.currentUser.uid,
             shortId: obrId,
@@ -3760,11 +3813,10 @@ onAuthStateChanged(auth, async user => {
             lng: tempSOSGps.lng,
             manualAddress,
             
-            // ✅ COSTOS DESGLOSADOS
-            costoRescateEstimado: costoRescate,
-            costoServicio: costoServicio,
-            tarifaDomicilio: tarifaDomicilio,
-            total: totalReal,
+            // ✅ CAMPOS QUE SE VERÁN EN LA TARJETA DE RESCATE
+            costoServicio: costoServicio,      // Lo que se muestra en "SERVICIO"
+            tarifaDomicilio: tarifaDomicilio,  // Lo que se muestra en "DOMICILIO"
+            total: totalReal,                 // Lo que se muestra en "TOTAL"
             
             status: 'pending',
             tallerStatus: 'recibida',
@@ -5761,86 +5813,187 @@ window.cargarListaRetenesAdmin = async function() {
   window.adminIngresarServicioManual = window.abrirModalIngresoServicio;
 
   window.openDetalleServicio = async (id) => {
-      const docSnap = await getDoc(doc(db, "rescates", id));
-      if (!docSnap.exists()) return;
-      const data = docSnap.data();
-      currentDetalleServicioId = id;
-      
-      // ✅ Incluir 'cancelled' en la condición de solo lectura
-      let soloLectura = data.tallerStatus === 'lista' || data.tallerStatus === 'pagado' || data.status === 'completed' || data.status === 'cancelled';
-      const isPending = data.status === 'pending';
-      const isAccepted = data.status === 'accepted' || data.status === 'repairing';
+    const docSnap = await getDoc(doc(db, "rescates", id));
+    if (!docSnap.exists()) return;
+    const data = docSnap.data();
+    currentDetalleServicioId = id;
+    
+    // ✅ Determinar si es solo lectura
+    let soloLectura = data.tallerStatus === 'lista' || data.tallerStatus === 'pagado' || data.status === 'completed' || data.status === 'cancelled';
+    const isPending = data.status === 'pending';
+    const isAccepted = data.status === 'accepted' || data.status === 'repairing';
 
-      // Llenar información y fotos (código existente)
-      const clientDisplayName = data.clientName || (data.phone ? data.phone.replace('+52', '') : 'Cliente');
-      document.getElementById('servicio-detalle-phone').innerText = `${data.shortId || ''} - ${clientDisplayName}`;
-      document.getElementById('servicio-detalle-info').innerHTML = `<p class="text-xs text-white">Moto: ${data.marca||''} ${data.modelo||''} ${data.cc||''}<br><br>${data.falla}</p>`;
+    // ✅ Limpiar y preparar el teléfono del cliente
+    const telefonoRaw = data.phone || '';
+    const telefonoClean = telefonoRaw.replace('+52', '').replace(/[^0-9]/g, '');
+    const clientName = data.clientName || (data.phone ? data.phone.replace('+52', '') : 'Cliente');
 
-      const mediaContainer = document.getElementById('servicio-fotos-container');
-      let existingUrls = [];
-      if (data.mediaUrl) {
-          existingUrls = Array.isArray(data.mediaUrl) ? data.mediaUrl : [data.mediaUrl];
-      }
-      mediaContainer.innerHTML = existingUrls.map(url => `<img src="${url}" class="h-20 w-20 object-contain rounded-xl border border-white/10 cursor-pointer" onclick="window.openImageLightbox('${url}')">`).join('');
-      if (existingUrls.length === 0) mediaContainer.innerHTML = '<p class="text-[10px] text-gray-500 italic">Sin fotos</p>';
+    // ✅ Costos (protegidos contra undefined)
+    const total = data.total || 0;
+    const costoServicio = data.costoServicio || 0;
+    const tarifaDomicilio = data.tarifaDomicilio || 0;
 
-      const addPhotoBtn = document.getElementById('servicio-add-photo-btn');
-      const actionsContainer = document.getElementById('servicio-actions-container');
-      const comentarioInput = document.getElementById('servicio-comentario');
-      const comentarioBtn = comentarioInput?.nextElementSibling;
+    // ============================================================
+    //  📝  PARSEO DE LA FALLA
+    // ============================================================
+    let tipoServicio = "Auxilio General";
+    let fallaUsuario = data.falla || 'Sin descripción';
+    let descripcionServicio = '';
 
-      if (soloLectura) {
-          if (addPhotoBtn) addPhotoBtn.classList.add('hidden');
-          if (actionsContainer) actionsContainer.classList.add('hidden');
-          if (comentarioInput) comentarioInput.disabled = true;
-          if (comentarioBtn) comentarioBtn.classList.add('hidden');
-          // Mostrar mensaje si está cancelado
-          if (data.status === 'cancelled') {
-              const infoDiv = document.getElementById('servicio-detalle-info');
-              infoDiv.innerHTML += `<p class="text-red-400 font-bold mt-2">🚫 Servicio cancelado</p>`;
-          }
-      } else {
-          if (addPhotoBtn) {
-              addPhotoBtn.classList.remove('hidden');
-              addPhotoBtn.onclick = () => window.addExtraPhotos(id);
-          }
-          if (actionsContainer) {
-              actionsContainer.classList.remove('hidden');
-              // Limpiar y reconstruir botones según estado
-              actionsContainer.innerHTML = '';
-              if (isPending) {
-                  actionsContainer.innerHTML = `
-                      <button onclick="window.asignarMecanicoDesdeDetalle('${id}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">
-                          <i class="fas fa-user-plus mr-2"></i>Asignar Mecánico
-                      </button>
-                      <button onclick="window.cancelSOS('${id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">
-                          <i class="fas fa-times mr-2"></i>Cancelar
-                      </button>
-                  `;
-              } else if (isAccepted) {
-                  actionsContainer.innerHTML = `
-                      <button onclick="window.cambiarEstadoServicio('mecanica')" class="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Mecánica</button>
-                      <button onclick="window.cambiarEstadoServicio('pruebas')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Pruebas</button>
-                      <button onclick="window.abrirCobroDesdeDetalle()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Cobrar</button>
-                      <button onclick="window.ingresarATaller()" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">LLEVAR A TALLER</button>
-                  `;
-              } else {
-                  // Otros estados (no debería ocurrir)
-                  actionsContainer.innerHTML = `
-                      <button onclick="window.cambiarEstadoServicio('mecanica')" class="flex-1 bg-yellow-600 ...">Mecánica</button>
-                      <button onclick="window.cambiarEstadoServicio('pruebas')" class="flex-1 bg-blue-600 ...">Pruebas</button>
-                      <button onclick="window.abrirCobroDesdeDetalle()" class="flex-1 bg-indigo-600 ...">Cobrar</button>
-                      <button onclick="window.ingresarATaller()" class="flex-1 bg-purple-600 ...">LLEVAR A TALLER</button>
-                  `;
-              }
-          }
-          if (comentarioInput) comentarioInput.disabled = false;
-          if (comentarioBtn) comentarioBtn.classList.remove('hidden');
-      }
+    const matchTipo = fallaUsuario.match(/\[(.*?)\]/);
+    if (matchTipo) {
+        tipoServicio = matchTipo[1];
+        fallaUsuario = fallaUsuario.replace(`[${tipoServicio}]`, '').trim();
+    }
 
-      window.loadServicioBitacora(id);
-      toggleModal('modal-detalle-servicio', true);
-  };
+    const matchDesc = fallaUsuario.match(/\*(.*?)\*/);
+    if (matchDesc) {
+        descripcionServicio = matchDesc[1];
+        fallaUsuario = fallaUsuario.replace(`*${descripcionServicio}*`, '').trim();
+    }
+
+    // ============================================================
+    // 1. INFORMACIÓN DEL SERVICIO (Nuevo diseño con tema)
+    // ============================================================
+    const infoHTML = `
+        <!-- Unidad -->
+        <div class="detail-card">
+            <div class="flex justify-between items-center">
+                <div>
+                    <p class="label"><i class="fas fa-motorcycle"></i> Unidad</p>
+                    <p class="text-content">${data.marca || 'N/A'} ${data.modelo || ''} (${data.cc || 'N/A'})</p>
+                </div>
+                ${data.status === 'cancelled' ? `<span class="bg-red-600/20 text-red-400 px-3 py-1 rounded-full text-[10px] font-black uppercase">Cancelado</span>` : ''}
+            </div>
+        </div>
+
+        <!-- Tipo de Servicio + Nota Técnica -->
+        <div class="detail-card type-card">
+            <p class="label"><i class="fas fa-cog"></i> Tipo de servicio solicitado</p>
+            <p class="text-content" style="color: #FF6B00; font-weight: 700;">${tipoServicio}</p>
+            ${descripcionServicio ? `
+            <div class="tech-note">
+                <i class="fas fa-info-circle"></i> ${descripcionServicio}
+            </div>
+            ` : ''}
+        </div>
+
+        <!-- Comentario del cliente -->
+        <div class="detail-card">
+            <p class="label"><i class="fas fa-comment-dots"></i> Comentario del cliente</p>
+            <p class="text-content text-gray">${fallaUsuario || 'Sin detalles adicionales.'}</p>
+        </div>
+    `;
+
+    // ============================================================
+    // 2. DESGLOSE DE COSTOS
+    // ============================================================
+    const costHTML = `
+        <div class="cost-grid">
+            <div class="cost-item">
+                <p class="cost-label">Total</p>
+                <p class="cost-value total">$${total.toFixed(2)}</p>
+            </div>
+            <div class="cost-item">
+                <p class="cost-label">Servicio</p>
+                <p class="cost-value service">$${costoServicio.toFixed(2)}</p>
+            </div>
+            <div class="cost-item">
+                <p class="cost-label">Domicilio</p>
+                <p class="cost-value delivery">$${tarifaDomicilio.toFixed(2)}</p>
+            </div>
+        </div>
+    `;
+
+    // ============================================================
+    // 3. BOTONES DE CONTACTO DIRECTO
+    // ============================================================
+    let contactHTML = '';
+    if (telefonoClean) {
+        contactHTML = `
+            <div class="flex flex-wrap gap-2 mb-4">
+                <button onclick="window.open('tel:+52${telefonoClean}', '_self')" class="contact-btn btn-phone">
+                    <i class="fas fa-phone"></i> Llamar
+                </button>
+                <button onclick="window.open('https://wa.me/+52${telefonoClean}', '_blank')" class="contact-btn btn-whatsapp">
+                    <i class="fab fa-whatsapp"></i> WhatsApp
+                </button>
+            </div>
+        `;
+    }
+
+    // ============================================================
+    // 4. FOTOS Y EVIDENCIAS
+    // ============================================================
+    const mediaContainer = document.getElementById('servicio-fotos-container');
+    let existingUrls = [];
+    if (data.mediaUrl) {
+        existingUrls = Array.isArray(data.mediaUrl) ? data.mediaUrl : [data.mediaUrl];
+    }
+    mediaContainer.innerHTML = existingUrls.map(url => 
+        `<img src="${url}" class="h-20 w-20 object-contain rounded-xl border border-white/10 cursor-pointer hover:border-naranja transition-colors" onclick="window.openImageLightbox('${url}')">`
+    ).join('');
+    if (existingUrls.length === 0) mediaContainer.innerHTML = '<p class="text-[10px] text-gray-500 italic">Sin fotos</p>';
+
+    // ============================================================
+    // 5. ACTUALIZAR EL DOM DEL MODAL
+    // ============================================================
+    document.getElementById('servicio-detalle-phone').innerText = `${data.shortId || ''} - ${clientName}`;
+    document.getElementById('servicio-detalle-info').innerHTML = infoHTML + contactHTML + costHTML;
+
+    // ============================================================
+    // 6. CONTROLES DE ACCIONES (Botones del mecánico/admin)
+    // ============================================================
+    const addPhotoBtn = document.getElementById('servicio-add-photo-btn');
+    const actionsContainer = document.getElementById('servicio-actions-container');
+    const comentarioInput = document.getElementById('servicio-comentario');
+    const comentarioBtn = comentarioInput?.nextElementSibling;
+
+    if (soloLectura) {
+        if (addPhotoBtn) addPhotoBtn.classList.add('hidden');
+        if (actionsContainer) actionsContainer.classList.add('hidden');
+        if (comentarioInput) comentarioInput.disabled = true;
+        if (comentarioBtn) comentarioBtn.classList.add('hidden');
+    } else {
+        if (addPhotoBtn) {
+            addPhotoBtn.classList.remove('hidden');
+            addPhotoBtn.onclick = () => window.addExtraPhotos(id);
+        }
+        if (actionsContainer) {
+            actionsContainer.classList.remove('hidden');
+            actionsContainer.innerHTML = '';
+            if (isPending) {
+                actionsContainer.innerHTML = `
+                    <button onclick="window.asignarMecanicoDesdeDetalle('${id}')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">
+                        <i class="fas fa-user-plus mr-2"></i>Asignar Mecánico
+                    </button>
+                    <button onclick="window.cancelSOS('${id}')" class="flex-1 bg-red-600 hover:bg-red-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">
+                        <i class="fas fa-times mr-2"></i>Cancelar
+                    </button>
+                `;
+            } else if (isAccepted) {
+                actionsContainer.innerHTML = `
+                    <button onclick="window.cambiarEstadoServicio('mecanica')" class="flex-1 bg-yellow-600 hover:bg-yellow-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Mecánica</button>
+                    <button onclick="window.cambiarEstadoServicio('pruebas')" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Pruebas</button>
+                    <button onclick="window.abrirCobroDesdeDetalle()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">Cobrar</button>
+                    <button onclick="window.ingresarATaller()" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white font-black py-3 rounded-xl uppercase text-[10px] lg:text-xs transition-colors shadow-lg active:scale-95">LLEVAR A TALLER</button>
+                `;
+            } else {
+                actionsContainer.innerHTML = `
+                    <button onclick="window.cambiarEstadoServicio('mecanica')" class="flex-1 bg-yellow-600 ...">Mecánica</button>
+                    <button onclick="window.cambiarEstadoServicio('pruebas')" class="flex-1 bg-blue-600 ...">Pruebas</button>
+                    <button onclick="window.abrirCobroDesdeDetalle()" class="flex-1 bg-indigo-600 ...">Cobrar</button>
+                    <button onclick="window.ingresarATaller()" class="flex-1 bg-purple-600 ...">LLEVAR A TALLER</button>
+                `;
+            }
+        }
+        if (comentarioInput) comentarioInput.disabled = false;
+        if (comentarioBtn) comentarioBtn.classList.remove('hidden');
+    }
+
+    window.loadServicioBitacora(id);
+    toggleModal('modal-detalle-servicio', true);
+};
 
   window.asignarMecanicoDesdeDetalle = (sosId) => {
       window.currentSOSId = sosId;
@@ -6892,25 +7045,29 @@ window.cargarListaRetenesAdmin = async function() {
     const concepto = document.getElementById('retiro-concepto')?.value.trim();
     if (!monto || !concepto) return showToast("Completa los datos", true);
 
-    // ✅ Guardar en Firestore (colección "retiros")
     try {
-        await addDoc(collection(db, "retiros"), {
+        // Guardar en Firestore
+        const retiroData = {
             monto: monto,
             concepto: concepto,
             timestamp: Date.now(),
             uid: auth.currentUser.uid,
             nombre: window.currentUserDoc?.name || 'Admin'
-        });
+        };
+        await addDoc(collection(db, "retiros"), retiroData);
 
-        // ✅ También mantener en memoria local para la sesión actual
-        window.retiros.push({ monto, concepto, timestamp: Date.now() });
+        // También mantener en memoria local para la sesión actual
+        window.retiros.push(retiroData);
 
         toggleModal('modal-retiro', false);
         showToast(`Retiro registrado: $${monto.toFixed(2)}`);
-        
-        // ✅ Refrescar estadísticas si la vista está abierta
+
+        // Refrescar estadísticas y caja si están abiertas
         if (typeof window.loadStats === 'function') {
             window.loadStats();
+        }
+        if (typeof window.showAdminCorte === 'function' && !document.getElementById('modal-corte')?.classList.contains('hidden')) {
+            window.showAdminCorte();
         }
     } catch (error) {
         console.error('Error al guardar retiro:', error);
@@ -9139,21 +9296,29 @@ window.cargarListadoSOS = async function() {
 
         const telefonoCliente = r.phone || '';
         const telefonoClean = telefonoCliente.replace('+52', '');
-        const botonesContacto = telefonoClean ? `
-            <div class="flex space-x-2 mt-2">
-                <button onclick="event.stopPropagation(); window.open('tel:+52${telefonoClean}', '_self')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">📞 Llamar</button>
-                <button onclick="event.stopPropagation(); window.open('https://wa.me/+52${telefonoClean}', '_blank')" class="bg-green-600 text-white px-2 py-0.5 rounded text-[9px] font-bold uppercase">💬 WhatsApp</button>
-            </div>
-        ` : '';
+        
+        // ============================================================
+        // ✅ BOTONES UNIFICADOS EN UNA SOLA LÍNEA
+        // ============================================================
+        const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[9px] font-bold uppercase whitespace-nowrap">NAVEGAR 🏍️</button>`;
+        const detailBtn = `<button onclick="event.stopPropagation(); window.openDetalleServicio('${r.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[9px] font-bold uppercase whitespace-nowrap">VER DETALLES</button>`;
+        
+        // Botones de contacto (Llamar y WhatsApp) con los mismos estilos
+        let contactBtns = '';
+        if (telefonoClean) {
+            contactBtns = `
+                <button onclick="event.stopPropagation(); window.open('tel:+52${telefonoClean}', '_self')" class="bg-green-600 hover:bg-green-500 text-white px-2 py-1 rounded text-[9px] font-bold uppercase whitespace-nowrap">📞 LLAMAR</button>
+                <button onclick="event.stopPropagation(); window.open('https://wa.me/+52${telefonoClean}', '_blank')" class="bg-[#25D366] hover:bg-[#128C7E] text-white px-2 py-1 rounded text-[9px] font-bold uppercase whitespace-nowrap">💬 WHATSAPP</button>
+            `;
+        }
 
-        const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">NAVEGAR 🏍️</button>`;
-        const detailBtn = `<button onclick="event.stopPropagation(); window.openDetalleServicio('${r.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[0.6rem] font-bold uppercase">VER DETALLES</button>`;
-
-        // ✅ USAR r.total O LA SUMA DE LOS COSTOS
+        // ============================================================
+        // ✅ TOTAL REAL
+        // ============================================================
         const totalReal = r.total || (r.costoRescateEstimado || 0) + (r.costoServicio || 0) + (r.tarifaDomicilio || 0);
 
         listaDiv.innerHTML += `
-            <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; cursor: pointer; transition: background 0.2s;">
+            <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 0.75rem; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; cursor: pointer; transition: background 0.2s;">
                 <div class="flex justify-between items-center">
                     <span class="text-[0.8rem] font-bold">${escapeHtml(r.phone) || ''}</span>
                     <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${colorClase}">${estadoTexto}</span>
@@ -9175,15 +9340,16 @@ window.cargarListadoSOS = async function() {
                     </div>
                 </div>
 
-                <div class="flex gap-1 mt-1 flex-wrap">
+                <div class="flex flex-wrap items-center gap-1 mt-2">
                     ${navBtn}
                     ${detailBtn}
+                    ${contactBtns}
                 </div>
-                ${botonesContacto}
             </div>
         `;
     });
 };
+
     window.cargarListadoSOS = cargarListadoSOS;
   window.renderSOSMapa = renderSOSMapa;
   window.mostrarOpcionesContacto = mostrarOpcionesContacto;
@@ -10308,60 +10474,118 @@ window.openMechanicPOS = async (sosId) => {
   };
 
   window.loadStats = async () => {
-      const fromDate = document.getElementById('stats-from')?.value;
-      const toDate = document.getElementById('stats-to')?.value;
-      let salesData = adminSalesCache.ventas || [];
-      if (fromDate) salesData = salesData.filter(v => v.fecha >= fromDate);
-      if (toDate) salesData = salesData.filter(v => v.fecha <= toDate + 'T23:59:59');
-      const byDay = {};
-      salesData.forEach(v => {
-          const day = new Date(v.fecha).toLocaleDateString();
-          byDay[day] = (byDay[day] || 0) + (v.total || 0);
-      });
-      const labels = Object.keys(byDay).sort();
-      const values = labels.map(d => byDay[d]);
-      if (statsChartInstance) statsChartInstance.destroy();
-      const ctx = document.getElementById('stats-chart')?.getContext('2d');
-      if (ctx) {
-          statsChartInstance = new Chart(ctx, {
-              type: 'bar',
-              data: { labels, datasets: [{ label: 'Ingresos ($)', data: values, backgroundColor: '#FF6B00' }] }
-          });
-      }
-      const totalVentas = salesData.reduce((s,v) => s + (v.total || 0), 0);
-      const totalCosto = salesData.reduce((s,v) => s + (v.costo || 0), 0);
-      const inversion = totalCosto;
-      const salidas = window.retiros.reduce((s,r)=>s+(r.monto||0),0);
-      const summaryGrid = document.getElementById('stats-summary-grid');
-      if (summaryGrid) {
-          summaryGrid.innerHTML = `
-              <div class="bg-white/5 p-3 rounded-xl"><p class="text-xs text-gray-400">Ventas Totales</p><p class="text-xl font-black">$${totalVentas.toFixed(2)}</p></div>
-              <div class="bg-white/5 p-3 rounded-xl"><p class="text-xs text-gray-400">Ganancia Bruta</p><p class="text-xl font-black">$${(totalVentas - totalCosto).toFixed(2)}</p></div>
-              <div class="bg-white/5 p-3 rounded-xl"><p class="text-xs text-gray-400">Inversión (Costo)</p><p class="text-xl font-black">$${inversion.toFixed(2)}</p></div>
-              <div class="bg-white/5 p-3 rounded-xl"><p class="text-xs text-gray-400">Salidas (Retiros)</p><p class="text-xl font-black">$${salidas.toFixed(2)}</p></div>
-          `;
-      }
-      const productCount = {};
-      salesData.forEach(v => {
-          if (v.ticket) {
-              v.ticket.forEach(item => {
-                  if (item.type === 'almacen') {
-                      productCount[item.name] = (productCount[item.name] || 0) + 1;
-                  }
-              });
-          }
-      });
-      const pieLabels = Object.keys(productCount).slice(0, 5);
-      const pieValues = pieLabels.map(k => productCount[k]);
-      if (statsPieInstance) statsPieInstance.destroy();
-      const pieCtx = document.getElementById('stats-pie-chart')?.getContext('2d');
-      if (pieCtx) {
-          statsPieInstance = new Chart(pieCtx, {
-              type: 'pie',
-              data: { labels: pieLabels, datasets: [{ data: pieValues, backgroundColor: ['#FF6B00','#2563eb','#16a34a','#eab308','#8b5cf6'] }] }
-          });
-      }
-  };
+    const fromDate = document.getElementById('stats-from')?.value;
+    const toDate = document.getElementById('stats-to')?.value;
+    let salesData = adminSalesCache.ventas || [];
+    
+    // Filtrar ventas por rango de fechas
+    if (fromDate) salesData = salesData.filter(v => v.fecha >= fromDate);
+    if (toDate) salesData = salesData.filter(v => v.fecha <= toDate + 'T23:59:59');
+
+    // -------------------- 1. Ventas por día (gráfico de barras) --------------------
+    const byDay = {};
+    salesData.forEach(v => {
+        const day = new Date(v.fecha).toLocaleDateString();
+        byDay[day] = (byDay[day] || 0) + (v.total || 0);
+    });
+    const labels = Object.keys(byDay).sort();
+    const values = labels.map(d => byDay[d]);
+
+    if (statsChartInstance) statsChartInstance.destroy();
+    const ctx = document.getElementById('stats-chart')?.getContext('2d');
+    if (ctx) {
+        statsChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Ingresos ($)',
+                    data: values,
+                    backgroundColor: '#FF6B00'
+                }]
+            }
+        });
+    }
+
+    // -------------------- 2. Totales y ganancia bruta --------------------
+    const totalVentas = salesData.reduce((s, v) => s + (v.total || 0), 0);
+    const totalCosto = salesData.reduce((s, v) => s + (v.costo || 0), 0);
+    const inversion = totalCosto;
+
+    // Leer retiros desde Firestore (en el rango de fechas)
+    let retiros = [];
+    try {
+        let start = fromDate ? new Date(fromDate) : new Date();
+        let end = toDate ? new Date(toDate + 'T23:59:59') : new Date();
+        if (!fromDate) start.setHours(0, 0, 0, 0);
+        if (!toDate) end.setHours(23, 59, 59, 999);
+        const q = query(
+            collection(db, "retiros"),
+            where("timestamp", ">=", start.getTime()),
+            where("timestamp", "<=", end.getTime())
+        );
+        const snap = await getDocs(q);
+        snap.forEach(doc => retiros.push(doc.data()));
+    } catch (e) {
+        console.warn('Error al cargar retiros:', e);
+    }
+
+    const totalRetiros = retiros.reduce((s, r) => s + (r.monto || 0), 0);
+    // Ganancia bruta = Ventas - Costo de inventario - Retiros
+    const gananciaBruta = totalVentas - totalCosto - totalRetiros;
+
+    // -------------------- 3. Resumen en el grid --------------------
+    const summaryGrid = document.getElementById('stats-summary-grid');
+    if (summaryGrid) {
+        summaryGrid.innerHTML = `
+            <div class="bg-white/5 p-3 rounded-xl">
+                <p class="text-xs text-gray-400">Ventas Totales</p>
+                <p class="text-xl font-black">$${totalVentas.toFixed(2)}</p>
+            </div>
+            <div class="bg-white/5 p-3 rounded-xl">
+                <p class="text-xs text-gray-400">Costo de Inventario</p>
+                <p class="text-xl font-black">$${totalCosto.toFixed(2)}</p>
+            </div>
+            <div class="bg-white/5 p-3 rounded-xl">
+                <p class="text-xs text-gray-400">Retiros / Salidas</p>
+                <p class="text-xl font-black text-red-400">$${totalRetiros.toFixed(2)}</p>
+            </div>
+            <div class="bg-white/5 p-3 rounded-xl">
+                <p class="text-xs text-gray-400">Ganancia Bruta</p>
+                <p class="text-xl font-black text-green-400">$${gananciaBruta.toFixed(2)}</p>
+            </div>
+        `;
+    }
+
+    // -------------------- 4. Gráfico de pastel (productos más vendidos) --------------------
+    const productCount = {};
+    salesData.forEach(v => {
+        if (v.ticket) {
+            v.ticket.forEach(item => {
+                if (item.type === 'almacen') {
+                    productCount[item.name] = (productCount[item.name] || 0) + 1;
+                }
+            });
+        }
+    });
+    const pieLabels = Object.keys(productCount).slice(0, 5);
+    const pieValues = pieLabels.map(k => productCount[k]);
+
+    if (statsPieInstance) statsPieInstance.destroy();
+    const pieCtx = document.getElementById('stats-pie-chart')?.getContext('2d');
+    if (pieCtx) {
+        statsPieInstance = new Chart(pieCtx, {
+            type: 'pie',
+            data: {
+                labels: pieLabels,
+                datasets: [{
+                    data: pieValues,
+                    backgroundColor: ['#FF6B00', '#2563eb', '#16a34a', '#eab308', '#8b5cf6']
+                }]
+            }
+        });
+    }
+};
 
   window.exportStatsPDF = async () => {
       const snap = await getDocs(collection(db, "ventas"));
@@ -14150,93 +14374,68 @@ window.migrarTodosLosRescates = async function() {
     }
 
     const confirm = window.confirm(
-        "⚠️ Esta acción actualizará TODOS los rescates existentes en la base de datos.\n" +
-        "   - Recalculará costoRescateEstimado usando la tabla de rangos por KM.\n" +
-        "   - Respetará el costoServicio existente (o pondrá 0 si no tiene).\n" +
-        "   - Recalculará el total (Rescate + Servicio + Domicilio).\n\n" +
+        "⚠️ Esta acción actualizará TODOS los rescates existentes.\n" +
+        "   - Recalculará costoServicio (respetando el existente o 0).\n" +
+        "   - Recalculará tarifaDomicilio (usando la distancia y la modalidad de cobro).\n" +
+        "   - Recalculará total = costoServicio + tarifaDomicilio.\n" +
+        "   - Se eliminará la suma de costoRescateEstimado del total.\n\n" +
         "¿Deseas continuar?"
     );
     if (!confirm) return;
 
     try {
         const rescatesSnap = await getDocs(collection(db, "rescates"));
-        const totalRescates = rescatesSnap.size;
-        let actualizados = 0;
+        let count = 0;
         let errores = 0;
-
-        console.log(`📊 Rescates encontrados: ${totalRescates}`);
 
         for (const docSnap of rescatesSnap.docs) {
             const data = docSnap.data();
-            const id = docSnap.id;
-
             try {
-                // 1. Obtener coordenadas y calcular distancia
-                let dist = 0;
-                if (data.lat && data.lng) {
-                    dist = getDistanceKm(data.lat, data.lng, globalSettings.centerLat, globalSettings.centerLng);
-                }
-
-                // 2. Calcular costoRescateEstimado usando la tabla de rangos por KM
-                let costoRescate = 0;
-                if (globalSettings.priceMode === 'km') {
-                    let ranges = globalSettings.rescueKmRanges || [];
-                    ranges.sort((a,b) => a.km - b.km);
-                    let matched = false;
-                    for (let r of ranges) {
-                        if (dist <= r.km) {
-                            costoRescate = r.price;
-                            matched = true;
-                            break;
-                        }
-                    }
-                    if (!matched && ranges.length > 0) {
-                        costoRescate = ranges[ranges.length-1].price + Math.max(0, (dist - ranges[ranges.length-1].km)) * (globalSettings.rescueKmExtra || 0);
-                    }
-                } else {
-                    costoRescate = globalSettings.rescueBase || 0;
-                }
-
-                // 3. Obtener costoServicio existente (respetarlo) o poner 0
+                // 1. Obtener costoServicio existente o 0
                 const costoServicio = data.costoServicio || 0;
 
-                // 4. Obtener tarifaDomicilio existente o poner 0
-                const tarifaDomicilio = data.tarifaDomicilio || 0;
+                // 2. Calcular tarifaDomicilio según distancia y modalidad (igual que en submitFinalSOS)
+                let tarifaDomicilio = 0;
+                if (data.lat && data.lng) {
+                    const dist = getDistanceKm(data.lat, data.lng, globalSettings.centerLat, globalSettings.centerLng);
+                    if (globalSettings.priceMode === 'km') {
+                        // Ejemplo: $5 por km extra si supera los 2 km (ajusta según tu lógica)
+                        if (dist > 2) {
+                            tarifaDomicilio = (dist - 2) * 5;
+                        } else {
+                            tarifaDomicilio = 0;
+                        }
+                    } else {
+                        // Tarifa fija
+                        tarifaDomicilio = 30;
+                    }
+                } else {
+                    tarifaDomicilio = 0;
+                }
 
-                // 5. Calcular el total real
-                const total = costoRescate + costoServicio + tarifaDomicilio;
+                // 3. Total = costoServicio + tarifaDomicilio (sin costoRescateEstimado)
+                const total = costoServicio + tarifaDomicilio;
 
-                // 6. Actualizar el documento en Firestore
-                await updateDoc(doc(db, "rescates", id), {
-                    costoRescateEstimado: costoRescate,
+                // 4. Actualizar documento
+                await updateDoc(doc(db, "rescates", docSnap.id), {
                     costoServicio: costoServicio,
                     tarifaDomicilio: tarifaDomicilio,
                     total: total
+                    // Nota: No eliminamos costoRescateEstimado, queda como histórico
                 });
-
-                actualizados++;
-                if (actualizados % 10 === 0) {
-                    console.log(`✅ ${actualizados}/${totalRescates} actualizados...`);
-                }
-
+                count++;
+                if (count % 10 === 0) console.log(`✅ ${count} actualizados...`);
             } catch (e) {
-                console.warn(`⚠️ Error en rescate ${id}:`, e);
+                console.warn(`⚠️ Error en rescate ${docSnap.id}:`, e);
                 errores++;
             }
         }
 
-        console.log(`\n🎉 Migración completada.`);
-        console.log(`✅ ${actualizados} rescates actualizados correctamente.`);
-        if (errores > 0) {
-            console.warn(`⚠️ ${errores} rescates fallaron. Revisa los errores arriba.`);
-        }
+        console.log(`🎉 Migración completada. ${count} rescates actualizados.`);
+        if (errores > 0) console.warn(`⚠️ ${errores} errores.`);
 
-        // Refrescar el listado de SOS si está visible
-        if (typeof window.cargarListadoSOS === 'function') {
-            window.cargarListadoSOS();
-        }
-
+        if (typeof window.cargarListadoSOS === 'function') window.cargarListadoSOS();
     } catch (error) {
-        console.error("❌ Error crítico en la migración:", error);
+        console.error("❌ Error crítico:", error);
     }
 };
