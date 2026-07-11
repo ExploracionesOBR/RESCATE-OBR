@@ -1939,22 +1939,6 @@ let _pushQueueStarted = false;
   }
   if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 
-// ============================================================
-// REPRODUCIR AUDIO DE RESCATE ENTRANTE
-// ============================================================
-function playRescueAudio() {
-    try {
-        const audio = new Audio('/rescate_entrante.mp3');
-        audio.play().catch((err) => {
-            console.warn('⚠️ No se pudo reproducir el audio, usando sonido alternativo:', err);
-            playSound('alert'); // fallback
-        });
-    } catch (e) {
-        console.warn('⚠️ Error al cargar el audio:', e);
-        playSound('alert');
-    }
-}
-
   function speakTTS(message) {
       if ('speechSynthesis' in window) {
           const utterance = new SpeechSynthesisUtterance(message);
@@ -2292,7 +2276,13 @@ function updateMapControlsPosition() {
       // ...
   }
   // ... después de la definición de alertarGlobal
-  function iniciarListenerGlobalSOS() {
+  // ============================================================
+// LISTENER GLOBAL DE NUEVOS RESCATES (CON MODAL, TTS Y AUDIO)
+// ============================================================
+// ============================================================
+// LISTENER GLOBAL DE NUEVOS RESCATES (CON MODAL, AUDIO Y TTS)
+// ============================================================
+function iniciarListenerGlobalSOS() {
     let lastSOSCount = 0;
     const q = query(collection(db, "rescates"), where("status", "==", "pending"));
     onSnapshot(q, (snap) => {
@@ -2300,16 +2290,25 @@ function updateMapControlsPosition() {
         if (lastSOSCount > 0 && currentCount > lastSOSCount) {
             const nuevaSOS = currentCount - lastSOSCount;
             if (nuevaSOS > 0) {
-                // ✅ 1. Reproducir audio
+                // ✅ 1. Reproducir audio (intenta forzar reproducción incluso en segundo plano)
                 playRescueAudio();
 
-                // ✅ 2. TTS con el mensaje personalizado
+                // ✅ 2. TTS para administrador
                 speakTTS('Nuevo rescate solicitado, revisa ahora!');
 
-                // ✅ 3. Notificación in-app (toast)
+                // ✅ 3. Notificación toast
                 showToast(`🚨 ¡${nuevaSOS} nueva solicitud de auxilio entrante!`, false);
 
-                // ✅ 4. Notificación push (ya existente)
+                // ✅ 4. Mostrar modal flotante (si existe, lo mostramos siempre)
+                const modal = document.getElementById('modal-rescue-alert');
+                if (modal) {
+                    // Forzar display y quitar clase hidden
+                    modal.classList.remove('hidden');
+                    modal.style.display = 'flex';
+                    // Opcional: hacer que el modal parpadee o tenga un efecto
+                }
+
+                // ✅ 5. Notificación push (si está disponible)
                 if (navigator.serviceWorker && navigator.serviceWorker.ready) {
                     navigator.serviceWorker.ready.then(reg => {
                         reg.showNotification('🚨 Nuevo SOS', {
@@ -2323,6 +2322,44 @@ function updateMapControlsPosition() {
         }
         lastSOSCount = currentCount;
     });
+}
+
+// Función para cerrar el modal y redirigir a SOS
+window.cerrarAlertaRescate = function() {
+    const modal = document.getElementById('modal-rescue-alert');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.style.display = 'none';
+    }
+    // Si el admin está en otra vista, ir a SOS
+    if (typeof window.switchAdminView === 'function') {
+        window.switchAdminView('a-view-alertas');
+    }
+};
+
+// Función mejorada de reproducción de audio (con reintento)
+function playRescueAudio() {
+    try {
+        const audio = new Audio('/rescate_entrante.mp3');
+        audio.volume = 1.0;
+        // Intentar reproducir inmediatamente
+        audio.play().catch((err) => {
+            console.warn('⚠️ Audio bloqueado, reintentando con interacción...', err);
+            // Si falla, esperar a que el usuario toque la pantalla
+            const reinicio = () => {
+                audio.play().catch(e => console.warn('⚠️ Segundo intento fallido:', e));
+                document.removeEventListener('click', reinicio);
+                document.removeEventListener('touchstart', reinicio);
+            };
+            document.addEventListener('click', reinicio);
+            document.addEventListener('touchstart', reinicio);
+            // Fallback: usar sonido sintético
+            setTimeout(() => playSound('alert'), 500);
+        });
+    } catch (e) {
+        console.warn('⚠️ Error al cargar audio:', e);
+        playSound('alert');
+    }
 }
 
   function updateLandingStatus() {
@@ -2609,7 +2646,7 @@ onAuthStateChanged(auth, async user => {
     globalSettings.centerLat = TALLER_LAT;
     globalSettings.centerLng = TALLER_LNG;
     showView('app-admin');
-
+iniciarListenerGlobalSOS(); 
     // Mostrar nombre del usuario en el header
     const adminDisplay = document.getElementById('admin-phone-display');
     if (adminDisplay) {
@@ -2628,8 +2665,7 @@ onAuthStateChanged(auth, async user => {
     // ✅ AQUÍ SE AGREGA LA CARGA DE RETIROS DEL DÍA
     await cargarRetirosDelDia();
 
-    iniciarListenerGlobalSOS();
-    setTimeout(() => {
+        setTimeout(() => {
         window.adminRefreshConfigUI();
         window.adminLoadInventory();
         window.adminLoadSales();
@@ -3391,7 +3427,7 @@ onAuthStateChanged(auth, async user => {
       });
   };
   // aqui finaliza logout
-  window.filterServiceOptions = async () => {
+    window.filterServiceOptions = async () => {
       if (typeof document === 'undefined') return;
       const input = document.getElementById('sos-service-input');
       const dropdown = document.getElementById('sos-service-dropdown');
@@ -3694,6 +3730,7 @@ onAuthStateChanged(auth, async user => {
       summarySpan.innerText = summary;
   }
 
+
   window.checkSOSKeywords = () => {
       const txt = document.getElementById('sos-falla').value.toLowerCase(); const llantaBox = document.getElementById('llanta-type-container');
       if(txt.includes('poncha') || txt.includes('llanta') || txt.includes('aire') || txt.includes('camara')) llantaBox.classList.remove('hidden'); else llantaBox.classList.add('hidden');
@@ -3746,17 +3783,38 @@ onAuthStateChanged(auth, async user => {
         mediaUrl = await Promise.race([uploadPromise, timeoutPromise.catch(() => "")]);
 
         // ============================================================
-        //  CALCULAR COSTOS DESGLOSADOS (CORRECCIÓN DEFINITIVA)
+        // ✅ CÁLCULO DE COSTOS (EXACTAMENTE IGUAL A updateSOSEstimate)
         // ============================================================
-        let costoServicio = 0;     // Mano de obra + Materiales
-        let costoMateriales = 0;
-        let tarifaDomicilio = 0;   // Costo de envío
+        let rescueCost = 0;
+        let serviceCost = 0;
+        let materialCost = 0;
+        let totalCost = 0;
 
-        // 1. Costo del Servicio (mano de obra + materiales)
+        // 1. Costo de rescate (kilometraje)
+        const dist = getDistanceKm(tempSOSGps.lat, tempSOSGps.lng, globalSettings.centerLat, globalSettings.centerLng);
+        if (globalSettings.priceMode === 'km') {
+            let ranges = globalSettings.rescueKmRanges || [];
+            ranges.sort((a,b) => a.km - b.km);
+            let matched = false;
+            for (let r of ranges) {
+                if (dist <= r.km) {
+                    rescueCost = r.price;
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched && ranges.length > 0) {
+                rescueCost = ranges[ranges.length-1].price + Math.max(0, (dist - ranges[ranges.length-1].km)) * (globalSettings.rescueKmExtra || 0);
+            }
+        } else {
+            rescueCost = globalSettings.rescueBase || 0;
+        }
+
+        // 2. Costo del servicio (mano de obra + materiales)
         if (serviceId && serviceId !== "0") {
             const s = shopServices.find(x => x.id === serviceId);
             if (s) {
-                costoServicio = s.price || 0;
+                serviceCost = s.price || 0;
                 if (s.materiales && s.materiales.length) {
                     for (const mat of s.materiales) {
                         let id, quantity;
@@ -3769,34 +3827,25 @@ onAuthStateChanged(auth, async user => {
                         }
                         const product = (window.publicInventory || []).find(p => p.id === id);
                         if (product) {
-                            costoMateriales += (product.pricePublic || 0) * quantity;
+                            materialCost += (product.pricePublic || 0) * quantity;
                         }
                     }
                 }
-                costoServicio += costoMateriales;
+                serviceCost += materialCost;
             }
         }
 
-        // 2. Tarifa de Domicilio (calculada por distancia o fija)
-        // Aquí usamos la lógica que quieras. Por ejemplo, si el rescate está dentro de la zona:
-        const dist = getDistanceKm(tempSOSGps.lat, tempSOSGps.lng, globalSettings.centerLat, globalSettings.centerLng);
-        if (globalSettings.priceMode === 'km') {
-            // Calculamos el costo de domicilio basado en la distancia (ej: $5 por km extra)
-            if (dist > 2) { // Si está a más de 2km, cobramos extra
-                tarifaDomicilio = (dist - 2) * 5; 
-            } else {
-                tarifaDomicilio = 0; // Si está cerca, no cobramos domicilio
-            }
-        } else {
-            // Si es tarifa fija, podemos poner un monto fijo
-            tarifaDomicilio = 30; // Ejemplo: $30 fijo por domicilio
-        }
+        // 3. Total = rescate + servicio (esto es lo que se muestra en updateSOSEstimate)
+        totalCost = rescueCost + serviceCost;
 
-        // 3. TOTAL REAL = Solo la suma de SERVICIO + DOMICILIO
-        const totalReal = costoServicio + tarifaDomicilio;
+        // 4. Asignar los valores para guardarlos en rData
+        const costoRescateEstimado = rescueCost;
+        const costoServicio = serviceCost;
+        const tarifaDomicilio = rescueCost; // Si quieres que domicilio sea igual al rescate, o puedes poner 0 si no aplica.
+        // Nota: Si quieres que domicilio sea un costo aparte, ajusta esta lógica.
 
         // ============================================================
-        //  CONSTRUIR DATOS DEL RESCATE
+        // 📦 CONSTRUIR DATOS DEL RESCATE
         // ============================================================
         const rData = {
             uid: auth.currentUser.uid,
@@ -3813,10 +3862,11 @@ onAuthStateChanged(auth, async user => {
             lng: tempSOSGps.lng,
             manualAddress,
             
-            // ✅ CAMPOS QUE SE VERÁN EN LA TARJETA DE RESCATE
-            costoServicio: costoServicio,      // Lo que se muestra en "SERVICIO"
-            tarifaDomicilio: tarifaDomicilio,  // Lo que se muestra en "DOMICILIO"
-            total: totalReal,                 // Lo que se muestra en "TOTAL"
+            // ✅ CAMPOS PARA LA TARJETA DE SOS
+            costoRescateEstimado: costoRescateEstimado,
+            costoServicio: costoServicio,
+            tarifaDomicilio: tarifaDomicilio,
+            total: totalCost,
             
             status: 'pending',
             tallerStatus: 'recibida',
@@ -3977,29 +4027,41 @@ onAuthStateChanged(auth, async user => {
           const data = snap.val();
 
           // 📌 CASO 2: Servicio completado o cancelado
-          if (data.status === 'completed' || data.status === 'cancelled') {
-              if (activeCard) activeCard.classList.add('hidden');
-              if (noServicesMsg) noServicesMsg.classList.remove('hidden');
-              if (emergencyBtn) emergencyBtn.style.display = 'flex';
-              if (videoContainer) videoContainer.style.display = 'block';
+if (data.status === 'completed' || data.status === 'cancelled') {
+    if (activeCard) activeCard.classList.add('hidden');
+    if (noServicesMsg) noServicesMsg.classList.remove('hidden');
+    if (emergencyBtn) emergencyBtn.style.display = 'flex';
+    if (videoContainer) videoContainer.style.display = 'block';
 
-              if (data.status === 'completed') {
-                  const shortId = data.shortId || 'unknown';
-                  const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
-                  if (!yaCalifico) {
-                      if (survey) survey.classList.remove('hidden');
-                      speakTTS('Servicio finalizado. ¡Califica a tu mecánico!');
-                  }
-              }
+    // ✅ CORRECCIÓN: Si el servicio fue CANCELADO, notificamos al cliente AHORA
+    if (data.status === 'cancelled') {
+        window.showToast("❌ Tu servicio ha sido cancelado. Puedes solicitar uno nuevo.", true);
+        window.speakTTS("Lo sentimos, tu servicio ha sido cancelado. Puedes solicitar un nuevo auxilio.");
+        
+        // ✅ Después de notificar, ya podemos borrar el nodo RTDB de este cliente
+        if (auth.currentUser) {
+            remove(dbRef(rtdb, 'sos_alerts/' + auth.currentUser.uid)).catch(console.warn);
+        }
+    }
 
-              if (mechPosUnsubscribe) mechPosUnsubscribe();
-              if (routingControl) {
-                  routingControl.remove();
-                  routingControl = null;
-              }
-              window.loadClientHistory();
-              return;
-          }
+    // ✅ Si el servicio fue COMPLETADO, mostramos la encuesta (ya lo tenías)
+    if (data.status === 'completed') {
+        const shortId = data.shortId || 'unknown';
+        const yaCalifico = localStorage.getItem('calificado_' + shortId) === 'true';
+        if (!yaCalifico) {
+            if (survey) survey.classList.remove('hidden');
+            speakTTS('Servicio finalizado. ¡Califica a tu mecánico!');
+        }
+    }
+
+    if (mechPosUnsubscribe) mechPosUnsubscribe();
+    if (routingControl) {
+        routingControl.remove();
+        routingControl = null;
+    }
+    window.loadClientHistory();
+    return;
+}
 
           // 📌 CASO 3: Servicio activo (pending, accepted, repairing, to_shop, ready)
           if (activeCard) activeCard.classList.remove('hidden');
@@ -9303,7 +9365,7 @@ window.cargarListadoSOS = async function() {
         const navBtn = `<button onclick="event.stopPropagation(); window.open('https://www.google.com/maps/dir/?api=1&destination=${r.lat || TALLER_LAT},${r.lng || TALLER_LNG}', '_blank')" class="bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded text-[9px] font-bold uppercase whitespace-nowrap">NAVEGAR 🏍️</button>`;
         const detailBtn = `<button onclick="event.stopPropagation(); window.openDetalleServicio('${r.id}')" class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded text-[9px] font-bold uppercase whitespace-nowrap">VER DETALLES</button>`;
         
-        // Botones de contacto (Llamar y WhatsApp) con los mismos estilos
+        // Botones de contacto (Llamar y WhatsApp)
         let contactBtns = '';
         if (telefonoClean) {
             contactBtns = `
@@ -9312,10 +9374,15 @@ window.cargarListadoSOS = async function() {
             `;
         }
 
+        // ✅ NUEVO BOTÓN DE COPIAR
+        const copyBtn = `<button onclick="event.stopPropagation(); window.copiarDatosRescate('${r.id}')" class="bg-gray-500 hover:bg-gray-400 text-white px-2 py-1 rounded text-[9px] font-bold uppercase whitespace-nowrap">📄 COPIAR</button>`;
+
         // ============================================================
-        // ✅ TOTAL REAL
+        // ✅ TOTAL REAL Y DOMICILIO (CORREGIDO)
         // ============================================================
-        const totalReal = r.total || (r.costoRescateEstimado || 0) + (r.costoServicio || 0) + (r.tarifaDomicilio || 0);
+        const totalReal = r.total || ((r.costoRescateEstimado || 0) + (r.costoServicio || 0) + (r.tarifaDomicilio || 0));
+        const domicilio = r.tarifaDomicilio || 0;
+        const servicio = r.costoServicio || 0;
 
         listaDiv.innerHTML += `
             <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 0.75rem; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; cursor: pointer; transition: background 0.2s;">
@@ -9332,11 +9399,11 @@ window.cargarListadoSOS = async function() {
                     </div>
                     <div class="flex flex-col items-center w-1/3 border-l border-r border-white/10 px-1">
                         <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">SERVICIO</span>
-                        <span class="text-blue-400 font-bold text-xs">$${(r.costoServicio || 0).toFixed(2)}</span>
+                        <span class="text-blue-400 font-bold text-xs">$${servicio.toFixed(2)}</span>
                     </div>
                     <div class="flex flex-col items-center w-1/3">
                         <span class="text-[7px] uppercase text-gray-400 font-black tracking-widest">DOMICILIO</span>
-                        <span class="text-green-400 font-bold text-xs">$${(r.tarifaDomicilio || 0).toFixed(2)}</span>
+                        <span class="text-green-400 font-bold text-xs">$${domicilio.toFixed(2)}</span>
                     </div>
                 </div>
 
@@ -9344,6 +9411,7 @@ window.cargarListadoSOS = async function() {
                     ${navBtn}
                     ${detailBtn}
                     ${contactBtns}
+                    ${copyBtn}
                 </div>
             </div>
         `;
@@ -9826,40 +9894,31 @@ window.filtrarEntregasPorEstatus = (estatus) => {
   };
 
   window.cancelSOS = async (id) => {
-      window.confirmModal("¿Cancelar este servicio SOS? El cliente podrá solicitar un nuevo auxilio.", async () => {
-          const docRef = doc(db, "rescates", id);
-          const snap = await getDoc(docRef);
-          if (!snap.exists()) return;
-          const data = snap.data();
-          
-          await updateDoc(docRef, { 
-              status: 'cancelled',
-              tallerStatus: 'cancelado',
-              canceladoEn: Date.now()
-          });
-          
-          if (data.uid) {
-              await remove(dbRef(rtdb, 'sos_alerts/' + data.uid));
-              window.showToast("❌ Tu servicio ha sido cancelado. Puedes solicitar uno nuevo.", true);
-              window.speakTTS("Lo sentimos, tu servicio ha sido cancelado. Puedes solicitar un nuevo auxilio.");
-              
-              // Forzar actualización de la UI del cliente
-              const activeCard = document.getElementById('active-sos-card');
-              const emergencyBtn = document.getElementById('emergency-client-btn');
-              const noServicesMsg = document.getElementById('no-active-services-msg');
-              if (activeCard) activeCard.classList.add('hidden');
-              if (emergencyBtn) emergencyBtn.style.display = 'flex';
-              if (noServicesMsg) noServicesMsg.classList.remove('hidden');
-          }
-          
-          window.cargarListadoSOS();
-          window.renderSOSMapa();
-          window.adminListenServices();
-          
-          window.showToast("Servicio cancelado");
-          toggleModal('modal-detalle-servicio', false);
-      });
-  };
+    window.confirmModal("¿Cancelar este servicio SOS? El cliente podrá solicitar un nuevo auxilio.", async () => {
+        const docRef = doc(db, "rescates", id);
+        const snap = await getDoc(docRef);
+        if (!snap.exists()) return;
+        const data = snap.data();
+        
+        // ✅ 1. Solo actualizamos el estado a 'cancelled' (NO borramos el nodo RTDB todavía)
+        await updateDoc(docRef, { 
+            status: 'cancelled',
+            tallerStatus: 'cancelado',
+            canceladoEn: Date.now()
+        });
+        
+        // ✅ 2. Notificación para el ADMINISTRADOR (solo esta, la del cliente se hará desde el móvil)
+        window.showToast("❌ Servicio cancelado.", true);
+        window.speakTTS("Solicitud cancelada, el usuario ha sido notificado del cambio.");
+        
+        // ✅ 3. Refrescar la vista del admin
+        window.cargarListadoSOS();
+        window.renderSOSMapa();
+        window.adminListenServices();
+        
+        toggleModal('modal-detalle-servicio', false);
+    });
+};
 
   window.changeSOSStatus = async (id, newStatus) => {
       const docRef = doc(db, "rescates", id);
@@ -14437,5 +14496,51 @@ window.migrarTodosLosRescates = async function() {
         if (typeof window.cargarListadoSOS === 'function') window.cargarListadoSOS();
     } catch (error) {
         console.error("❌ Error crítico:", error);
+    }
+};
+
+// ============================================================
+// COPIAR DATOS DEL RESCATE AL PORTAPAPELES
+// ============================================================
+window.copiarDatosRescate = async function(id) {
+    const snap = await getDoc(doc(db, "rescates", id));
+    if (!snap.exists()) return window.showToast("No se encontró el rescate", true);
+    const data = snap.data();
+    
+    // Extraer tipo de servicio desde la falla (corchetes)
+    let tipoServicio = "Auxilio General";
+    const matchTipo = (data.falla || '').match(/\[(.*?)\]/);
+    if (matchTipo) tipoServicio = matchTipo[1];
+    
+    // Desglose de costos
+    const total = data.total || 0;
+    const servicio = data.costoServicio || 0;
+    const domicilio = data.tarifaDomicilio || 0;
+    
+    const texto = `
+*FOLIO*: ${data.shortId || id}
+*CLIENTE*: ${data.clientName || 'No registrado'}
+*CELULAR*: ${data.phone || 'No registrado'}
+
+*TIPO DE SERVICIO*:
+${tipoServicio}
+
+*COBRO TOTAL*: $${total.toFixed(2)}
+- Servicio: $${servicio.toFixed(2)}
+- Domicilio: $${domicilio.toFixed(2)}
+    `.trim();
+
+    try {
+        await navigator.clipboard.writeText(texto);
+        window.showToast("✅ Datos copiados al portapapeles");
+    } catch (e) {
+        // Fallback para navegadores sin clipboard API
+        const textarea = document.createElement('textarea');
+        textarea.value = texto;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        window.showToast("✅ Datos copiados (fallback)");
     }
 };
