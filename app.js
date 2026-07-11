@@ -15,6 +15,7 @@
       appId: "1:444725574222:web:db1055eef17e1a5ddee11f"
   };
 
+
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   window.auth = auth;   // 👈 EXPONER GLOBALMENTE
