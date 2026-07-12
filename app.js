@@ -370,9 +370,7 @@ function addWeatherLayer(map, lat, lng) {
       console.log('✅ Iconos de clima actualizados para esta ubicación');
   }
 
-  // ============================================================
-// Verificar si la app está instalada (PWA)
-// ============================================================
+  // ===== DETECCIÓN DE INSTALACIÓN PWA =====
   function isAppInstalled() {
       if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
           return true;
@@ -383,83 +381,103 @@ function addWeatherLayer(map, lat, lng) {
       return false;
   }
 
-  // ===== GUÍA DE INSTALACIÓN (modal único) =====
+     // ===== GUÍA DE INSTALACIÓN (modal único con pantalla completa) =====
+    // ===== GUÍA DE INSTALACIÓN (modal único con pantalla completa) =====
   async function showInstallGuideIfNeeded() {
-      if (typeof document === 'undefined' || typeof window === 'undefined') {
-          console.warn('Entorno no válido para mostrar la guía.');
-          return;
-      }
+    if (typeof document === 'undefined' || typeof window === 'undefined') {
+        console.warn('Entorno no válido para mostrar la guía.');
+        return;
+    }
 
-      // Si la app ya está instalada, no mostrar nunca
-      if (isAppInstalled()) {
-          console.log('✅ App ya instalada, no se muestra guía.');
-          return;
-      }
+    // Si la app ya está instalada, no mostrar nunca
+    if (isAppInstalled()) {
+        console.log('✅ App ya instalada, no se muestra guía.');
+        return;
+    }
 
-      // Verificar que el modal y el contenedor existan
-      const modal = document.getElementById('modal-install-guide');
-      const container = document.getElementById('install-guide-media-container');
-      if (!modal || !container) {
-          console.error('❌ Modal o contenedor no encontrado en el DOM.');
-          return;
-      }
+    // Verificar que el modal y el contenedor existan
+    const modal = document.getElementById('modal-install-guide');
+    const container = document.getElementById('install-guide-media-container');
+    if (!modal || !container) {
+        console.error('❌ Modal o contenedor no encontrado en el DOM.');
+        return;
+    }
 
-      // Cargar la URL desde Firestore (o usar la predeterminada)
-      let mediaUrl = null;
-      try {
-          const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
-          if (settingsSnap.exists()) {
-              mediaUrl = settingsSnap.data().installGuideMedia;
-          }
-      } catch (error) {
-          console.error('❌ Error al leer settings/general:', error);
-      }
+    // Cargar la URL desde Firestore (o usar la predeterminada)
+    let mediaUrl = null;
+    try {
+        const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
+        if (settingsSnap.exists()) {
+            mediaUrl = settingsSnap.data().installGuideMedia;
+        }
+    } catch (error) {
+        console.error('❌ Error al leer settings/general:', error);
+    }
 
-      // URL por defecto (cambiar por la real)
-      if (!mediaUrl) {
-          mediaUrl = 'https://ik.imagekit.io/obr/instalacion_guia.png';
-      }
+    // URL por defecto
+    if (!mediaUrl) {
+        mediaUrl = 'https://ik.imagekit.io/obr/instalacion_guia.png';
+    }
 
-      if (!mediaUrl) {
-          console.warn('❌ No hay URL para la guía.');
-          return;
-      }
+    if (!mediaUrl) {
+        console.warn('❌ No hay URL para la guía.');
+        return;
+    }
 
-      // Determinar si es video o imagen
-      const isVideo = /\.(mp4|webm|mov)$/i.test(mediaUrl);
-      container.innerHTML = '';
-      if (isVideo) {
-          container.innerHTML = `
-              <video src="${mediaUrl}" autoplay muted loop playsinline 
-                    class="w-full h-auto max-h-[70vh] object-contain" 
-                    style="pointer-events:none; display:block;"></video>
-          `;
-      } else {
-          container.innerHTML = `
-              <img src="${mediaUrl}" alt="Guía de instalación" 
-                  class="w-full h-auto max-h-[70vh] object-contain">
-          `;
-      }
+    // Determinar si es video o imagen
+    const isVideo = /\.(mp4|webm|mov)$/i.test(mediaUrl);
+    
+    // Limpiar contenedor
+    container.innerHTML = '';
+    container.className = 'w-full h-full flex items-center justify-center bg-transparent rounded-2xl overflow-hidden';
+    
+    // Configurar el contenido
+    if (isVideo) {
+        container.innerHTML = `
+            <video src="${mediaUrl}" autoplay muted loop playsinline 
+                  class="w-full h-auto object-contain max-h-[85vh]"
+                  style="pointer-events:none; display:block; width: 100%; height: auto; max-height: 85vh;">
+            </video>
+        `;
+    } else {
+        container.innerHTML = `
+            <img src="${mediaUrl}" alt="Guía de instalación" 
+                class="w-full h-auto object-contain max-h-[85vh]"
+                style="width: 100%; height: auto; max-height: 85vh;">
+        `;
+    }
 
-      // Mostrar modal
-      toggleModal('modal-install-guide', true);
-      console.log('✅ Modal de guía mostrado.');
+    // Mostrar modal
+    toggleModal('modal-install-guide', true);
+    console.log('✅ Modal de guía mostrado en pantalla completa.');
 
-      // Botón de cierre (solo cierra, no guarda nada)
-      const closeBtn = document.getElementById('install-guide-close');
-      if (closeBtn) {
-          closeBtn.onclick = () => {
-              toggleModal('modal-install-guide', false);
-          };
-      }
+    // Botón de cierre - Reasignar evento cada vez que se abre
+    const closeBtn = document.getElementById('install-guide-close');
+    if (closeBtn) {
+        closeBtn.onclick = null;
+        closeBtn.onclick = (e) => {
+            e.stopPropagation(); // Evitar propagación
+            toggleModal('modal-install-guide', false);
+            console.log('✅ Modal de guía cerrado por el usuario.');
+        };
+    }
 
-      // Cerrar al hacer clic en el fondo
-      modal.addEventListener('click', (e) => {
-          if (e.target === modal) {
-              toggleModal('modal-install-guide', false);
-          }
-      });
-  }
+    // Cerrar al hacer clic en el fondo (pero NO en el contenido)
+    modal.onclick = null;
+    modal.onclick = (e) => {
+        if (e.target === modal) {
+            toggleModal('modal-install-guide', false);
+        }
+    };
+    
+    // PREVENIR QUE EL CLIC EN EL CONTENIDO RECARGUE LA PÁGINA
+    container.onclick = null;
+    container.onclick = (e) => {
+        e.stopPropagation(); // Evitar que el evento burbujee al modal
+        console.log('👆 Clic en el contenido del modal (prevenido)');
+        // NO hacer nada más
+    };
+}
 
   // ===== GUARDAR URL DE GUÍA DE INSTALACIÓN =====
   window.saveInstallGuideUrl = async function() {
