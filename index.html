@@ -727,15 +727,28 @@
             </div>
         </div>
 
-        <!-- COLUMNA DERECHA (3 columnas): Ticket + Acciones -->
+
+<!-- COLUMNA DERECHA (3 columnas): Ticket + Acciones -->
         <div class="lg:col-span-3 flex flex-col space-y-2 h-full">
             <div class="bg-white/5 border border-white/10 rounded-2xl p-3 flex flex-col shadow-xl flex-grow border-t-4 border-naranja">
-                <div class="flex space-x-2 mb-2 shrink-0">
-                    <div class="relative flex-grow">
+                                <!-- Fila superior: Celular + Búsqueda + Cargo Manual -->
+                <div class="flex items-center gap-2 mb-2 shrink-0 w-full">
+                    <div class="relative flex-1 min-w-0">
                         <i class="fas fa-user absolute left-2 top-1/2 -translate-y-1/2 text-gray-500 text-[10px]"></i>
-                        <input id="pos-customer-phone" type="tel" maxlength="10" placeholder="Celular" class="w-full bg-gray-100 p-1.5 pl-7 rounded-lg text-black text-[10px] font-bold border border-gray-300 focus:outline-none focus:border-naranja">
+                        <input id="pos-customer-phone" type="tel" maxlength="10" placeholder="Celular" 
+                               class="w-full bg-gray-100 p-1.5 pl-7 rounded-lg text-black text-[10px] font-bold border border-gray-300 focus:outline-none focus:border-naranja">
+                        <div id="pos-customer-status" class="absolute right-2 top-1/2 -translate-y-1/2 text-sm font-bold pointer-events-none" style="display: none;">❓</div>
                     </div>
-                    <button onclick="toggleModal('modal-manual-charge', true)" class="bg-gray-200 text-gray-700 px-2 rounded-lg hover:bg-gray-300 transition-colors text-[10px] font-bold shadow-sm"><i class="fas fa-plus"></i></button>
+
+                    <button id="btn-search-customer" onclick="window.abrirBuscadorClientes()" 
+                            class="bg-blue-600 hover:bg-blue-500 text-white px-2 rounded-lg text-xs font-bold transition-colors shadow-sm flex-shrink-0 h-[32px] flex items-center">
+                        <i class="fas fa-search"></i>
+                    </button>
+
+                    <button onclick="toggleModal('modal-manual-charge', true)" 
+                            class="bg-gray-200 text-gray-700 px-2 rounded-lg hover:bg-gray-300 transition-colors text-[10px] font-bold shadow-sm flex-shrink-0 h-[32px] flex items-center">
+                        📝
+                    </button>
                 </div>
                 <div id="pos-ticket-list" class="flex-grow overflow-y-auto hide-scroll space-y-1 border-b border-dashed border-gray-300 pb-2 mb-2 min-h-[100px]">
                     <p class="text-gray-400 text-[10px] italic text-center mt-4">Agrega productos al ticket</p>
@@ -777,21 +790,38 @@
         </div>
     </div>
 </div>
-
-                <div class="bg-white/5 border border-white/10 rounded-3xl p-4 mt-4">
-                    <div class="flex justify-between items-center mb-3">
-                        <h4 class="text-white font-black text-sm uppercase"><i class="fas fa-history mr-2 text-naranja"></i>Ventas Realizadas</h4>
-                        <button onclick="toggleModal('modal-garantias', true)" class="bg-green-600/20 text-green-400 border border-green-500/50 px-3 py-1 rounded-xl text-[10px] font-black uppercase">Ver Garantías</button>
-                    </div>
-                    <div id="ventas-realizadas-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto hide-scroll"></div>
-                </div>
-                <!-- Solicitudes de chat pendientes -->
+ <!-- Solicitudes de chat pendientes -->
                 <div class="bg-white/5 border border-white/10 p-4 rounded-3xl mt-4">
                     <h3 class="text-lg font-black text-white mb-3"><i class="fas fa-comments text-blue-400 mr-2"></i>Solicitudes de chat pendientes</h3>
                     <div id="admin-chats-pendientes-list" class="space-y-2 max-h-60 overflow-y-auto hide-scroll">
                         <p class="text-gray-500 text-xs">Cargando...</p>
                     </div>
                 </div>
+
+<!-- ✅ 2. VENTAS REALIZADAS (AHORA ABAJO) -->
+<div class="bg-white/5 border border-white/10 rounded-3xl p-4 mt-4">
+    <div class="flex justify-between items-center mb-3">
+        <h4 class="text-white font-black text-sm uppercase">
+            <i class="fas fa-history mr-2 text-naranja"></i>Ventas Realizadas
+        </h4>
+        <button onclick="toggleModal('modal-garantias', true)" 
+                class="bg-green-600/20 text-green-400 border border-green-500/50 px-3 py-1 rounded-xl text-[10px] font-black uppercase hover:bg-green-600/30 transition-colors">
+            Ver Garantías
+        </button>
+    </div>
+   
+    <!-- ✅ FILTRO POR MES -->
+    <div class="mb-3">
+        <select id="filtro-mes-ventas" 
+                onchange="window.aplicarFiltroMesVentas()" 
+                class="bg-asfalto border border-white/10 text-white text-sm p-2 rounded-lg w-full md:w-64 focus:outline-none focus:border-naranja/50">
+            <option value="todos">Todos los meses</option>
+        </select>
+    </div>
+
+    <!-- ✅ LISTA DE VENTAS - Sin clases de grid fijas, se ajustan dinámicamente -->
+    <div id="ventas-realizadas-list" class="w-full max-h-60 overflow-y-auto hide-scroll"></div>
+</div>
             </section>
 
             <!-- KANBAN SERVICIOS -->
@@ -1105,6 +1135,20 @@
                         <button onclick="window.adminAddUser?.()" class="w-full bg-blue-600 hover:bg-blue-500 p-3 rounded-xl font-black uppercase tracking-widest shadow-lg mt-4 text-white text-xs"><i class="fas fa-check mr-1"></i> Crear Cuenta</button>
                     </div>
                 </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+    <!-- Buscador Clientes -->
+    <div>
+        <input id="search-normal-users" type="text" placeholder="🔍 Buscar por nombre o celular..." oninput="window.filtrarUsuarios()" class="w-full bg-white/5 border border-white/10 p-2 rounded-xl text-white text-sm focus:border-naranja">
+    </div>
+    <!-- Buscador VIP -->
+    <div>
+        <input id="search-vip-users" type="text" placeholder="🔍 Buscar VIP..." oninput="window.filtrarUsuarios()" class="w-full bg-white/5 border border-white/10 p-2 rounded-xl text-white text-sm focus:border-naranja">
+    </div>
+    <!-- Buscador Staff -->
+    <div>
+        <input id="search-staff-users" type="text" placeholder="🔍 Buscar Equipo..." oninput="window.filtrarUsuarios()" class="w-full bg-white/5 border border-white/10 p-2 rounded-xl text-white text-sm focus:border-naranja">
+    </div>
+</div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-[500px]">
                         <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center justify-between">
@@ -1130,8 +1174,7 @@
                 </div>
             </section>
 
-
-           <!-- INICIA LA PARTE DE AJUSTES -->
+<!-- INICIA LA PARTE DE AJUSTES -->
 <section id="a-view-config" class="a-view hidden space-y-6 pb-10">
     <!-- Encabezado con selector de tema -->
     <div class="flex justify-between items-center mb-2">
@@ -1311,6 +1354,20 @@
                     <div class="bg-white/5 p-6 rounded-3xl border border-white/10 shadow-xl lg:col-span-2 flex flex-col h-full">
                         <h4 class="text-green-400 font-black text-xs uppercase tracking-widest mb-4 border-b border-white/5 pb-2"><i class="fas fa-info-circle mr-1"></i> Resumen de Operaciones y Reportes</h4>
                         <div id="stats-summary-grid" class="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-grow content-start"></div>
+                      <!-- Contenedor del listado de retiros -->
+<div id="stats-retiros-list-container" class="w-full mt-2">
+    <div class="bg-white/5 p-4 rounded-3xl border border-red-500/20 shadow-xl">
+        <div class="flex justify-between items-center mb-3">
+            <h4 class="text-red-400 font-black text-xs uppercase tracking-widest">
+                <i class="fas fa-hand-holding-usd mr-2"></i> Retiros / Salidas
+            </h4>
+            <span class="text-[10px] text-gray-400">Puedes eliminar un retiro para revertir el gasto.</span>
+        </div>
+        <div id="stats-retiros-list" class="space-y-1 max-h-60 overflow-y-auto hide-scroll">
+            <p class="text-gray-400 text-xs italic text-center py-4">Cargando retiros...</p>
+        </div>
+    </div>
+</div>
                         <div class="mt-auto pt-4 flex space-x-2 border-t border-white/10">
                             <button onclick="window.exportCSV?.('ventas')" class="flex-1 bg-white/10 hover:bg-white/20 text-white py-3 rounded-xl font-black uppercase text-[10px] transition-colors"><i class="fas fa-file-csv mr-1"></i>Ventas (CSV)</button>
                             <button onclick="window.exportCSV?.('inventario')" class="flex-1 bg-white/10 hover:bg-white/20 text-white py-3 rounded-xl font-black uppercase text-[10px] transition-colors"><i class="fas fa-file-csv mr-1"></i>Stock / Inventario (CSV)</button>
@@ -1449,16 +1506,23 @@
         </div>
     </div>
 
-    <!-- Modal Agregar Cargo Manual POS -->
-    <div id="modal-manual-charge" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-        <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative shadow-2xl border border-naranja/30">
-            <button onclick="toggleModal('modal-manual-charge', false)" class="absolute top-6 right-6 text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
-            <h2 class="text-xl font-black mb-4 text-white text-center uppercase"><i class="fas fa-plus-circle mr-2 text-naranja"></i>Cargo Manual</h2>
-            <input id="manual-charge-desc" type="text" placeholder="Concepto (Ej. Parche)" class="w-full bg-asfalto/50 border border-white/10 p-4 rounded-xl text-white mb-3 focus:border-naranja outline-none">
-            <input id="manual-charge-price" type="number" placeholder="Monto ($)" class="w-full bg-asfalto/50 border border-white/10 p-4 rounded-xl text-white text-xl font-black mb-4 focus:border-naranja outline-none text-center">
-            <button onclick="window.processManualCharge?.()" class="w-full bg-naranja hover:bg-orange-600 text-white p-4 rounded-xl font-black uppercase tracking-widest shadow-lg">Agregar Cargo</button>
-        </div>
+    <!-- Modal Agregar Cargo Manual POS (Tema Oscuro) -->
+<div id="modal-manual-charge" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full max-w-sm rounded-[2rem] p-6 relative shadow-2xl border border-naranja/30">
+        <button onclick="toggleModal('modal-manual-charge', false)" class="absolute top-6 right-6 text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+        <h2 class="text-xl font-black mb-4 text-white text-center uppercase"><i class="fas fa-plus-circle mr-2 text-naranja"></i>Cargo Manual</h2>
+        
+        <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-1">Concepto (Ej. Parche)</label>
+        <input id="manual-charge-desc" type="text" placeholder="Concepto..." 
+               class="w-full bg-asfalto/50 border border-white/10 p-4 rounded-xl text-white mb-3 focus:border-naranja outline-none">
+        
+        <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 block mb-1">Monto ($)</label>
+        <input id="manual-charge-price" type="number" placeholder="0.00" 
+               class="w-full bg-asfalto/50 border border-white/10 p-4 rounded-xl text-white text-xl font-black mb-4 focus:border-naranja outline-none text-center">
+        
+        <button onclick="window.processManualCharge?.()" class="w-full bg-naranja hover:bg-orange-600 text-white p-4 rounded-xl font-black uppercase tracking-widest shadow-lg">Agregar Cargo</button>
     </div>
+</div>
 
     <!-- Modal Asignar Mecánico SOS -->
     <div id="modal-asignar-mecanico" class="fixed inset-0 bg-asfalto/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
