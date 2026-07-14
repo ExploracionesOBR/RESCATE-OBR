@@ -3069,15 +3069,19 @@ iniciarListenerGlobalSOS();
       if (id === 'a-view-stats') window.loadStats();
       if (id === 'a-view-citas') window.adminLoadCitas();
       if (id === 'a-view-alertas') window.renderSOSGlobalMap();
-      if (id === 'a-view-pos') { 
-          window.posFilterProducts(); 
-          window.cargarNotificacionesCitas(); 
-          window.cargarCobrosMecanicosPanel(); 
-          window.loadVentasRealizadas(); 
-          setTimeout(() => window.loadOnlineOrders?.(), 200);
-          window.cargarChatsPendientesAdmin();
-      }
-      if (id === 'a-view-entregas') { 
+
+        if (id === 'a-view-pos') { 
+        window.posFilterProducts(); 
+        window.cargarNotificacionesCitas(); 
+        window.cargarCobrosMecanicosPanel(); 
+        
+        // ✅ FORZAR CARGA INMEDIATA
+        window.loadVentasRealizadas('actual');
+        window.cargarOpcionesMeses();
+        window.loadOnlineOrders?.();
+        window.cargarChatsPendientesAdmin();
+    }
+     if (id === 'a-view-entregas') { 
           setTimeout(() => window.loadEntregas?.(), 300);
           window.fixMaps?.();
       }
@@ -3095,8 +3099,170 @@ iniciarListenerGlobalSOS();
         }
     }, 200); // 200ms para que el DOM termine de renderizar
       
+          // ✅ FORZAR LA CARGA DE DATOS DE CAJA INMEDIATAMENTE
+    if (id === 'a-view-pos') {
+        // Cargar chat pendientes
+        if (typeof window.cargarChatsPendientesAdmin === 'function') {
+            window.cargarChatsPendientesAdmin();
+        }
+        // Cargar ventas realizadas
+        if (typeof window.loadVentasRealizadas === 'function') {
+            window.loadVentasRealizadas();
+        }
+        // Cargar pedidos online
+        if (typeof window.loadOnlineOrders === 'function') {
+            window.loadOnlineOrders();
+        }
+    }
+
       window.fixMaps?.();
   };
+
+
+// ============================================================
+// LISTENER DEL INPUT DE CELULAR (con reemplazo por nombre)
+// ============================================================
+let posCustomerTimeout = null;
+document.addEventListener('input', function(e) {
+    if (e.target.id === 'pos-customer-phone') {
+        clearTimeout(posCustomerTimeout);
+        const phone = e.target.value.trim();
+        const statusEl = document.getElementById('pos-customer-status');
+        if (!statusEl) return;
+
+        if (phone.length < 7) {
+            statusEl.style.display = 'none';
+            return;
+        }
+
+        statusEl.style.display = 'block';
+        statusEl.innerText = '⏳';
+
+        posCustomerTimeout = setTimeout(async () => {
+            try {
+                const fullPhone = '+52' + phone;
+                const q = query(collection(db, "users"), where("phone", "==", fullPhone), limit(1));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    const userData = snap.docs[0].data();
+                    // ✅ Si tiene nombre, reemplazamos el input por el nombre
+                    if (userData.name) {
+                        e.target.value = userData.name;
+                        e.target.setAttribute('data-phone', fullPhone);
+                        e.target.setAttribute('data-uid', snap.docs[0].id);
+                        statusEl.innerText = '✅';
+                        statusEl.className = 'absolute right-2 top-1/2 -translate-y-1/2 text-sm font-bold pointer-events-none text-green-500';
+                    } else {
+                        statusEl.innerText = '✅';
+                        statusEl.className = 'absolute right-2 top-1/2 -translate-y-1/2 text-sm font-bold pointer-events-none text-green-500';
+                    }
+                } else {
+                    statusEl.innerText = '🆕';
+                    statusEl.className = 'absolute right-2 top-1/2 -translate-y-1/2 text-sm font-bold pointer-events-none text-orange-500';
+                }
+            } catch (err) {
+                statusEl.innerText = '❌';
+                statusEl.className = 'absolute right-2 top-1/2 -translate-y-1/2 text-sm font-bold pointer-events-none text-red-500';
+            }
+        }, 700);
+    }
+});
+
+// ============================================================
+// ABRIR BUSCADOR DE CLIENTES (por nombre o celular)
+// ============================================================
+window.abrirBuscadorClientes = function() {
+    const modalHTML = `
+        <div id="modal-buscador-clientes" class="fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+            <div class="bg-asfalto w-full max-w-md rounded-2xl p-6 border border-naranja/30 shadow-2xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-black text-white">Buscar Cliente</h3>
+                    <button onclick="toggleModal('modal-buscador-clientes', false)" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                <div class="relative mb-4">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                    <input id="buscador-clientes-input" type="text" placeholder="Nombre o celular..." oninput="window.filtrarClientesBuscador()" class="w-full bg-white/5 border border-white/10 p-3 pl-10 rounded-xl text-white text-sm focus:border-naranja outline-none">
+                </div>
+                <div id="buscador-clientes-resultados" class="max-h-60 overflow-y-auto hide-scroll space-y-2">
+                    <p class="text-gray-400 text-xs italic text-center py-4">Escribe para buscar...</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Insertar o reemplazar modal
+    const existing = document.getElementById('modal-buscador-clientes');
+    if (existing) existing.remove();
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    toggleModal('modal-buscador-clientes', true);
+    document.getElementById('buscador-clientes-input')?.focus();
+};
+
+// ============================================================
+// FILTRAR CLIENTES EN EL BUSCADOR
+// ============================================================
+window.filtrarClientesBuscador = async function() {
+    const input = document.getElementById('buscador-clientes-input');
+    const container = document.getElementById('buscador-clientes-resultados');
+    if (!input || !container) return;
+    const term = input.value.trim().toLowerCase();
+
+    if (term.length < 2) {
+        container.innerHTML = '<p class="text-gray-400 text-xs italic text-center py-4">Escribe al menos 2 caracteres...</p>';
+        return;
+    }
+
+    container.innerHTML = '<p class="text-gray-400 text-xs italic text-center py-4">Buscando...</p>';
+
+    try {
+        const snap = await getDocs(collection(db, "users"));
+        const resultados = [];
+        snap.forEach(doc => {
+            const data = doc.data();
+            const name = (data.name || '').toLowerCase();
+            const phone = (data.phone || '').replace('+52', '');
+            if (name.includes(term) || phone.includes(term)) {
+                resultados.push({ id: doc.id, ...data });
+            }
+        });
+
+        if (resultados.length === 0) {
+            container.innerHTML = '<p class="text-gray-400 text-xs italic text-center py-4">No se encontraron clientes.</p>';
+            return;
+        }
+
+        let html = '';
+        resultados.slice(0, 20).forEach(u => {
+            const nombre = u.name || u.phone || 'Sin nombre';
+            const phoneDisplay = u.phone || '';
+            html += `
+                <div onclick="window.seleccionarClientePOS('${u.id}', '${phoneDisplay}')" class="bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 transition-colors flex justify-between items-center">
+                    <span class="font-bold text-white text-sm">${nombre}</span>
+                    <span class="text-gray-400 text-xs">${phoneDisplay}</span>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    } catch (err) {
+        console.error(err);
+        container.innerHTML = '<p class="text-red-400 text-xs text-center">Error al buscar.</p>';
+    }
+};
+
+// ============================================================
+// SELECCIONAR CLIENTE DESDE EL BUSCADOR
+// ============================================================
+window.seleccionarClientePOS = function(uid, phone) {
+    const input = document.getElementById('pos-customer-phone');
+    if (input) {
+        const clean = phone.replace('+52', '');
+        input.value = clean;
+        input.dispatchEvent(new Event('input'));
+    }
+    toggleModal('modal-buscador-clientes', false);
+};
 
   window.applyViewPermissions = () => {
       const vistas = window.currentUserDoc?.vistasPermitidas;
@@ -7142,28 +7308,28 @@ window.cargarListaRetenesAdmin = async function() {
     if (!monto || !concepto) return showToast("Completa los datos", true);
 
     try {
-        // Guardar en Firestore
-        const retiroData = {
+        // ✅ Guardar en Firestore (colección "retiros")
+        const docRef = await addDoc(collection(db, "retiros"), {
             monto: monto,
             concepto: concepto,
             timestamp: Date.now(),
             uid: auth.currentUser.uid,
-            nombre: window.currentUserDoc?.name || 'Admin'
-        };
-        await addDoc(collection(db, "retiros"), retiroData);
+            nombre: window.currentUserDoc?.name || 'Admin',
+            fecha: new Date().toISOString()
+        });
 
-        // También mantener en memoria local para la sesión actual
-        window.retiros.push(retiroData);
+        // ✅ También mantener en memoria local para la sesión actual
+        window.retiros.push({ monto, concepto, timestamp: Date.now(), id: docRef.id });
 
         toggleModal('modal-retiro', false);
         showToast(`Retiro registrado: $${monto.toFixed(2)}`);
-
-        // Refrescar estadísticas y caja si están abiertas
+        
+        // ✅ Refrescar estadísticas y listado de retiros
         if (typeof window.loadStats === 'function') {
             window.loadStats();
         }
-        if (typeof window.showAdminCorte === 'function' && !document.getElementById('modal-corte')?.classList.contains('hidden')) {
-            window.showAdminCorte();
+        if (typeof window.renderRetirosList === 'function') {
+            window.renderRetirosList();
         }
     } catch (error) {
         console.error('Error al guardar retiro:', error);
@@ -7584,260 +7750,334 @@ window.cargarListaRetenesAdmin = async function() {
   };
 
   window.imprimirTicketVenta = async (ventaId, saleData, esCotizacion = false) => {
-      return new Promise(async (resolve, reject) => {
-          const { jsPDF } = window.jspdf;
-          const pdfDoc = new jsPDF({
-              compress: true,
-              unit: 'mm',
-              format: 'a4'
-          });
-          const logoImg = new Image();
-          logoImg.src = 'logo_oscuro.png';
+    return new Promise(async (resolve, reject) => {
+        const { jsPDF } = window.jspdf;
+        const pdfDoc = new jsPDF({
+            compress: true,
+            unit: 'mm',
+            format: 'a4'
+        });
+        const logoImg = new Image();
+        logoImg.src = 'logo_oscuro.png';
 
-          const generar = async () => {
-              try {
-                  const pageWidth = pdfDoc.internal.pageSize.getWidth();
-                  const pageHeight = pdfDoc.internal.pageSize.getHeight();
+        const generar = async () => {
+            try {
+                const pageWidth = pdfDoc.internal.pageSize.getWidth();
+                const pageHeight = pdfDoc.internal.pageSize.getHeight();
 
-                  // --- Marcas de agua si es cotización ---
-                  if (esCotizacion) {
-                      for (let p = 1; p <= pdfDoc.internal.getNumberOfPages(); p++) {
-                          pdfDoc.setPage(p);
-                          pdfDoc.setFont("helvetica", "bold");
-                          pdfDoc.setFontSize(36);
-                          pdfDoc.setTextColor(240, 240, 240);
-                          const espacioX = 90;
-                          const espacioY = 70;
-                          for (let fila = 0; fila < 10; fila++) {
-                              const offsetX = (fila % 2) ? 45 : 0;
-                              for (let x = -50; x < pageWidth + 100; x += espacioX) {
-                                  pdfDoc.text("COTIZACIÓN", x + offsetX, fila * espacioY, { angle: -45 });
-                              }
-                          }
-                      }
-                  }
+                // --- Marcas de agua si es cotización ---
+                if (esCotizacion) {
+                    for (let p = 1; p <= pdfDoc.internal.getNumberOfPages(); p++) {
+                        pdfDoc.setPage(p);
+                        pdfDoc.setFont("helvetica", "bold");
+                        pdfDoc.setFontSize(36);
+                        pdfDoc.setTextColor(240, 240, 240);
+                        const espacioX = 90;
+                        const espacioY = 70;
+                        for (let fila = 0; fila < 10; fila++) {
+                            const offsetX = (fila % 2) ? 45 : 0;
+                            for (let x = -50; x < pageWidth + 100; x += espacioX) {
+                                pdfDoc.text("COTIZACIÓN", x + offsetX, fila * espacioY, { angle: -45 });
+                            }
+                        }
+                    }
+                }
 
-                  // --- Obtener nombre real del cliente ---
-                  let nombreCliente = saleData.clientName || saleData.clienteCel || 'Mostrador';
-                  if (saleData.uid) {
-                      try {
-                          const userSnap = await getDoc(doc(db, "users", saleData.uid));
-                          if (userSnap.exists()) {
-                              const userData = userSnap.data();
-                              nombreCliente = userData.name || userData.phone || nombreCliente;
-                          }
-                      } catch (e) { console.warn('Error al obtener nombre por UID:', e); }
-                  } else if (saleData.clienteCel && saleData.clienteCel !== 'Mostrador') {
-                      const phoneToSearch = saleData.clienteCel.startsWith('+52') 
-                          ? saleData.clienteCel 
-                          : '+52' + saleData.clienteCel.replace(/[^0-9]/g, '');
-                      try {
-                          const q = query(collection(db, "users"), where("phone", "==", phoneToSearch), limit(1));
-                          const snap = await getDocs(q);
-                          if (!snap.empty) {
-                              const userData = snap.docs[0].data();
-                              nombreCliente = userData.name || userData.phone || nombreCliente;
-                          }
-                      } catch (e) { console.warn('Error al buscar usuario por teléfono:', e); }
-                  }
+                // --- Obtener nombre real del cliente ---
+                let nombreCliente = saleData.clientName || saleData.clienteCel || 'Mostrador';
+                if (saleData.uid) {
+                    try {
+                        const userSnap = await getDoc(doc(db, "users", saleData.uid));
+                        if (userSnap.exists()) {
+                            const userData = userSnap.data();
+                            nombreCliente = userData.name || userData.phone || nombreCliente;
+                        }
+                    } catch (e) { console.warn('Error al obtener nombre por UID:', e); }
+                } else if (saleData.clienteCel && saleData.clienteCel !== 'Mostrador') {
+                    const phoneToSearch = saleData.clienteCel.startsWith('+52') 
+                        ? saleData.clienteCel 
+                        : '+52' + saleData.clienteCel.replace(/[^0-9]/g, '');
+                    try {
+                        const q = query(collection(db, "users"), where("phone", "==", phoneToSearch), limit(1));
+                        const snap = await getDocs(q);
+                        if (!snap.empty) {
+                            const userData = snap.docs[0].data();
+                            nombreCliente = userData.name || userData.phone || nombreCliente;
+                        }
+                    } catch (e) { console.warn('Error al buscar usuario por teléfono:', e); }
+                }
 
-                  const clienteDisplay = nombreCliente || saleData.clienteCel || 'Mostrador';
+                const clienteDisplay = nombreCliente || saleData.clienteCel || 'Mostrador';
 
-                  // --- Encabezado ---
-                  pdfDoc.setFillColor(255, 107, 0);
-                  pdfDoc.rect(0, 0, pageWidth, 28, 'F');
-                  if (logoImg.complete && logoImg.naturalWidth > 0) {
-                      pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
-                  }
-                  pdfDoc.setFontSize(14);
-                  pdfDoc.setFont("helvetica", "bold");
-                  pdfDoc.setTextColor(255, 255, 255);
-                  pdfDoc.text(esCotizacion ? "COTIZACIÓN OBR" : "COMPROBANTE DE VENTA", logoImg.complete ? 36 : 12, 17.5);
-                  pdfDoc.setDrawColor(255, 107, 0);
-                  pdfDoc.line(12, 29, pageWidth - 12, 29);
+                // --- Encabezado ---
+                pdfDoc.setFillColor(255, 107, 0);
+                pdfDoc.rect(0, 0, pageWidth, 28, 'F');
+                if (logoImg.complete && logoImg.naturalWidth > 0) {
+                    pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
+                }
+                pdfDoc.setFontSize(14);
+                pdfDoc.setFont("helvetica", "bold");
+                pdfDoc.setTextColor(255, 255, 255);
+                pdfDoc.text(esCotizacion ? "COTIZACIÓN OBR" : "COMPROBANTE DE VENTA", logoImg.complete ? 36 : 12, 17.5);
+                pdfDoc.setDrawColor(255, 107, 0);
+                pdfDoc.line(12, 29, pageWidth - 12, 29);
 
-                  let y = 40;
+                let y = 40;
 
-                  // --- Datos del comprobante ---
-                  _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 25, 'Datos del Comprobante', [
-                      { label: 'Ticket:', value: saleData.shortId, rightLabel: 'Método de Pago:', rightValue: saleData.metodoPago || 'No especificado' },
-                      { label: 'Fecha:', value: new Date(saleData.fecha).toLocaleString(), rightLabel: 'Cliente:', rightValue: clienteDisplay }
-                  ]);
-                  y += 32;
+                // --- Datos del comprobante ---
+                _drawDataCard(pdfDoc, 12, y, pageWidth - 24, 25, 'Datos del Comprobante', [
+                    { label: 'Ticket:', value: saleData.shortId, rightLabel: 'Método de Pago:', rightValue: saleData.metodoPago || 'No especificado' },
+                    { label: 'Fecha:', value: new Date(saleData.fecha).toLocaleString(), rightLabel: 'Cliente:', rightValue: clienteDisplay }
+                ]);
+                y += 32;
 
-                  // --- Artículos adquiridos ---
-                  pdfDoc.setFont("helvetica", "bold");
-                  pdfDoc.setFontSize(10);
-                  pdfDoc.setTextColor(15, 23, 42);
-                  pdfDoc.text("ARTÍCULOS ADQUIRIDOS:", 12, y);
-                  y += 4;
+                // --- Artículos adquiridos ---
+                pdfDoc.setFont("helvetica", "bold");
+                pdfDoc.setFontSize(10);
+                pdfDoc.setTextColor(15, 23, 42);
+                pdfDoc.text("ARTÍCULOS ADQUIRIDOS:", 12, y);
+                y += 4;
 
-                  // Dentro de imprimirTicketVenta, en la parte donde se construye ticketItems
-let ticketItems = [];
+                let ticketItems = [];
 
-// Servicio de rescate (si existe)
-if (saleData.servicioNombre) {
-    let nombreLimpio = saleData.servicioNombre.replace(/\[.*?\]/g, '').replace(/\*/g, '').replace(/\[|\]/g, '').trim();
-    if (!nombreLimpio) nombreLimpio = saleData.servicioNombre;
-    ticketItems.push([nombreLimpio, 'Sin garantía', `$${saleData.rescueCost?.toFixed(2) || '$0.00'}`]);
-}
+                // ✅ Servicio de rescate (si existe)
+                if (saleData.servicioNombre) {
+                    let nombreLimpio = saleData.servicioNombre.replace(/\[.*?\]/g, '').replace(/\*/g, '').replace(/\[|\]/g, '').trim();
+                    if (!nombreLimpio) nombreLimpio = saleData.servicioNombre;
+                    ticketItems.push([nombreLimpio, 'Sin garantía', `$${saleData.rescueCost?.toFixed(2) || '$0.00'}`]);
+                }
 
-// ✅ COSTO DE SERVICIO (mano de obra)
-if (saleData.costoServicio && saleData.costoServicio > 0) {
-    ticketItems.push(['Mano de obra / Servicio', 'N/A', `$${saleData.costoServicio.toFixed(2)}`]);
-}
+                // ✅ Costo de servicio (mano de obra)
+                if (saleData.costoServicio && saleData.costoServicio > 0) {
+                    ticketItems.push(['Mano de obra / Servicio', 'N/A', `$${saleData.costoServicio.toFixed(2)}`]);
+                }
 
-// ✅ TARIFA DE DOMICILIO (envío)
-if (saleData.tarifaDomicilio && saleData.tarifaDomicilio > 0) {
-    ticketItems.push(['Tarifa de envío a domicilio', 'N/A', `$${saleData.tarifaDomicilio.toFixed(2)}`]);
-}
+                // ✅ Tarifa de domicilio
+                if (saleData.tarifaDomicilio && saleData.tarifaDomicilio > 0) {
+                    ticketItems.push(['Tarifa de envío a domicilio', 'N/A', `$${saleData.tarifaDomicilio.toFixed(2)}`]);
+                }
 
-// Productos del ticket
-if (saleData.ticket && saleData.ticket.length > 0) {
-    saleData.ticket.forEach(item => {
-        if (item.type !== 'servicio' && item.type !== 'rescate') {
-            ticketItems.push([item.name, item.garantia || 'Sin garantía', `$${item.price.toFixed(2)}`]);
+                // ✅ DESGLOSAR PRODUCTOS POR CANTIDAD (NO AGRUPAR)
+                if (saleData.ticket && saleData.ticket.length > 0) {
+                    saleData.ticket.forEach(item => {
+                        if (item.type !== 'servicio' && item.type !== 'rescate') {
+                            const cantidad = item.cantidad || 1;
+                            // Repetir la línea tantas veces como cantidad
+                            for (let i = 0; i < cantidad; i++) {
+                                ticketItems.push([item.name, item.garantia || 'Sin garantía', `$${item.price.toFixed(2)}`]);
+                            }
+                        }
+                    });
+                }
+
+                // ✅ Costo de envío (si existe)
+                if (saleData.costoEnvio && saleData.costoEnvio > 0) {
+                    ticketItems.push(['Costo de envío', 'N/A', `$${saleData.costoEnvio.toFixed(2)}`]);
+                }
+
+                // ✅ Descuento aplicado
+                if (saleData.descuento && saleData.descuento > 0) {
+                    ticketItems.push(['Descuento aplicado', 'N/A', `-$${saleData.descuento.toFixed(2)}`]);
+                }
+
+                if (ticketItems.length === 0) ticketItems.push(['Sin productos', 'N/A', '$0.00']);
+
+                pdfDoc.autoTable({
+                    startY: y,
+                    head: [['Descripción del Producto', 'Garantía Oficial', 'Precio Unitario']],
+                    body: ticketItems,
+                    theme: 'grid',
+                    styles: { fontSize: 8, cellPadding: 2.5, textColor: [30,41,59] },
+                    headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
+                    columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 35 }, 2: { cellWidth: 30, halign: 'right' } },
+                    margin: { left: 12, right: 12 }
+                });
+                y = pdfDoc.lastAutoTable.finalY + 10;
+
+                // --- Desglose de precios ---
+                const totalFinal = saleData.total || 0;
+
+                if (esCotizacion) {
+                    pdfDoc.setFont("helvetica", "normal");
+                    pdfDoc.setFontSize(10);
+                    pdfDoc.setTextColor(15, 23, 42);
+                    pdfDoc.text(`Total Estimado: $${totalFinal.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+                    y += 6;
+                } else {
+                    const subTotalSinIVA = totalFinal / 1.16;
+                    const ivaCalculado = totalFinal - subTotalSinIVA;
+
+                    pdfDoc.setFont("helvetica", "normal");
+                    pdfDoc.setFontSize(10);
+                    pdfDoc.setTextColor(15, 23, 42);
+
+                    pdfDoc.text(`Subtotal (sin IVA): $${subTotalSinIVA.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+                    y += 6;
+                    pdfDoc.text(`IVA (16%): $${ivaCalculado.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+                    y += 8;
+
+                    pdfDoc.setFont("helvetica", "bold");
+                    pdfDoc.setFontSize(12);
+                    pdfDoc.text(`Total Neto: $${totalFinal.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
+                    y += 10;
+                }
+
+                // --- Footer profesional ---
+                const addFooter = window._setupProfessionalPDF(pdfDoc, esCotizacion ? 'COTIZACIÓN OBR' : 'COMPROBANTE DE VENTA', logoImg);
+                addFooter(pdfDoc);
+
+                const pdfBlob = pdfDoc.output('blob');
+                resolve(pdfBlob);
+            } catch (error) {
+                reject(error);
+            }
+        };
+
+        if (logoImg.complete && logoImg.naturalWidth > 0) {
+            await generar();
+        } else {
+            logoImg.onload = generar;
+            logoImg.onerror = generar;
         }
     });
-}
-
-// Costo de envío (si existe como campo separado)
-if (saleData.costoEnvio && saleData.costoEnvio > 0) {
-    ticketItems.push(['Costo de envío', 'N/A', `$${saleData.costoEnvio.toFixed(2)}`]);
-}
-
-// Descuento aplicado
-if (saleData.descuento && saleData.descuento > 0) {
-    ticketItems.push(['Descuento aplicado', 'N/A', `-$${saleData.descuento.toFixed(2)}`]);
-}
-
-if (ticketItems.length === 0) ticketItems.push(['Sin productos', 'N/A', '$0.00']);
-                  
-                pdfDoc.autoTable({
-                      startY: y,
-                      head: [['Descripción del Producto', 'Garantía Oficial', 'Precio Unitario']],
-                      body: ticketItems,
-                      theme: 'grid',
-                      styles: { fontSize: 8, cellPadding: 2.5, textColor: [30,41,59] },
-                      headStyles: { fillColor: [255, 107, 0], textColor: [255,255,255] },
-                      columnStyles: { 0: { cellWidth: 'auto' }, 1: { cellWidth: 35 }, 2: { cellWidth: 30, halign: 'right' } },
-                      margin: { left: 12, right: 12 }
-                  });
-                  y = pdfDoc.lastAutoTable.finalY + 10;
-
-                  // --- Desglose de precios (corregido: sin sumar IVA de nuevo) ---
-                  // Usamos el total ya guardado en saleData.total
-const totalFinal = saleData.total || 0;
-
-// Si es una COTIZACIÓN, mostramos solo el total sin desglosar IVA
-if (esCotizacion) {
-    pdfDoc.setFont("helvetica", "normal");
-    pdfDoc.setFontSize(10);
-    pdfDoc.setTextColor(15, 23, 42);
-    
-    // ✅ Mostramos solo el total estimado (sin cálculos extra)
-    pdfDoc.text(`Total Estimado: $${totalFinal.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-    y += 6;
-
-} else {
-    // Si es un TICKET DE VENTA, mostramos el desglose completo
-    const subTotalSinIVA = totalFinal / 1.16;
-    const ivaCalculado = totalFinal - subTotalSinIVA;
-
-    pdfDoc.setFont("helvetica", "normal");
-    pdfDoc.setFontSize(10);
-    pdfDoc.setTextColor(15, 23, 42);
-
-    pdfDoc.text(`Subtotal (sin IVA): $${subTotalSinIVA.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-    y += 6;
-    pdfDoc.text(`IVA (16%): $${ivaCalculado.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-    y += 8;
-
-    pdfDoc.setFont("helvetica", "bold");
-    pdfDoc.setFontSize(12);
-    pdfDoc.text(`Total Neto: $${totalFinal.toFixed(2)}`, pageWidth - 40, y, { align: 'right' });
-    y += 10;
-}
-
-                  // --- Footer profesional ---
-                  const addFooter = window._setupProfessionalPDF(pdfDoc, esCotizacion ? 'COTIZACIÓN OBR' : 'COMPROBANTE DE VENTA', logoImg);
-                  addFooter(pdfDoc);
-
-                  const pdfBlob = pdfDoc.output('blob');
-                  resolve(pdfBlob);
-              } catch (error) {
-                  reject(error);
-              }
-          };
-
-          if (logoImg.complete && logoImg.naturalWidth > 0) {
-              await generar();
-          } else {
-              logoImg.onload = generar;
-              logoImg.onerror = generar;
-          }
-      });
-  };
+};
 
   window.renderTicket = () => {
-      const list = document.getElementById('pos-ticket-list');
-      if (!list) return;
-      window.posTotal = 0; window.posTotalCost = 0; let html = '';
-      window.posTicket.forEach((item, i) => {
-          window.posTotal += item.price; window.posTotalCost += item.cost || 0;
-          html += `<div class="flex justify-between items-center text-black border-b border-dashed border-gray-200 pb-2 mb-2">
-              <div class="flex flex-col w-2/3"><span class="text-[10px] font-bold truncate">${item.name}</span><span class="text-[8px] text-gray-500 uppercase">${item.type==='almacen'?'Almacén':'Servicio'}</span></div>
-              <div class="flex items-center space-x-2"><span class="font-black text-xs">$${item.price.toFixed(2)}</span><button onclick="removeTicketItem(${i})" class="text-red-500 hover:text-red-700"><i class="fas fa-times-circle"></i></button></div></div>`;
-      });
-      if(!window.posTicket.length) html = '<p class="text-gray-400 text-xs italic text-center mt-10">Agrega productos al ticket</p>';
-      list.innerHTML = html; 
-      
-      let realTotal = window.posTotal - (window.posDescuento || 0); if(realTotal < 0) realTotal = 0;
-      const sub = realTotal / 1.16; const iva = realTotal - sub;
+    const list = document.getElementById('pos-ticket-list');
+    if (!list) return;
+    
+    window.posTotal = 0; 
+    window.posTotalCost = 0; 
+    let html = '';
+    
+    window.posTicket.forEach((item, i) => {
+        // Calcular el total (precio * cantidad)
+        const cantidad = item.cantidad || 1;
+        const precioTotal = item.price * cantidad;
+        
+        window.posTotal += precioTotal; 
+        window.posTotalCost += (item.cost || 0) * cantidad;
+        
+        // Determinar el indicador de cantidad
+        let cantidadHTML = '';
+        if (cantidad > 1) {
+            cantidadHTML = `<span class="text-naranja font-black text-xs mr-1">+${cantidad}</span>`;
+        }
+        
+        html += `
+            <div class="flex justify-between items-center text-black border-b border-dashed border-gray-200 pb-2 mb-2">
+                <div class="flex flex-col w-2/3">
+                    <div class="flex items-center">
+                        ${cantidadHTML}
+                        <span class="text-[10px] font-bold truncate">${item.name}</span>
+                    </div>
+                    <span class="text-[8px] text-gray-500 uppercase">${item.type==='almacen'?'Almacén':'Servicio'}</span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="font-black text-xs">$${precioTotal.toFixed(2)}</span>
+                    <button onclick="removeTicketItem(${i})" class="text-red-500 hover:text-red-700"><i class="fas fa-times-circle"></i></button>
+                </div>
+            </div>
+        `;
+    });
+    
+    if (!window.posTicket.length) {
+        html = '<p class="text-gray-400 text-xs italic text-center mt-10">Agrega productos al ticket</p>';
+    }
+    list.innerHTML = html; 
+    
+    // Calcular totales (IVA, descuento, etc.)
+    let realTotal = window.posTotal - (window.posDescuento || 0); 
+    if(realTotal < 0) realTotal = 0;
+    const sub = realTotal / 1.16; 
+    const iva = realTotal - sub;
 
-      const discountRow = document.getElementById('pos-discount-row');
-      if(discountRow) {
-          if(window.posDescuento > 0) {
-              discountRow.classList.remove('hidden');
-              const discountAmount = document.getElementById('pos-discount-amount');
-              if(discountAmount) discountAmount.innerText = `-$${window.posDescuento.toFixed(2)}`;
-          } else { discountRow.classList.add('hidden'); }
-      }
+    const discountRow = document.getElementById('pos-discount-row');
+    if(discountRow) {
+        if(window.posDescuento > 0) {
+            discountRow.classList.remove('hidden');
+            const discountAmount = document.getElementById('pos-discount-amount');
+            if(discountAmount) discountAmount.innerText = `-$${window.posDescuento.toFixed(2)}`;
+        } else { 
+            discountRow.classList.add('hidden'); 
+        }
+    }
 
-      const subEl = document.getElementById('pos-subtotal');
-      const ivaEl = document.getElementById('pos-iva');
-      const totalEl = document.getElementById('pos-ticket-total');
-      const btnTotalEl = document.getElementById('pos-btn-total');
-      if(subEl) subEl.innerText = `$${sub.toFixed(2)}`;
-      if(ivaEl) ivaEl.innerText = `$${iva.toFixed(2)}`;
-      if(totalEl) totalEl.innerText = `$${realTotal.toFixed(2)}`;
-      if(btnTotalEl) btnTotalEl.innerText = `$${realTotal.toFixed(2)}`;
-      window.calcPosChange();
-  };
+    const subEl = document.getElementById('pos-subtotal');
+    const ivaEl = document.getElementById('pos-iva');
+    const totalEl = document.getElementById('pos-ticket-total');
+    const btnTotalEl = document.getElementById('pos-btn-total');
+    
+    if(subEl) subEl.innerText = `$${sub.toFixed(2)}`;
+    if(ivaEl) ivaEl.innerText = `$${iva.toFixed(2)}`;
+    if(totalEl) totalEl.innerText = `$${realTotal.toFixed(2)}`;
+    if(btnTotalEl) btnTotalEl.innerText = `$${realTotal.toFixed(2)}`;
+    
+    window.calcPosChange();
+};
 
   window.removeTicketItem = i => { window.posTicket.splice(i,1); window.renderTicket(); };
   window.addAlmacenToTicket = (id) => {
-      const p = adminInventoryList.find(x => x.id === id);
-      if(p && p.stock > 0) {
-          window.promptModal("Garantía para este producto:\n(Dejar vacío = Sin garantía, o escribe: 15 días, 1 mes, 2 meses, 3 meses, No aplica)", "", (garantia) => {
-              window.posTicket.push({ type: 'almacen', id: p.id, name: p.name, price: p.priceTaller, cost: p.cost, garantia: garantia || 'Sin garantía' });
-              window.renderTicket(); showToast("Agregado");
-          });
-      }
-      else if(p) showToast("Sin stock", true);
-  };
+    const p = adminInventoryList.find(x => x.id === id);
+    if (p && p.stock > 0) {
+        window.promptModal("Garantía para este producto:\n(Dejar vacío = Sin garantía, o escribe: 15 días, 1 mes, 2 meses, 3 meses, No aplica)", "", (garantia) => {
+            
+            // 1. Verificar si el producto ya está en el ticket
+            const existingIndex = window.posTicket.findIndex(item => item.id === id);
+            
+            if (existingIndex !== -1) {
+                // ✅ Ya existe: aumentar cantidad y mantener la garantía existente
+                const existingItem = window.posTicket[existingIndex];
+                existingItem.cantidad = (existingItem.cantidad || 1) + 1;
+                // Mantener la garantía que ya tenía
+                window.showToast(`Cantidad aumentada: ${existingItem.cantidad}x ${p.name}`);
+            } else {
+                // ✅ No existe: agregar nuevo producto con cantidad 1
+                window.posTicket.push({ 
+                    type: 'almacen', 
+                    id: p.id, 
+                    name: p.name, 
+                    price: p.priceTaller, 
+                    cost: p.cost, 
+                    garantia: garantia || 'Sin garantía',
+                    cantidad: 1 
+                });
+                window.showToast("Producto agregado");
+            }
+            
+            window.renderTicket();
+        });
+    } else if (p) {
+        window.showToast("Sin stock", true);
+    }
+};
 
   window.processManualCharge = () => {
-      const descEl = document.getElementById('manual-charge-desc');
-      const priceEl = document.getElementById('manual-charge-price');
-      const desc = descEl?.value.trim();
-      const price = parseFloat(priceEl?.value);
-      if(!desc || isNaN(price)) return showToast("Falta concepto o precio", true);
-      window.posTicket.push({ type: 'manual', name: desc, price, cost: 0 });
-      if(descEl) descEl.value = '';
-      if(priceEl) priceEl.value = '';
-      toggleModal('modal-manual-charge', false); window.renderTicket();
-  };
+    const descEl = document.getElementById('manual-charge-desc');
+    const priceEl = document.getElementById('manual-charge-price');
+    const qtyEl = document.getElementById('manual-charge-qty'); // Si tienes este input en el modal
+    
+    const desc = descEl?.value.trim();
+    const price = parseFloat(priceEl?.value);
+    const cantidad = qtyEl ? parseInt(qtyEl.value) || 1 : 1;
+    
+    if(!desc || isNaN(price)) return showToast("Falta concepto o precio", true);
+    
+    window.posTicket.push({ 
+        type: 'manual', 
+        name: desc, 
+        price: price, 
+        cost: 0, 
+        cantidad: cantidad 
+    });
+    
+    if(descEl) descEl.value = '';
+    if(priceEl) priceEl.value = '';
+    if(qtyEl) qtyEl.value = '';
+    
+    toggleModal('modal-manual-charge', false); 
+    window.renderTicket();
+};
 
   window.processScannerInput = async () => {
       const idEl = document.getElementById('scanner-id-input');
@@ -8031,79 +8271,73 @@ if (esCotizacion) {
 
   // ========== COTIZACIÓN (FUNCIÓN GLOBAL) ==========
   window.generarCotizacionPDF = async function() {
-      console.log('🔄 Generando cotización con nombre real del cliente...');
-      if (!window.posTicket || !window.posTicket.length) {
-          window.showToast("El ticket está vacío. Agrega productos para cotizar.", true);
-          return;
-      }
+    console.log('🔄 Generando cotización con desglose por cantidad...');
+    if (!window.posTicket || !window.posTicket.length) {
+        window.showToast("El ticket está vacío. Agrega productos para cotizar.", true);
+        return;
+    }
 
-      try {
-          // 📌 Obtener el teléfono del cliente desde el input del POS
-          const rawPhone = document.getElementById('pos-customer-phone')?.value.trim() || '';
-          let nombreCliente = 'Mostrador';
-          let uidCliente = null;
+    try {
+        // 📌 Obtener el teléfono del cliente desde el input del POS
+        const rawPhone = document.getElementById('pos-customer-phone')?.value.trim() || '';
+        let nombreCliente = 'Mostrador';
+        let uidCliente = null;
 
-          // 📌 Buscar el cliente en Firestore por teléfono
-          if (rawPhone) {
-              const phoneToSearch = '+52' + rawPhone.replace(/[^0-9]/g, '');
-              try {
-                  const q = query(collection(db, "users"), where("phone", "==", phoneToSearch), limit(1));
-                  const snap = await getDocs(q);
-                  if (!snap.empty) {
-                      const userData = snap.docs[0].data();
-                      nombreCliente = userData.name || userData.phone || rawPhone;
-                      uidCliente = snap.docs[0].id;
-                  } else {
-                      // Si no se encuentra en users, usar el teléfono como nombre
-                      nombreCliente = rawPhone;
-                  }
-              } catch (e) {
-                  console.warn('Error al buscar cliente en Firestore:', e);
-                  nombreCliente = rawPhone || 'Mostrador';
-              }
-          }
+        if (rawPhone) {
+            const phoneToSearch = '+52' + rawPhone.replace(/[^0-9]/g, '');
+            try {
+                const q = query(collection(db, "users"), where("phone", "==", phoneToSearch), limit(1));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    const userData = snap.docs[0].data();
+                    nombreCliente = userData.name || userData.phone || rawPhone;
+                    uidCliente = snap.docs[0].id;
+                } else {
+                    nombreCliente = rawPhone || 'Mostrador';
+                }
+            } catch (e) {
+                console.warn('Error al buscar cliente en Firestore:', e);
+                nombreCliente = rawPhone || 'Mostrador';
+            }
+        }
 
-          // 📌 Construir datos de cotización
-const subtotal = window.posTicket.reduce((s, i) => s + i.price, 0);
+        // 📌 Calcular subtotal (suma de todos los precios, ya desglosados)
+        const subtotal = window.posTicket.reduce((s, i) => s + (i.price * (i.cantidad || 1)), 0);
+        const descuento = window.posDescuento || 0;
+        const totalEstimado = subtotal - descuento;
 
-// El descuento ya está en window.posDescuento
-const descuento = window.posDescuento || 0;
+        // 📌 Construir datos de cotización
+        const cotizacionData = {
+            shortId: 'COT-' + new Date().toISOString().slice(0,10),
+            fecha: new Date().toISOString(),
+            clienteCel: nombreCliente,
+            uid: uidCliente,
+            ticket: window.posTicket,
+            total: totalEstimado,
+            descuento: descuento,
+            metodoPago: 'Cotización',
+            clientName: nombreCliente
+        };
 
-// ✅ El total estimado es: subtotal - descuento (SIN SUMAR IVA EXTRA)
-const totalEstimado = subtotal - descuento;
+        // 📌 Generar PDF llamando a imprimirTicketVenta con esCotizacion = true
+        const pdfBlob = await window.imprimirTicketVenta(null, cotizacionData, true);
 
-// Construir los datos de la cotización
-const cotizacionData = {
-    shortId: 'COT-' + new Date().toISOString().slice(0,10),
-    fecha: new Date().toISOString(),
-    clienteCel: nombreCliente,
-    uid: uidCliente,
-    ticket: window.posTicket,
-    total: totalEstimado,  // ✅ Ahora enviamos el total sin IVA extra
-    descuento: descuento,
-    metodoPago: 'Cotización',
-    clientName: nombreCliente
+        // 📌 Descargar PDF
+        const urlLocal = URL.createObjectURL(pdfBlob);
+        const link = document.createElement('a');
+        link.href = urlLocal;
+        link.download = `Cotizacion_${new Date().toISOString().slice(0,10)}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(urlLocal), 5000);
+
+        window.showToast('✅ Cotización generada correctamente.');
+    } catch (error) {
+        console.error('❌ Error al generar cotización:', error);
+        window.showToast('Error al generar cotización', true);
+    }
 };
-
-          // 📌 Generar PDF llamando a imprimirTicketVenta con esCotizacion = true
-          const pdfBlob = await window.imprimirTicketVenta(null, cotizacionData, true);
-
-          // 📌 Descargar PDF
-          const urlLocal = URL.createObjectURL(pdfBlob);
-          const link = document.createElement('a');
-          link.href = urlLocal;
-          link.download = `Cotizacion_${new Date().toISOString().slice(0,10)}.pdf`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          setTimeout(() => URL.revokeObjectURL(urlLocal), 5000);
-
-          window.showToast('✅ Cotización generada correctamente.');
-      } catch (error) {
-          console.error('❌ Error al generar cotización:', error);
-          window.showToast('Error al generar cotización', true);
-      }
-  };
 
   window.sendTicketWhatsAppAfterCheckout = (phone, total, ticketItems) => {
       if (!ticketItems || !ticketItems.length) return;
@@ -8116,58 +8350,392 @@ const cotizacionData = {
 
   let ventasRealizadasUnsubscribe = null;
 
-  window.loadVentasRealizadas = () => {
-      const container = document.getElementById('ventas-realizadas-list');
-      if (!container) return;
+// ============================================================
+// loadVentasRealizadas - Versión final corregida
+// ============================================================
+window.loadVentasRealizadas = (filtroMes = 'actual') => {
+    const container = document.getElementById('ventas-realizadas-list');
+    if (!container) return;
 
-      if (ventasRealizadasUnsubscribe) ventasRealizadasUnsubscribe();
-      ventasRealizadasUnsubscribe = null;
+    if (typeof ventasRealizadasUnsubscribe !== 'undefined' && ventasRealizadasUnsubscribe) {
+        ventasRealizadasUnsubscribe();
+        ventasRealizadasUnsubscribe = null;
+    }
 
-      const q = query(collection(db, "ventas"), orderBy("fecha", "desc"), limit(30));
-      ventasRealizadasUnsubscribe = onSnapshot(q, (snap) => {
-          container.innerHTML = '';
-          snap.forEach(docSnap => {
-              const v = docSnap.data();
-              const itemsCount = v.ticket ? v.ticket.length : 0;
-              const tienePDF = v.pdfUrl ? true : false;
+    container.innerHTML = `<p class="text-gray-400 text-xs italic text-center py-4">Cargando ventas...</p>`;
 
-              let accionHTML = '';
-  if (tienePDF) {
-      accionHTML = `
-          <button onclick="window.descargarPDF('${v.pdfUrl}', '${v.shortId || docSnap.id}')" 
-                  class="w-8 h-8 bg-naranja rounded-full flex items-center justify-center text-white hover:opacity-80 transition-opacity"
-                  title="Descargar comprobante">
-              <i class="fas fa-download"></i>
-          </button>
-      `;
-  } else {
-                  accionHTML = `
-                      <div class="flex items-center gap-3">
-                          <button onclick="window.reimprimirVenta('${docSnap.id}')" 
-                                  class="bg-blue-600 text-white px-3 py-1 rounded text-[9px] font-bold uppercase hover:bg-blue-500 transition-colors">
-                              Reimprimir
-                          </button>
-                          <i class="fas fa-exclamation-triangle text-yellow-400 text-lg" title="PDF no disponible, genera uno nuevo"></i>
-                      </div>
-                  `;
-              }
+    const obtenerMesLabel = (iso) => {
+        if (!iso) return '';
+        const fecha = new Date(iso);
+        return fecha.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+    };
 
-              container.innerHTML += `
-                  <div class="bg-white/5 border border-white/10 p-3 rounded-xl text-xs text-white">
-                      <div class="flex justify-between">
-                          <span class="font-bold">${v.shortId}</span>
-                          <span>${new Date(v.fecha).toLocaleDateString()}</span>
-                      </div>
-                      <p class="text-gray-400">${v.desc?.substring(0, 50) || `${itemsCount} productos`}</p>
-                      <p class="text-naranja font-black">$${v.total?.toFixed(2) || '0.00'}</p>
-                      <div class="flex justify-end mt-1">
-                          ${accionHTML}
-                      </div>
-                  </div>
-              `;
-          });
-      });
-  };
+    const coloresMeses = ['#FF6B00', '#3b82f6', '#22c55e', '#eab308', '#8b5cf6', '#ec4899'];
+
+    // Formatear método de pago con emoji
+    const formatearMetodoPago = (metodo) => {
+        if (!metodo) return '';
+        const metodoUpper = metodo.toUpperCase().trim();
+        const emojis = {
+            'TARJETA': '💳 TARJETA',
+            'EFECTIVO': ' EFECTIVO',
+            'TRANSFERENCIA': '🏦 TRANSFERENCIA',
+            'PENDIENTE': '⏳ PENDIENTE',
+            'CRÉDITO': '💰 CRÉDITO',
+            'CREDITO': '💰 CRÉDITO',
+            'DÉBITO': '💳 DÉBITO',
+            'DEBITO': '💳 DÉBITO',
+        };
+        return emojis[metodoUpper] || `💳 ${metodoUpper}`;
+    };
+
+    const generarTarjetaVenta = (v, colorBarra, mesLabel) => {
+        const fechaDisplay = v.fecha ? new Date(v.fecha).toLocaleDateString() : 'Sin fecha';
+        const metodoPagoFormateado = formatearMetodoPago(v.metodoPago);
+
+        return `
+            <div onclick="window.verDetalleVenta('${v.id}')" 
+                 class="bg-white/5 border border-white/10 rounded-xl text-xs text-white cursor-pointer hover:bg-white/10 hover:border-naranja/50 transition-all duration-200 flex flex-col overflow-hidden">
+                
+                <!-- Barra de color superior -->
+                <div style="height: 4px; background-color: ${colorBarra}; width: 100%; flex-shrink: 0;"></div>
+                
+                <!-- Contenido -->
+                <div class="p-3 flex flex-col">
+                    <!-- ID y Fecha -->
+                    <div class="flex justify-between items-start gap-2 mb-1">
+                        <span class="font-bold text-naranja text-base truncate leading-tight">${v.shortId || v.id}</span>
+                        <span class="text-gray-400 text-[10px] whitespace-nowrap flex-shrink-0">${fechaDisplay}</span>
+                    </div>
+                    
+                    <!-- Label del mes -->
+                    <span class="block text-[8px] text-gray-400 uppercase font-bold tracking-widest mb-2">${mesLabel}</span>
+                    
+                    <!-- Descripción -->
+                    <p class="text-gray-300 text-sm line-clamp-2 mb-2 leading-snug">${v.desc || 'Sin descripción'}</p>
+                    
+                    <!-- Método de pago con emoji -->
+                    ${metodoPagoFormateado ? `
+                        <span class="inline-block text-[10px] bg-white/10 px-2 py-1 rounded text-gray-300 font-medium mb-2">
+                            ${metodoPagoFormateado}
+                        </span>
+                    ` : ''}
+                    
+                    <!-- Footer: Precio y Botón -->
+                    <div class="flex justify-between items-center pt-2 border-t border-white/10">
+                        <p class="text-naranja font-black text-lg">$${v.total?.toFixed(2) || '0.00'}</p>
+                        <div class="flex gap-1">
+                            ${v.pdfUrl ? `
+                                <button onclick="event.stopPropagation(); window.descargarPDF('${v.pdfUrl}', '${v.shortId || v.id}')" 
+                                        class="bg-naranja text-white px-2 py-1 rounded text-[9px] font-bold hover:opacity-80 flex-shrink-0">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            ` : `
+                                <button onclick="event.stopPropagation(); window.reimprimirVenta('${v.id}')" 
+                                        class="bg-blue-600 text-white px-2 py-1 rounded text-[9px] font-bold hover:bg-blue-500 flex-shrink-0">
+                                    Reimprimir
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    };
+
+    const renderVentas = (ventas) => {
+        if (ventas.length === 0) {
+            container.innerHTML = `<p class="text-gray-400 text-xs italic text-center py-4">No hay ventas en este período.</p>`;
+            return;
+        }
+
+        // Agrupar por mes
+        const grupos = {};
+        ventas.forEach(v => {
+            if (v.fecha) {
+                const mesKey = obtenerMesLabel(v.fecha);
+                if (!grupos[mesKey]) grupos[mesKey] = [];
+                grupos[mesKey].push(v);
+            }
+        });
+
+        const nombresMeses = Object.keys(grupos);
+        const numMesesConDatos = nombresMeses.length;
+        
+        let html = '';
+        let mesIndex = 0;
+
+        // Grid principal dinámico
+        let gridClasses = 'grid gap-3 w-full ';
+        
+        if (numMesesConDatos === 1) {
+            gridClasses += 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6';
+        } else if (numMesesConDatos === 2) {
+            gridClasses += 'grid-cols-1 md:grid-cols-2';
+        } else {
+            gridClasses += 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3';
+        }
+
+        html += `<div class="${gridClasses}">`;
+
+        for (const [mes, ventasMes] of Object.entries(grupos)) {
+            const color = coloresMeses[mesIndex % coloresMeses.length];
+            mesIndex++;
+
+            if (numMesesConDatos === 1) {
+                // Un solo mes: tarjetas directas en el grid
+                ventasMes.forEach(v => {
+                    html += generarTarjetaVenta(v, color, mes);
+                });
+            } else {
+                // Múltiples meses: cada mes en su columna
+                html += `<div class="flex flex-col gap-3 bg-white/5 border border-white/10 rounded-xl p-3">`;
+                html += `<div class="text-naranja font-bold text-xs uppercase tracking-widest mb-2 pb-2 border-b border-white/20">${mes} (${ventasMes.length})</div>`;
+                
+                ventasMes.forEach(v => {
+                    html += generarTarjetaVenta(v, color, mes);
+                });
+                
+                html += `</div>`;
+            }
+        }
+
+        html += `</div>`;
+        container.innerHTML = html;
+    };
+
+    const ahora = new Date();
+    const mesActualLabel = ahora.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+    if (filtroMes === 'actual') filtroMes = mesActualLabel;
+
+    try {
+        const q = query(collection(db, "ventas"), orderBy("fecha", "desc"), limit(300));
+        ventasRealizadasUnsubscribe = onSnapshot(q, (snap) => {
+            const todasLasVentas = [];
+            snap.forEach(doc => {
+                const data = doc.data();
+                data.id = doc.id;
+                todasLasVentas.push(data);
+            });
+
+            let ventasFiltradas = todasLasVentas;
+            if (filtroMes !== 'todos') {
+                ventasFiltradas = todasLasVentas.filter(v => {
+                    if (!v.fecha) return false;
+                    return obtenerMesLabel(v.fecha) === filtroMes;
+                });
+            }
+
+            renderVentas(ventasFiltradas);
+        });
+    } catch (e) {
+        console.error('Error al cargar ventas:', e);
+    }
+};
+
+// Función auxiliar para aplicar filtro desde el select
+window.aplicarFiltroMesVentas = () => {
+    const select = document.getElementById('filtro-mes-ventas');
+    if (select) {
+        const filtroMes = select.value;
+        window.loadVentasRealizadas(filtroMes);
+    }
+};
+
+
+// ============================================================
+// verDetalleVenta - Con nombre del cliente
+// ============================================================
+window.verDetalleVenta = async (ventaId) => {
+    const snap = await getDoc(doc(db, "ventas", ventaId));
+    if (!snap.exists()) return showToast("Venta no encontrada", true);
+    const v = snap.data();
+
+    const fecha = v.fecha ? new Date(v.fecha).toLocaleString() : 'Sin fecha';
+    
+    // ✅ OBTENER EL NOMBRE DEL CLIENTE (si existe)
+    let nombreCliente = v.clienteCel || 'Mostrador';
+    let telefonoCliente = v.clienteCel || '';
+    
+    try {
+        if (v.clienteCel) {
+            // Buscar en la colección users por número de teléfono
+            const telefonoBusqueda = v.clienteCel.startsWith('+52') ? v.clienteCel : '+52' + v.clienteCel.replace(/[^0-9]/g, '');
+            const q = query(collection(db, "users"), where("phone", "==", telefonoBusqueda), limit(1));
+            const userSnap = await getDocs(q);
+            if (!userSnap.empty) {
+                const userData = userSnap.docs[0].data();
+                if (userData.name) {
+                    nombreCliente = userData.name;
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('Error al buscar nombre del cliente:', e);
+        // Si falla, seguimos mostrando el teléfono como nombre
+    }
+
+    // Generar HTML de los items
+    const itemsHTML = v.ticket ? v.ticket.map(item => `
+        <div class="flex justify-between text-xs border-b border-white/5 py-1">
+            <span>${item.name}</span>
+            <span class="text-naranja font-bold">$${item.price?.toFixed(2) || '0.00'}</span>
+        </div>
+    `).join('') : '<p class="text-gray-400 text-xs">Sin productos</p>';
+
+    // Preparar datos para WhatsApp
+    const telefonoClean = telefonoCliente.replace(/[^0-9]/g, '');
+    let whatsappUrl = '';
+    let botonWhatsApp = '';
+
+    if (telefonoClean) {
+        let mensaje = `Hola ${nombreCliente !== 'Mostrador' ? nombreCliente : ''}, aquí tienes el comprobante de tu compra en OBR:\n\n*Folio:* ${v.shortId || ventaId}\n*Total:* $${v.total?.toFixed(2) || '0.00'}\n*Fecha:* ${fecha}\n\nGracias por preferirnos.`;
+        
+        // ✅ Si existe el PDF, agregamos el enlace al mensaje
+        if (v.pdfUrl) {
+            mensaje += `\n\n🔗 Puedes descargar tu comprobante aquí:\n${v.pdfUrl}`;
+        }
+
+        whatsappUrl = `https://wa.me/52${telefonoClean}?text=${encodeURIComponent(mensaje)}`;
+        
+        botonWhatsApp = `
+            <button onclick="window.open('${whatsappUrl}', '_blank')" 
+                    class="flex-1 bg-[#25D366] text-white py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+                <i class="fab fa-whatsapp text-lg"></i> Enviar comprobante
+            </button>
+        `;
+    }
+
+    // Construir el contenido del modal
+    const modalHTML = `
+        <div class="fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center p-4 hidden backdrop-blur-sm" id="modal-venta-detalle">
+            <div class="bg-asfalto w-full max-w-md rounded-2xl p-6 border border-naranja/30 shadow-2xl">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 class="text-xl font-black text-white">${v.shortId || ventaId}</h3>
+                        <p class="text-xs text-gray-400">${fecha}</p>
+                    </div>
+                    <button onclick="toggleModal('modal-venta-detalle', false)" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times text-xl"></i>
+                    </button>
+                </div>
+                
+                <div class="bg-white/5 p-3 rounded-xl mb-4">
+                    <p class="text-xs text-gray-400">Cliente</p>
+                    <div>
+                        <p class="text-sm font-bold text-white">${nombreCliente}</p>
+                        ${telefonoCliente ? `<p class="text-[10px] text-gray-400">📞 ${telefonoCliente}</p>` : ''}
+                    </div>
+                </div>
+
+                <div class="bg-white/5 p-3 rounded-xl mb-4">
+                    <p class="text-xs text-gray-400">Productos</p>
+                    <div class="space-y-1 mt-1">
+                        ${itemsHTML}
+                    </div>
+                </div>
+
+                <div class="bg-white/5 p-3 rounded-xl">
+                    <div class="flex justify-between">
+                        <p class="text-xs text-gray-400">Total</p>
+                        <p class="text-naranja font-black text-xl">$${v.total?.toFixed(2) || '0.00'}</p>
+                    </div>
+                    <p class="text-[10px] text-gray-500 mt-1">Método de pago: ${v.metodoPago || 'N/A'}</p>
+                </div>
+
+                <div class="flex flex-col gap-2 mt-4">
+                    ${botonWhatsApp}
+                    
+                    <div class="flex gap-2">
+                        ${v.pdfUrl ? `
+                            <button onclick="window.descargarPDF('${v.pdfUrl}', '${v.shortId || ventaId}')" 
+                                    class="flex-1 bg-naranja text-white py-2 rounded-xl text-xs font-bold">
+                                Descargar PDF
+                            </button>
+                        ` : ''}
+                        <button onclick="window.reimprimirVenta('${ventaId}')" 
+                                class="flex-1 bg-blue-600 text-white py-2 rounded-xl text-xs font-bold">
+                            Reimprimir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // ✅ GESTIÓN CORRECTA DEL MODAL: Remover el modal anterior si existe
+    const existingModal = document.getElementById('modal-venta-detalle');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    // Insertar el nuevo modal en el DOM
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    const nuevoModal = document.getElementById('modal-venta-detalle');
+    
+    // Mostrar el modal
+    toggleModal('modal-venta-detalle', true);
+};
+
+// ============================================================
+// Llenar el selector de meses disponibles desde Firestore
+// ============================================================
+window.cargarOpcionesMeses = () => {
+    const select = document.getElementById('filtro-mes-ventas');
+    if (!select) return;
+
+    const q = query(collection(db, "ventas"), orderBy("fecha", "desc"), limit(300));
+    onSnapshot(q, (snap) => {
+        const mesesSet = new Set();
+        snap.forEach(doc => {
+            const data = doc.data();
+            if (data.fecha) {
+                const fecha = new Date(data.fecha);
+                const mesKey = fecha.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }).toLowerCase();
+                mesesSet.add(mesKey);
+            }
+        });
+
+        const mesesArray = Array.from(mesesSet).sort((a, b) => {
+            const dateA = new Date(a);
+            const dateB = new Date(b);
+            return dateB - dateA;
+        });
+
+        const ahora = new Date();
+        const mesActualLabel = ahora.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }).toLowerCase();
+
+        select.innerHTML = '';
+        const optTodos = document.createElement('option');
+        optTodos.value = 'todos';
+        optTodos.textContent = 'Todos los meses';
+        select.appendChild(optTodos);
+
+        mesesArray.forEach(mes => {
+            const option = document.createElement('option');
+            option.value = mes;
+            option.textContent = mes.charAt(0).toUpperCase() + mes.slice(1); // Primera letra mayúscula
+            if (mes === mesActualLabel) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+
+        if (mesesArray.length === 0) {
+            optTodos.selected = true;
+        }
+    });
+};
+
+// ============================================================
+// Aplicar el filtro de mes seleccionado
+// ============================================================
+window.aplicarFiltroMesVentas = () => {
+    const select = document.getElementById('filtro-mes-ventas');
+    if (!select) return;
+    const mesSeleccionado = select.value;
+    window.loadVentasRealizadas(mesSeleccionado);
+};
 
   window.verGarantiasVenta = async (ventaId) => {
       const snap = await getDocs(query(collection(db, "garantias"), where("ventaId", "==", ventaId)));
@@ -8942,6 +9510,34 @@ window.enviarBroadcast = async function() {
   document.getElementById('delete-user-btn').onclick = () => window.adminDeleteUser(uid);
       toggleModal('modal-user-detail', true);
   };
+
+// ============================================================
+// FILTRAR USUARIOS POR NOMBRE O CELULAR (ignora +52)
+// ============================================================
+window.filtrarUsuarios = function() {
+    // Obtener términos de búsqueda de los 3 inputs
+    const searchNormal = document.getElementById('search-normal-users')?.value.toLowerCase() || '';
+    const searchVip = document.getElementById('search-vip-users')?.value.toLowerCase() || '';
+    const searchStaff = document.getElementById('search-staff-users')?.value.toLowerCase() || '';
+
+    // Función para filtrar una lista
+    const filterList = (containerId, searchTerm) => {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const items = container.querySelectorAll('.bg-white\\/5');
+        items.forEach(item => {
+            const text = item.innerText.toLowerCase();
+            // Reemplazar +52 por vacío para buscar solo los 10 dígitos
+            const textNormalizado = text.replace('+52', '').trim();
+            item.style.display = textNormalizado.includes(searchTerm) ? 'flex' : 'none';
+        });
+    };
+
+    // Aplicar filtro a cada lista
+    filterList('admin-users-normal-list', searchNormal);
+    filterList('admin-users-vip-list', searchVip);
+    filterList('admin-users-staff-list', searchStaff);
+};
 
   window.promoteToVIP = async (uid) => {
       const userDoc = await getDoc(doc(db, "users", uid));
@@ -10607,117 +11203,243 @@ window.openMechanicPOS = async (sosId) => {
       } catch(e) {}
   };
 
-  window.loadStats = async () => {
-    const fromDate = document.getElementById('stats-from')?.value;
-    const toDate = document.getElementById('stats-to')?.value;
-    let salesData = adminSalesCache.ventas || [];
-    
-    // Filtrar ventas por rango de fechas
-    if (fromDate) salesData = salesData.filter(v => v.fecha >= fromDate);
-    if (toDate) salesData = salesData.filter(v => v.fecha <= toDate + 'T23:59:59');
+// ============================================================
+// WINDOW.LOADSTATS - VERSIÓN CON LOGS Y SIN FILTRO DE FECHA
+// ============================================================
+window.loadStats = async () => {
+    try {
+        console.log("🔄 loadStats iniciado...");
 
-    // -------------------- 1. Ventas por día (gráfico de barras) --------------------
-    const byDay = {};
-    salesData.forEach(v => {
-        const day = new Date(v.fecha).toLocaleDateString();
-        byDay[day] = (byDay[day] || 0) + (v.total || 0);
-    });
-    const labels = Object.keys(byDay).sort();
-    const values = labels.map(d => byDay[d]);
+        // === 1. Validación del DOM ===
+        const fromDateEl = document.getElementById('stats-from');
+        const toDateEl = document.getElementById('stats-to');
+        const fromDate = fromDateEl ? fromDateEl.value : '';
+        const toDate = toDateEl ? toDateEl.value : '';
 
-    if (statsChartInstance) statsChartInstance.destroy();
-    const ctx = document.getElementById('stats-chart')?.getContext('2d');
-    if (ctx) {
-        statsChartInstance = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels,
-                datasets: [{
-                    label: 'Ingresos ($)',
-                    data: values,
-                    backgroundColor: '#FF6B00'
-                }]
+        console.log(`📅 Filtro de fechas: ${fromDate || 'sin inicio'} - ${toDate || 'sin fin'}`);
+
+        // === 2. Obtener ventas directamente desde Firestore ===
+        let salesData = [];
+        try {
+            let q = query(collection(db, "ventas"), orderBy("fecha", "desc"));
+            if (fromDate) q = query(q, where("fecha", ">=", fromDate));
+            if (toDate) q = query(q, where("fecha", "<=", toDate + 'T23:59:59'));
+            
+            const snap = await getDocs(q);
+            console.log(`📊 Ventas encontradas: ${snap.size}`);
+            snap.forEach(doc => {
+                const data = doc.data();
+                data.id = doc.id;
+                salesData.push(data);
+            });
+        } catch (e) {
+            console.warn('Error al cargar ventas desde Firestore:', e);
+        }
+
+        // === 3. Leer retiros desde Firestore (SIN FILTRO DE FECHA) ===
+        let retiros = [];
+        try {
+            // ✅ PRUEBA: Obtener TODOS los retiros sin filtrar por fecha
+            console.log("🔍 Consultando colección 'retiros'...");
+            const snap = await getDocs(collection(db, "retiros"));
+            console.log(`📊 Retiros encontrados en Firestore: ${snap.size}`);
+            
+            snap.forEach(doc => {
+                const data = doc.data();
+                console.log("📄 Documento de retiro:", data);
+                retiros.push({ id: doc.id, ...data });
+            });
+        } catch (e) {
+            console.error('❌ Error al cargar retiros:', e);
+        }
+
+        // ✅ Guardar en memoria local
+        window.retiros = retiros;
+        console.log(`✅ window.retiros actualizado con ${retiros.length} elementos.`);
+
+        // === 4. Si no hay ventas, mostrar mensaje ===
+        if (salesData.length === 0) {
+            const summaryGrid = document.getElementById('stats-summary-grid');
+            if (summaryGrid) {
+                summaryGrid.innerHTML = `
+                    <div class="col-span-full text-center text-gray-400 text-sm py-8">
+                        <i class="fas fa-box-open text-3xl mb-2 opacity-50"></i>
+                        <p>No hay ventas registradas en este período.</p>
+                    </div>
+                `;
+            }
+            // Mostrar retiros aunque no haya ventas
+            if (typeof window.renderRetirosList === 'function') {
+                window.renderRetirosList();
+            }
+            return;
+        }
+
+        // === 5. Gráfico de barras ===
+        const byDay = {};
+        salesData.forEach(v => {
+            const day = new Date(v.fecha).toLocaleDateString();
+            byDay[day] = (byDay[day] || 0) + (v.total || 0);
+        });
+        const labels = Object.keys(byDay).sort();
+        const values = labels.map(d => byDay[d]);
+
+        if (statsChartInstance) statsChartInstance.destroy();
+        const chartCanvas = document.getElementById('stats-chart');
+        if (chartCanvas) {
+            const ctx = chartCanvas.getContext('2d');
+            if (ctx) {
+                statsChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Ingresos ($)',
+                            data: values,
+                            backgroundColor: '#FF6B00'
+                        }]
+                    }
+                });
+            }
+        }
+
+        // === 6. Totales ===
+        const totalVentas = salesData.reduce((s, v) => s + (v.total || 0), 0);
+        const totalCosto = salesData.reduce((s, v) => s + (v.costo || 0), 0);
+        const totalRetiros = retiros.reduce((s, r) => s + (r.monto || 0), 0);
+        const gananciaBruta = totalVentas - totalCosto - totalRetiros;
+
+        // === 7. Mostrar resumen ===
+        const summaryGrid = document.getElementById('stats-summary-grid');
+        if (summaryGrid) {
+            summaryGrid.innerHTML = `
+                <div class="bg-white/5 p-3 rounded-xl">
+                    <p class="text-xs text-gray-400">Ventas Totales</p>
+                    <p class="text-xl font-black">$${totalVentas.toFixed(2)}</p>
+                </div>
+                <div class="bg-white/5 p-3 rounded-xl">
+                    <p class="text-xs text-gray-400">Costo de Inventario</p>
+                    <p class="text-xl font-black">$${totalCosto.toFixed(2)}</p>
+                </div>
+                <div class="bg-white/5 p-3 rounded-xl">
+                    <p class="text-xs text-gray-400">Retiros / Salidas</p>
+                    <p class="text-xl font-black text-red-400">$${totalRetiros.toFixed(2)}</p>
+                </div>
+                <div class="bg-white/5 p-3 rounded-xl">
+                    <p class="text-xs text-gray-400">Ganancia Bruta</p>
+                    <p class="text-xl font-black text-green-400">$${gananciaBruta.toFixed(2)}</p>
+                </div>
+            `;
+        }
+
+        // === 8. Gráfico de pastel ===
+        const productCount = {};
+        salesData.forEach(v => {
+            if (v.ticket) {
+                v.ticket.forEach(item => {
+                    if (item.type === 'almacen') {
+                        productCount[item.name] = (productCount[item.name] || 0) + 1;
+                    }
+                });
             }
         });
+        const pieLabels = Object.keys(productCount).slice(0, 5);
+        const pieValues = pieLabels.map(k => productCount[k]);
+
+        if (statsPieInstance) statsPieInstance.destroy();
+        const pieCanvas = document.getElementById('stats-pie-chart');
+        if (pieCanvas) {
+            const pieCtx = pieCanvas.getContext('2d');
+            if (pieCtx) {
+                statsPieInstance = new Chart(pieCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: pieLabels,
+                        datasets: [{
+                            data: pieValues,
+                            backgroundColor: ['#FF6B00', '#2563eb', '#16a34a', '#eab308', '#8b5cf6']
+                        }]
+                    }
+                });
+            }
+        }
+
+        // === 9. Listado de retiros ===
+        if (typeof window.renderRetirosList === 'function') {
+            setTimeout(() => {
+                window.renderRetirosList();
+            }, 100);
+        }
+
+    } catch (error) {
+        console.error('❌ Error en loadStats:', error);
+    }
+};
+
+
+// ============================================================
+// RENDERIZAR LISTADO DE RETIROS EN ESTADÍSTICAS
+// ============================================================
+window.renderRetirosList = async function() {
+    const container = document.getElementById('stats-retiros-list');
+    if (!container) {
+        console.warn('⚠️ Contenedor stats-retiros-list no encontrado en el DOM.');
+        return;
     }
 
-    // -------------------- 2. Totales y ganancia bruta --------------------
-    const totalVentas = salesData.reduce((s, v) => s + (v.total || 0), 0);
-    const totalCosto = salesData.reduce((s, v) => s + (v.costo || 0), 0);
-    const inversion = totalCosto;
+    const retiros = window.retiros || [];
 
-    // Leer retiros desde Firestore (en el rango de fechas)
-    let retiros = [];
-    try {
-        let start = fromDate ? new Date(fromDate) : new Date();
-        let end = toDate ? new Date(toDate + 'T23:59:59') : new Date();
-        if (!fromDate) start.setHours(0, 0, 0, 0);
-        if (!toDate) end.setHours(23, 59, 59, 999);
-        const q = query(
-            collection(db, "retiros"),
-            where("timestamp", ">=", start.getTime()),
-            where("timestamp", "<=", end.getTime())
-        );
-        const snap = await getDocs(q);
-        snap.forEach(doc => retiros.push(doc.data()));
-    } catch (e) {
-        console.warn('Error al cargar retiros:', e);
+    if (retiros.length === 0) {
+        container.innerHTML = '<p class="text-gray-400 text-xs italic text-center py-4">No hay retiros en este período.</p>';
+        return;
     }
 
-    const totalRetiros = retiros.reduce((s, r) => s + (r.monto || 0), 0);
-    // Ganancia bruta = Ventas - Costo de inventario - Retiros
-    const gananciaBruta = totalVentas - totalCosto - totalRetiros;
-
-    // -------------------- 3. Resumen en el grid --------------------
-    const summaryGrid = document.getElementById('stats-summary-grid');
-    if (summaryGrid) {
-        summaryGrid.innerHTML = `
-            <div class="bg-white/5 p-3 rounded-xl">
-                <p class="text-xs text-gray-400">Ventas Totales</p>
-                <p class="text-xl font-black">$${totalVentas.toFixed(2)}</p>
-            </div>
-            <div class="bg-white/5 p-3 rounded-xl">
-                <p class="text-xs text-gray-400">Costo de Inventario</p>
-                <p class="text-xl font-black">$${totalCosto.toFixed(2)}</p>
-            </div>
-            <div class="bg-white/5 p-3 rounded-xl">
-                <p class="text-xs text-gray-400">Retiros / Salidas</p>
-                <p class="text-xl font-black text-red-400">$${totalRetiros.toFixed(2)}</p>
-            </div>
-            <div class="bg-white/5 p-3 rounded-xl">
-                <p class="text-xs text-gray-400">Ganancia Bruta</p>
-                <p class="text-xl font-black text-green-400">$${gananciaBruta.toFixed(2)}</p>
+    let html = '';
+    retiros.forEach(r => {
+        const fecha = new Date(r.timestamp).toLocaleString();
+        html += `
+            <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/10 mb-1">
+                <div>
+                    <p class="text-xs font-bold text-white">${r.concepto || 'Sin concepto'}</p>
+                    <p class="text-[9px] text-gray-400">${fecha} - ${r.nombre || 'Admin'}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-red-400 font-black text-xs">-$${r.monto.toFixed(2)}</span>
+                    <button onclick="window.eliminarRetiro('${r.id}')" class="text-red-500 hover:text-red-300 text-xs">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
             </div>
         `;
-    }
-
-    // -------------------- 4. Gráfico de pastel (productos más vendidos) --------------------
-    const productCount = {};
-    salesData.forEach(v => {
-        if (v.ticket) {
-            v.ticket.forEach(item => {
-                if (item.type === 'almacen') {
-                    productCount[item.name] = (productCount[item.name] || 0) + 1;
-                }
-            });
-        }
     });
-    const pieLabels = Object.keys(productCount).slice(0, 5);
-    const pieValues = pieLabels.map(k => productCount[k]);
+    container.innerHTML = html;
+};
 
-    if (statsPieInstance) statsPieInstance.destroy();
-    const pieCtx = document.getElementById('stats-pie-chart')?.getContext('2d');
-    if (pieCtx) {
-        statsPieInstance = new Chart(pieCtx, {
-            type: 'pie',
-            data: {
-                labels: pieLabels,
-                datasets: [{
-                    data: pieValues,
-                    backgroundColor: ['#FF6B00', '#2563eb', '#16a34a', '#eab308', '#8b5cf6']
-                }]
-            }
-        });
+
+// ============================================================
+// ELIMINAR UN RETIRO (y recalcular estadísticas)
+// ============================================================
+window.eliminarRetiro = async function(retiroId) {
+    if (!confirm("¿Eliminar este retiro? Esto revertirá el gasto en las estadísticas.")) return;
+
+    try {
+        await deleteDoc(doc(db, "retiros", retiroId));
+        
+        // ✅ Eliminar también de la memoria local
+        window.retiros = window.retiros.filter(r => r.id !== retiroId);
+        
+        showToast("Retiro eliminado correctamente.");
+        
+        // Refrescar listado y estadísticas
+        if (typeof window.renderRetirosList === 'function') {
+            window.renderRetirosList();
+        }
+        if (typeof window.loadStats === 'function') {
+            window.loadStats();
+        }
+    } catch (error) {
+        console.error('Error al eliminar retiro:', error);
+        showToast("Error al eliminar el retiro.", true);
     }
 };
 
@@ -13801,7 +14523,7 @@ window.adminLoadLoyalty = async function() {
       }, 1000);
   });
 
-  // ===== GUARDAR API KEY DE GROQ =====
+// ===== GUARDAR API KEY DE GROQ =====
   window.saveGroqApiKey = async function() {
       const input = document.getElementById('config-groq-api-key');
       const key = input.value.trim();
@@ -14617,5 +15339,37 @@ ${tipoServicio}
         document.execCommand('copy');
         document.body.removeChild(textarea);
         window.showToast("✅ Datos copiados (fallback)");
+    }
+};
+
+// ============================================================
+// AL ENCONTRAR EL CLIENTE, REEMPLAZAR EL CELULAR POR SU NOMBRE
+// ============================================================
+window.reemplazarCelularPorNombre = async (phoneInput) => {
+    const phone = phoneInput.value.trim();
+    if (phone.length < 10) return;
+
+    try {
+        const fullPhone = '+52' + phone;
+        const q = query(collection(db, "users"), where("phone", "==", fullPhone), limit(1));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+            const userData = snap.docs[0].data();
+            if (userData.name) {
+                // ✅ Reemplazar el valor del input por el nombre del cliente
+                phoneInput.value = userData.name;
+                // Guardar el teléfono real en un atributo data (para uso interno)
+                phoneInput.setAttribute('data-phone', fullPhone);
+                phoneInput.setAttribute('data-uid', snap.docs[0].id);
+                // Actualizar el indicador visual
+                const statusEl = document.getElementById('pos-customer-status');
+                if (statusEl) {
+                    statusEl.innerText = '✅';
+                    statusEl.className = 'absolute right-2 top-1/2 -translate-y-1/2 text-sm font-bold pointer-events-none text-green-500';
+                }
+            }
+        }
+    } catch (err) {
+        console.warn('Error al buscar cliente:', err);
     }
 };
