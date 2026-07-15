@@ -172,108 +172,6 @@
             <p id="tracking-not-found" class="hidden text-center text-red-400 text-xs lg:text-sm font-bold uppercase mt-4 bg-red-900/20 p-4 lg:p-6 rounded-xl border border-red-500/20">No encontramos un servicio activo con esos datos.</p>
         </div>
     </div>
-
-    <!-- VISTA PUBLICIDAD - MÁRKETING MASIVO POR WHATSAPP -->
-<div id="view-publicidad" class="app-view min-h-screen hidden flex-col p-4 lg:p-8 bg-asfalto">
-    <div class="w-full max-w-6xl mx-auto">
-        <button onclick="showView('app-admin')" class="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white mb-4">
-            <i class="fas fa-arrow-left"></i>
-        </button>
-        <h1 class="text-3xl font-black italic uppercase text-naranja mb-6">📢 Campaña Publicitaria</h1>
-
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- COLUMNA IZQUIERDA: Configuración -->
-            <div class="space-y-4">
-                <!-- Selector de público (con checkboxes grandes y coloridas) -->
-<div class="bg-white/5 p-4 rounded-2xl border border-white/10">
-    <h3 class="text-sm font-black text-white mb-3">🎯 Selección de público</h3>
-    <div class="grid grid-cols-2 gap-3">
-        <label class="flex items-center gap-3 text-white text-sm cursor-pointer bg-orange-500/20 hover:bg-orange-500/30 px-4 py-3 rounded-xl border border-orange-500/30 transition-all">
-            <input type="checkbox" id="pub-todos" value="todos" class="w-6 h-6 accent-orange-500" onchange="window.generarListaPublicidad()" checked>
-            <span class="font-bold">👥 Todos</span>
-        </label>
-        <label class="flex items-center gap-3 text-white text-sm cursor-pointer bg-blue-500/20 hover:bg-blue-500/30 px-4 py-3 rounded-xl border border-blue-500/30 transition-all">
-            <input type="checkbox" id="pub-estandar" value="cliente" class="w-6 h-6 accent-blue-500" onchange="window.generarListaPublicidad()">
-            <span class="font-bold">⭐ Estándar</span>
-        </label>
-        <label class="flex items-center gap-3 text-white text-sm cursor-pointer bg-yellow-500/20 hover:bg-yellow-500/30 px-4 py-3 rounded-xl border border-yellow-500/30 transition-all">
-            <input type="checkbox" id="pub-vip" value="membresia" class="w-6 h-6 accent-yellow-500" onchange="window.generarListaPublicidad()">
-            <span class="font-bold">👑 VIP</span>
-        </label>
-        <label class="flex items-center gap-3 text-white text-sm cursor-pointer bg-purple-500/20 hover:bg-purple-500/30 px-4 py-3 rounded-xl border border-purple-500/30 transition-all">
-            <input type="checkbox" id="pub-personal" value="admin,mecanico,taller" class="w-6 h-6 accent-purple-500" onchange="window.generarListaPublicidad()">
-            <span class="font-bold">🔧 Personal</span>
-        </label>
-    </div>
-</div>
-
-                <!-- Editor de mensaje -->
-                <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
-                    <h3 class="text-sm font-black text-white mb-2">✍️ Mensaje personalizado</h3>
-                    <p class="text-[9px] text-gray-400 mb-1">Usa <code>[NOMBRE]</code> para el nombre del cliente.</p>
-                    <textarea id="pub-mensaje" rows="4" placeholder="Hola [NOMBRE], esta es una oferta exclusiva para ti..." class="w-full bg-asfalto border border-white/10 p-3 rounded-xl text-white text-sm resize-none focus:border-naranja">Hola [NOMBRE], esta es una oferta exclusiva para ti. ¡No te la pierdas!</textarea>
-                    
-                    <!-- Carga de archivo -->
-                    <div class="mt-3">
-                        <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">📎 Adjuntar imagen/video</label>
-                        <input type="file" id="pub-media" accept="image/*,video/*" onchange="window.previsualizarMediaPublicidad()" class="w-full bg-asfalto p-2 rounded-xl border border-white/10 text-xs text-gray-400 file:bg-naranja file:text-white file:border-0 file:rounded-md file:px-3 file:py-1">
-                        <div id="pub-media-preview" class="mt-2 hidden"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- COLUMNA DERECHA: Lista y seguimiento -->
-            <div class="space-y-4">
-                <div class="bg-white/5 p-4 rounded-2xl border border-white/10 flex flex-col h-[600px]">
-                    <div class="flex justify-between items-center mb-2">
-                        <h3 class="text-sm font-black text-white">📋 Destinatarios (<span id="pub-count">0</span>)</h3>
-                        <div class="flex gap-2">
-                            <button onclick="window.exportarListaPublicidadPDF()" class="bg-blue-600 text-white px-3 py-1 rounded text-[9px] font-black uppercase">📄 PDF</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Previsualización del mensaje -->
-                    <div class="bg-black/30 p-3 rounded-xl mb-3 text-[10px] text-white border border-white/5">
-                        <p class="text-gray-400 text-[8px] uppercase">Vista previa:</p>
-                        <p id="pub-preview-text" class="italic">Hola [NOMBRE], esta es una oferta exclusiva para ti...</p>
-                        <div id="pub-preview-media" class="mt-1 hidden"></div>
-                    </div>
-
-                    <!-- Lista de destinatarios -->
-                    <div id="pub-lista-destinos" class="flex-grow overflow-y-auto hide-scroll space-y-1 text-[10px]">
-                        <p class="text-gray-400 text-center py-4">Genera la lista primero.</p>
-                    </div>
-
-                    <!-- Botones de descarga y ejecución -->
-                    <div class="flex flex-col gap-2 mt-4">
-                        <button onclick="window.descargarArchivosEnvio()" class="w-full bg-blue-600 text-white py-3 rounded-xl text-xs font-black uppercase">
-                            📥 Descargar archivos (.ps1 + .bat)
-                        </button>
-                        <button onclick="window.ejecutarBatGuardado()" class="w-full bg-green-600 text-white py-3 rounded-xl text-xs font-black uppercase">
-                            ⚡ Ejecutar envío masivo
-                        </button>
-                    </div>
-                    <p class="text-[10px] text-gray-400 mt-2 text-center">
-                        Descarga ambos archivos en la misma carpeta. Luego haz clic en <strong>Ejecutar envío masivo</strong> o abre manualmente <strong>Ejecutar.bat</strong>.
-                    </p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Instrucciones para el usuario -->
-        <div class="bg-white/5 p-4 rounded-xl border border-white/10 text-sm text-white mt-6">
-            <h4 class="font-black text-naranja mb-2">📋 Instrucciones para el envío masivo</h4>
-            <ol class="list-decimal pl-4 space-y-1 text-xs text-gray-300">
-                <li>Haz clic en <strong>"📥 Descargar archivos"</strong> para obtener el script y el ejecutable.</li>
-                <li>Los archivos se guardarán en tu carpeta de <strong>Descargas</strong>.</li>
-                <li>Haz doble clic en <strong>"Ejecutar.bat"</strong> para iniciar el envío masivo.</li>
-                <li>La app de WhatsApp se abrirá y empezará a enviar los mensajes automáticamente.</li>
-                <li>No cierres la ventana de PowerShell hasta que termine el proceso.</li>
-            </ol>
-        </div>
-    </div>
-</div>
-
     <!-- LOGIN / REGISTRO -->
     <div id="view-login" class="app-view min-h-screen hidden flex-col items-center justify-center p-6 bg-asfalto relative overflow-hidden">
         <button onclick="window.cancelSOSFlow()" class="absolute top-20 right-12 z-10 w-10 h-10 bg-gray-700 hover:bg-gray-600 text-white rounded-full flex items-center justify-center shadow-lg transition-colors">
@@ -1591,105 +1489,116 @@
     </div>
 </section>
 
-            <button id="btn-chat-ai-float" class="fixed bottom-24 right-20 w-14 h-14 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl z-40 hover:bg-orange-500 transition-all animate-pulse-soft" title="Chat con IA (Mecánico Virtual)" style="display: none;">
-                <i class="fas fa-robot text-2xl"></i>
-            </button>
- <section id="a-view-publicidad" class="a-view hidden min-h-[60vh] flex flex-col p-4">
-    <div class="w-full max-w-6xl mx-auto">
-        <h1 class="text-3xl font-black italic uppercase text-naranja mb-6">📢 Campaña Publicitaria</h1>
+<section id="a-view-publicidad" class="a-view hidden flex flex-col w-full h-full bg-asfalto overflow-y-auto">
+    <div class="w-full max-w-7xl mx-auto p-4 lg:p-6 mt-0 pt-0">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+            <div>
+                <h1 class="text-3xl lg:text-4xl font-black italic uppercase text-naranja">📢 Campaña Publicitaria</h1>
+                <p class="text-gray-400 text-sm mt-1">Envía mensajes masivos a tus clientes y personal.</p>
+            </div>
+            <!-- El botón de descarga manual se eliminó, ahora todo lo hace "Iniciar envío" -->
+        </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- COLUMNA IZQUIERDA: Configuración -->
-            <div class="space-y-4">
-                <!-- Selector de público (genera lista automáticamente) -->
-                <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
-                    <h3 class="text-sm font-black text-white mb-2">🎯 Selección de público</h3>
-                    <div class="flex flex-wrap gap-2">
-                        <label class="flex items-center gap-2 text-white text-xs cursor-pointer bg-white/5 px-3 py-1 rounded-full hover:bg-white/10">
-                            <input type="checkbox" id="pub-todos" value="todos" class="accent-naranja" onchange="window.generarListaPublicidad()" checked> Todos
+            <!-- COLUMNA IZQUIERDA -->
+            <div class="space-y-6">
+                <!-- Selector de público -->
+                <div class="bg-white/5 border border-white/10 rounded-2xl p-6 shadow-lg">
+                    <h3 class="text-sm font-black text-white mb-4 flex items-center gap-2">
+                        <i class="fas fa-users text-naranja"></i> Selección de público
+                    </h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="flex items-center gap-3 text-white text-sm cursor-pointer bg-naranja/10 hover:bg-naranja/20 border border-naranja/30 px-4 py-3 rounded-xl transition-all">
+                            <input type="checkbox" id="pub-todos" value="todos" class="w-5 h-5 accent-naranja" onchange="window.generarListaPublicidad()">
+                            <span class="font-bold">👥 Todos</span>
                         </label>
-                        <label class="flex items-center gap-2 text-white text-xs cursor-pointer bg-white/5 px-3 py-1 rounded-full hover:bg-white/10">
-                            <input type="checkbox" id="pub-estandar" value="cliente" class="accent-naranja" onchange="window.generarListaPublicidad()"> Estándar
+                        <label class="flex items-center gap-3 text-white text-sm cursor-pointer bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 px-4 py-3 rounded-xl transition-all">
+                            <input type="checkbox" id="pub-estandar" value="cliente" class="w-5 h-5 accent-blue-500" onchange="window.generarListaPublicidad()">
+                            <span class="font-bold">⭐ Estándar</span>
                         </label>
-                        <label class="flex items-center gap-2 text-white text-xs cursor-pointer bg-white/5 px-3 py-1 rounded-full hover:bg-white/10">
-                            <input type="checkbox" id="pub-vip" value="membresia" class="accent-naranja" onchange="window.generarListaPublicidad()"> VIP
+                        <label class="flex items-center gap-3 text-white text-sm cursor-pointer bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 px-4 py-3 rounded-xl transition-all">
+                            <input type="checkbox" id="pub-vip" value="membresia" class="w-5 h-5 accent-yellow-500" onchange="window.generarListaPublicidad()">
+                            <span class="font-bold">👑 VIP</span>
                         </label>
-                        <label class="flex items-center gap-2 text-white text-xs cursor-pointer bg-white/5 px-3 py-1 rounded-full hover:bg-white/10">
-                            <input type="checkbox" id="pub-personal" value="admin,mecanico,taller" class="accent-naranja" onchange="window.generarListaPublicidad()"> Personal
+                        <label class="flex items-center gap-3 text-white text-sm cursor-pointer bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 px-4 py-3 rounded-xl transition-all">
+                            <input type="checkbox" id="pub-personal" value="admin,mecanico,taller" class="w-5 h-5 accent-purple-500" onchange="window.generarListaPublicidad()">
+                            <span class="font-bold">🔧 Personal</span>
                         </label>
                     </div>
                 </div>
 
                 <!-- Editor de mensaje -->
-                <div class="bg-white/5 p-4 rounded-2xl border border-white/10">
-                    <h3 class="text-sm font-black text-white mb-2">✍️ Mensaje personalizado</h3>
-                    <p class="text-[9px] text-gray-400 mb-1">Usa <code>[NOMBRE]</code> para el nombre del cliente.</p>
-                    <textarea id="pub-mensaje" rows="4" placeholder="Hola [NOMBRE], esta es una oferta exclusiva para ti..." class="w-full bg-asfalto border border-white/10 p-3 rounded-xl text-white text-sm resize-none focus:border-naranja">Hola [NOMBRE], esta es una oferta exclusiva para ti. ¡No te la pierdas!</textarea>
+                <div class="bg-white/5 border border-white/10 rounded-2xl p-6 shadow-lg">
+                    <h3 class="text-sm font-black text-white mb-2 flex items-center gap-2">
+                        <i class="fas fa-pen-fancy text-naranja"></i> Mensaje personalizado
+                    </h3>
+                    <p class="text-[9px] text-gray-400 mb-2">Usa <code>[NOMBRE]</code> para personalizar.</p>
+                    <textarea id="pub-mensaje" rows="4" placeholder="Hola [NOMBRE], esta es una oferta exclusiva para ti..." 
+                              class="w-full bg-asfalto border border-white/10 p-3 rounded-xl text-white text-sm resize-none focus:border-naranja transition-colors"
+                              oninput="window.previsualizarMensajePublicidad()">Hola [NOMBRE], esta es una oferta exclusiva para ti. ¡No te la pierdas! APROVECHALA AHORA</textarea>
                     
-                    <!-- Carga de archivo -->
-                    <div class="mt-3">
-                        <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">📎 Adjuntar imagen/video</label>
-                        <input type="file" id="pub-media" accept="image/*,video/*" onchange="window.previsualizarMediaPublicidad()" class="w-full bg-asfalto p-2 rounded-xl border border-white/10 text-xs text-gray-400 file:bg-naranja file:text-white file:border-0 file:rounded-md file:px-3 file:py-1">
-                        <div id="pub-media-preview" class="mt-2 hidden"></div>
+                    <div class="mt-4">
+                        <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1 mb-1 block">📎 Adjuntar imagen/video</label>
+                        <input type="file" id="pub-media" accept="image/*,video/*" onchange="window.previsualizarMediaPublicidad()" 
+                               class="w-full bg-asfalto p-2 rounded-xl border border-white/10 text-xs text-gray-400 file:bg-naranja file:text-white file:border-0 file:rounded-md file:px-3 file:py-1.5 file:font-bold file:cursor-pointer hover:border-naranja/50 transition-colors">
+                        
+                        <div id="pub-media-preview" class="mt-3 hidden w-full border-2 border-dashed border-naranja/50 bg-black/40 p-3 rounded-xl flex justify-center items-center min-h-[160px] transition-all"></div>
                     </div>
+                </div>
 
-<!-- Botones de acción (uno solo para iniciar, descarga inteligente) -->
-<div class="flex gap-2 mt-4">
-    <button id="btn-iniciar-envio" onclick="window.iniciarEnvioMasivo()" class="flex-1 bg-naranja hover:bg-orange-600 text-white py-3 rounded-xl text-sm font-black uppercase shadow-lg transition-all active:scale-95">
-        🚀 Iniciar envío masivo
-    </button>
-    <button id="btn-cancelar-envio" onclick="window.cancelarEnvioMasivo()" class="flex-1 bg-red-600 hover:bg-red-500 text-white py-3 rounded-xl text-sm font-black uppercase hidden shadow-lg transition-all active:scale-95">
-        ⛔ Cancelar envío
-    </button>
-    <button id="btn-descargar-archivos" onclick="window.descargarArchivosEnvio()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl text-sm font-black uppercase shadow-lg transition-all active:scale-95">
-        📥 Descargar archivos
-    </button>
-</div>
+                <!-- Botones de acción -->
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button id="btn-iniciar-envio" onclick="window.iniciarEnvioMasivo()" 
+                            class="flex-1 bg-naranja hover:bg-orange-600 text-white py-3 rounded-xl text-sm font-black uppercase shadow-lg transition-all active:scale-95">
+                        🚀 Iniciar envío masivo
+                    </button>
+                    <button id="btn-cancelar-envio" onclick="window.cancelarEnvioMasivo()" 
+                            class="flex-1 bg-red-600 hover:bg-red-500 text-white py-3 rounded-xl text-sm font-black uppercase hidden shadow-lg transition-all active:scale-95">
+                        ⛔ Cancelar envío
+                    </button>
                 </div>
             </div>
 
-            <!-- COLUMNA DERECHA: Lista y seguimiento -->
-            <div class="space-y-4">
-                <div class="bg-white/5 p-4 rounded-2xl border border-white/10 flex flex-col h-[600px]">
-                    <div class="flex justify-between items-center mb-2">
-                        <h3 class="text-sm font-black text-white">📋 Destinatarios (<span id="pub-count">0</span>)</h3>
-                        <div class="flex gap-2">
-                            <button onclick="window.exportarListaPublicidadPDF()" class="bg-blue-600 text-white px-3 py-1 rounded text-[9px] font-black uppercase">📄 PDF</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Previsualización del mensaje -->
-                    <div class="bg-black/30 p-3 rounded-xl mb-3 text-[10px] text-white border border-white/5">
-                        <p class="text-gray-400 text-[8px] uppercase">Vista previa:</p>
-                        <p id="pub-preview-text" class="italic">Hola [NOMBRE], esta es una oferta exclusiva para ti...</p>
-                        <div id="pub-preview-media" class="mt-1 hidden"></div>
-                    </div>
+            <!-- COLUMNA DERECHA -->
+            <div class="bg-white/5 border border-white/10 rounded-2xl p-6 shadow-lg flex flex-col min-h-[500px]">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-sm font-black text-white flex items-center gap-2">
+                        <i class="fas fa-list-ul text-naranja"></i> Destinatarios <span id="pub-count" class="text-naranja ml-2">(0)</span>
+                    </h3>
+                    <button onclick="window.exportarListaPublicidadPDF()" 
+                            class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-lg text-[9px] font-black uppercase">
+                        📄 PDF
+                    </button>
+                </div>
+                
+                <div class="bg-black/30 p-3 rounded-xl mb-4 text-[10px] text-white border border-white/5">
+                    <p class="text-gray-400 text-[8px] uppercase">Vista previa del mensaje:</p>
+                    <p id="pub-preview-text" class="italic">Hola [NOMBRE], esta es una oferta exclusiva para ti...</p>
+                </div>
 
-                    <!-- Lista de destinatarios -->
-                    <div id="pub-lista-destinos" class="flex-grow overflow-y-auto hide-scroll space-y-1 text-[10px]">
-                        <p class="text-gray-400 text-center py-4">Selecciona un grupo para generar la lista.</p>
-                    </div>
-                    </div>
-                    <p class="text-[10px] text-gray-400 mt-2 text-center">
-                        Descarga ambos archivos en la misma carpeta. Luego ejecuta el script para iniciar el envío masivo.
-                    </p>
+                <div id="pub-lista-destinos" class="flex-grow overflow-y-auto hide-scroll space-y-1 text-[10px]">
+                    <p class="text-gray-400 text-center py-8">Selecciona un grupo para generar la lista.</p>
                 </div>
             </div>
         </div>
 
-        <!-- Instrucciones para el usuario -->
-        <div class="bg-white/5 p-4 rounded-xl border border-white/10 text-sm text-white mt-6">
-            <h4 class="font-black text-naranja mb-2">📋 Instrucciones para el envío masivo</h4>
+        <!-- Instrucciones ACTUALIZADAS -->
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-6 shadow-lg mt-6">
+            <h4 class="font-black text-naranja mb-2">📋 Instrucciones (Proceso Simplificado)</h4>
             <ol class="list-decimal pl-4 space-y-1 text-xs text-gray-300">
                 <li>Selecciona el público objetivo (la lista se genera automáticamente).</li>
-                <li>Escribe el mensaje personalizado y adjunta la imagen/video (opcional).</li>
-                <li>Haz clic en <strong>"🚀 Iniciar envío masivo"</strong> para descargar los archivos.</li>
-                <li>Ejecuta <strong>"Ejecutar.bat"</strong> para iniciar el envío automático.</li>
-                <li>La lista se actualizará en tiempo real a medida que se envíen los mensajes.</li>
+                <li>Escribe el mensaje y adjunta imagen/video (opcional).</li>
+                <li>Haz clic en <strong>"🚀 Iniciar envío masivo"</strong>. Se descargará <strong>un solo archivo</strong> llamado <code>EjecutarEnvioOBR.bat</code>.</li>
+                <li>Haz clic en la notificación de descarga de tu navegador y selecciona <strong>"Abrir"</strong> o <strong>"Mostrar en carpeta"</strong> y ejecútalo.</li>
+                <li>La app actualizará los estados (✅/❌) en tiempo real mientras el script trabaja.</li>
             </ol>
         </div>
     </div>
 </section>
+
+            <button id="btn-chat-ai-float" class="fixed bottom-24 right-20 w-14 h-14 bg-naranja rounded-full flex items-center justify-center text-white shadow-2xl z-40 hover:bg-orange-500 transition-all animate-pulse-soft" title="Chat con IA (Mecánico Virtual)" style="display: none;">
+                <i class="fas fa-robot text-2xl"></i>
+            </button>
         </main>
         <!-- BARRA DE NAVEGACIÓN INFERIOR DEL ADMIN -->
         <nav class="fixed bottom-0 w-full bg-asfalto backdrop-blur-md border-t border-naranja/20 flex overflow-x-auto hide-scroll p-3 z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
