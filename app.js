@@ -3048,105 +3048,101 @@ onAuthStateChanged(auth, async user => {
   };
 
   window.switchAdminView = (id) => {
-      toggleModal('modal-user-detail', false);
-      
-      // Mostrar/ocultar botón flotante del chat IA
-        const chatAiBtn = document.getElementById('btn-chat-ai-float');
+    toggleModal('modal-user-detail', false);
+    
+    // Validación: si el elemento no existe, salir
+    const targetView = document.getElementById(id);
+    if (!targetView) {
+        console.warn(`⚠️ Vista "${id}" no encontrada en el DOM.`);
+        return;
+    }
+    
+    // Mostrar/ocultar botón flotante del chat IA
+    const chatAiBtn = document.getElementById('btn-chat-ai-float');
     if (chatAiBtn) {
         chatAiBtn.style.display = id === 'a-view-servicios' ? 'flex' : 'none';
     }
     
-      // Mostrar/ocultar botón de chat de soporte (solo en POS y Alertas)
-      const chatBtn = document.getElementById('admin-chat-float-btn');
-      if (chatBtn) chatBtn.classList.toggle('hidden', !['a-view-pos', 'a-view-alertas'].includes(id));
-      
-      document.querySelectorAll('.a-view').forEach(v => v.classList.add('hidden')); 
-      document.getElementById(id).classList.remove('hidden');
-      document.querySelectorAll('.a-nav-btn').forEach(b => b.classList.remove('tab-active'));
-      const btn = Array.from(document.querySelectorAll('.a-nav-btn')).find(b => b.getAttribute('onclick').includes(id));
-      if (btn) btn.classList.add('tab-active');
+    // Mostrar/ocultar botón de chat de soporte (solo en POS y Alertas)
+    const chatBtn = document.getElementById('admin-chat-float-btn');
+    if (chatBtn) chatBtn.classList.toggle('hidden', !['a-view-pos', 'a-view-alertas'].includes(id));
+    
+    // Ocultar todas las vistas
+    document.querySelectorAll('.a-view').forEach(v => v.classList.add('hidden')); 
+    
+    // Mostrar la vista seleccionada
+    targetView.classList.remove('hidden');
+    
+    // Quitar la clase activa de todos los botones
+    document.querySelectorAll('.a-nav-btn').forEach(b => b.classList.remove('tab-active'));
+    
+    // Buscar el botón que contiene la vista en su onclick
+    const btn = Array.from(document.querySelectorAll('.a-nav-btn')).find(b => 
+        b.getAttribute('onclick') && b.getAttribute('onclick').includes(id)
+    );
+    if (btn) btn.classList.add('tab-active');
 
-      if (id === 'a-view-config') {
-          window.adminRefreshConfigUI();
-          window.renderAdminMap();
-          if (window._servicesCatalogUnsubscribe) window._servicesCatalogUnsubscribe();
-          window._servicesCatalogUnsubscribe = onSnapshot(collection(db, "servicios"), () => refreshCatalogUI());
-          // 🔁 Cargar API Key de Groq
-          const groqInput = document.getElementById('config-groq-api-key');
-          if (groqInput) {
-              getDoc(doc(db, 'settings', 'general')).then(snap => {
-                  if (snap.exists() && snap.data().groqApiKey) {
-                      groqInput.value = snap.data().groqApiKey;
-                  }
-              }).catch(err => console.warn('No se pudo cargar la API Key:', err));
-          }
-          // 🔁 La población de materiales se hace en el modal, no aquí.
-      }
-      if (id === 'a-view-usuarios') window.adminLoadUsers();
-      if (id === 'a-view-promos') { 
-          window.adminLoadLoyalty(); 
-          populatePromoProductSelect(); 
-          window.loadPromoPreview?.(); 
-          const urlInput = document.getElementById('config-install-guide-url');
-          if (urlInput) {
-              getDoc(doc(db, 'settings', 'general')).then(snap => {
-                  if (snap.exists() && snap.data().installGuideMedia) {
-                      urlInput.value = snap.data().installGuideMedia;
-                  }
-              }).catch(err => console.warn('No se pudo cargar la URL de la guía:', err));
-          }
-      }
-      if (id === 'a-view-stats') window.loadStats();
-      if (id === 'a-view-citas') window.adminLoadCitas();
-      if (id === 'a-view-alertas') window.renderSOSGlobalMap();
-
-        if (id === 'a-view-pos') { 
+    // Cargar datos según la vista
+    if (id === 'a-view-config') {
+        window.adminRefreshConfigUI();
+        window.renderAdminMap();
+        if (window._servicesCatalogUnsubscribe) window._servicesCatalogUnsubscribe();
+        window._servicesCatalogUnsubscribe = onSnapshot(collection(db, "servicios"), () => refreshCatalogUI());
+        const groqInput = document.getElementById('config-groq-api-key');
+        if (groqInput) {
+            getDoc(doc(db, 'settings', 'general')).then(snap => {
+                if (snap.exists() && snap.data().groqApiKey) {
+                    groqInput.value = snap.data().groqApiKey;
+                }
+            }).catch(err => console.warn('No se pudo cargar la API Key:', err));
+        }
+    }
+    if (id === 'a-view-usuarios') window.adminLoadUsers();
+    if (id === 'a-view-promos') { 
+        window.adminLoadLoyalty(); 
+        populatePromoProductSelect(); 
+        window.loadPromoPreview?.(); 
+        const urlInput = document.getElementById('config-install-guide-url');
+        if (urlInput) {
+            getDoc(doc(db, 'settings', 'general')).then(snap => {
+                if (snap.exists() && snap.data().installGuideMedia) {
+                    urlInput.value = snap.data().installGuideMedia;
+                }
+            }).catch(err => console.warn('No se pudo cargar la URL de la guía:', err));
+        }
+    }
+    if (id === 'a-view-stats') window.loadStats();
+    if (id === 'a-view-citas') window.adminLoadCitas();
+    if (id === 'a-view-alertas') window.renderSOSGlobalMap();
+    if (id === 'a-view-pos') { 
         window.posFilterProducts(); 
         window.cargarNotificacionesCitas(); 
         window.cargarCobrosMecanicosPanel(); 
-        
-        // ✅ FORZAR CARGA INMEDIATA
-        window.loadVentasRealizadas('actual');
-        window.cargarOpcionesMeses();
-        window.loadOnlineOrders?.();
+        window.loadVentasRealizadas(); 
+        setTimeout(() => window.loadOnlineOrders?.(), 200);
         window.cargarChatsPendientesAdmin();
     }
-     if (id === 'a-view-entregas') { 
-          setTimeout(() => window.loadEntregas?.(), 300);
-          window.fixMaps?.();
-      }
-      
-      const entregaPanel = document.getElementById('entrega-actions-panel');
-      if (entregaPanel) entregaPanel.classList.add('hidden');
+    if (id === 'a-view-entregas') { 
+        setTimeout(() => window.loadEntregas?.(), 300);
+        window.fixMaps?.();
+    }
+    
+    const entregaPanel = document.getElementById('entrega-actions-panel');
+    if (entregaPanel) entregaPanel.classList.add('hidden');
 
-      if (id === 'a-view-retenes') {
-          setTimeout(() => window.renderRetenMap(true), 300);
-      }
-
-      setTimeout(() => {
-        if (typeof updateMapControlsPosition === 'function') {
-            updateMapControlsPosition();
-        }
-    }, 200); // 200ms para que el DOM termine de renderizar
-      
-          // ✅ FORZAR LA CARGA DE DATOS DE CAJA INMEDIATAMENTE
-    if (id === 'a-view-pos') {
-        // Cargar chat pendientes
-        if (typeof window.cargarChatsPendientesAdmin === 'function') {
-            window.cargarChatsPendientesAdmin();
-        }
-        // Cargar ventas realizadas
-        if (typeof window.loadVentasRealizadas === 'function') {
-            window.loadVentasRealizadas();
-        }
-        // Cargar pedidos online
-        if (typeof window.loadOnlineOrders === 'function') {
-            window.loadOnlineOrders();
-        }
+    if (id === 'a-view-retenes') {
+        setTimeout(() => window.renderRetenMap(true), 300);
     }
 
-      window.fixMaps?.();
-  };
+    if (id === 'a-view-publicidad') {
+        // Reiniciar la lista de publicidad al entrar
+        document.getElementById('pub-lista-destinos').innerHTML = '<p class="text-gray-400 text-center py-4">Genera la lista primero.</p>';
+        document.getElementById('pub-count').innerText = '0';
+        pubLista = [];
+    }
+    
+    window.fixMaps?.();
+};
 
 
 // ============================================================
@@ -9695,7 +9691,7 @@ window.filtrarUsuarios = function() {
       const promedio = calificaciones.length ? (calificaciones.reduce((a,b)=>a+b,0)/calificaciones.length).toFixed(1) : 'N/A';
 
       // Permisos
-      const vistas = ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas','a-view-entregas','a-view-retenes'];
+      const vistas = ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas','a-view-entregas','a-view-publicidad','a-view-retenes'];
   const vistasNombres = ['Caja','Taller','SOS','Almacén','Promos','Usuarios','Ajustes','Estadíst.','Citas','Entregas','Retenes'];
       const vistasActuales = user.vistasPermitidas || vistas;
       let vistasHTML = vistas.map((v,i) => {
@@ -16247,4 +16243,436 @@ window.regresarListaChats = function() {
             window.loadChatList();
         }
     }
+};
+
+// ============================================================
+// PUBLICIDAD - MÁRKETING MASIVO POR WHATSAPP
+// ============================================================
+
+let pubLista = [];
+let pubMediaFile = null;
+let pubMediaUrl = null;
+let pubEnvioActivo = false;
+let pubIntervalo = null;
+
+// 1. Abrir la vista desde el admin
+window.abrirPublicidad = function() {
+    showView('a-view-publicidad');
+    pubLista = [];
+    document.getElementById('pub-lista-destinos').innerHTML = '<p class="text-gray-400 text-center py-4">Selecciona un grupo.</p>';
+    document.getElementById('pub-count').innerText = '0';
+};
+
+// ============================================================
+// GENERAR LISTA AUTOMÁTICAMENTE (CON CONTROL DE DUPLICADOS)
+// ============================================================
+window.generarListaPublicidad = async function() {
+    if (pubEnvioActivo) {
+        showToast("El envío está en curso. No se puede cambiar la lista.", true);
+        return;
+    }
+
+    const checkTodos = document.getElementById('pub-todos').checked;
+    const checkEstandar = document.getElementById('pub-estandar').checked;
+    const checkVip = document.getElementById('pub-vip').checked;
+    const checkPersonal = document.getElementById('pub-personal').checked;
+
+    // ✅ Regla de exclusión: si "Todos" está marcado, desmarcar los demás
+    if (checkTodos) {
+        document.getElementById('pub-estandar').checked = false;
+        document.getElementById('pub-vip').checked = false;
+        document.getElementById('pub-personal').checked = false;
+    }
+
+    // ✅ Si no hay ningún grupo seleccionado, mostrar mensaje
+    if (!checkTodos && !checkEstandar && !checkVip && !checkPersonal) {
+        document.getElementById('pub-lista-destinos').innerHTML = '<p class="text-gray-400 text-center py-4">Selecciona al menos un grupo.</p>';
+        document.getElementById('pub-count').innerText = '0';
+        return;
+    }
+
+    const rolesPermitidos = [];
+    if (checkTodos) {
+        rolesPermitidos.push('cliente', 'membresia', 'admin', 'mecanico', 'taller', 'socio');
+    } else {
+        if (checkEstandar) rolesPermitidos.push('cliente');
+        if (checkVip) rolesPermitidos.push('membresia');
+        if (checkPersonal) rolesPermitidos.push('admin', 'mecanico', 'taller', 'socio');
+    }
+
+    const snap = await getDocs(collection(db, "users"));
+    pubLista = [];
+    snap.forEach(doc => {
+        const u = doc.data();
+        if (rolesPermitidos.includes(u.role)) {
+            const nombre = u.name || u.phone || 'Sin nombre';
+            const phone = (u.phone || '').replace(/[^0-9]/g, '');
+            if (phone.length === 10) {
+                const esVip = u.role === 'membresia';
+                pubLista.push({
+                    uid: doc.id,
+                    nombre: nombre,
+                    phone: phone,
+                    rol: u.role,
+                    esVip: esVip,
+                    estado: 'pendiente',
+                    activo: true
+                });
+            }
+        }
+    });
+
+    renderizarListaPublicidad();
+    window.previsualizarMensajePublicidad();
+    verificarArchivosLocalmente(); // 🔍 Verificar si los archivos existen
+};
+
+// ============================================================
+// VERIFICAR SI LOS ARCHIVOS YA EXISTEN EN LA CARPETA
+// ============================================================
+function verificarArchivosLocalmente() {
+    const ruta = localStorage.getItem('rutaScriptsWhatsApp');
+    if (!ruta) {
+        document.getElementById('btn-descargar-archivos').classList.remove('hidden');
+        return;
+    }
+    // Intentar acceder a los archivos (esto es una simulación, el navegador no puede leer archivos locales)
+    // En una app real, podrías usar un pequeño servidor local o preguntar al usuario.
+    // Por ahora, asumimos que si la ruta está guardada, los archivos ya están descargados.
+    document.getElementById('btn-descargar-archivos').classList.add('hidden');
+}
+
+// Al cargar la vista, verificar archivos
+window.verificarArchivosLocalmente = verificarArchivosLocalmente;
+
+// 3. Renderizar lista con checkboxes
+function renderizarListaPublicidad() {
+    const container = document.getElementById('pub-lista-destinos');
+    const count = document.getElementById('pub-count');
+    if (!container) return;
+    
+    count.innerText = pubLista.filter(u => u.activo).length;
+    if (pubLista.length === 0) {
+        container.innerHTML = '<p class="text-gray-400 text-center py-4">No hay usuarios en este grupo.</p>';
+        return;
+    }
+
+    let html = '';
+    pubLista.forEach((u, idx) => {
+        const vip = u.esVip ? '👑' : '';
+        const estadoIcono = u.estado === 'pendiente' ? '⏳' :
+                           u.estado === 'enviado' ? '✅' :
+                           u.estado === 'error' ? '❌' : '⏳';
+        const errorMsg = u.errorMsg || '';
+        const checkbox = `<input type="checkbox" ${u.activo ? 'checked' : ''} onchange="window.toggleActivo(${idx})" class="accent-naranja">`;
+        html += `
+            <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
+                <div class="flex items-center gap-2">
+                    ${checkbox}
+                    <span class="font-bold">${u.nombre}</span>
+                    <span class="text-gray-400 text-[8px]">${u.phone}</span>
+                    ${vip}
+                </div>
+                <div class="flex items-center gap-2">
+                    <span>${estadoIcono}</span>
+                    ${errorMsg ? `<span class="text-red-400 text-[8px]">${errorMsg}</span>` : ''}
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+// 4. Toggle checkbox individual
+window.toggleActivo = function(idx) {
+    pubLista[idx].activo = !pubLista[idx].activo;
+    renderizarListaPublicidad();
+};
+
+// 5. Previsualizar mensaje
+window.previsualizarMensajePublicidad = function() {
+    const texto = document.getElementById('pub-mensaje').value;
+    const preview = document.getElementById('pub-preview-text');
+    if (pubLista.length > 0) {
+        preview.innerText = texto.replace(/\[NOMBRE\]/g, pubLista[0].nombre);
+    } else {
+        preview.innerText = texto;
+    }
+};
+
+// 6. Cargar y previsualizar media
+window.previsualizarMediaPublicidad = function() {
+    const input = document.getElementById('pub-media');
+    const preview = document.getElementById('pub-media-preview');
+    if (input.files.length === 0) {
+        preview.classList.add('hidden');
+        return;
+    }
+    const file = input.files[0];
+    pubMediaFile = file;
+    const url = URL.createObjectURL(file);
+    const isVideo = file.type.startsWith('video/');
+    preview.classList.remove('hidden');
+    preview.innerHTML = isVideo
+        ? `<video src="${url}" controls class="max-h-32 rounded-xl w-full object-contain bg-black"></video>`
+        : `<img src="${url}" class="max-h-32 rounded-xl object-contain bg-black">`;
+    pubMediaUrl = url;
+};
+
+// 7. Iniciar envío masivo (bloquea la lista)
+window.iniciarEnvioMasivo = async function() {
+    const activos = pubLista.filter(u => u.activo);
+    if (activos.length === 0) return showToast("No hay destinatarios activos para enviar.", true);
+    if (pubEnvioActivo) return showToast("Ya hay un envío en curso.", true);
+
+    pubEnvioActivo = true;
+    document.getElementById('btn-iniciar-envio').classList.add('hidden');
+    document.getElementById('btn-cancelar-envio').classList.remove('hidden');
+    showToast(`🚀 Iniciando envío a ${activos.length} destinatarios...`);
+    window.descargarArchivosEnvio();
+};
+
+// 8. Cancelar envío
+window.cancelarEnvioMasivo = function() {
+    pubEnvioActivo = false;
+    if (pubIntervalo) clearInterval(pubIntervalo);
+    document.getElementById('btn-iniciar-envio').classList.remove('hidden');
+    document.getElementById('btn-cancelar-envio').classList.add('hidden');
+    showToast("⛔ Envío masivo cancelado por el usuario.");
+};
+
+// 9. Simular actualización en tiempo real (para pruebas)
+// En producción, esto se activaría cuando el script .bat reporte resultados
+window.simularActualizacion = function() {
+    pubLista.forEach((u, idx) => {
+        if (u.activo && u.estado === 'pendiente') {
+            setTimeout(() => {
+                u.estado = Math.random() > 0.2 ? 'enviado' : 'error';
+                u.errorMsg = u.estado === 'error' ? 'Número inválido' : '';
+                renderizarListaPublicidad();
+            }, idx * 2000);
+        }
+    });
+};
+
+// 10. Descargar .ps1 y .bat
+window.descargarArchivosEnvio = function() {
+    const contenidoPS1 = `
+# ============================================================
+# SCRIPT DE AUTOMATIZACIÓN PARA WHATSAPP DESKTOP
+# ============================================================
+
+# 1. Abrir WhatsApp si no está abierto
+Start-Process "C:\\Program Files\\WindowsApps\\WhatsAppDesktop\\WhatsApp.exe" -WindowStyle Maximized
+Start-Sleep -Seconds 3
+
+# 2. Pulsar CTRL + N para abrir nuevo chat
+Add-Type -AssemblyName System.Windows.Forms
+[System.Windows.Forms.SendKeys]::SendWait("^n")
+Start-Sleep -Seconds 1
+
+# 3. Recibir parámetros desde la app (Número, Mensaje, Imagen)
+param (
+    [string]$numero,
+    [string]$mensaje,
+    [string]$imagenPath
+)
+
+# 4. Pegar el número
+[System.Windows.Forms.SendKeys]::SendWait($numero)
+Start-Sleep -Seconds 1
+
+# 5. Pulsar ENTER para buscar el contacto
+[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+Start-Sleep -Seconds 2
+
+# 6. Pegar el mensaje
+[System.Windows.Forms.SendKeys]::SendWait($mensaje)
+Start-Sleep -Seconds 1
+
+# 7. Si hay imagen, pegarla (simulando CTRL+V)
+if ($imagenPath -ne "") {
+    Add-Type -AssemblyName System.Drawing
+    $img = [System.Drawing.Image]::FromFile($imagenPath)
+    [System.Windows.Forms.Clipboard]::SetImage($img)
+    [System.Windows.Forms.SendKeys]::SendWait("^v")
+    Start-Sleep -Seconds 1
+}
+
+# 8. Pulsar ENTER para enviar
+[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+Start-Sleep -Seconds 1
+
+# 9. Cerrar el chat (CTRL+W)
+[System.Windows.Forms.SendKeys]::SendWait("^w")
+Start-Sleep -Seconds 0.5
+
+Write-Host "✅ Mensaje enviado a $numero"
+`;
+
+    const contenidoBAT = `
+@echo off
+echo 🚀 Iniciando envío masivo de WhatsApp...
+powershell.exe -ExecutionPolicy Bypass -File "%~dp0EnviarWhatsApp.ps1"
+pause
+`;
+
+    const rutaDescargas = localStorage.getItem('rutaScriptsWhatsApp') || 'C:\\Users\\Public\\Downloads';
+    localStorage.setItem('rutaScriptsWhatsApp', rutaDescargas);
+    localStorage.setItem('ultimaEjecucion', Date.now());
+
+    const descargar = (contenido, nombre) => {
+        const blob = new Blob([contenido], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = nombre;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    };
+
+    descargar(contenidoPS1, 'EnviarWhatsApp.ps1');
+    setTimeout(() => {
+        descargar(contenidoBAT, 'Ejecutar.bat');
+    }, 500);
+
+    showToast("✅ Archivos descargados. Haz doble clic en 'Ejecutar.bat' para iniciar.");
+};
+
+// 11. Ejecutar .bat guardado
+window.ejecutarBatGuardado = function() {
+    const ruta = localStorage.getItem('rutaScriptsWhatsApp');
+    if (!ruta) {
+        return showToast("Primero descarga los archivos.", true);
+    }
+    const rutaCompleta = `${ruta}\\Ejecutar.bat`;
+    window.location.href = `file:///${rutaCompleta.replace(/\\/g, '/')}`;
+    setTimeout(() => {
+        showToast("Si no se abrió automáticamente, ve a la carpeta y ejecuta 'Ejecutar.bat' manualmente.", false);
+    }, 3000);
+};
+
+// ============================================================
+// EXPORTAR LISTA A PDF CON DISEÑO PROFESIONAL OBR
+// ============================================================
+window.exportarListaPublicidadPDF = async function() {
+    if (pubLista.length === 0) {
+        return showToast("Primero genera la lista de destinatarios.", true);
+    }
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const logoImg = new Image();
+    logoImg.src = 'logo_oscuro.png';
+    await new Promise(resolve => { logoImg.onload = resolve; if (logoImg.complete) resolve(); });
+
+    // --- ENCABEZADO CORPORATIVO OBR ---
+    pdf.setFillColor(255, 107, 0);
+    pdf.rect(0, 0, pageWidth, 28, 'F');
+    if (logoImg.complete && logoImg.naturalWidth > 0) {
+        pdf.addImage(logoImg, 'PNG', 12, 4, 20, 20);
+    }
+    pdf.setFontSize(14);
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(255, 255, 255);
+    pdf.text("CAMPAÑA PUBLICITARIA OBR", logoImg.complete ? 36 : 12, 17.5);
+    pdf.setDrawColor(255, 107, 0);
+    pdf.line(12, 29, pageWidth - 12, 29);
+
+    let y = 40;
+
+    // --- SECCIÓN IZQUIERDA: MENSAJE ---
+    const textoMensaje = document.getElementById('pub-mensaje').value;
+    const nombreEjemplo = pubLista.length > 0 ? pubLista[0].nombre : 'CLIENTE';
+    const mensajeFinal = textoMensaje.replace(/\[NOMBRE\]/g, nombreEjemplo);
+
+    pdf.setFontSize(10);
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(15, 23, 42);
+    pdf.text("MENSAJE PUBLICITARIO", 12, y);
+    y += 5;
+
+    pdf.setFontSize(8);
+    pdf.setFont("helvetica", "normal");
+    pdf.setTextColor(51, 65, 85);
+    const lines = pdf.splitTextToSize(mensajeFinal, 80);
+    pdf.text(lines, 12, y);
+    y += (lines.length * 5) + 5;
+
+    // --- SECCIÓN DERECHA: IMAGEN ---
+    const previewDiv = document.getElementById('pub-media-preview');
+    if (previewDiv && !previewDiv.classList.contains('hidden')) {
+        const img = previewDiv.querySelector('img, video');
+        if (img) {
+            try {
+                const imgData = img.src;
+                pdf.addImage(imgData, 'JPEG', pageWidth - 55, 30, 45, 45);
+            } catch (e) {
+                console.warn('No se pudo agregar la imagen al PDF:', e);
+                pdf.text("📎 Imagen adjunta", pageWidth - 50, 40);
+            }
+        }
+    }
+
+    // --- LÍNEA SEPARADORA ---
+    y = Math.max(y, 80) + 10;
+    pdf.setDrawColor(255, 107, 0);
+    pdf.line(12, y, pageWidth - 12, y);
+    y += 10;
+
+    // --- TABLA DE ENVIADOS ---
+    pdf.setFontSize(10);
+    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(15, 23, 42);
+    pdf.text("LISTA DE DESTINATARIOS", 12, y);
+    y += 5;
+
+    const tableData = pubLista.map((u, idx) => {
+        const estadoIcono = u.estado === 'enviado' ? '✅' :
+                           u.estado === 'error' ? '❌' : '⏳';
+        const comentario = u.estado === 'error' ? (u.errorMsg || 'Error') :
+                          u.estado === 'enviado' ? 'Publicidad enviada' : 'Pendiente';
+        return [
+            `${idx+1}`,
+            u.nombre,
+            u.phone,
+            estadoIcono,
+            comentario
+        ];
+    });
+
+    pdf.autoTable({
+        startY: y,
+        head: [['#', 'NOMBRE', 'CELULAR', 'ESTADO', 'COMENTARIOS']],
+        body: tableData,
+        theme: 'striped',
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [255, 107, 0], textColor: [255, 255, 255] },
+        columnStyles: {
+            0: { cellWidth: 10 },
+            1: { cellWidth: 'auto' },
+            2: { cellWidth: 25 },
+            3: { cellWidth: 15 },
+            4: { cellWidth: 'auto' }
+        },
+        margin: { left: 12, right: 12 }
+    });
+
+    // --- PIE DE PÁGINA ---
+    const finalY = pdf.lastAutoTable.finalY + 5;
+    pdf.setFontSize(7);
+    pdf.setTextColor(148, 163, 184);
+    pdf.text(`Generado el ${new Date().toLocaleString('es-MX')}`, 12, finalY + 5);
+    pdf.text(`Total: ${pubLista.length} destinatarios`, pageWidth - 30, finalY + 5, { align: 'right' });
+
+    // --- FOOTER PROFESIONAL ---
+    const addFooter = window._setupProfessionalPDF(pdf, 'CAMPAÑA PUBLICITARIA OBR', logoImg);
+    addFooter(pdf);
+
+    pdf.save(`Campaña_Publicidad_${new Date().toISOString().slice(0,10)}.pdf`);
+    showToast("✅ PDF generado correctamente.");
 };
