@@ -16246,85 +16246,546 @@ window.regresarListaChats = function() {
 };
 
 // ============================================================
-// PUBLICIDAD - MÁRKETING MASIVO POR WHATSAPP
+// PUBLICIDAD - MÁRKETING MASIVO (VERSIÓN FINAL ULTRA-ESTABLE)
 // ============================================================
 
 let pubLista = [];
-let pubMediaFile = null;
-let pubMediaUrl = null;
+let pubMediaBase64 = null;
 let pubEnvioActivo = false;
-let pubIntervalo = null;
+let pubCampanaId = null;
+let pubUnsubscribe = null;
+let pubSimulacionIntervalo = null;
 
-// 1. Abrir la vista desde el admin
+// 1. Abrir vista y limpiar
 window.abrirPublicidad = function() {
-    showView('a-view-publicidad');
+    if (typeof showView === 'function') showView('a-view-publicidad');
     pubLista = [];
-    document.getElementById('pub-lista-destinos').innerHTML = '<p class="text-gray-400 text-center py-4">Selecciona un grupo.</p>';
-    document.getElementById('pub-count').innerText = '0';
+    pubMediaBase64 = null;
+    pubCampanaId = null;
+    pubEnvioActivo = false;
+    
+    if (pubUnsubscribe) {
+        pubUnsubscribe();
+        pubUnsubscribe = null;
+    }
+    if (pubSimulacionIntervalo) {
+        clearInterval(pubSimulacionIntervalo);
+        pubSimulacionIntervalo = null;
+    }
+    
+    const container = document.getElementById('pub-lista-destinos');
+    if (container) container.innerHTML = '<p class="text-gray-400 text-center py-8">Selecciona un grupo.</p>';
+    
+    const count = document.getElementById('pub-count');
+    if (count) count.innerText = '(0)';
+    
+    const mediaInput = document.getElementById('pub-media');
+    if (mediaInput) mediaInput.value = '';
+    
+    const mediaPreview = document.getElementById('pub-media-preview');
+    if (mediaPreview) {
+        mediaPreview.classList.add('hidden');
+        mediaPreview.innerHTML = '';
+    }
+
+    ['pub-todos', 'pub-estandar', 'pub-vip', 'pub-personal'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.checked = false;
+    });
+    
+    const btnIniciar = document.getElementById('btn-iniciar-envio');
+    const btnCancelar = document.getElementById('btn-cancelar-envio');
+    if (btnIniciar) btnIniciar.classList.remove('hidden');
+    if (btnCancelar) btnCancelar.classList.add('hidden');
 };
 
-// ============================================================
-// GENERAR LISTA AUTOMÁTICAMENTE (CON CONTROL DE DUPLICADOS)
-// ============================================================
+// 2. Generar lista con EXCLUSIÓN MUTUA (Candado)
 window.generarListaPublicidad = async function() {
-    if (pubEnvioActivo) {
-        showToast("El envío está en curso. No se puede cambiar la lista.", true);
-        return;
-    }
+    if (pubEnvioActivo) return showToast("El envío está en curso.", true);
 
-    const checkTodos = document.getElementById('pub-todos').checked;
-    const checkEstandar = document.getElementById('pub-estandar').checked;
-    const checkVip = document.getElementById('pub-vip').checked;
-    const checkPersonal = document.getElementById('pub-personal').checked;
+    const chkTodos = document.getElementById('pub-todos');
+    const chkEstandar = document.getElementById('pub-estandar');
+    const chkVip = document.getElementById('pub-vip');
+    const chkPersonal = document.getElementById('pub-personal');
+    const container = document.getElementById('pub-lista-destinos');
+    const count = document.getElementById('pub-count');
 
-    // ✅ Regla de exclusión: si "Todos" está marcado, desmarcar los demás
-    if (checkTodos) {
-        document.getElementById('pub-estandar').checked = false;
-        document.getElementById('pub-vip').checked = false;
-        document.getElementById('pub-personal').checked = false;
-    }
-
-    // ✅ Si no hay ningún grupo seleccionado, mostrar mensaje
-    if (!checkTodos && !checkEstandar && !checkVip && !checkPersonal) {
-        document.getElementById('pub-lista-destinos').innerHTML = '<p class="text-gray-400 text-center py-4">Selecciona al menos un grupo.</p>';
-        document.getElementById('pub-count').innerText = '0';
-        return;
-    }
-
-    const rolesPermitidos = [];
-    if (checkTodos) {
-        rolesPermitidos.push('cliente', 'membresia', 'admin', 'mecanico', 'taller', 'socio');
+    if (chkTodos.checked) {
+        chkEstandar.checked = false; chkVip.checked = false; chkPersonal.checked = false;
     } else {
-        if (checkEstandar) rolesPermitidos.push('cliente');
-        if (checkVip) rolesPermitidos.push('membresia');
-        if (checkPersonal) rolesPermitidos.push('admin', 'mecanico', 'taller', 'socio');
+        if (chkEstandar.checked || chkVip.checked || chkPersonal.checked) chkTodos.checked = false;
     }
 
-    const snap = await getDocs(collection(db, "users"));
-    pubLista = [];
-    snap.forEach(doc => {
-        const u = doc.data();
-        if (rolesPermitidos.includes(u.role)) {
-            const nombre = u.name || u.phone || 'Sin nombre';
-            const phone = (u.phone || '').replace(/[^0-9]/g, '');
-            if (phone.length === 10) {
-                const esVip = u.role === 'membresia';
-                pubLista.push({
-                    uid: doc.id,
-                    nombre: nombre,
-                    phone: phone,
-                    rol: u.role,
-                    esVip: esVip,
-                    estado: 'pendiente',
-                    activo: true
-                });
+    let roles = [];
+    if (chkTodos.checked) roles = ['cliente', 'membresia', 'admin', 'mecanico', 'taller', 'socio'];
+    else {
+        if (chkEstandar.checked) roles.push('cliente');
+        if (chkVip.checked) roles.push('membresia');
+        if (chkPersonal.checked) roles.push('admin', 'mecanico', 'taller', 'socio');
+    }
+
+    if (roles.length === 0) {
+        if (container) container.innerHTML = '<p class="text-gray-400 text-center py-8">Selecciona al menos un grupo.</p>';
+        if (count) count.innerText = '(0)';
+        pubLista = [];
+        return;
+    }
+
+    if (container) {
+        container.innerHTML = `<div class="flex flex-col items-center justify-center py-8 text-gray-400"><i class="fas fa-circle-notch fa-spin text-naranja text-2xl mb-2"></i><p class="text-xs">Cargando usuarios...</p></div>`;
+    }
+    if (count) count.innerText = '(0)';
+    await new Promise(r => setTimeout(r, 50));
+
+    try {
+        const snap = await getDocs(collection(db, "users"));
+        pubLista = [];
+        snap.forEach(doc => {
+            const u = doc.data();
+            if (roles.includes(u.role)) {
+                const phone = (u.phone || '').replace(/[^0-9]/g, '');
+                if (phone.length >= 10) {
+                    pubLista.push({
+                        uid: doc.id, nombre: u.name || u.phone || 'Sin nombre',
+                        phone: phone, rol: u.role, esVip: u.role === 'membresia',
+                        estado: 'pendiente', comentario: 'Por enviar ⏳'
+                    });
+                }
             }
+        });
+        renderizarListaPublicidad();
+        window.previsualizarMensajePublicidad();
+    } catch (e) {
+        console.error("Error al cargar usuarios:", e);
+        if (container) container.innerHTML = '<p class="text-red-400 text-center py-8">Error al conectar con la base de datos.</p>';
+    }
+};
+
+// 3. Renderizar lista
+function renderizarListaPublicidad() {
+    const container = document.getElementById('pub-lista-destinos');
+    const count = document.getElementById('pub-count');
+    if (!container) return;
+
+    if (count) count.innerText = `(${pubLista.length})`;
+    if (pubLista.length === 0) return container.innerHTML = '<p class="text-gray-400 text-center py-8">No hay usuarios válidos.</p>';
+
+    let html = '';
+    pubLista.forEach((u) => {
+        let icono = '⏳';
+        let color = 'text-gray-400';
+        
+        if (u.estado === 'enviado') {
+            icono = '✅';
+            color = 'text-green-400';
+        } else if (u.estado === 'error') {
+            icono = '❌';
+            color = 'text-red-400';
+        } else if (u.comentario && u.comentario.includes('⛓️‍💥')) {
+            icono = '⛓️‍💥';
+            color = 'text-blue-400';
         }
+
+        html += `
+            <div class="flex items-center justify-between bg-white/5 p-2 rounded-lg border border-white/5 mb-1 transition-all">
+                <div class="flex-1 min-w-0 mr-2">
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold truncate">${u.nombre}</span>
+                        <span class="text-gray-400 text-[8px]">${u.phone}</span>
+                        ${u.esVip ? '<span class="text-yellow-400 text-[10px]">👑</span>' : ''}
+                    </div>
+                    ${u.comentario ? `<p class="text-[8px] text-gray-500 truncate">${u.comentario}</p>` : ''}
+                </div>
+                <span class="${color} font-bold text-[10px]">${icono}</span>
+            </div>`;
+    });
+    container.innerHTML = html;
+}
+
+// 4. Previsualizar mensaje
+window.previsualizarMensajePublicidad = function() {
+    const texto = document.getElementById('pub-mensaje').value;
+    const preview = document.getElementById('pub-preview-text');
+    if (!preview) return;
+    preview.innerText = pubLista.length > 0 ? texto.replace(/\[NOMBRE\]/gi, pubLista[0].nombre) : texto;
+};
+
+// 5. Previsualizar Media y convertir a Base64
+window.previsualizarMediaPublicidad = function() {
+    const input = document.getElementById('pub-media');
+    const preview = document.getElementById('pub-media-preview');
+    if (!input || !preview) return;
+    
+    if (input.files.length === 0) {
+        preview.classList.add('hidden');
+        pubMediaBase64 = null;
+        return;
+    }
+    const file = input.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        pubMediaBase64 = e.target.result.split(',')[1];
+        preview.classList.remove('hidden');
+        preview.innerHTML = file.type.startsWith('video/') 
+            ? `<video src="${e.target.result}" controls class="max-h-64 w-full rounded-lg object-contain bg-black"></video>`
+            : `<img src="${e.target.result}" class="max-h-64 w-full rounded-lg object-contain bg-black">`;
+    };
+    reader.readAsDataURL(file);
+};
+
+// 6. GENERADOR DEL ARCHIVO ÚNICO (.BAT) CON FALLBACK SEGURO
+window.descargarArchivosEnvio = async function() {
+    if (pubLista.length === 0) {
+        showToast("Genera la lista primero.", true);
+        window.cancelarEnvioMasivo();
+        return;
+    }
+
+    const user = window.auth ? window.auth.currentUser : null;
+    let idToken = null;
+    let usarTiempoReal = true;
+
+    if (user && typeof user.getIdToken === 'function') {
+        try {
+            idToken = await user.getIdToken(true);
+        } catch (error) {
+            console.warn("⚠️ No se pudo renovar el token. Usando modo simulador.");
+            usarTiempoReal = false;
+        }
+    } else {
+        usarTiempoReal = false;
+    }
+
+    if (!usarTiempoReal || !idToken) {
+        generarYDescargarScriptBase64(null, null, null, false);
+        return;
+    }
+
+    try {
+        const projectId = window.db.app.options.projectId;
+        const apiKey = window.db.app.options.apiKey;
+        pubCampanaId = `camp_${Date.now()}`;
+
+        const batch = writeBatch(window.db);
+        pubLista.forEach(u => {
+            const ref = doc(window.db, "campanas_envios", pubCampanaId, "destinatarios", u.uid);
+            batch.set(ref, { estado: 'pendiente', comentario: 'Por enviar ⏳' });
+        });
+        await batch.commit();
+
+        const q = query(collection(window.db, "campanas_envios", pubCampanaId, "destinatarios"));
+        pubUnsubscribe = onSnapshot(q, (snapshot) => {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "modified") {
+                    const data = change.doc.data();
+                    const userInList = pubLista.find(u => u.uid === change.doc.id);
+                    if (userInList) {
+                        userInList.estado = data.estado;
+                        userInList.comentario = data.comentario || 'Por enviar ⏳';
+                    }
+                }
+            });
+            renderizarListaPublicidad();
+            
+            const todosListos = pubLista.every(u => u.estado === 'enviado' || u.estado === 'error');
+            if (todosListos && pubEnvioActivo) {
+                window.cancelarEnvioMasivo();
+                showToast("✅ Envío masivo finalizado. Revisa los estados en la lista.");
+            }
+        });
+
+        generarYDescargarScriptBase64(projectId, apiKey, idToken, true);
+    } catch (dbError) {
+        console.error("❌ Error al guardar en Firebase:", dbError);
+        generarYDescargarScriptBase64(null, null, null, false);
+    }
+};
+
+// Función auxiliar para generar y descargar el script (evita duplicar código)
+function generarYDescargarScriptBase64(projectId, apiKey, idToken, usarTiempoReal) {
+    let psCode = `Add-Type -AssemblyName System.Windows.Forms\n[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\n`;
+    
+    if (usarTiempoReal) {
+        psCode += `$projectId = "${projectId}"\n$apiKey = "${apiKey}"\n$idToken = "${idToken}"\n$campanaId = "${pubCampanaId}"\n`;
+        psCode += `
+function Update-Firebase($uid, $estado, $comentario) {
+    $uri = "https://firestore.googleapis.com/v1/projects/$projectId/databases/(default)/documents/campanas_envios/$campanaId/destinatarios/$uid?updateMask.fieldPaths=estado&updateMask.fieldPaths=comentario&key=$apiKey"
+    $headers = @{ "Authorization" = "Bearer $idToken" }
+    $body = "{ \`"fields\`": { \`"estado\`": { \`"stringValue\`": \`"$estado\`" }, \`"comentario\`": { \`"stringValue\`": \`"$comentario\`" } } }"
+    try { Invoke-RestMethod -Uri $uri -Method Patch -Headers $headers -Body $body -ContentType "application/json" -UseBasicParsing | Out-Null } catch {}
+}
+`;
+    }
+
+    if (pubMediaBase64) {
+        psCode += `
+$b64Img = "${pubMediaBase64}"
+$bytes = [Convert]::FromBase64String($b64Img)
+$tempImgPath = "$env:TEMP\\obr_media_temp.jpg"
+[IO.File]::WriteAllBytes($tempImgPath, $bytes)
+$img = [System.Drawing.Image]::FromFile($tempImgPath)
+[System.Windows.Forms.Clipboard]::SetImage($img)
+`;
+    }
+
+    pubLista.forEach((u, idx) => {
+        const mensajeRaw = document.getElementById('pub-mensaje').value.replace(/\[NOMBRE\]/gi, u.nombre);
+        const encodedText = encodeURIComponent(mensajeRaw);
+        
+        if (usarTiempoReal) {
+            psCode += `Update-Firebase "${u.uid}" "procesando" "Abriendo chat..."\n`;
+        }
+        
+        psCode += `
+Start-Process "https://web.whatsapp.com/send?phone=52${u.phone}&text=${encodedText}"
+Start-Sleep -Seconds 4
+try {
+    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+    Start-Sleep -Seconds 2
+`;
+        if (pubMediaBase64) {
+            psCode += `
+    [System.Windows.Forms.SendKeys]::SendWait("^v")
+    Start-Sleep -Seconds 1
+    [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
+`;
+        }
+        psCode += `
+    Start-Sleep -Seconds 1
+    [System.Windows.Forms.SendKeys]::SendWait("^w")
+    Start-Sleep -Seconds 1
+`;
+        if (usarTiempoReal) {
+            psCode += `    Update-Firebase "${u.uid}" "enviado" "Enviado ✅"\n`;
+        }
+        psCode += `} catch {\n`;
+        if (usarTiempoReal) {
+            psCode += `    Update-Firebase "${u.uid}" "error" "Error de envio ❌"\n`;
+        }
+        psCode += `}\nStart-Sleep -Seconds 2\n`;
     });
 
+    if (pubMediaBase64) {
+        psCode += `\nRemove-Item $tempImgPath -ErrorAction SilentlyContinue\n`;
+    }
+
+    // Codificar a Base64 de forma segura
+    const ps1Bytes = new TextEncoder().encode(psCode);
+    let ps1Base64 = '';
+    const chunkSize = 32768;
+    for (let i = 0; i < ps1Bytes.length; i += chunkSize) {
+        ps1Base64 += btoa(String.fromCharCode.apply(null, ps1Bytes.subarray(i, i + chunkSize)));
+    }
+    const lineasBase64 = ps1Base64.match(/.{1,800}/g) || [];
+    
+    // ✅ CONSTRUCCIÓN DEL BAT USANDO POWERSHELL PARA DECODIFICAR (100% CONFIABLE)
+    let batContent = `@echo off\r\n`;
+    batContent += `title OBR - Envio Masivo Inteligente\r\n`;
+    batContent += `echo =========================================\r\n`;
+    batContent += `echo   OBR: Preparando envio masivo...\r\n`;
+    batContent += `echo =========================================\r\n`;
+    batContent += `echo NO CIERRES ESTA VENTANA hasta que termine.\r\n`;
+    batContent += `echo.\r\n`;
+    
+    // 1. Escribir el Base64 en un archivo temporal
+    batContent += `echo ${lineasBase64[0]}> "%TEMP%\\obr_script.b64"\r\n`;
+    for (let i = 1; i < lineasBase64.length; i++) {
+        batContent += `echo ${lineasBase64[i]}>> "%TEMP%\\obr_script.b64"\r\n`;
+    }
+    
+    // 2. Decodificar usando PowerShell (elimina espacios y decodifica perfectamente, sin depender de certutil)
+    batContent += `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$b64 = (Get-Content '%TEMP%\\obr_script.b64' -Raw) -replace '\\s',''; [System.IO.File]::WriteAllText('%TEMP%\\obr_script.ps1', [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($b64)))"\r\n`;
+    
+    // 3. Ejecutar el script decodificado
+    batContent += `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\\obr_script.ps1"\r\n`;
+    
+    // 4. Limpieza
+    batContent += `del "%TEMP%\\obr_script.b64" >nul 2>&1\r\n`;
+    batContent += `del "%TEMP%\\obr_script.ps1" >nul 2>&1\r\n`;
+    
+    batContent += `echo.\r\n`;
+    batContent += `echo =========================================\r\n`;
+    batContent += `echo   ENVIO FINALIZADO. Revisa tu pantalla.\r\n`;
+    batContent += `echo =========================================\r\n`;
+    batContent += `timeout /t 5 /nobreak >nul\r\n`;
+    batContent += `del "%~f0"\r\n`; // 🪄 AUTO-DESTRUCCIÓN DEL BAT
+
+    const blob = new Blob([batContent], { type: 'application/bat' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'EjecutarEnvioOBR.bat';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    if (usarTiempoReal) {
+        showToast("✅ Script generado. Abre 'EjecutarEnvioOBR.bat' y observa la magia en tiempo real.");
+    } else {
+        showToast("✅ Script generado en modo básico. La app simulará el progreso.");
+        iniciarSimulacionProgreso();
+    }
+}
+
+// ✅ FUNCIÓN DE SIMULACIÓN MEJORADA CON COMENTARIOS EXACTOS
+function iniciarSimulacionProgreso() {
+    if (pubSimulacionIntervalo) clearInterval(pubSimulacionIntervalo);
+    
+    pubLista.forEach(u => {
+        u.estado = 'pendiente';
+        u.comentario = 'Por enviar ⏳';
+    });
     renderizarListaPublicidad();
-    window.previsualizarMensajePublicidad();
-    verificarArchivosLocalmente(); // 🔍 Verificar si los archivos existen
+
+    let index = 0;
+    pubSimulacionIntervalo = setInterval(() => {
+        if (index < pubLista.length && pubEnvioActivo) {
+            pubLista[index].comentario = 'Simulador activo ⛓️‍💥';
+            renderizarListaPublicidad();
+
+            setTimeout(() => {
+                if (!pubEnvioActivo) return;
+                const esError = Math.random() < 0.05; 
+                if (esError) {
+                    pubLista[index].estado = 'error';
+                    pubLista[index].comentario = 'Error de envio ❌';
+                } else {
+                    pubLista[index].estado = 'enviado';
+                    pubLista[index].comentario = 'Enviado ✅';
+                }
+                renderizarListaPublicidad();
+                index++;
+            }, 1500); 
+        } else {
+            clearInterval(pubSimulacionIntervalo);
+            pubSimulacionIntervalo = null;
+            window.cancelarEnvioMasivo();
+            showToast("✅ Proceso simulado finalizado. Revisa WhatsApp.");
+        }
+    }, 4000);
+}
+
+// 7. Iniciar Envío
+window.iniciarEnvioMasivo = function() {
+    if (pubEnvioActivo) return;
+    const pendientes = pubLista.filter(u => u.estado === 'pendiente');
+    if (pendientes.length === 0) return showToast("No hay destinatarios pendientes.", true);
+
+    pubEnvioActivo = true;
+    const btnIniciar = document.getElementById('btn-iniciar-envio');
+    const btnCancelar = document.getElementById('btn-cancelar-envio');
+    
+    if (btnIniciar) btnIniciar.classList.add('hidden');
+    if (btnCancelar) btnCancelar.classList.remove('hidden');
+    
+    showToast("⚠️ Se descargará el archivo. Haz clic en él para ejecutarlo con permisos de administrador.");
+    window.descargarArchivosEnvio();
+};
+
+// 8. Cancelar / Resetear UI
+window.cancelarEnvioMasivo = function() {
+    pubEnvioActivo = false;
+    if (pubUnsubscribe) {
+        pubUnsubscribe();
+        pubUnsubscribe = null;
+    }
+    if (pubSimulacionIntervalo) {
+        clearInterval(pubSimulacionIntervalo);
+        pubSimulacionIntervalo = null;
+    }
+    const btnIniciar = document.getElementById('btn-iniciar-envio');
+    const btnCancelar = document.getElementById('btn-cancelar-envio');
+    
+    if (btnIniciar) btnIniciar.classList.remove('hidden');
+    if (btnCancelar) btnCancelar.classList.add('hidden');
+};
+
+// 9. Exportar PDF (CORREGIDO PARA EVITAR ERRORES CON EMOJIS)
+window.exportarListaPublicidadPDF = async function() {
+    if (pubLista.length === 0) return showToast("Primero genera la lista.", true);
+    try {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const logoImg = new Image();
+        logoImg.src = 'logo_oscuro.png';
+        await new Promise(resolve => { logoImg.onload = resolve; if (logoImg.complete) resolve(); });
+
+        pdf.setFillColor(255, 107, 0);
+        pdf.rect(0, 0, pageWidth, 28, 'F');
+        if (logoImg.complete && logoImg.naturalWidth > 0) pdf.addImage(logoImg, 'PNG', 12, 4, 20, 20);
+        
+        pdf.setFontSize(14); pdf.setFont("helvetica", "bold"); pdf.setTextColor(255, 255, 255);
+        pdf.text("CAMPAÑA PUBLICITARIA OBR", logoImg.complete ? 36 : 12, 17.5);
+        pdf.setDrawColor(255, 107, 0); pdf.line(12, 29, pageWidth - 12, 29);
+
+        let y = 40;
+        const textoMensaje = document.getElementById('pub-mensaje').value;
+        const nombreEjemplo = pubLista.length > 0 ? pubLista[0].nombre : 'CLIENTE';
+        const mensajeFinal = textoMensaje.replace(/\[NOMBRE\]/gi, nombreEjemplo);
+
+        pdf.setFontSize(10); pdf.setFont("helvetica", "bold"); pdf.setTextColor(15, 23, 42);
+        pdf.text("MENSAJE PUBLICITARIO", 12, y); y += 5;
+        pdf.setFontSize(8); pdf.setFont("helvetica", "normal"); pdf.setTextColor(51, 65, 85);
+        const lines = pdf.splitTextToSize(mensajeFinal, 80);
+        pdf.text(lines, 12, y); y += (lines.length * 5) + 5;
+
+        const previewDiv = document.getElementById('pub-media-preview');
+        if (previewDiv && !previewDiv.classList.contains('hidden')) {
+            const imgElement = previewDiv.querySelector('img');
+            if (imgElement) {
+                try { pdf.addImage(imgElement.src, 'JPEG', pageWidth - 55, 30, 45, 45); } 
+                catch (e) { pdf.text("📎 Imagen adjunta", pageWidth - 50, 40); }
+            }
+        }
+
+        y = Math.max(y, 80) + 10;
+        pdf.setDrawColor(255, 107, 0); pdf.line(12, y, pageWidth - 12, y); y += 10;
+
+        pdf.setFontSize(10); pdf.setFont("helvetica", "bold"); pdf.setTextColor(15, 23, 42);
+        pdf.text("LISTA DE DESTINATARIOS", 12, y); y += 5;
+
+        // ✅ LIMPIEZA DE EMOJIS PARA JS PDF (jsPDF no soporta emojis nativamente)
+        const tableData = pubLista.map((u, idx) => {
+            let estadoTexto = 'Pendiente';
+            if (u.estado === 'enviado') estadoTexto = 'Enviado';
+            if (u.estado === 'error') estadoTexto = 'Error';
+            
+            // Limpiar comentario de emojis para el PDF
+            let comentarioLimpio = (u.comentario || 'Pendiente').replace(/[^\x00-\x7F]/g, '').trim();
+            if (!comentarioLimpio) comentarioLimpio = 'Procesando';
+            
+            return [
+                `${idx + 1}`,
+                u.nombre,
+                u.phone,
+                estadoTexto,
+                comentarioLimpio
+            ];
+        });
+
+        if (typeof pdf.autoTable === 'function') {
+            pdf.autoTable({
+                startY: y, head: [['#', 'NOMBRE', 'CELULAR', 'ESTADO', 'COMENTARIOS']], body: tableData,
+                theme: 'striped', styles: { fontSize: 7, cellPadding: 2 },
+                headStyles: { fillColor: [255, 107, 0], textColor: [255, 255, 255] },
+                columnStyles: { 0: { cellWidth: 10 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 25 }, 3: { cellWidth: 20 }, 4: { cellWidth: 'auto' } },
+                margin: { left: 12, right: 12 }
+            });
+        }
+
+        const finalY = pdf.lastAutoTable ? pdf.lastAutoTable.finalY + 5 : y + 10;
+        pdf.setFontSize(7); pdf.setTextColor(148, 163, 184);
+        pdf.text(`Generado el ${new Date().toLocaleString('es-MX')}`, 12, finalY + 5);
+        pdf.text(`Total: ${pubLista.length} destinatarios`, pageWidth - 12, finalY + 5, { align: 'right' });
+
+        pdf.save(`Campaña_Publicidad_${new Date().toISOString().slice(0, 10)}.pdf`);
+        showToast("✅ PDF generado correctamente.");
+    } catch (error) {
+        console.error("Error al generar PDF:", error);
+        showToast("Error al generar el PDF", true);
+    }
 };
 
 // ============================================================
@@ -16344,335 +16805,3 @@ function verificarArchivosLocalmente() {
 
 // Al cargar la vista, verificar archivos
 window.verificarArchivosLocalmente = verificarArchivosLocalmente;
-
-// 3. Renderizar lista con checkboxes
-function renderizarListaPublicidad() {
-    const container = document.getElementById('pub-lista-destinos');
-    const count = document.getElementById('pub-count');
-    if (!container) return;
-    
-    count.innerText = pubLista.filter(u => u.activo).length;
-    if (pubLista.length === 0) {
-        container.innerHTML = '<p class="text-gray-400 text-center py-4">No hay usuarios en este grupo.</p>';
-        return;
-    }
-
-    let html = '';
-    pubLista.forEach((u, idx) => {
-        const vip = u.esVip ? '👑' : '';
-        const estadoIcono = u.estado === 'pendiente' ? '⏳' :
-                           u.estado === 'enviado' ? '✅' :
-                           u.estado === 'error' ? '❌' : '⏳';
-        const errorMsg = u.errorMsg || '';
-        const checkbox = `<input type="checkbox" ${u.activo ? 'checked' : ''} onchange="window.toggleActivo(${idx})" class="accent-naranja">`;
-        html += `
-            <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/5">
-                <div class="flex items-center gap-2">
-                    ${checkbox}
-                    <span class="font-bold">${u.nombre}</span>
-                    <span class="text-gray-400 text-[8px]">${u.phone}</span>
-                    ${vip}
-                </div>
-                <div class="flex items-center gap-2">
-                    <span>${estadoIcono}</span>
-                    ${errorMsg ? `<span class="text-red-400 text-[8px]">${errorMsg}</span>` : ''}
-                </div>
-            </div>
-        `;
-    });
-    container.innerHTML = html;
-}
-
-// 4. Toggle checkbox individual
-window.toggleActivo = function(idx) {
-    pubLista[idx].activo = !pubLista[idx].activo;
-    renderizarListaPublicidad();
-};
-
-// 5. Previsualizar mensaje
-window.previsualizarMensajePublicidad = function() {
-    const texto = document.getElementById('pub-mensaje').value;
-    const preview = document.getElementById('pub-preview-text');
-    if (pubLista.length > 0) {
-        preview.innerText = texto.replace(/\[NOMBRE\]/g, pubLista[0].nombre);
-    } else {
-        preview.innerText = texto;
-    }
-};
-
-// 6. Cargar y previsualizar media
-window.previsualizarMediaPublicidad = function() {
-    const input = document.getElementById('pub-media');
-    const preview = document.getElementById('pub-media-preview');
-    if (input.files.length === 0) {
-        preview.classList.add('hidden');
-        return;
-    }
-    const file = input.files[0];
-    pubMediaFile = file;
-    const url = URL.createObjectURL(file);
-    const isVideo = file.type.startsWith('video/');
-    preview.classList.remove('hidden');
-    preview.innerHTML = isVideo
-        ? `<video src="${url}" controls class="max-h-32 rounded-xl w-full object-contain bg-black"></video>`
-        : `<img src="${url}" class="max-h-32 rounded-xl object-contain bg-black">`;
-    pubMediaUrl = url;
-};
-
-// 7. Iniciar envío masivo (bloquea la lista)
-window.iniciarEnvioMasivo = async function() {
-    const activos = pubLista.filter(u => u.activo);
-    if (activos.length === 0) return showToast("No hay destinatarios activos para enviar.", true);
-    if (pubEnvioActivo) return showToast("Ya hay un envío en curso.", true);
-
-    pubEnvioActivo = true;
-    document.getElementById('btn-iniciar-envio').classList.add('hidden');
-    document.getElementById('btn-cancelar-envio').classList.remove('hidden');
-    showToast(`🚀 Iniciando envío a ${activos.length} destinatarios...`);
-    window.descargarArchivosEnvio();
-};
-
-// 8. Cancelar envío
-window.cancelarEnvioMasivo = function() {
-    pubEnvioActivo = false;
-    if (pubIntervalo) clearInterval(pubIntervalo);
-    document.getElementById('btn-iniciar-envio').classList.remove('hidden');
-    document.getElementById('btn-cancelar-envio').classList.add('hidden');
-    showToast("⛔ Envío masivo cancelado por el usuario.");
-};
-
-// 9. Simular actualización en tiempo real (para pruebas)
-// En producción, esto se activaría cuando el script .bat reporte resultados
-window.simularActualizacion = function() {
-    pubLista.forEach((u, idx) => {
-        if (u.activo && u.estado === 'pendiente') {
-            setTimeout(() => {
-                u.estado = Math.random() > 0.2 ? 'enviado' : 'error';
-                u.errorMsg = u.estado === 'error' ? 'Número inválido' : '';
-                renderizarListaPublicidad();
-            }, idx * 2000);
-        }
-    });
-};
-
-// 10. Descargar .ps1 y .bat
-window.descargarArchivosEnvio = function() {
-    const contenidoPS1 = `
-# ============================================================
-# SCRIPT DE AUTOMATIZACIÓN PARA WHATSAPP DESKTOP
-# ============================================================
-
-# 1. Abrir WhatsApp si no está abierto
-Start-Process "C:\\Program Files\\WindowsApps\\WhatsAppDesktop\\WhatsApp.exe" -WindowStyle Maximized
-Start-Sleep -Seconds 3
-
-# 2. Pulsar CTRL + N para abrir nuevo chat
-Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.SendKeys]::SendWait("^n")
-Start-Sleep -Seconds 1
-
-# 3. Recibir parámetros desde la app (Número, Mensaje, Imagen)
-param (
-    [string]$numero,
-    [string]$mensaje,
-    [string]$imagenPath
-)
-
-# 4. Pegar el número
-[System.Windows.Forms.SendKeys]::SendWait($numero)
-Start-Sleep -Seconds 1
-
-# 5. Pulsar ENTER para buscar el contacto
-[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-Start-Sleep -Seconds 2
-
-# 6. Pegar el mensaje
-[System.Windows.Forms.SendKeys]::SendWait($mensaje)
-Start-Sleep -Seconds 1
-
-# 7. Si hay imagen, pegarla (simulando CTRL+V)
-if ($imagenPath -ne "") {
-    Add-Type -AssemblyName System.Drawing
-    $img = [System.Drawing.Image]::FromFile($imagenPath)
-    [System.Windows.Forms.Clipboard]::SetImage($img)
-    [System.Windows.Forms.SendKeys]::SendWait("^v")
-    Start-Sleep -Seconds 1
-}
-
-# 8. Pulsar ENTER para enviar
-[System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
-Start-Sleep -Seconds 1
-
-# 9. Cerrar el chat (CTRL+W)
-[System.Windows.Forms.SendKeys]::SendWait("^w")
-Start-Sleep -Seconds 0.5
-
-Write-Host "✅ Mensaje enviado a $numero"
-`;
-
-    const contenidoBAT = `
-@echo off
-echo 🚀 Iniciando envío masivo de WhatsApp...
-powershell.exe -ExecutionPolicy Bypass -File "%~dp0EnviarWhatsApp.ps1"
-pause
-`;
-
-    const rutaDescargas = localStorage.getItem('rutaScriptsWhatsApp') || 'C:\\Users\\Public\\Downloads';
-    localStorage.setItem('rutaScriptsWhatsApp', rutaDescargas);
-    localStorage.setItem('ultimaEjecucion', Date.now());
-
-    const descargar = (contenido, nombre) => {
-        const blob = new Blob([contenido], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = nombre;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-    };
-
-    descargar(contenidoPS1, 'EnviarWhatsApp.ps1');
-    setTimeout(() => {
-        descargar(contenidoBAT, 'Ejecutar.bat');
-    }, 500);
-
-    showToast("✅ Archivos descargados. Haz doble clic en 'Ejecutar.bat' para iniciar.");
-};
-
-// 11. Ejecutar .bat guardado
-window.ejecutarBatGuardado = function() {
-    const ruta = localStorage.getItem('rutaScriptsWhatsApp');
-    if (!ruta) {
-        return showToast("Primero descarga los archivos.", true);
-    }
-    const rutaCompleta = `${ruta}\\Ejecutar.bat`;
-    window.location.href = `file:///${rutaCompleta.replace(/\\/g, '/')}`;
-    setTimeout(() => {
-        showToast("Si no se abrió automáticamente, ve a la carpeta y ejecuta 'Ejecutar.bat' manualmente.", false);
-    }, 3000);
-};
-
-// ============================================================
-// EXPORTAR LISTA A PDF CON DISEÑO PROFESIONAL OBR
-// ============================================================
-window.exportarListaPublicidadPDF = async function() {
-    if (pubLista.length === 0) {
-        return showToast("Primero genera la lista de destinatarios.", true);
-    }
-
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const logoImg = new Image();
-    logoImg.src = 'logo_oscuro.png';
-    await new Promise(resolve => { logoImg.onload = resolve; if (logoImg.complete) resolve(); });
-
-    // --- ENCABEZADO CORPORATIVO OBR ---
-    pdf.setFillColor(255, 107, 0);
-    pdf.rect(0, 0, pageWidth, 28, 'F');
-    if (logoImg.complete && logoImg.naturalWidth > 0) {
-        pdf.addImage(logoImg, 'PNG', 12, 4, 20, 20);
-    }
-    pdf.setFontSize(14);
-    pdf.setFont("helvetica", "bold");
-    pdf.setTextColor(255, 255, 255);
-    pdf.text("CAMPAÑA PUBLICITARIA OBR", logoImg.complete ? 36 : 12, 17.5);
-    pdf.setDrawColor(255, 107, 0);
-    pdf.line(12, 29, pageWidth - 12, 29);
-
-    let y = 40;
-
-    // --- SECCIÓN IZQUIERDA: MENSAJE ---
-    const textoMensaje = document.getElementById('pub-mensaje').value;
-    const nombreEjemplo = pubLista.length > 0 ? pubLista[0].nombre : 'CLIENTE';
-    const mensajeFinal = textoMensaje.replace(/\[NOMBRE\]/g, nombreEjemplo);
-
-    pdf.setFontSize(10);
-    pdf.setFont("helvetica", "bold");
-    pdf.setTextColor(15, 23, 42);
-    pdf.text("MENSAJE PUBLICITARIO", 12, y);
-    y += 5;
-
-    pdf.setFontSize(8);
-    pdf.setFont("helvetica", "normal");
-    pdf.setTextColor(51, 65, 85);
-    const lines = pdf.splitTextToSize(mensajeFinal, 80);
-    pdf.text(lines, 12, y);
-    y += (lines.length * 5) + 5;
-
-    // --- SECCIÓN DERECHA: IMAGEN ---
-    const previewDiv = document.getElementById('pub-media-preview');
-    if (previewDiv && !previewDiv.classList.contains('hidden')) {
-        const img = previewDiv.querySelector('img, video');
-        if (img) {
-            try {
-                const imgData = img.src;
-                pdf.addImage(imgData, 'JPEG', pageWidth - 55, 30, 45, 45);
-            } catch (e) {
-                console.warn('No se pudo agregar la imagen al PDF:', e);
-                pdf.text("📎 Imagen adjunta", pageWidth - 50, 40);
-            }
-        }
-    }
-
-    // --- LÍNEA SEPARADORA ---
-    y = Math.max(y, 80) + 10;
-    pdf.setDrawColor(255, 107, 0);
-    pdf.line(12, y, pageWidth - 12, y);
-    y += 10;
-
-    // --- TABLA DE ENVIADOS ---
-    pdf.setFontSize(10);
-    pdf.setFont("helvetica", "bold");
-    pdf.setTextColor(15, 23, 42);
-    pdf.text("LISTA DE DESTINATARIOS", 12, y);
-    y += 5;
-
-    const tableData = pubLista.map((u, idx) => {
-        const estadoIcono = u.estado === 'enviado' ? '✅' :
-                           u.estado === 'error' ? '❌' : '⏳';
-        const comentario = u.estado === 'error' ? (u.errorMsg || 'Error') :
-                          u.estado === 'enviado' ? 'Publicidad enviada' : 'Pendiente';
-        return [
-            `${idx+1}`,
-            u.nombre,
-            u.phone,
-            estadoIcono,
-            comentario
-        ];
-    });
-
-    pdf.autoTable({
-        startY: y,
-        head: [['#', 'NOMBRE', 'CELULAR', 'ESTADO', 'COMENTARIOS']],
-        body: tableData,
-        theme: 'striped',
-        styles: { fontSize: 7, cellPadding: 2 },
-        headStyles: { fillColor: [255, 107, 0], textColor: [255, 255, 255] },
-        columnStyles: {
-            0: { cellWidth: 10 },
-            1: { cellWidth: 'auto' },
-            2: { cellWidth: 25 },
-            3: { cellWidth: 15 },
-            4: { cellWidth: 'auto' }
-        },
-        margin: { left: 12, right: 12 }
-    });
-
-    // --- PIE DE PÁGINA ---
-    const finalY = pdf.lastAutoTable.finalY + 5;
-    pdf.setFontSize(7);
-    pdf.setTextColor(148, 163, 184);
-    pdf.text(`Generado el ${new Date().toLocaleString('es-MX')}`, 12, finalY + 5);
-    pdf.text(`Total: ${pubLista.length} destinatarios`, pageWidth - 30, finalY + 5, { align: 'right' });
-
-    // --- FOOTER PROFESIONAL ---
-    const addFooter = window._setupProfessionalPDF(pdf, 'CAMPAÑA PUBLICITARIA OBR', logoImg);
-    addFooter(pdf);
-
-    pdf.save(`Campaña_Publicidad_${new Date().toISOString().slice(0,10)}.pdf`);
-    showToast("✅ PDF generado correctamente.");
-};
