@@ -1,125 +1,2534 @@
-// ============================================================
-// VERSIÓN DE LA CACHÉ
-// ============================================================
-const CACHE_NAME = 'obr-cache-v48';
-const BASE_PATH = '/RESCATE-OBR';
+/* ===== styles.css COMPLETO (optimizado y sin duplicados) ===== */
 
-const ALL_FILES = [
-  BASE_PATH + '/',
-  BASE_PATH + '/index.html',
-  BASE_PATH + '/app.js',
-  BASE_PATH + '/styles.css',
-  BASE_PATH + '/icono.png',
-  BASE_PATH + '/sw.js'
-];
+:root {
+    --bg: #1A1A1A;
+    --text: #ffffff;
+    --glass-bg: rgba(255,255,255,0.05);
+    --border: rgba(255,255,255,0.1);
+}
 
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => 
-      Promise.allSettled(ALL_FILES.map(url => 
-        cache.add(url).catch(err => console.warn('No se pudo cachear:', url, err))
-      ))
-    )
-  );
-});
+html {
+    touch-action: manipulation;
+    -ms-touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
 
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(names => Promise.all(
-      names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))
-    ))
-  );
-  event.waitUntil(self.clients.claim());
-});
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    -webkit-tap-highlight-color: transparent;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    touch-action: pan-x pan-y;
+    -ms-touch-action: pan-x pan-y;
+    overscroll-behavior: contain;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    max-width: 100vw;
+    overflow-x: hidden;
+}
 
-self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
-  if (event.request.method !== 'GET') return;
-  if (url.hostname.includes('firestore') || url.hostname.includes('googleapis')) {
-    event.respondWith(fetch(event.request).catch(() => new Response('{}', { status: 200 })));
-    return;
-  }
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(response => {
-        if (!response || response.status !== 200) return response;
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        return response;
-      }).catch(() => {
-        if (event.request.mode === 'navigate') {
-          return caches.match(BASE_PATH + '/index.html');
-        }
-      });
-    })
-  );
-});
+input, textarea, [contenteditable] {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+}
 
-self.addEventListener('push', event => {
-  let data = { title: 'OBR', body: 'Tienes una notificación' };
-  if (event.data) {
-    try {
-      data = event.data.json();
-    } catch (e) {
-      data.body = event.data.text();
+/* --- TEMA CLARO --- */
+body.light-mode {
+    --bg: #f0f2f5;
+    --text: #111111;
+    --glass-bg: rgba(255, 255, 255, 0.9);
+    --border: rgba(0, 0, 0, 0.1);
+    background-color: var(--bg);
+    color: var(--text);
+}
+.light-mode .bg-asfalto, .light-mode nav.bg-asfalto { background-color: #ffffff !important; color: #111111 !important; }
+.light-mode .bg-asfalto\/90, .light-mode nav.bg-asfalto\/90 { background-color: rgba(255,255,255,0.95) !important; color: #111111 !important; }
+.light-mode .text-white { color: #111111 !important; }
+.light-mode .text-gray-400 { color: #555555 !important; }
+.light-mode .text-gray-300 { color: #333333 !important; }
+.light-mode .border-white\/10, .light-mode .border-white\/5 { border-color: rgba(0,0,0,0.1) !important; }
+.light-mode .bg-white\/5, .light-mode .bg-white\/10 { background-color: rgba(0,0,0,0.05) !important; }
+.light-mode .bg-black\/40, .light-mode .bg-black\/50, .light-mode .bg-black\/30, .light-mode .bg-black\/20 { 
+    background-color: rgba(255,255,255,0.9) !important; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
+}
+.light-mode .bg-gradient-to-b { background-image: linear-gradient(to bottom, #ffffff, #f0f2f5) !important; }
+.light-mode .bg-gradient-to-br { background-image: linear-gradient(to bottom right, #ffffff, #f0f2f5) !important; }
+.light-mode input.text-white, .light-mode textarea.text-white, .light-mode select.text-white { color: #111111 !important; }
+.light-mode input.color-scheme-dark { color-scheme: light; }
+
+.glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+}
+
+.tab-active { color: #FF6B00; border-top: 2px solid #FF6B00; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-thumb { background: #FF6B00; border-radius: 10px; }
+.hide-scroll::-webkit-scrollbar { display: none; }
+.color-scheme-dark { color-scheme: dark; }
+
+@keyframes pulse-sos {
+    0% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0.7); transform: scale(1); }
+    50% { transform: scale(1.05); }
+    70% { box-shadow: 0 0 0 50px rgba(255, 107, 0, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(255, 107, 0, 0); transform: scale(1); }
+}
+.btn-sos-huge { animation: pulse-sos 2s infinite; }
+
+.gps-pulse-marker {
+    width: 28px; height: 28px;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    display: flex; align-items: center; justify-content: center;
+}
+.gps-pulse-marker .pulse-inner {
+    width: 28px; height: 28px;
+    background-color: #FF6B00;
+    border-radius: 50%;
+    box-shadow: 0 0 0 rgba(255, 107, 0, 0.7);
+    animation: pulse-sos 1.5s infinite;
+    border: 2px solid white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+}
+.mech-pulse-marker {
+    width: 32px; height: 32px;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000 !important;
+}
+.mech-pulse-marker .pulse-inner {
+    width: 32px; height: 32px;
+    background-color: #22c55e;
+    border-radius: 50%;
+    box-shadow: 0 0 0 rgba(34, 197, 94, 0.7);
+    animation: pulse-sos 1.5s infinite;
+    border: 2px solid white;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+}
+
+.obr-pin-marker { background: transparent; border: none; box-shadow: none; }
+.obr-pin-icon {
+    width: 36px; height: 36px;
+    background: #FF6B00;
+    border-radius: 50%;
+    border: 2px solid white;
+    display: flex; align-items: center; justify-content: center;
+    animation: pulse-sos 2s infinite;
+    font-size: 18px;
+    color: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.fixed.inset-0 { backdrop-filter: blur(4px); }
+.modal-content {
+    background: #1A1A1A;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 2rem;
+    padding: 1.5rem;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.float-scanner-btn {
+    position: fixed;
+    bottom: 100px;
+    right: 20px;
+    z-index: 100;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #2563eb;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+#pos-product-grid > div {
+    aspect-ratio: 1 / 1;
+    padding: 0.5rem;
+    border-radius: 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    max-height: 150px;
+}
+#pos-product-grid .aspect-square {
+    max-height: 80px;
+    margin-bottom: 0.25rem;
+}
+#pos-product-grid .aspect-square img {
+    object-fit: contain !important;
+    width: 100%;
+    height: 100%;
+}
+#pos-product-grid p {
+    font-size: 0.65rem;
+    line-height: 1.1;
+    margin-bottom: 0.25rem;
+    height: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#pos-product-grid .font-black.text-sm {
+    font-size: 0.75rem;
+}
+
+/* ===== TARJETAS DE RESCATE CON MARCO VISIBLE ===== */
+.sos-card-compact {
+    background: rgba(255, 255, 255, 0.08);  /* Fondo ligeramente más visible */
+    border: 1px solid rgba(255, 255, 255, 0.25); /* Borde más grueso y marcado */
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.75rem; /* Más espacio entre tarjetas */
+    cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15); /* Sombra para separar del fondo */
+    transition: all 0.2s ease;
+}
+
+.sos-card-compact:hover {
+    background: rgba(255, 255, 255, 0.15);
+    transform: translateY(-2px); /* Pequeño efecto de elevación */
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* ===== VERSIÓN PARA MODO CLARO (LIGHT MODE) ===== */
+.light-mode .sos-card-compact {
+    background: #ffffff !important;
+    border: 1px solid rgba(0, 0, 0, 0.15) !important; /* Borde gris visible */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06) !important; /* Sombra sutil */
+}
+
+.light-mode .sos-card-compact:hover {
+    background: #f8f9fa !important;
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+@media (min-width: 1024px) {
+    .a-view-alertas .lg\:grid {
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 1rem;
+        height: calc(100vh - 200px);
     }
-  }
-  const options = {
-    body: data.body,
-    icon: data.icon || BASE_PATH + '/icono.png',
-    data: { url: data.url || BASE_PATH + '/?view=home' }
-  };
-  event.waitUntil(self.registration.showNotification(data.title, options));
-});
+    .a-view-alertas .lg\:col-span-2 {
+        height: 100%;
+        min-height: 500px;
+    }
+    .a-view-alertas .lg\:col-span-1 {
+        overflow-y: auto;
+        max-height: calc(100vh - 200px);
+        padding-right: 0.5rem;
+    }
+}
+@media (min-width: 1280px) {
+    .a-view-alertas .lg\:grid {
+        height: calc(100vh - 180px);
+    }
+    .a-view-alertas .lg\:col-span-2 {
+        min-height: 600px;
+    }
+    body {
+        padding: 0 2rem;
+    }
+    #app-admin main {
+        max-width: 1400px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    #app-client main {
+        max-width: 700px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+}
 
-// ============================================================
-// NOTIFICATION CLICK - Abrir la URL dentro de la app (VERSIÓN ESTABLE)
-// ============================================================
-self.addEventListener('notificationclick', event => {
-    console.log('👆 Usuario hizo clic en la notificación:', event.notification.data);
-    event.notification.close();
+.admin-service-card {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 1rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+}
+
+.status-recibida { background-color: rgba(59, 130, 246, 0.3); color: #60a5fa; }
+.status-mecanica { background-color: rgba(234, 179, 8, 0.3); color: #facc15; }
+.status-pruebas { background-color: rgba(59, 130, 246, 0.3); color: #60a5fa; }
+.status-lista { background-color: rgba(34, 197, 94, 0.3); color: #4ade80; }
+
+.product-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 1rem;
+}
+.product-card {
+    background: rgba(0,0,0,0.3);
+    border-radius: 1rem;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    transition: transform 0.2s;
+}
+.product-card img {
+    width: 100%;
+    aspect-ratio: 1/1;
+    object-fit: contain !important;
+    border-radius: 0.5rem;
+    background: rgba(255,255,255,0.1);
+    margin-bottom: 0.5rem;
+}
+.product-card:hover { transform: scale(1.02); }
+
+#public-store-grid img,
+#client-store-grid img {
+    object-fit: contain !important;
+}
+
+input, select, textarea {
+    outline: none;
+    transition: border-color 0.2s;
+}
+input:focus, select:focus, textarea:focus {
+    border-color: #FF6B00 !important;
+}
+
+.btn-primary {
+    background: #FF6B00;
+    color: white;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1.5rem;
+    transition: background 0.2s;
+}
+.btn-primary:hover { background: #ea580c; }
+
+#modal-nuevo-servicio input, #modal-nuevo-servicio textarea {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: white;
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    width: 100%;
+    margin-bottom: 0.75rem;
+}
+
+.cart-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem;
+    background: rgba(255,255,255,0.05);
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.video-day-row {
+    background: rgba(0,0,0,0.4);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+#video-schedule-days {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    .glass { backdrop-filter: blur(6px); }
+    .btn-sos-huge { width: 70vw; height: 70vw; }
+    .app-view { padding: 1rem; }
+    .hide-on-mobile { display: none; }
+    body { font-size: 15px; }
+    input, select, textarea, button { font-size: 16px !important; }
+    .text-xs { font-size: 0.75rem !important; }
+    .text-sm { font-size: 0.85rem !important; }
+    .text-lg { font-size: 1.1rem !important; }
+    .text-xl { font-size: 1.3rem !important; }
+    .text-2xl { font-size: 1.5rem !important; }
+    .text-3xl { font-size: 1.7rem !important; }
+}
+
+@media print {
+    body * { visibility: hidden; }
+    .hide-on-print { display: none !important; }
+    #print-qr-area, #print-qr-area * { visibility: visible; }
+    #print-qr-area { 
+        position: absolute; 
+        left: 0; 
+        top: 0; 
+        width: 100%; 
+        margin: 0; 
+        box-shadow: none !important; 
+        border: none !important;
+        padding: 0 !important;
+    }
+}
+
+.ticket-print-bg {
+    background-color: #ffffff;
+    background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+    background-size: 20px 20px;
+}
+
+.leaflet-tile-pane {
+    filter: var(--map-filter, none);
+}
+.light-mode .leaflet-tile-pane { filter: grayscale(10%); }
+
+#signature-canvas {
+    border: 2px solid #ccc;
+    border-radius: 0.5rem;
+    background: #f9f9f9;
+    cursor: crosshair;
+}
+
+#float-inventory-btn {
+    position: fixed;
+    bottom: 100px;
+    right: 30px;
+    z-index: 100;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #16a34a;
+    color: white;
+    font-size: 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+#cart-count-mobile {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #ef4444;
+    color: white;
+    font-size: 0.65rem;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+}
+
+#servicio-fotos-container img {
+    object-fit: contain !important;
+}
+
+#app-admin main {
+    padding-bottom: 7rem;
+}
+@media (min-width: 1024px) {
+    #app-admin main {
+        padding-bottom: 6rem;
+    }
+}
+
+/* ===== NUEVOS ESTILOS Y MEJORAS ===== */
+/* Clase para ocultar el botón de emergencia cuando hay un rescate activo */
+#emergency-client-btn.emergency-hidden {
+    display: none !important;
+}
+
+#emergency-client-btn.opacity-50 {
+    cursor: not-allowed;
+    filter: grayscale(30%);
+}
+#emergency-closed-text {
+    font-size: 0.7rem;
+    line-height: 1.2;
+}
+
+#admin-pending-mech-payments {
+    max-height: 200px;
+    overflow-y: auto;
+}
+#admin-pending-mech-payments > div {
+    transition: background 0.2s;
+}
+#admin-pending-mech-payments > div:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+#mech-pending-charges {
+    max-height: 300px;
+    overflow-y: auto;
+}
+#mech-pending-charges > div {
+    transition: background 0.2s;
+}
+#mech-pending-charges > div:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+.line-through {
+    text-decoration: line-through;
+}
+
+#discounted-products-list > div {
+    transition: background 0.2s;
+}
+#discounted-products-list > div:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+#garantias-list > div {
+    transition: background 0.2s;
+}
+#garantias-list > div:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+#ventas-realizadas-list > div {
+    transition: background 0.2s;
+}
+#ventas-realizadas-list > div:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+#modal-user-detail .bg-black\/30,
+#modal-staff-detail .bg-black\/30 {
+    transition: background 0.2s;
+}
+#modal-user-detail .bg-black\/30:hover,
+#modal-staff-detail .bg-black\/30:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+#btn-lista-check {
+    align-items: center;
+    justify-content: center;
+    display: none;
+}
+#btn-lista-check i {
+    margin-right: 0.25rem;
+}
+
+#client-history-list > div {
+    transition: background 0.2s;
+}
+#client-history-list > div:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+#client-appointments-list > div {
+    transition: background 0.2s;
+}
+#client-appointments-list > div:hover {
+    background: rgba(255,255,255,0.08);
+}
+
+#client-store-grid .glass img {
+    object-fit: contain !important;
+    background: rgba(255,255,255,0.05);
+}
+
+#user-session-indicator {
+    display: none;
+}
+@media (max-width: 768px) {
+    #user-session-indicator {
+        display: flex;
+    }
+}
+
+#vip-banner {
+    display: none;
+    animation: fadeInDown 0.5s ease;
+}
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Sticker PROMO */
+.sticker-promo {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: #ef4444;
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    padding: 0.15rem 0.5rem;
+    border-radius: 9999px;
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+/* Contenedor del video banner */
+#video-banner-container {
+    margin-top: 1rem;
+    border-radius: 1rem;
+    overflow: hidden;
+    background: #000;
+}
+@media (max-width: 768px) {
+    #video-banner-container video,
+    #video-banner-container-client video {
+        max-height: 150px !important;
+    }
+}
+
+/* Mapa SOS en escritorio: tamaño fijo */
+#admin-sos-global-map {
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+    border-radius: 1.5rem;
+}
+
+/* Lista de SOS con scroll interno */
+#admin-sos-list {
+    max-height: calc(65vh - 80px);
+    overflow-y: auto;
+}
+
+/* Organización de taller en bloques, tarjetas con ancho máximo y truncado */
+#admin-services-list .mb-6 {
+    background: rgba(255,255,255,0.02);
+    border-radius: 1rem;
+    padding: 0.75rem;
+}
+#admin-services-list h4 {
+    font-size: 0.85rem;
+    letter-spacing: 0.05em;
+}
+#admin-services-list .grid > div {
+    max-width: 100%;
+    overflow: hidden;
+}
+#admin-services-list .grid span.truncate,
+#admin-services-list .grid p.truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Mejora de modales para que se vean más nativos en la app */
+.modal-content {
+    border-radius: 1.5rem;
+    background: #1A1A1A;
+    border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Evitar selección de texto en botones y etiquetas */
+button, label, .no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Previsualización de video en tarjeta */
+.video-day-row video {
+    width: 100%;
+    max-height: 150px;
+    border-radius: 0.5rem;
+    background: #000;
+}
+
+/* Tema claro: mantener bordes visibles */
+.light-mode .border-white\/10,
+.light-mode .border-white\/5,
+.light-mode .border-white\/20 {
+    border-color: rgba(0,0,0,0.1) !important;
+}
+
+.light-mode .bg-white\/5 {
+    background-color: rgba(0,0,0,0.05) !important;
+}
+
+/* Ajustes de espaciado para la barra de navegación inferior */
+nav.fixed.bottom-0 {
+    padding-bottom: env(safe-area-inset-bottom, 0.75rem);
+}
+/* Asegurar que el main del admin ocupe todo el ancho disponible en CAJA */
+#a-view-pos {
+    max-width: 100%;
+}
+
+/* Video banner */
+#video-banner-container {
+    width: 100%;
+    max-width: 100%;
+    margin-top: 1rem;
+    border-radius: 1rem;
+    overflow: hidden;
+    background: #000;
+}
+#video-banner-container video {
+    width: 100%;
+    max-height: 300px;
+    object-fit: contain;
+}
+#modal-video-schedule .bg-black\/40 {
+    min-height: 200px;
+}
+#modal-video-schedule video {
+    max-height: 150px !important;
+    width: 100%;
+}
+#promo-video-player {
+    background: #000;
+    border-radius: 0.5rem;
+}
+#video-banner-container video,
+#promo-video-preview video {
+    pointer-events: none;
+    -webkit-user-select: none;
+    user-select: none;
+}
+#video-banner-container {
+    padding: 0 1rem;
+    margin-bottom: 1rem;
+}
+#video-banner-container video {
+    border-radius: 1rem;
+}
+/* Efecto shimmer para banners VIP */
+.vip-shimmer-banner {
+  position: relative;
+  overflow: hidden;
+}
+.vip-shimmer-banner::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 200%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 30%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0.4) 70%,
+    transparent 100%
+  );
+  animation: vipShimmer 3s ease-in-out infinite;
+  z-index: 5;
+}
+@keyframes vipShimmer {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(0%); }
+  100% { transform: translateX(0%); }
+}
+
+#modal-contact button {
+    white-space: nowrap;
+}
+.status-badge {
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 0.5rem;
+    padding: 0.15rem 0.5rem;
+    font-size: 0.6rem;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+@media (min-width: 1400px) {
+    .custom-grid-16 {
+        grid-template-columns: repeat(16, 1fr) !important;
+    }
+}
+/* --- Ticket de venta adaptativo --- */
+.ticket-container {
+    color: var(--text);
+    transition: background-color 0.4s ease, color 0.4s ease;
+}
+.ticket-container .text-black {
+    color: var(--text) !important;
+}
+.ticket-container .text-gray-600 {
+    color: #888 !important;
+}
+.ticket-container .bg-gray-100 {
+    background-color: rgba(128,128,128,0.15) !important;
+}
+.ticket-container input {
+    background-color: rgba(128,128,128,0.1) !important;
+    color: var(--text) !important;
+}
+.ticket-container select {
+    background-color: rgba(128,128,128,0.1) !important;
+    color: var(--text) !important;
+}
+
+/* --- Transición suave del tema --- */
+body, .glass, .bg-asfalto, .bg-asfalto\/90, .bg-white\/5, .bg-white\/10, 
+.bg-black\/40, .bg-black\/50, nav, .ticket-container, 
+#app-admin main, #app-client main, header {
+    transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease;
+}
+#sos-service-dropdown div {
+    transition: background 0.2s;
+}
+#sos-service-dropdown div:hover {
+    background-color: rgba(255, 107, 0, 0.3);
+}
+
+/* Contenedor del video (sin padding extra) */
+#video-banner-container,
+#video-banner-container-client {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border-radius: 1rem;
+    overflow: hidden;
+    background-color: #000;
+}
+#video-banner-container video,
+#video-banner-container-client video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    border-radius: 1rem;
+}
+@media (max-width: 768px) {
+    #video-banner-container,
+    #video-banner-container-client {
+        height: 170px;
+    }
+}
+@media (min-width: 769px) {
+    #video-banner-container,
+    #video-banner-container-client {
+        height: 200px;
+    }
+}
+@media (min-width: 768px) {
+    input[type="time"] {
+        font-size: 1rem;
+        width: 130px;
+    }
+}
+@keyframes soft-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+.animate-pulse-soft {
+    animation: soft-pulse 1.5s infinite ease-in-out;
+}
+
+/* Mapa del cliente (oculto hasta que se active) */
+#mechanic-live-map {
+    width: 100%;
+    min-height: 250px !important;
+    height: 250px !important;
+    background-color: #374151;
+    border-radius: 0.75rem;
+    transition: opacity 0.3s ease-in-out;
+    opacity: 0;
+    pointer-events: none;
+}
+#mechanic-live-map.visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+#mechanic-live-map {
+    min-height: 250px !important;
+    height: auto !important;
+    background-color: #374151 !important;
+    border-radius: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+/* Para la pestaña RESCATE, dar un poco más de espacio inferior */
+#c-view-rescate {
+    padding-bottom: 80px;
+}
+
+/* Leaflet: ocultar atribuciones y paneles de routing */
+.leaflet-control-attribution {
+    display: none !important;
+}
+.leaflet-routing-container,
+.leaflet-routing-alt,
+.leaflet-routing-collapse-btn {
+    display: none !important;
+}
+.leaflet-marker-icon.sos-personal-marker {
+    display: none !important;
+}
+.leaflet-control-zoom {
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    border-radius: 8px;
+}
+.leaflet-control-zoom a {
+    background-color: #1A1A1A;
+    color: white;
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    font-size: 18px;
+}
+.light-mode .leaflet-control-zoom a {
+    background-color: #f0f0f0;
+    color: black;
+}
+
+/* ===== ÁREA SEGURA (safe-area) PARA DISPOSITIVOS CON NOTCH ===== */
+:root {
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
+}
+body {
+    padding-top: var(--safe-area-top);
+    padding-bottom: var(--safe-area-bottom);
+    padding-left: var(--safe-area-left);
+    padding-right: var(--safe-area-right);
+}
+nav.fixed.bottom-0,
+#app-client nav,
+#app-admin nav {
+    padding-bottom: calc(0.75rem + var(--safe-area-bottom));
+    padding-left: calc(1rem + var(--safe-area-left));
+    padding-right: calc(1rem + var(--safe-area-right));
+}
+header.sticky,
+.fixed.top-0 {
+    padding-top: calc(1rem + var(--safe-area-top));
+}
+
+#float-invite-btn {
+    position: fixed !important;
+    z-index: 100 !important;
+    width: 56px !important;
+    height: 56px !important;
+    border-radius: 50% !important;
+    background: #efb810 !important;
+    color: white !important;
+    font-size: 1.5rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3) !important;
+
+    /* ✅ AÑADIR TRANSICIÓN PARA ANIMACIÓN SUAVE */
+    transition: bottom 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), right 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    will-change: bottom, right;
+}
+
+#admin-chat-float-btn {
+    bottom: calc(100px + var(--safe-area-bottom)) !important;
+    left: calc(12px + var(--safe-area-left)) !important;
+}
+@media (max-width: 768px) {
+    #btn-chat-ai-float,
+    #float-invite-btn {
+        bottom: calc(90px + var(--safe-area-bottom)) !important;
+        right: calc(12px + var(--safe-area-right)) !important;
+    }
+    #admin-chat-float-btn {
+        bottom: calc(90px + var(--safe-area-bottom)) !important;
+        left: calc(8px + var(--safe-area-left)) !important;
+    }
+}
+
+/* ===== ESTRELLAS ENCUESTA (medias estrellas) ===== */
+#star-rating i {
+    cursor: pointer;
+    transition: color 0.2s;
+}
+#star-rating i.active,
+#star-rating i.hover {
+    color: #FF6B00;
+}
+#star-rating i.hover-half {
+    color: #FF6B00;
+    position: relative;
+}
+#star-rating i.hover-half::before {
+    content: "\f089";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    position: absolute;
+    left: 0;
+    width: 50%;
+    overflow: hidden;
+}
+
+/* ===== CHAT IA - AGENTE OBR (diseño moderno) ===== */
+
+#chat-ia-modal-dinamico {
+    --chat-bg: #0a0a0a;
+    --chat-sidebar-bg: #111111;
+    --chat-header-bg: #1a1a1a;
+    --chat-border: #2a2a2a;
+    --chat-text: #e5e5e5;
+    --chat-text-muted: #888888;
+    --chat-accent: #FF6B00;
+    --chat-input-bg: #1e1e1e;
+    --chat-hover: #2c2c2c;
+}
+body.light-mode #chat-ia-modal-dinamico {
+    --chat-bg: #f9f9f9;
+    --chat-sidebar-bg: #ffffff;
+    --chat-header-bg: #f0f0f0;
+    --chat-border: #e0e0e0;
+    --chat-text: #111111;
+    --chat-text-muted: #555555;
+    --chat-input-bg: #ffffff;
+    --chat-hover: #e6e6e6;
+}
+
+.chat-ia-container {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    background: var(--chat-bg);
+    color: var(--chat-text);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Sidebar (escritorio y móvil) */
+.chat-sidebar {
+    width: 280px;
+    background: var(--chat-sidebar-bg);
+    border-right: 1px solid var(--chat-border);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+    z-index: 15;
+    flex-shrink: 0;
+}
+@media (max-width: 768px) {
+    .chat-sidebar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        height: 100%;
+        transform: translateX(-100%);
+        box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+        z-index: 25;
+    }
+    .chat-sidebar.open {
+        transform: translateX(0);
+    }
+}
+
+.chat-sidebar-header {
+    padding: 20px 16px;
+    border-bottom: 1px solid var(--chat-border);
+}
+.chat-sidebar-header h2 {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 0;
+}
+.chat-sidebar-search {
+    padding: 16px;
+    position: relative;
+}
+.chat-sidebar-search input {
+    width: 100%;
+    padding: 10px 12px 10px 36px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--chat-border);
+    border-radius: 8px;
+    color: var(--chat-text);
+    font-size: 0.9rem;
+}
+.chat-sidebar-search input:focus {
+    outline: none;
+    border-color: var(--chat-accent);
+}
+.chat-sidebar-search i {
+    position: absolute;
+    left: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--chat-text-muted);
+    font-size: 14px;
+}
+.chat-groups-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.grupo-item {
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+}
+.grupo-item:hover {
+    background: var(--chat-hover);
+}
+.grupo-item.active {
+    background: rgba(255, 107, 0, 0.15);
+    border-left: 3px solid var(--chat-accent);
+}
+.chat-new-group-btn {
+    margin: 16px;
+    padding: 10px;
+    background: var(--chat-accent);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: opacity 0.2s;
+}
+.chat-new-group-btn:hover {
+    opacity: 0.85;
+}
+
+/* Área principal */
+.chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+}
+.chat-main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--chat-border);
+    background: var(--chat-header-bg);
+}
+.chat-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+/* Botón toggle para móvil (dentro del header) */
+.chat-header-left .chat-sidebar-toggle {
+    background: var(--chat-accent);
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: white;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+@media (max-width: 768px) {
+    .chat-header-left .chat-sidebar-toggle {
+        display: flex;
+    }
+}
+.chat-main-header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin: 0;
+    background: linear-gradient(135deg, #FF6B00, #FF9F4A);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+.chat-actions-menu {
+    position: relative;
+}
+.chat-actions-trigger {
+    background: transparent;
+    border: none;
+    color: var(--chat-text);
+    font-size: 1.4rem;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+.chat-actions-trigger:hover {
+    background: var(--chat-hover);
+}
+.chat-actions-dropdown {
+    position: absolute;
+    top: 40px;
+    right: 0;
+    background: var(--chat-sidebar-bg);
+    border: 1px solid var(--chat-border);
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+    display: none;
+    flex-direction: column;
+    min-width: 180px;
+    z-index: 30;
+}
+.chat-actions-dropdown.show {
+    display: flex;
+}
+.chat-actions-dropdown button {
+    background: none;
+    border: none;
+    padding: 10px 16px;
+    text-align: left;
+    color: var(--chat-text);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+}
+.chat-actions-dropdown button:hover {
+    background: var(--chat-hover);
+}
+
+/* Pantalla de bienvenida */
+.chat-welcome-screen {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
+    padding: 2rem;
+}
+.welcome-content {
+    max-width: 800px;
+    text-align: center;
+}
+.welcome-content h1 {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    background: linear-gradient(135deg, #FF6B00, #FF9F4A);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+.welcome-content > p {
+    font-size: 1rem;
+    color: var(--chat-text-muted);
+    margin-bottom: 2rem;
+}
+.welcome-cards {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+.welcome-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--chat-border);
+    border-radius: 20px;
+    padding: 1.5rem;
+    width: 220px;
+    text-align: left;
+    transition: transform 0.2s, background 0.2s;
+}
+.welcome-card:hover {
+    transform: translateY(-4px);
+    background: rgba(255,255,255,0.05);
+}
+.welcome-card h3 {
+    font-size: 1.2rem;
+    margin-bottom: 0.75rem;
+    color: var(--chat-accent);
+}
+.welcome-card ul {
+    margin: 0;
+    padding-left: 1.2rem;
+}
+.welcome-card li {
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--chat-text-muted);
+}
+
+/* Mensajes */
+.chat-messages-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+.chat-messages-list > div {
+    max-width: 900px;
+    margin: 0 auto;
+    width: 100%;
+}
+.chat-messages-list .flex {
+    gap: 12px;
+}
+.chat-messages-list .bg-naranja {
+    background: var(--chat-accent) !important;
+    color: white !important;
+}
+.chat-messages-list .bg-gray-200 {
+    background: #e5e5e5 !important;
+    color: #111111 !important;
+}
+.light-mode .chat-messages-list .bg-gray-200 {
+    background: #f0f0f0 !important;
+    color: #111111 !important;
+}
+.chat-messages-list .rounded-2xl {
+    border-radius: 24px;
+}
+.chat-messages-list .max-w-\[85\%\] {
+    max-width: 85%;
+}
+@media (max-width: 768px) {
+    .chat-messages-list .max-w-\[85\%\] {
+        max-width: 95%;
+    }
+}
+
+/* Menú de acciones por mensaje (tres puntos) */
+.message-actions-menu {
+    position: relative;
+    display: inline-flex;
+    margin-left: auto;
+}
+.message-actions-trigger {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    color: inherit;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+    padding: 4px 6px;
+    border-radius: 6px;
+}
+.message-actions-trigger:hover {
+    opacity: 1;
+    background: rgba(0,0,0,0.1);
+}
+.message-actions-dropdown {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    background: var(--chat-sidebar-bg);
+    border: 1px solid var(--chat-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    display: none;
+    flex-direction: column;
+    min-width: 120px;
+    z-index: 30;
+    margin-bottom: 8px;
+}
+.message-actions-dropdown.show {
+    display: flex;
+}
+.message-actions-dropdown button {
+    background: none;
+    border: none;
+    padding: 8px 12px;
+    text-align: left;
+    color: var(--chat-text);
+    cursor: pointer;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+.message-actions-dropdown button:hover {
+    background: var(--chat-hover);
+}
+
+/* Área de entrada */
+.chat-input-area {
+    padding: 16px 24px 24px;
+    border-top: 1px solid var(--chat-border);
+    background: var(--chat-header-bg);
+}
+.chat-input-container {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    background: var(--chat-input-bg);
+    border: 1px solid var(--chat-border);
+    border-radius: 28px;
+    padding: 8px 16px;
+    transition: border-color 0.2s;
+}
+.chat-input-container:focus-within {
+    border-color: var(--chat-accent);
+}
+#message-input-ia {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 10px 0;
+    color: var(--chat-text);
+    font-size: 0.95rem;
+    resize: none;
+    max-height: 120px;
+    outline: none;
+}
+.chat-input-buttons {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.chat-btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--chat-text-muted);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 50%;
+    transition: background 0.2s, color 0.2s;
+}
+.chat-btn-icon:hover {
+    background: var(--chat-hover);
+    color: var(--chat-accent);
+}
+.chat-send-btn {
+    background: var(--chat-accent);
+    border: none;
+    color: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+.chat-send-btn:hover {
+    opacity: 0.85;
+}
+.chat-image-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+.chat-image-preview > div {
+    position: relative;
+}
+.chat-image-preview img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--chat-border);
+}
+.remove-image-preview {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: red;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.chat-input-note {
+    font-size: 0.7rem;
+    color: var(--chat-text-muted);
+    margin-top: 12px;
+    text-align: center;
+}
+
+/* Scrollbar personalizado */
+.chat-groups-list::-webkit-scrollbar,
+.chat-messages-list::-webkit-scrollbar {
+    width: 6px;
+}
+.chat-groups-list::-webkit-scrollbar-track,
+.chat-messages-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+.chat-groups-list::-webkit-scrollbar-thumb,
+.chat-messages-list::-webkit-scrollbar-thumb {
+    background: var(--chat-border);
+    border-radius: 4px;
+}
+
+#welcome-screen-ia {
+    transition: opacity 0.4s ease;
+}
+.chat-welcome-screen {
+    transition: opacity 0.4s ease;
+}
+.chat-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.chat-close-btn {
+    background: transparent;
+    border: none;
+    color: var(--chat-text);
+    font-size: 1.4rem;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: background 0.2s, opacity 0.2s;
+}
+.chat-close-btn:hover {
+    background: var(--chat-hover);
+    opacity: 0.8;
+}
+/* Ocultar botón de emergencia cuando la tarjeta de rescate está visible */
+#active-sos-card:not(.hidden) ~ #emergency-client-btn {
+    display: none !important;
+}
+
+
+/* ===== RETENES CLIENTE - Fondo completo ===== */
+#c-view-retenes {
+    display: none !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 5 !important;                 /* Debajo del header (z-40) y nav (z-50) */
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background-color: #e0e0e0;             /* Para depuración, puedes quitarlo luego */
+}
+
+#c-view-retenes:not(.hidden) {
+    display: block !important;             /* Usamos block, no flex */
+}
+
+#retenes-map-wrapper {
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    position: relative !important;
+}
+
+#retenes-map-container {
+    width: 100% !important;
+    min-height: 100vh !important;          /* Forzamos altura en píxeles */
+    height: 100% !important;
+    display: block !important;
+}
+#c-view-retenes .absolute {
+    z-index: 1000 !important;
+    pointer-events: none !important;
+}
+#c-view-retenes .absolute > * {
+    pointer-events: auto !important;
+}
+
+@keyframes police-lights {
+    0% { border-color: #0000ff; box-shadow: 0 0 15px #0000ff; }
+    50% { border-color: #ff0000; box-shadow: 0 0 15px #ff0000; }
+    100% { border-color: #0000ff; box-shadow: 0 0 15px #0000ff; }
+}
+
+.police-light-box {
+    border: 4px solid #0000ff;
+    border-radius: 12px;
+    animation: police-lights 0.8s infinite alternate;
+    padding: 5px;
+    background: #000;
+    display: inline-block;
+}
+/* Efecto de luces policiales para texto */
+.police-light-text {
+    animation: policeGlow 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes policeGlow {
+    0% {
+        text-shadow: 0 0 8px rgba(0, 0, 255, 0.9),
+                     0 0 20px rgba(0, 0, 255, 0.6),
+                     0 0 40px rgba(0, 0, 255, 0.3);
+    }
+    50% {
+        text-shadow: 0 0 8px rgba(255, 0, 0, 0.9),
+                     0 0 20px rgba(255, 0, 0, 0.6),
+                     0 0 40px rgba(255, 0, 0, 0.3);
+    }
+    100% {
+        text-shadow: 0 0 8px rgba(0, 0, 255, 0.9),
+                     0 0 20px rgba(0, 0, 255, 0.6),
+                     0 0 40px rgba(0, 0, 255, 0.3);
+    }
+}
+/* ===== CONTROLES FLOTANTES DENTRO DEL MAPA - VERSIÓN FINAL ===== */
+
+/* CONTENEDOR DEL MAPA (Debe ser relative para que los controles sean absolutos) */
+#sos-map-wrapper, #entregas-map-wrapper, #retenes-map-wrapper {
+    position: relative !important;
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+}
+
+/* ============================================================
+   CONTROLES DENTRO DEL MAPA (position: absolute)
+   ============================================================ */
+
+/* --- 1. Botón Hamburguesa (común para todos los mapas) --- */
+.map-hamburger-btn {
+    position: absolute !important;
+    top: 70px 
+    left: 20px !important;
+    z-index: 2000 !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #333333 !important;
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    border: 1px solid rgba(0,0,0,0.05) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    font-size: 20px !important;
+    transition: all 0.2s ease !important;
+}
+.map-hamburger-btn:hover {
+    transform: scale(1.05) !important;
+}
+.map-hamburger-btn.hidden-btn {
+    display: none !important;
+}
+
+/* --- 2. Contenedor de los botones superiores derecha (Filtro, Reporte, Crear Retén) --- */
+.map-top-right-controls {
+    position: absolute !important;
+    top: 20px; /* sin !important */
+    right: 20px !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    pointer-events: none !important;
+}
+.map-top-right-controls > * {
+    pointer-events: auto !important;
+}
+
+/* --- 3. Estilo base de los botones de control (Filtro, Reporte, Crear Retén) --- */
+.map-control-btn {
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #333333 !important;
+    padding: 8px 20px !important;
+    border-radius: 25px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    border: 1px solid rgba(0,0,0,0.05) !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    font-family: 'Inter', sans-serif !important;
+    pointer-events: auto !important;
+}
+.map-control-btn:hover {
+    transform: scale(1.05) !important;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2) !important;
+}
+
+/* --- 4. Variantes de color para cada botón --- */
+.map-control-btn.btn-filtrar {
+    background: #FF6B00 !important;
+    color: white !important;
+}
+.map-control-btn.btn-reporte {
+    background: #3b82f6 !important;
+    color: white !important;
+}
+.map-control-btn.btn-nuevo-reten {
+    background: #eab308 !important;
+    color: white !important;
+}
+
+/* ===== WIDGET DEL CLIMA (dentro del mapa) ===== */
+#weather-widget {
+    position: absolute !important;
+    bottom: 15px !important;
+    right: 15px !important;
+    z-index: 1000 !important;
+    background: rgba(20, 20, 20, 0.7) !important;
+    backdrop-filter: blur(4px) !important;
+    border-radius: 20px !important;
+    padding: 4px 10px !important;
+    display: none !important;
+    align-items: center !important;
+    gap: 8px !important;
+    color: white !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 12px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    pointer-events: none !important;
+    transition: bottom 0.4s ease;
+}
+#weather-widget.visible {
+    display: flex !important;
+}
+
+/* Clima dentro del mapa de cobertura (Configuración) */
+#admin-geofence-map #weather-widget {
+    position: absolute !important;
+    bottom: 15px !important;
+    right: 15px !important;
+    display: none !important;
+}
+#admin-geofence-map #weather-widget.visible {
+    display: flex !important;
+}
+
+/* ===== LISTAS FLOTANTES (SOS, Entregas, Retenes) ===== */
+.floating-list {
+    position: fixed !important;
+    top: var(--header-offset, 80px) !important;  /* Controlado por JS */
+    bottom: var(--nav-offset, 80px) !important;  /* Controlado por JS */
+    left: 0 !important;
+    width: 420px !important;
+    max-width: 88vw !important;
+    background: white !important;
+    box-shadow: 4px 0 30px rgba(0,0,0,0.15) !important;
+    z-index: 1500 !important;
+    color: #333 !important;
+    display: none !important;
+    flex-direction: column !important;
+    border-radius: 0 16px 16px 0 !important;
+    overflow: hidden !important;
+    transition: transform 0.3s ease !important;
+}
+.floating-list.open {
+    display: flex !important;
+}
+
+/* Ajustes para móvil */
+@media (max-width: 768px) {
+    .floating-list {
+        width: 92vw !important;
+        max-width: 92vw !important;
+    }
+}
+
+/* Botón de retracción (<) a la derecha de la lista */
+.floating-list-close-btn {
+    position: absolute !important;
+    right: -14px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 28px !important;
+    height: 48px !important;
+    background: #FF6B00 !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 0 8px 8px 0 !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.1) !important;
+    z-index: 1501 !important;
+    transition: all 0.2s ease !important;
+}
+.floating-list-close-btn:hover {
+    background: #e05a00 !important;
+    transform: translateY(-50%) scale(1.05) !important;
+}
+
+/* Contenido de la lista */
+.floating-list-content {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    padding: 16px !important;
+}
+
+/* Encabezado de la lista */
+.floating-list-header {
+    padding: 16px 20px 12px 20px !important;
+    border-bottom: 1px solid #eee !important;
+    flex-shrink: 0 !important;
+}
+
+/* Filtros dentro de la lista */
+.floating-list-filters {
+    padding: 12px 20px !important;
+    border-bottom: 1px solid #eee !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+}
+
+.filter-btn-sos-estatus, .filter-btn-estatus {
+    padding: 4px 12px !important;
+    border-radius: 20px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    border: 1px solid #ddd !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    background: #f5f5f5 !important;
+    color: #666 !important;
+}
+.filter-btn-sos-estatus.active, .filter-btn-estatus.active {
+    border-color: #facc15 !important;
+    background: #fef9c3 !important;
+    color: #854d0e !important;
+}
+
+/* Ocultar controles de zoom de Leaflet */
+.leaflet-control-zoom {
+    display: none !important;
+}
+.leaflet-control-zoom-in, .leaflet-control-zoom-out {
+    display: none !important;
+}
+
+/* ===== RESPONSIVE MÓVIL (Evita que los botones queden detrás del header/nav) ===== */
+@media (max-width: 768px) {
+    /* Ajuste de los controles dentro del mapa en móviles */
+    .map-hamburger-btn {
+    position: absolute !important;
+    top: 30px; /* sin !important para que JS lo pueda cambiar */
+    left: 30px !important;
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 16px !important;
+    }
     
-    // Obtener la URL de los datos de la notificación
-    const url = event.notification.data && event.notification.data.url 
-        ? event.notification.data.url 
-        : '/RESCATE-OBR/?view=home';
+    .map-top-right-controls {
+    position: absolute !important;
+    top: 70px; /* sin !important */
+    right: 15px !important;
+        gap: 6px !important;
+    }
+    
+    .map-control-btn {
+        padding: 6px 12px !important;
+        font-size: 10px !important;
+    }
 
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true })
-            .then(clients => {
-                // 1. Buscar si ya hay una ventana abierta de nuestra app
-                for (let client of clients) {
-                    if (client.url.includes('/RESCATE-OBR/')) {
-                        // ✅ SOLUCIÓN UNIVERSAL: Enfocamos la ventana
-                        // Luego, si la URL es distinta, forzamos una recarga
-                        // (esto funciona en todos los navegadores)
-                        if (client.url !== url) {
-                            return client.focus().then(() => {
-                                // Forzar la navegación a la nueva URL recargando la página
-                                client.navigate(url);
-                            });
-                        } else {
-                            // Si ya está en la URL correcta, solo enfocar
-                            return client.focus();
-                        }
-                    }
-                }
-                
-                // 2. Si no hay ventana abierta, abrir una nueva
-                return clients.openWindow(url);
-            })
-    );
-});
+    .floating-list {
+        top: 60px !important;
+        bottom: 60px !important;
+        width: 92vw !important;
+        max-width: 92vw !important;
+    }
+    
+    .floating-list-close-btn {
+        right: -12px !important;
+        width: 24px !important;
+        height: 40px !important;
+        font-size: 14px !important;
+    }
+}
 
-self.addEventListener('message', event => {
-  if (event.data === 'skipWaiting') self.skipWaiting();
-  if (event.data && event.data.type === 'SEND_PUSH') {
-    const { payload } = event.data;
-    self.registration.showNotification(payload.title, {
-      body: payload.body,
-      icon: payload.icon || BASE_PATH + '/icono.png',
-      data: { url: payload.url || BASE_PATH + '/?view=home' }
-    }).then(() => console.log('✅ Notificación mostrada por el SW.'));
-  }
-});
+/* ===== CONTROLES FLOTANTES SOBRE EL MAPA - VERSIÓN FINAL ===== */
+
+/* Botón de hamburguesa (Arriba izquierda, despegado del header) */
+.map-hamburger-btn {
+    position: absolute !important;
+    top: 20px; /* sin !important para que JS lo pueda cambiar */
+    left: 20px !important;
+    z-index: 2000 !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #333333 !important;
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    border: 1px solid rgba(0,0,0,0.05) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    font-size: 20px !important;
+    transition: all 0.2s ease !important;
+}
+.map-hamburger-btn:hover {
+    transform: scale(1.05) !important;
+}
+
+/* Ocultar el botón de hamburguesa cuando la lista está abierta */
+.map-hamburger-btn.hidden-btn {
+    display: none !important;
+}
+
+/* Controles superiores derecha (Filtro y Reporte) */
+.map-top-right-controls {
+    position: absolute !important;
+    top: 20px; /* sin !important */
+    right: 20px !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    pointer-events: none !important;
+}
+.map-top-right-controls > * {
+    pointer-events: auto !important;
+}
+
+/* Botones de control (Filtro, Reporte, Nuevo Retén) */
+.map-control-btn {
+    background: rgba(255, 255, 255, 0.95) !important;
+    color: #333333 !important;
+    padding: 8px 20px !important;
+    border-radius: 25px !important;
+    font-size: 13px !important;
+    font-weight: 800 !important;
+    text-transform: uppercase !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+    border: 1px solid rgba(0,0,0,0.05) !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    font-family: 'Inter', sans-serif !important;
+}
+.map-control-btn:hover {
+    transform: scale(1.05) !important;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2) !important;
+}
+
+/* Colores específicos para Filtro y Reporte */
+.map-control-btn.btn-filtrar {
+    background: #FF6B00 !important;
+    color: white !important;
+}
+.map-control-btn.btn-reporte {
+    background: #3b82f6 !important;
+    color: white !important;
+}
+/* Lista flotante (Altura completa entre header y nav, pegada a la izquierda) */
+.floating-list {
+    position: fixed !important;
+    top: 80px !important; /* Justo debajo del header */
+    bottom: 80px !important; /* Justo encima del nav */
+    left: 0 !important;
+    width: 420px !important;
+    max-width: 88vw !important;
+    background: white !important;
+    box-shadow: 4px 0 30px rgba(0,0,0,0.15) !important;
+    z-index: 1500 !important;
+    color: #333 !important;
+    display: none !important; /* Oculto por defecto */
+    flex-direction: column !important;
+    border-radius: 0 16px 16px 0 !important;
+    overflow: hidden !important;
+    transition: transform 0.3s ease !important;
+}
+.floating-list.open {
+    display: flex !important;
+}
+
+/* Botón de retracción (<) a la derecha de la lista */
+.floating-list-close-btn {
+    position: absolute !important;
+    right: -14px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 28px !important;
+    height: 48px !important;
+    background: #FF6B00 !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 0 8px 8px 0 !important;
+    cursor: pointer !important;
+    font-size: 16px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.1) !important;
+    z-index: 1501 !important;
+    transition: all 0.2s ease !important;
+}
+.floating-list-close-btn:hover {
+    background: #e05a00 !important;
+    transform: translateY(-50%) scale(1.05) !important;
+}
+
+/* Contenido de la lista */
+.floating-list-content {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    padding: 16px !important;
+}
+
+/* Encabezado de la lista */
+.floating-list-header {
+    padding: 16px 20px 12px 20px !important;
+    border-bottom: 1px solid #eee !important;
+    flex-shrink: 0 !important;
+}
+
+/* Filtros dentro de la lista */
+.floating-list-filters {
+    padding: 12px 20px !important;
+    border-bottom: 1px solid #eee !important;
+    flex-shrink: 0 !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+}
+
+.filter-btn-sos-estatus, .filter-btn-estatus {
+    padding: 4px 12px !important;
+    border-radius: 20px !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    border: 1px solid #ddd !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    background: #f5f5f5 !important;
+    color: #666 !important;
+}
+.filter-btn-sos-estatus.active, .filter-btn-estatus.active {
+    border-color: #facc15 !important;
+    background: #fef9c3 !important;
+    color: #854d0e !important;
+}
+
+/* Ocultar controles de zoom de Leaflet */
+.leaflet-control-zoom {
+    display: none !important;
+}
+.leaflet-control-zoom-in, .leaflet-control-zoom-out {
+    display: none !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .map-control-btn { padding: 6px 14px !important; font-size: 11px !important; }
+    .map-top-right-controls { top: 70px ; right: 10px !important; gap: 6px !important; }
+    .map-hamburger-btn { top: 70px ; left: 10px !important; width: 40px !important; height: 40px !important; }
+    .floating-list { width: 92vw !important; top: 70px !important; bottom: 70px !important; }
+    .floating-list-close-btn { right: -12px !important; width: 24px !important; height: 40px !important; font-size: 14px !important; }
+}
+
+@media (max-width: 768px) {
+    /* Ajuste de controles dentro del mapa en móviles */
+   .map-hamburger-btn {
+    position: absolute !important;
+    top: 20px; /* sin !important para que JS lo pueda cambiar */
+    left: 20px !important;
+        width: 40px !important;
+        height: 40px !important;
+        font-size: 16px !important;
+    }
+    
+    .map-top-right-controls {
+    position: absolute !important;
+    top: 90px; /* sin !important */
+    right: 30px !important;
+        gap: 6px !important;
+    }
+    
+    .map-control-btn {
+        padding: 6px 12px !important;
+        font-size: 10px !important;
+    }
+
+    /* Ajuste de la lista flotante para que ocupe toda la altura disponible */
+    .floating-list {
+        top: 60px !important;   /* Debajo del header en móviles */
+        bottom: 60px !important; /* Encima del nav en móviles */
+        width: 92vw !important;
+        max-width: 92vw !important;
+        height: auto !important;
+        max-height: calc(100vh - 120px) !important; /* Altura total menos header y nav */
+    }
+    
+    .floating-list-close-btn {
+        right: -12px !important;
+        width: 24px !important;
+        height: 40px !important;
+        font-size: 14px !important;
+    }
+    
+    /* Asegurar que el contenido de la lista ocupe el espacio restante */
+    .floating-list-content {
+        flex: 1 !important;
+        overflow-y: auto !important;
+        min-height: 0 !important;
+    }
+}
+
+.floating-list {
+    position: fixed !important;
+    top: 80px !important;
+    bottom: 80px !important;
+    /* ... */
+    height: auto !important;
+    max-height: calc(100vh - 160px) !important;
+}
+/* ===== BANNER DE FRASES (MEJORADO Y MÁS COLORIDO) ===== */
+#phrase-banner-container {
+    pointer-events: none;
+    bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+#phrase-banner {
+    pointer-events: none;
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.4;
+    /* Fondo con degradado naranja-dorado (colores de la marca OBR) */
+    background: linear-gradient(90deg, rgba(255, 107, 0, 0.85), rgba(255, 159, 74, 0.85), rgba(255, 107, 0, 0.85)) !important;
+    border: 1px solid rgba(255, 107, 0, 0.4) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 20px rgba(255, 107, 0, 0.25) !important;
+    padding: 8px 18px !important;
+    margin: 0 12px !important;
+    transform-origin: bottom center;
+}
+
+/* Texto con brillo dorado */
+#phrase-text {
+    background: linear-gradient(90deg, #ffffff, #ffd700, #ffffff);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800;
+    font-size: 14px;
+    text-shadow: 0 0 15px rgba(255, 215, 0, 0.15);
+    animation: shimmerText 4s linear infinite;
+}
+
+@keyframes shimmerText {
+    0% { background-position: 0% center; }
+    100% { background-position: 200% center; }
+}
+
+/* Animaciones de entrada y salida */
+.phrase-enter {
+    animation: slideInUp 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+.phrase-exit {
+    animation: fadeOutDown 0.5s ease forwards;
+}
+@keyframes slideInUp {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+@keyframes fadeOutDown {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(15px); opacity: 0; }
+}
+#float-invite-btn {
+    /* tus estilos existentes */
+    transition: bottom 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    will-change: bottom;
+}
+
+/* Header (ya debe tener z-index alto) */
+header.sticky, header.fixed {
+    z-index: 50 !important;
+}
+
+/* Barra de navegación inferior */
+nav.fixed.bottom-0 {
+    z-index: 50 !important;
+}
+
+/* Mapa wrapper - debe tener z-index bajo */
+#sos-map-wrapper,
+#entregas-map-wrapper,
+#retenes-map-wrapper,
+#client-sos-map-container,
+#client-delivery-map-container {
+    z-index: 1 !important; /* El widget dentro tendrá z-index 1000, pero el contenedor está abajo */
+    position: relative !important;
+}
+
+/* ============================================================
+   MODALES RESPONSIVOS (Pantalla completa en móvil)
+   ============================================================ */
+@media (max-width: 768px) {
+    /* Base para todos los modales que deben ser full-screen en móvil */
+    #modal-checklist-ingreso,
+    #modal-detalle-servicio,
+    #modal-nueva-cita,
+    #modal-chat {
+        padding: 0 !important;
+        align-items: stretch !important; /* Para que el contenido ocupe todo el alto */
+    }
+
+    #modal-checklist-ingreso > .bg-asfalto,
+    #modal-detalle-servicio > .bg-asfalto,
+    #modal-nueva-cita > .bg-asfalto,
+    #modal-chat > .bg-asfalto {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        border-radius: 0 !important;
+        border: none !important;
+        margin: 0 !important;
+        padding: 1rem !important;
+        overflow-y: auto !important;
+    }
+
+    /* Ajuste específico para el modal de chat (porque tiene estructura interna) */
+    #modal-chat > .bg-asfalto {
+        display: flex !important;
+        flex-direction: column !important;
+        padding: 0 !important;
+    }
+    #modal-chat .flex-grow {
+        flex-grow: 1 !important;
+        overflow-y: auto !important;
+    }
+    #modal-chat .p-3.border-t {
+        flex-shrink: 0 !important;
+    }
+
+    /* Ajuste específico para el modal detalle servicio (para que las columnas se apilen bien) */
+    #modal-detalle-servicio .flex-grow {
+        overflow-y: auto !important;
+        max-height: none !important;
+    }
+}
+/* ============================================================
+   ESTILOS PROFESIONALES PARA MODAL DETALLE SERVICIO (TEMA OBR)
+   ============================================================ */
+
+#modal-detalle-servicio .detail-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 1rem;
+    backdrop-filter: blur(4px);
+    margin-bottom: 0.75rem;
+}
+
+#modal-detalle-servicio .detail-card .label {
+    font-size: 0.65rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #FF6B00; /* Naranja OBR */
+    margin-bottom: 0.25rem;
+}
+
+#modal-detalle-servicio .detail-card .label i {
+    color: #FF6B00;
+    margin-right: 0.3rem;
+}
+
+#modal-detalle-servicio .detail-card .text-content {
+    color: var(--text);
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+#modal-detalle-servicio .detail-card .text-content.text-gray {
+    color: #9ca3af;
+}
+
+/* Tarjeta de Tipo de Servicio (borde naranja) */
+#modal-detalle-servicio .detail-card.type-card {
+    border-left: 4px solid #FF6B00;
+    background: rgba(255, 107, 0, 0.05);
+}
+
+/* Nota técnica dentro de la tarjeta de tipo */
+#modal-detalle-servicio .tech-note {
+    background: rgba(59, 130, 246, 0.1);
+    border-left: 3px solid #3b82f6;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: #93c5fd;
+}
+#modal-detalle-servicio .tech-note i {
+    color: #60a5fa;
+    margin-right: 0.4rem;
+}
+
+/* Grid de costos */
+#modal-detalle-servicio .cost-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.5rem;
+    background: var(--glass-bg);
+    border-radius: 1rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    margin-bottom: 1rem;
+}
+
+#modal-detalle-servicio .cost-item {
+    text-align: center;
+    border-right: 1px solid var(--border);
+    padding: 0 0.5rem;
+}
+#modal-detalle-servicio .cost-item:last-child {
+    border-right: none;
+}
+
+#modal-detalle-servicio .cost-item .cost-label {
+    font-size: 0.6rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    color: #6b7280;
+    letter-spacing: 0.05em;
+}
+
+#modal-detalle-servicio .cost-item .cost-value {
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin-top: 0.25rem;
+}
+
+#modal-detalle-servicio .cost-item .cost-value.total {
+    color: #FF6B00;
+}
+#modal-detalle-servicio .cost-item .cost-value.service {
+    color: #60a5fa;
+}
+#modal-detalle-servicio .cost-item .cost-value.delivery {
+    color: #4ade80;
+}
+
+/* Botones de contacto */
+#modal-detalle-servicio .contact-btn {
+    padding: 0.4rem 1rem;
+    border-radius: 2rem;
+    font-weight: 800;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    color: white;
+}
+#modal-detalle-servicio .contact-btn:hover {
+    transform: scale(1.05);
+}
+#modal-detalle-servicio .contact-btn.btn-phone {
+    background: #22c55e;
+}
+#modal-detalle-servicio .contact-btn.btn-whatsapp {
+    background: #25D366;
+}
+
+/* Ajuste para el título del reporte (parte superior del modal) */
+#modal-detalle-servicio .report-header {
+    color: #FF6B00;
+    font-weight: 900;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+}
+
+/* ============================================================
+   ESTILO DE NOTA TÉCNICA (i) DENTRO DEL DETALLE
+   ============================================================ */
+#modal-detalle-servicio .tech-note {
+    background: rgba(59, 130, 246, 0.08);
+    border-left: 3px solid #3b82f6;
+    padding: 0.6rem 0.8rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.8rem;
+    color: #93c5fd;
+}
+#modal-detalle-servicio .tech-note i {
+    color: #60a5fa;
+    margin-right: 0.4rem;
+}
+
+/* ============================================================
+   CORRECCIÓN: VISIBILIDAD DEL CURSOR DEL RATÓN
+   ============================================================ */
+/* Forzamos un cursor oscuro y visible en toda la app */
+body, body * {
+    cursor: default !important;
+}
+/* Restauramos el cursor de puntero en botones y elementos cliqueables */
+button, a, [onclick], [role="button"], .cursor-pointer, .clickable, input[type="submit"], input[type="button"] {
+    cursor: pointer !important;
+}
+/* Asegurar que los mapas de Leaflet no oculten el cursor */
+.leaflet-container, .leaflet-control-zoom, .leaflet-marker-icon, .leaflet-pane {
+    cursor: default !important;
+}
+/* En caso de que algún modal tenga cursor: none, lo anulamos */
+.modal-content, .fixed.inset-0, [id*="modal"] {
+    cursor: default !important;
+}
+
+/* ============================================================
+   ESTIRAR EL RECUADRO DE RETIROS EN ESTADÍSTICAS
+   ============================================================ */
+#stats-retiros-list {
+    width: 100% !important;
+    padding: 0.5rem !important;
+    margin-top: 0 !important;
+    background: rgba(255, 255, 255, 0.03) !important;
+    border-radius: 0.5rem !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Ajustar el contenedor padre para que no tenga espacio extra */
+#stats-retiros-list-container {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+}
+
+/* Eliminar el margen superior del contenedor de retiros */
+#a-view-stats .mt-6 {
+    margin-top: 0.5rem !important; /* Reducir el margen */
+}
+
+/* ============================================================
+   MARCADORES UNIFICADOS (ESTILO RETENES/ENTREGAS)
+   ============================================================ */
+
+/* Marcador de SOS (Pendiente/Aceptado/Completado) - Estilo sutil */
+.sos-marker-sutil {
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 16px !important;
+    border: 2px solid rgba(255,255,255,0.15) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+    backdrop-filter: blur(2px) !important;
+    opacity: 0.85 !important;
+    transition: transform 0.2s ease;
+}
+.sos-marker-sutil:hover {
+    transform: scale(1.1);
+    opacity: 1;
+}
+
+/* Variantes de color (baja opacidad) */
+.sos-marker-pending {
+    background: rgba(255, 107, 0, 0.25) !important;
+    border-color: rgba(255, 107, 0, 0.4) !important;
+}
+.sos-marker-accepted {
+    background: rgba(59, 130, 246, 0.25) !important;
+    border-color: rgba(59, 130, 246, 0.4) !important;
+}
+.sos-marker-completed {
+    background: rgba(34, 197, 94, 0.25) !important;
+    border-color: rgba(34, 197, 94, 0.4) !important;
+}
+.sos-marker-cancelled {
+    background: rgba(239, 68, 68, 0.25) !important;
+    border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
+/* Marcador de personal (mecánicos/repartidores) - Estilo sutil */
+.personal-marker-sutil {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 14px !important;
+    border: 2px solid rgba(59, 130, 246, 0.2) !important;
+    background: rgba(59, 130, 246, 0.15) !important;
+    backdrop-filter: blur(2px) !important;
+    opacity: 0.8 !important;
+}
+
+/* ============================================================
+   ESTILOS PARA MODAL DE VINCULAR RESCATE (CON VARIABLES CSS)
+   ============================================================ */
+#modal-vincular-rescate input,
+#modal-vincular-rescate select,
+#modal-vincular-rescate textarea {
+    background-color: var(--bg) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text) !important;
+    border-radius: 0.75rem !important;
+    padding: 0.75rem !important;
+    outline: none !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    box-shadow: none !important;
+}
+#modal-vincular-rescate input:focus,
+#modal-vincular-rescate select:focus {
+    border-color: #FF6B00 !important;
+}
+#modal-vincular-rescate input::placeholder {
+    color: #888 !important;
+}
+#modal-vincular-rescate select option {
+    background-color: var(--bg) !important;
+    color: var(--text) !important;
+}
+
+/* ============================================================
+   MODAL DE ALERTA DE RESCATE (SIEMPRE VISIBLE CUANDO SE ACTIVE)
+   ============================================================ */
+#modal-rescue-alert {
+    z-index: 999999 !important;
+    pointer-events: auto !important;
+}
