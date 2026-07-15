@@ -819,6 +819,14 @@
         </select>
     </div>
 
+        <!-- ✅ BOTÓN DE PANTALLA COMPLETA -->
+    <div class="flex justify-end mb-2">
+        <button onclick="window.abrirVentasFullScreen()" 
+                class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-lg text-[10px] font-bold uppercase flex items-center gap-1">
+            <i class="fas fa-expand"></i> Ver todas
+        </button>
+    </div>
+
     <!-- ✅ LISTA DE VENTAS - Sin clases de grid fijas, se ajustan dinámicamente -->
     <div id="ventas-realizadas-list" class="w-full max-h-60 overflow-y-auto hide-scroll"></div>
 </div>
@@ -847,15 +855,20 @@
             <i class="fas fa-bars"></i>
         </button>
 
-        <!-- Controles superiores derecha (Dentro del mapa) -->
-        <div class="map-top-right-controls">
-            <button onclick="window.cargarSOSConFiltroFecha()" class="map-control-btn btn-filtrar">
-                <i class="fas fa-filter"></i> Filtrar
-            </button>
-            <button onclick="window.generarReporteSOS()" class="map-control-btn btn-reporte">
-                <i class="fas fa-file-alt"></i> Reporte
-            </button>
-        </div>
+<!-- Controles superiores derecha (Dentro del mapa) -->
+<div class="map-top-right-controls">
+    <button onclick="window.cargarSOSConFiltroFecha()" class="map-control-btn btn-filtrar">
+        <i class="fas fa-filter"></i> Filtrar
+    </button>
+    <button onclick="window.generarReporteSOS()" class="map-control-btn btn-reporte">
+        <i class="fas fa-file-alt"></i> Reporte
+    </button>
+    <!-- ✅ Botón Vincular Rescate alineado -->
+    <button onclick="window.abrirModalVincularRescate()" class="map-control-btn" style="background: #dc2626 !important; color: white !important;">
+        <i class="fas fa-link"></i> Vincular
+    </button>
+</div>
+
 
         <!-- El mapa Leaflet se renderiza aquí -->
         <div id="admin-sos-global-map" style="width: 100%; height: 100%; min-height: 100vh; display: block; position: relative; background: #f0f2f5;"></div>
@@ -1135,43 +1148,49 @@
                         <button onclick="window.adminAddUser?.()" class="w-full bg-blue-600 hover:bg-blue-500 p-3 rounded-xl font-black uppercase tracking-widest shadow-lg mt-4 text-white text-xs"><i class="fas fa-check mr-1"></i> Crear Cuenta</button>
                     </div>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-    <!-- Buscador Clientes -->
-    <div>
-        <input id="search-normal-users" type="text" placeholder="🔍 Buscar por nombre o celular..." oninput="window.filtrarUsuarios()" class="w-full bg-white/5 border border-white/10 p-2 rounded-xl text-white text-sm focus:border-naranja">
+                   <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <!-- ========== CLIENTES ESTÁNDAR ========== -->
+    <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-[500px]">
+        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center justify-center text-center text-lg">
+            <span><i class="fas fa-users mr-1"></i> Clientes Estándar</span>
+            <span id="count-normal-users" class="bg-white/30 text-white rounded-3xl px-4 py-1 text-sm font-black shadow-md min-w-[2.5rem] text-center ml-3">0</span>
+        </p>
+        
+        <!-- Buscador dentro de la tarjeta -->
+        <input id="search-normal-users" type="text" placeholder="🔍 Buscar por nombre o celular..." oninput="window.filtrarUsuarios()" 
+               class="w-full bg-black/20 border border-white/10 p-2 rounded-xl text-white text-sm focus:border-naranja mb-4">
+        
+        <div id="admin-users-normal-list" class="space-y-3 overflow-y-auto hide-scroll flex-grow pr-2"></div>
     </div>
-    <!-- Buscador VIP -->
-    <div>
-        <input id="search-vip-users" type="text" placeholder="🔍 Buscar VIP..." oninput="window.filtrarUsuarios()" class="w-full bg-white/5 border border-white/10 p-2 rounded-xl text-white text-sm focus:border-naranja">
+
+    <!-- ========== SOCIOS VIP ========== -->
+    <div class="bg-gradient-to-br from-yellow-900/20 to-asfalto/40 border border-yellow-500/30 p-6 rounded-3xl shadow-xl flex flex-col h-[500px] relative overflow-hidden">
+        <p class="text-[10px] font-black text-yellow-400 uppercase tracking-widest mb-4 flex items-center justify-center text-center text-lg">
+            <span><i class="fas fa-crown mr-1"></i> Socios VIP</span>
+            <span id="count-vip-users" class="bg-yellow-600/60 text-white rounded-3xl px-4 py-1 text-sm font-black shadow-md min-w-[2.5rem] text-center ml-3">0</span>
+        </p>
+        
+        <!-- Buscador dentro de la tarjeta VIP -->
+        <input id="search-vip-users" type="text" placeholder="🔍 Buscar VIP..." oninput="window.filtrarUsuarios()" 
+               class="w-full bg-black/20 border border-white/10 p-2 rounded-xl text-white text-sm focus:border-naranja mb-4">
+        
+        <div id="admin-users-vip-list" class="space-y-3 overflow-y-auto hide-scroll flex-grow z-10 pr-2"></div>
     </div>
-    <!-- Buscador Staff -->
-    <div>
-        <input id="search-staff-users" type="text" placeholder="🔍 Buscar Equipo..." oninput="window.filtrarUsuarios()" class="w-full bg-white/5 border border-white/10 p-2 rounded-xl text-white text-sm focus:border-naranja">
+
+    <!-- ========== EQUIPO OBR ========== -->
+    <div class="bg-gradient-to-br from-blue-900/20 to-asfalto/40 border border-blue-500/30 p-6 rounded-3xl shadow-xl flex flex-col h-[500px] relative overflow-hidden">
+        <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4 flex items-center justify-center text-center text-lg">
+            <span><i class="fas fa-wrench mr-1"></i> Equipo OBR</span>
+            <span id="count-staff-users" class="bg-blue-600/60 text-white rounded-3xl px-4 py-1 text-sm font-black shadow-md min-w-[2.5rem] text-center ml-3">0</span>
+        </p>
+        
+        <!-- Buscador dentro de la tarjeta Staff -->
+        <input id="search-staff-users" type="text" placeholder="🔍 Buscar Equipo..." oninput="window.filtrarUsuarios()" 
+               class="w-full bg-black/20 border border-white/10 p-2 rounded-xl text-white text-sm focus:border-naranja mb-4">
+        
+        <div id="admin-users-staff-list" class="space-y-3 overflow-y-auto hide-scroll flex-grow z-10 pr-2"></div>
     </div>
 </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div class="bg-white/5 border border-white/10 p-6 rounded-3xl shadow-xl flex flex-col h-[500px]">
-                        <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center justify-between">
-                            <span><i class="fas fa-users mr-1"></i> Clientes Estándar</span>
-                            <span id="count-normal-users" class="bg-white/30 text-white rounded-3xl px-4 py-1 text-sm font-black shadow-md min-w-[2.5rem] text-center">0</span>
-                        </p>
-                        <div id="admin-users-normal-list" class="space-y-3 overflow-y-auto hide-scroll flex-grow pr-2"></div>
-                    </div>
-                    <div class="bg-gradient-to-br from-yellow-900/20 to-asfalto/40 border border-yellow-500/30 p-6 rounded-3xl shadow-xl flex flex-col h-[500px] relative overflow-hidden">
-                        <p class="text-[10px] font-black text-yellow-400 uppercase tracking-widest mb-4 z-10 flex items-center justify-between">
-                            <span><i class="fas fa-crown mr-1"></i> Socios VIP</span>
-                            <span id="count-vip-users" class="bg-yellow-600/60 text-white rounded-3xl px-4 py-1 text-sm font-black shadow-md min-w-[2.5rem] text-center">0</span>
-                        </p>
-                        <div id="admin-users-vip-list" class="space-y-3 overflow-y-auto hide-scroll flex-grow z-10 pr-2"></div>
-                    </div>
-                    <div class="bg-gradient-to-br from-blue-900/20 to-asfalto/40 border border-blue-500/30 p-6 rounded-3xl shadow-xl flex flex-col h-[500px] relative overflow-hidden">
-                        <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-4 z-10 flex items-center justify-between">
-                            <span><i class="fas fa-wrench mr-1"></i> Equipo OBR</span>
-                            <span id="count-staff-users" class="bg-blue-600/60 text-white rounded-3xl px-4 py-1 text-sm font-black shadow-md min-w-[2.5rem] text-center">0</span>
-                        </p>
-                        <div id="admin-users-staff-list" class="space-y-3 overflow-y-auto hide-scroll flex-grow z-10 pr-2"></div>
-                    </div>
-                </div>
             </section>
 
 <!-- INICIA LA PARTE DE AJUSTES -->
@@ -1703,32 +1722,41 @@
     </div>
 </div>
 
-    <!-- Modal lista de chats admin -->
-    <div id="modal-chat-list" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-        <div class="bg-asfalto w-full max-w-md lg:max-w-2xl h-auto lg:max-h-[80vh] rounded-[2rem] relative border border-blue-500/30 flex flex-col shadow-2xl">
-            <button onclick="toggleModal('modal-chat-list', false)" class="absolute top-4 right-4 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white z-10 hover:bg-white/20 transition-colors"><i class="fas fa-times"></i></button>
-            <h2 class="text-xl font-black p-6 border-b border-white/10 text-white"><i class="fas fa-comments text-blue-400 mr-2"></i>Chats Activos</h2>
-            <div id="chat-list-items" class="flex-grow overflow-y-auto p-4 space-y-2"></div>
-        </div>
+<!-- Modal lista de chats admin -->
+<div id="modal-chat-list" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full max-w-md lg:max-w-2xl h-auto lg:max-h-[80vh] rounded-[2rem] relative border border-blue-500/30 flex flex-col shadow-2xl">
+        <button onclick="toggleModal('modal-chat-list', false)" class="absolute top-4 right-4 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white z-10 hover:bg-white/20 transition-colors"><i class="fas fa-times"></i></button>
+        <h2 class="text-xl font-black p-6 border-b border-white/10 text-white"><i class="fas fa-comments text-blue-400 mr-2"></i>Chats Activos</h2>
+        <div id="chat-list-items" class="flex-grow overflow-y-auto p-4 space-y-2"></div>
     </div>
+</div>
 
-    <!-- Modal chat -->
-    <div id="modal-chat" class="fixed inset-0 bg-asfalto/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-        <div class="bg-asfalto w-full max-w-md lg:max-w-2xl h-[80vh] lg:h-auto lg:min-h-[600px] lg:max-h-[80vh] rounded-[2rem] relative border border-blue-500/30 flex flex-col overflow-hidden shadow-2xl">
-            <div class="bg-blue-600/20 border-b border-blue-500/30 p-4 flex items-center justify-between">
-                <div class="flex items-center">
-                    <button onclick="window.closeChat?.()" class="w-8 h-8 mr-3 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors"><i class="fas fa-arrow-left"></i></button>
-                    <div><p class="text-[10px] font-black text-blue-400 uppercase"><i class="fas fa-comments mr-1"></i>Chat en Vivo</p><p class="text-xs text-white font-bold" id="chat-title"></p></div>
+<!-- Modal chat -->
+<div id="modal-chat" class="fixed inset-0 bg-asfalto/95 z-[250] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full max-w-md lg:max-w-2xl h-[80vh] lg:h-auto lg:min-h-[600px] lg:max-h-[80vh] rounded-[2rem] relative border border-blue-500/30 flex flex-col overflow-hidden shadow-2xl">
+        <div class="bg-blue-600/20 border-b border-blue-500/30 p-4 flex items-center justify-between">
+            <div class="flex items-center">
+                <!-- ✅ Botón de regresar (ahora llama a regresarListaChats) -->
+                <button onclick="window.regresarListaChats()" class="w-8 h-8 mr-3 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <div>
+                    <p class="text-[10px] font-black text-blue-400 uppercase"><i class="fas fa-comments mr-1"></i>Chat en Vivo</p>
+                    <p class="text-xs text-white font-bold" id="chat-title"></p>
                 </div>
-                <button onclick="window.closeChat?.()" class="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-gray-300 hover:text-white transition-colors"><i class="fas fa-times"></i></button>
             </div>
-            <div id="chat-messages" class="flex-grow p-4 overflow-y-auto flex flex-col space-y-3 hide-scroll bg-asfalto/20"></div>
-            <div class="p-3 bg-white/5 border-t border-white/10 flex space-x-2">
-                <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-grow bg-asfalto/50 p-3 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 border border-transparent transition-all">
-                <button onclick="window.sendMessage?.()" class="bg-blue-600 hover:bg-blue-500 transition-colors text-white w-12 rounded-xl flex items-center justify-center active:scale-95"><i class="fas fa-paper-plane"></i></button>
-            </div>
+            <!-- ✅ Botón de cerrar (cierra el chat y no abre la lista) -->
+            <button onclick="window.closeChat?.()" class="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-gray-300 hover:text-white transition-colors">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="chat-messages" class="flex-grow p-4 overflow-y-auto flex flex-col space-y-3 hide-scroll bg-asfalto/20"></div>
+        <div class="p-3 bg-white/5 border-t border-white/10 flex space-x-2">
+            <input id="chat-input" type="text" placeholder="Escribe un mensaje..." class="flex-grow bg-asfalto/50 p-3 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500 border border-transparent transition-all">
+            <button onclick="window.sendMessage?.()" class="bg-blue-600 hover:bg-blue-500 transition-colors text-white w-12 rounded-xl flex items-center justify-center active:scale-95"><i class="fas fa-paper-plane"></i></button>
         </div>
     </div>
+</div>
 
     <!-- Modal detalle servicio taller (mejorado para pantallas grandes) -->
     <div id="modal-detalle-servicio" class="fixed inset-0 bg-asfalto/95 z-[200] flex items-center justify-center p-0 lg:p-4 hidden backdrop-blur-sm">
@@ -2499,6 +2527,69 @@ function notificarActualizacion(worker) {
             <button onclick="window.cerrarAlertaRescate()" class="flex-1 bg-red-600 hover:bg-red-500 text-white py-3 rounded-xl font-black uppercase text-sm">Ver ahora</button>
             <button onclick="window.cerrarAlertaRescate()" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Cerrar</button>
         </div>
+    </div>
+</div>
+<!-- Modal Vincular Rescate (Creación manual desde el taller) -->
+<div id="modal-vincular-rescate" class="fixed inset-0 bg-black/95 z-[1000000] flex items-center justify-center p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full max-w-md rounded-[2rem] p-6 border border-red-500/30 shadow-2xl flex flex-col max-h-[90vh] overflow-y-auto relative">
+        <!-- Botón de cerrar (X) -->
+        <button onclick="toggleModal('modal-vincular-rescate', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white z-10">
+            <i class="fas fa-times text-xl"></i>
+        </button>
+        <h2 class="text-xl font-black mb-4 text-white text-center">🔄 Vincular Rescate</h2>
+        <p class="text-xs text-gray-400 text-center mb-4">Crea un rescate manual desde el taller.</p>
+
+        <!-- Paso 1: Celular del cliente -->
+        <div class="mb-3">
+            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Celular del cliente (10 dígitos) *</label>
+            <input id="vincular-phone" type="tel" maxlength="10" placeholder="Ej. 6441234567" class="w-full bg-asfalto/50 border border-white/10 p-3 rounded-xl text-white focus:border-red-500">
+            <div id="vincular-phone-status" class="text-[9px] mt-1 font-bold"></div>
+        </div>
+
+        <!-- Paso 2: Dirección con autocompletado -->
+        <div class="mb-3 relative">
+            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Dirección del cliente *</label>
+            <input id="vincular-direccion" type="text" placeholder="Escribe una dirección..." class="w-full bg-asfalto/50 border border-white/10 p-3 rounded-xl text-white focus:border-red-500">
+            <!-- Lista de sugerencias -->
+            <div id="vincular-sugerencias" class="absolute z-50 w-full bg-asfalto border border-white/10 rounded-xl mt-1 hidden max-h-48 overflow-y-auto hide-scroll"></div>
+        </div>
+
+        <!-- Mapa para ajustar el pin -->
+        <div id="vincular-mapa-container" class="h-48 w-full bg-gray-800 rounded-xl mb-3 hidden relative">
+            <div id="vincular-mapa" class="h-full w-full rounded-xl"></div>
+        </div>
+
+        <!-- Paso 3: Tipo de servicio -->
+        <div class="mb-3">
+            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Tipo de servicio</label>
+            <select id="vincular-servicio" onchange="window.actualizarTotalVincular()" class="w-full bg-asfalto/50 border border-white/10 p-3 rounded-xl text-white">
+                <option value="0">Sin fallo específico (Tarifa base)</option>
+            </select>
+        </div>
+
+        <!-- Paso 4: Celular alterno (opcional) -->
+        <div class="mb-3">
+            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Celular alterno (opcional)</label>
+            <input id="vincular-extra-phone" type="tel" maxlength="10" placeholder="Ej. 6441234567" class="w-full bg-asfalto/50 border border-white/10 p-3 rounded-xl text-white">
+        </div>
+
+        <!-- Total estimado -->
+        <div class="bg-white/5 p-3 rounded-xl text-center mb-3">
+            <p class="text-[9px] text-gray-400 font-bold uppercase">Total estimado</p>
+            <p id="vincular-total-display" class="text-naranja font-black text-2xl">$0.00</p>
+        </div>
+
+        <!-- Selección de mecánico -->
+        <div class="mb-3">
+            <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Asignar a</label>
+            <select id="vincular-mecanico" class="w-full bg-asfalto/50 border border-white/10 p-3 rounded-xl text-white">
+                <option value="">Selecciona un mecánico/admin...</option>
+            </select>
+        </div>
+
+        <!-- Botón final -->
+        <button onclick="window.guardarRescateVinculado()" class="w-full bg-red-600 hover:bg-red-500 text-white py-3 rounded-xl font-black uppercase text-sm">Vincular y asignar</button>
+        <p class="text-[8px] text-gray-500 mt-2 text-center">Se creará una cuenta si el número no existe.</p>
     </div>
 </div>
 </body>
