@@ -2268,39 +2268,61 @@ function updateMapControlsPosition() {
       speakTTS(mensaje);
       // ...
   }
-  // ============================================================
-// LISTENER GLOBAL DE NUEVOS RESCATES (CON MODAL Y AUDIO)
+// ============================================================
+// LISTENER GLOBAL DE NUEVOS RESCATES (SIEMPRE ACTIVO)
 // ============================================================
 function iniciarListenerGlobalSOS() {
+    if (window._globalSOSListener) {
+        window._globalSOSListener(); // Desconectar listener anterior si existe
+        window._globalSOSListener = null;
+    }
+
     let lastSOSCount = 0;
     const q = query(collection(db, "rescates"), where("status", "==", "pending"));
-    onSnapshot(q, (snap) => {
+    
+    // ✅ Listener persistente que nunca se detiene
+    window._globalSOSListener = onSnapshot(q, (snap) => {
         const currentCount = snap.size;
         if (lastSOSCount > 0 && currentCount > lastSOSCount) {
             const nuevaSOS = currentCount - lastSOSCount;
             if (nuevaSOS > 0) {
-                // 1. Reproducir audio
+                console.log(`🚨 Nuevo rescate detectado (${nuevaSOS})`);
                 playRescueAudio();
-
-                // 2. TTS para admin
                 speakTTS('Nuevo rescate solicitado, revisa ahora!');
-
-                // 3. Toast
                 showToast(`🚨 ¡${nuevaSOS} nueva solicitud de auxilio entrante!`, false);
+                
+                // ✅ Crear y mostrar el modal si no existe
+                let modal = document.getElementById('modal-rescue-alert');
+                if (!modal) {
+                    const modalHTML = `
+                        <div id="modal-rescue-alert" class="fixed inset-0 z-[999999] hidden flex items-center justify-center bg-black/80 backdrop-blur-md">
+                            <div class="bg-asfalto/95 border-2 border-red-500/50 p-8 rounded-3xl max-w-sm w-full text-center shadow-2xl animate-pulse">
+                                <div class="w-20 h-20 mx-auto bg-red-500/20 rounded-full flex items-center justify-center mb-4">
+                                    <i class="fas fa-exclamation-triangle text-red-500 text-4xl animate-bounce"></i>
+                                </div>
+                                <h2 class="text-2xl font-black text-white mb-2">🚨 ¡NUEVO RESCATE!</h2>
+                                <p class="text-gray-300 text-sm mb-6">Se ha recibido una nueva solicitud de auxilio. Revísala ahora.</p>
+                                <div class="flex gap-3">
+                                    <button onclick="window.cerrarAlertaRescate()" class="flex-1 bg-red-600 hover:bg-red-500 text-white py-3 rounded-xl font-black uppercase text-sm">Ver ahora</button>
+                                    <button onclick="window.cerrarAlertaRescate()" class="flex-1 bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase text-sm">Cerrar</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.insertAdjacentHTML('beforeend', modalHTML);
+                    modal = document.getElementById('modal-rescue-alert');
+                }
 
-                // 4. Modal flotante (forzar aparición)
-                const modal = document.getElementById('modal-rescue-alert');
                 if (modal) {
                     modal.classList.remove('hidden');
                     modal.style.display = 'flex';
-                    // Forzar un reinicio de la animación
-                    modal.querySelector('.animate-pulse').style.animation = 'none';
-                    setTimeout(() => {
-                        modal.querySelector('.animate-pulse').style.animation = '';
-                    }, 10);
+                    const pulseEl = modal.querySelector('.animate-pulse');
+                    if (pulseEl) {
+                        pulseEl.style.animation = 'none';
+                        setTimeout(() => { pulseEl.style.animation = ''; }, 10);
+                    }
                 }
 
-                // 5. Notificación push (si existe)
                 if (navigator.serviceWorker && navigator.serviceWorker.ready) {
                     navigator.serviceWorker.ready.then(reg => {
                         reg.showNotification('🚨 Nuevo SOS', {
@@ -2313,17 +2335,21 @@ function iniciarListenerGlobalSOS() {
             }
         }
         lastSOSCount = currentCount;
+    }, (error) => {
+        console.error('❌ Error en listener global de SOS:', error);
+        // Reintentar en 5 segundos si hay error
+        setTimeout(() => {
+            if (!window._globalSOSListener) iniciarListenerGlobalSOS();
+        }, 5000);
     });
 }
 
-// Función para cerrar el modal y redirigir a SOS
 window.cerrarAlertaRescate = function() {
     const modal = document.getElementById('modal-rescue-alert');
     if (modal) {
         modal.classList.add('hidden');
         modal.style.display = 'none';
     }
-    // Si el admin está en otra vista, ir a SOS
     if (typeof window.switchAdminView === 'function') {
         window.switchAdminView('a-view-alertas');
     }
@@ -2334,23 +2360,10 @@ function playRescueAudio() {
     try {
         const audio = new Audio('/rescate_entrante.mp3');
         audio.volume = 0.9;
-        // Intentar reproducir de inmediato
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-            playPromise.catch((err) => {
-                console.warn('⚠️ Audio bloqueado. Esperando interacción del usuario...');
-                // Si falla, escuchamos un clic para forzar la reproducción
-                const unlock = () => {
-                    audio.play().catch(e => console.warn('❌ Segundo intento fallido:', e));
-                    document.removeEventListener('click', unlock);
-                    document.removeEventListener('touchstart', unlock);
-                };
-                document.addEventListener('click', unlock);
-                document.addEventListener('touchstart', unlock);
-                // Fallback: sonido sintético
-                setTimeout(() => playSound('alert'), 1000);
-            });
-        }
+        audio.play().catch((err) => {
+            console.warn('⚠️ Audio bloqueado, usando sonido alternativo:', err);
+            playSound('alert');
+        });
     } catch (e) {
         console.warn('⚠️ Error al cargar audio:', e);
         playSound('alert');
@@ -2467,23 +2480,43 @@ function playRescueAudio() {
       }
   }
 
-  async function loadServicesCatalog() {
-      if (window._servicesUnsubscribe) window._servicesUnsubscribe();
-      window._servicesUnsubscribe = onSnapshot(collection(db, "servicios"), (snap) => {
-          shopServices = [];
-          snap.forEach(doc => {
-              const d = doc.data();
-              d.id = doc.id;
-              shopServices.push(d);
-          });
-          console.log('Servicios cargados:', shopServices.length);
-          // Refrescar dropdown si el input ya tiene texto
-          const input = document.getElementById('sos-service-input');
-          if (input && input.value.trim() !== '') window.filterServiceOptions();
-      }, (error) => {
-          console.error('Error cargando servicios:', error);
-      });
-  }
+  // ============================================================
+// CARGAR CATÁLOGO DE SERVICIOS (EN SEGUNDO PLANO)
+// ============================================================
+async function loadServicesCatalog() {
+    if (window._servicesUnsubscribe) window._servicesUnsubscribe();
+    window._servicesUnsubscribe = onSnapshot(collection(db, "servicios"), (snap) => {
+        shopServices = [];
+        snap.forEach(doc => {
+            const d = doc.data();
+            d.id = doc.id;
+            shopServices.push(d);
+        });
+        console.log(`✅ Catálogo de servicios cargado: ${shopServices.length} servicios`);
+        
+        // Refrescar el dropdown del modal de vincular rescate si está abierto
+        const modalAbierto = document.getElementById('modal-vincular-rescate');
+        if (modalAbierto && !modalAbierto.classList.contains('hidden')) {
+            const selectServicio = document.getElementById('vincular-servicio');
+            if (selectServicio) {
+                const currentValue = selectServicio.value;
+                selectServicio.innerHTML = '<option value="0">Sin fallo específico (Tarifa base)</option>';
+                shopServices.forEach(s => {
+                    selectServicio.innerHTML += `<option value="${s.id}">${s.name} ($${s.price || 0})</option>`;
+                });
+                selectServicio.value = currentValue;
+                window.actualizarTotalVincular();
+            }
+        }
+        
+        // Refrescar el dropdown del formulario SOS cliente si está abierto
+        const sosFormVisible = document.getElementById('view-sos-form');
+        if (sosFormVisible && !sosFormVisible.classList.contains('hidden')) {
+            const input = document.getElementById('sos-service-input');
+            if (input && input.value.trim() !== '') window.filterServiceOptions();
+        }
+    });
+}
   window.mostrarOpcionesContacto = async () => {
       // Obtener el servicio SOS activo del usuario actual
       let servicioActivo = null;
@@ -2576,7 +2609,9 @@ function playRescueAudio() {
       }
   })();
 
- // ===== FLUJO DE VISTAS Y AUTENTICACIÓN (MODIFICADO PARA ONESIGNAL) =====
+// ============================================================
+// onAuthStateChanged - FLUJO PRINCIPAL DE AUTENTICACIÓN
+// ============================================================
 onAuthStateChanged(auth, async user => {
     // Asegurar tema antes de mostrar cualquier vista
     cargarTemaLocal();
@@ -2595,14 +2630,14 @@ onAuthStateChanged(auth, async user => {
     }
 
     // ============================================================
-    // CASO 2: HAY USUARIO AUTENTICADO - FLUJO CRÍTICO (SIEMPRE DEBE EJECUTARSE)
+    // CASO 2: HAY USUARIO AUTENTICADO - FLUJO CRÍTICO
     // ============================================================
     try {
         // Ocultar landing inmediatamente
         showView('view-landing', false);
         document.getElementById('view-landing').classList.add('hidden');
         
-        // Cargar datos del usuario (esto es lo que realmente importa)
+        // Cargar datos del usuario
         const userSnap = await getDoc(doc(db, 'users', user.uid));
         if (userSnap.exists()) { 
             window.currentUserDoc = userSnap.data(); 
@@ -2627,114 +2662,110 @@ onAuthStateChanged(auth, async user => {
             return;
         }
 
-      // ============================================================
         // 🟢 ACTIVAR WAKE LOCK (Pantalla siempre encendida) - PARA TODOS
-        // ============================================================
         setTimeout(activarWakeLockGlobal, 2000);
+
         // ============================================================
         // RUTA ADMIN / MECÁNICO / TALLER / SOCIO
         // ============================================================
         if (['admin', 'mecanico', 'taller', 'socio'].includes(window.currentUserDoc.role)) {
-    const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
-    startMechanicTracking();
-    if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
-    globalSettings.centerLat = TALLER_LAT;
-    globalSettings.centerLng = TALLER_LNG;
-    showView('app-admin');
-iniciarListenerGlobalSOS(); 
-    // Mostrar nombre del usuario en el header
-    const adminDisplay = document.getElementById('admin-phone-display');
-    if (adminDisplay) {
-        const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
-        adminDisplay.innerText = nombre;
-    } else {
-        setTimeout(() => {
-            const el = document.getElementById('admin-phone-display');
-            if (el) {
+            const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
+            startMechanicTracking();
+            if (settingsSnap.exists()) Object.assign(globalSettings, settingsSnap.data());
+            globalSettings.centerLat = TALLER_LAT;
+            globalSettings.centerLng = TALLER_LNG;
+            showView('app-admin');
+
+            // Mostrar nombre del usuario en el header
+            const adminDisplay = document.getElementById('admin-phone-display');
+            if (adminDisplay) {
                 const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
-                el.innerText = nombre;
+                adminDisplay.innerText = nombre;
+            } else {
+                setTimeout(() => {
+                    const el = document.getElementById('admin-phone-display');
+                    if (el) {
+                        const nombre = window.currentUserDoc?.name || window.currentUserDoc?.phone || 'Admin';
+                        el.innerText = nombre;
+                    }
+                }, 200);
             }
-        }, 200);
-    }
 
-    // ✅ AQUÍ SE AGREGA LA CARGA DE RETIROS DEL DÍA
-    await cargarRetirosDelDia();
+            // ✅ AQUÍ SE AGREGA LA CARGA DEL CATÁLOGO Y EL LISTENER GLOBAL
+            // 1. Cargar el catálogo de servicios en segundo plano
+            loadServicesCatalog();
 
-        setTimeout(() => {
-        window.adminRefreshConfigUI();
-        window.adminLoadInventory();
-        window.adminLoadSales();
-        window.filterSOS('pending');
-        window.adminListenServices();
-        window.adminLoadCitas();
-        window.loadChatList();
-        window.applyViewPermissions?.();
-    }, 100);
-    if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
+            // 2. Iniciar el listener global de SOS (una sola vez)
+            if (!window._globalSOSListenerStarted) {
+                window._globalSOSListenerStarted = true;
+                iniciarListenerGlobalSOS();
+            }
 
-// ============================================================
-// RUTA CLIENTE / MEMBRESÍA (EL FLUJO MÁS PROPENSO A FALLAR)
-// ============================================================
-} else {
-    showView('app-client');
-    
-    // Asegurar que el botón de emergencia se actualice correctamente
-    setTimeout(() => {
-        if (typeof window.updateEmergencyButtonState === 'function') {
-            const now = new Date();
-            const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
-            const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
-            const [hOpen, mOpen] = sched.o.split(':').map(Number);
-            const [hClose, mClose] = sched.c.split(':').map(Number);
-            const nowMins = now.getHours() * 60 + now.getMinutes();
-            const openMins = hOpen * 60 + mOpen;
-            const closeMins = hClose * 60 + mClose;
-            const isOpen = nowMins >= openMins && nowMins < closeMins;
-            window.updateEmergencyButtonState(isOpen, sched);
-        }
-    }, 100);
+            // ✅ AQUÍ SE AGREGA LA CARGA DE RETIROS DEL DÍA
+            await cargarRetirosDelDia();
 
-    // Cargar todos los datos del cliente
-    document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
-    window.loadClientHistory(); 
-    listenToMySOS();
-    listenToMyDeliveries(); 
-    window.loadClientCitas();
-    loadPublicStore();
-    window.loadMyOrders();
-    updateLandingStatus();
+            iniciarListenerGlobalSOS();
+            setTimeout(() => {
+                window.adminRefreshConfigUI();
+                window.adminLoadInventory();
+                window.adminLoadSales();
+                window.filterSOS('pending');
+                window.adminListenServices();
+                window.adminLoadCitas();
+                window.loadChatList();
+                window.applyViewPermissions?.();
+            }, 100);
+            if (window.currentUserDoc.role === 'mecanico') window.loadMechPendingCharges();
 
-    // ✅ AQUÍ INSERTAMOS EL INICIO DEL BANNER DE FRASES
-    setTimeout(() => {
-        if (typeof window.iniciarBannerFrases === 'function') {
-            window.iniciarBannerFrases();
-            console.log('✅ Banner de frases iniciado');
+        // ============================================================
+        // RUTA CLIENTE / MEMBRESÍA
+        // ============================================================
         } else {
-            console.warn('⚠️ iniciarBannerFrases no está definida');
+            showView('app-client');
+            
+            // Asegurar que el botón de emergencia se actualice correctamente
+            setTimeout(() => {
+                if (typeof window.updateEmergencyButtonState === 'function') {
+                    const now = new Date();
+                    const dayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
+                    const sched = globalSettings.schedule?.[dayIndex] || { o: "08:00", c: "20:00" };
+                    const [hOpen, mOpen] = sched.o.split(':').map(Number);
+                    const [hClose, mClose] = sched.c.split(':').map(Number);
+                    const nowMins = now.getHours() * 60 + now.getMinutes();
+                    const openMins = hOpen * 60 + mOpen;
+                    const closeMins = hClose * 60 + mClose;
+                    const isOpen = nowMins >= openMins && nowMins < closeMins;
+                    window.updateEmergencyButtonState(isOpen, sched);
+                }
+            }, 100);
+
+            // Cargar todos los datos del cliente
+            document.getElementById('client-name-display').innerText = window.currentUserDoc.name || 'Cliente OBR';
+            window.loadClientHistory(); 
+            listenToMySOS();
+            listenToMyDeliveries(); 
+            window.loadClientCitas();
+            loadPublicStore();
+            window.loadMyOrders();
+            updateLandingStatus();
+
+            // Iniciar seguimiento de ubicación solo si los permisos ya fueron aceptados
+            if (localStorage.getItem('obr_permissions_granted') === 'true') {
+                startClientLocationTracking();
+            }
+
+            // Mostrar modal de permisos si no están concedidos y no estamos en registro
+            maybeShowPermissionsModal();
         }
-    }, 500);
 
-    // Iniciar seguimiento de ubicación solo si los permisos ya fueron aceptados
-    if (localStorage.getItem('obr_permissions_granted') === 'true') {
-        startClientLocationTracking();
-    }
-
-    // Mostrar modal de permisos si no están concedidos y no estamos en registro
-    maybeShowPermissionsModal();
-}
         // ============================================================
-        // FLUJO SECUNDARIO: ONESIGNAL (NO BLOQUEANTE Y CON MODAL PERSONALIZADO)
+        // FLUJO SECUNDARIO: ONESIGNAL
         // ============================================================
-        // NOTA: Esta función se ejecuta en segundo plano después de que la app ya cargó.
-        // NO debe afectar la carga de la vista ni la autenticación.
-        setTimeout(() => {
-        }, 2000);
-        // ============================================================
-        // 🟢 ACTIVAR WAKE LOCK (Pantalla siempre encendida)
-        // ============================================================
+        setTimeout(() => {}, 2000);
         setTimeout(activarWakeLockGlobal, 2000);
+
         // ============================================================
-        // LISTENER DE NOTIFICACIONES RTDB (siempre activo)
+        // LISTENER DE NOTIFICACIONES RTDB
         // ============================================================
         onValue(dbRef(rtdb, 'notificaciones/' + user.uid), (snap) => {
             if (snap.exists()) {
@@ -2748,7 +2779,6 @@ iniciarListenerGlobalSOS();
 
     } catch (error) {
         console.error('❌ Error crítico en el flujo de autenticación:', error);
-        // Si algo falla, al menos mostrar la vista de login
         showView('view-login');
     }
 });
@@ -7492,7 +7522,7 @@ window.cargarListaRetenesAdmin = async function() {
                           } else {
                               marker = L.marker([lat, lng]).addTo(map);
                           }
-                          map.setView([lat, lng], 16);
+                          map.setView([lat, lng], 13);
                       }, () => {
                           showToast("No se pudo obtener tu ubicación. Selecciona manualmente en el mapa.", true);
                       });
@@ -8483,10 +8513,10 @@ window.loadVentasRealizadas = (filtroMes = 'actual') => {
             mesIndex++;
 
             if (numMesesConDatos === 1) {
-                // Un solo mes: tarjetas directas en el grid
-                ventasMes.forEach(v => {
-                    html += generarTarjetaVenta(v, color, mes);
-                });
+             // Dentro de renderVentas (en loadVentasRealizadas)
+ventasMes.forEach(v => {
+    html += window.generarTarjetaVenta(v);
+});
             } else {
                 // Múltiples meses: cada mes en su columna
                 html += `<div class="flex flex-col gap-3 bg-white/5 border border-white/10 rounded-xl p-3">`;
@@ -9930,7 +9960,9 @@ window.filtrarUsuarios = function() {
       window.open(url, '_blank');
   }
 
-  // ---------- Cargar listado lateral de SOS ----------
+// ============================================================
+// CARGAR LISTADO SOS (CON BANDA VINCULADO, TIMESTAMP Y TIEMPO)
+// ============================================================
 window.cargarListadoSOS = async function() {
     const listaDiv = document.getElementById('admin-sos-list-content');
     if (!listaDiv) {
@@ -10008,14 +10040,51 @@ window.cargarListadoSOS = async function() {
         const copyBtn = `<button onclick="event.stopPropagation(); window.copiarDatosRescate('${r.id}')" class="bg-gray-500 hover:bg-gray-400 text-white px-2 py-1 rounded text-[9px] font-bold uppercase whitespace-nowrap">📄 COPIAR</button>`;
 
         // ============================================================
-        // ✅ TOTAL REAL Y DOMICILIO (CORREGIDO)
+        // ✅ TOTAL REAL Y DOMICILIO
         // ============================================================
         const totalReal = r.total || ((r.costoRescateEstimado || 0) + (r.costoServicio || 0) + (r.tarifaDomicilio || 0));
         const domicilio = r.tarifaDomicilio || 0;
         const servicio = r.costoServicio || 0;
 
+        // ============================================================
+        // ✅ TIMESTAMP Y TIEMPO TRANSCURRIDO
+        // ============================================================
+        const creado = new Date(r.timestamp);
+        const ahora = new Date();
+        const diffMs = ahora - creado;
+        const diffMin = Math.floor(diffMs / 60000);
+        const diffHoras = Math.floor(diffMin / 60);
+        const timestampStr = creado.toLocaleString('es-MX', { hour12: false });
+
+        let tiempoTexto = '';
+        let colorTiempo = '';
+
+        // Si está completado o cancelado, el tiempo se congela
+        if (r.status === 'completed' || r.status === 'cancelled') {
+            tiempoTexto = 'Finalizado';
+            colorTiempo = 'text-gray-500';
+        } else if (diffMin < 60) {
+            tiempoTexto = `${diffMin} min`;
+            colorTiempo = 'text-green-400';
+        } else if (diffMin < 120) {
+            tiempoTexto = `${diffHoras} h ${diffMin % 60} min`;
+            colorTiempo = 'text-orange-400';
+        } else {
+            tiempoTexto = `${diffHoras} h ${diffMin % 60} min`;
+            colorTiempo = 'text-red-500';
+        }
+
+        // ============================================================
+        // ✅ GENERAR TARJETA
+        // ============================================================
         listaDiv.innerHTML += `
             <div class="sos-card-compact" onclick="window.centrarMapaEnSOS('${r.id}')" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.2); border-radius: 0.75rem; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; cursor: pointer; transition: background 0.2s;">
+                
+                <!-- ✅ BANDA VINCULADO -->
+                ${r.esVinculado ? `
+                    <div class="bg-naranja text-white text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full mb-1 inline-block">📌 Rescate vinculado</div>
+                ` : ''}
+
                 <div class="flex justify-between items-center">
                     <span class="text-[0.8rem] font-bold">${escapeHtml(r.phone) || ''}</span>
                     <span class="text-[0.6rem] px-1.5 py-0.5 rounded font-bold uppercase ${colorClase}">${estadoTexto}</span>
@@ -10037,11 +10106,18 @@ window.cargarListadoSOS = async function() {
                     </div>
                 </div>
 
+                <!-- ✅ BOTONES EN UNA LÍNEA -->
                 <div class="flex flex-wrap items-center gap-1 mt-2">
                     ${navBtn}
                     ${detailBtn}
                     ${contactBtns}
                     ${copyBtn}
+                </div>
+
+                <!-- ✅ TIMESTAMP Y TIEMPO TRANSCURRIDO -->
+                <div class="flex justify-between items-center mt-1 text-[8px] text-gray-400 border-t border-white/5 pt-1">
+                    <span>${timestampStr}</span>
+                    <span class="${colorTiempo} font-black">${tiempoTexto}</span>
                 </div>
             </div>
         `;
@@ -11443,94 +11519,158 @@ window.eliminarRetiro = async function(retiroId) {
     }
 };
 
-  window.exportStatsPDF = async () => {
-      const snap = await getDocs(collection(db, "ventas"));
-      let totalV = 0, totalC = 0;
-      const bodyData = [];
-      snap.forEach(d => {
-          const v = d.data();
-          totalV += v.total || 0;
-          totalC += v.costo || 0;
-          bodyData.push([new Date(v.fecha).toLocaleDateString('es-MX'), v.desc?.substring(0, 45) || 'Venta de Refacciones Mostrador', `$${(v.total || 0).toFixed(2)}`]);
-      });
+  // ============================================================
+// EXPORTAR ESTADÍSTICAS A PDF (CON RETIROS Y GANANCIA REAL)
+// ============================================================
+window.exportStatsPDF = async () => {
+    const snap = await getDocs(collection(db, "ventas"));
+    let totalV = 0, totalC = 0;
+    const bodyData = [];
+    snap.forEach(d => {
+        const v = d.data();
+        totalV += v.total || 0;
+        totalC += v.costo || 0;
+        bodyData.push([new Date(v.fecha).toLocaleDateString('es-MX'), v.desc?.substring(0, 45) || 'Venta de Refacciones Mostrador', `$${(v.total || 0).toFixed(2)}`]);
+    });
 
-      const { jsPDF } = window.jspdf;
-      const pdfDoc = new jsPDF();
-      const pageWidth = pdfDoc.internal.pageSize.getWidth();
-      const logoImg = new Image();
-      logoImg.src = 'logo_oscuro.png';
-      await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
+    // === Obtener retiros del período ===
+    let retiros = [];
+    const fromDate = document.getElementById('stats-from')?.value;
+    const toDate = document.getElementById('stats-to')?.value;
+    try {
+        let start = fromDate ? new Date(fromDate) : new Date();
+        let end = toDate ? new Date(toDate + 'T23:59:59') : new Date();
+        if (!fromDate) start.setHours(0, 0, 0, 0);
+        if (!toDate) end.setHours(23, 59, 59, 999);
+        const qRetiros = query(
+            collection(db, "retiros"),
+            where("timestamp", ">=", start.getTime()),
+            where("timestamp", "<=", end.getTime())
+        );
+        const snapRetiros = await getDocs(qRetiros);
+        snapRetiros.forEach(doc => retiros.push(doc.data()));
+    } catch (e) {
+        console.warn('Error al cargar retiros para PDF:', e);
+    }
 
-      pdfDoc.setFillColor(255, 107, 0);
-      pdfDoc.rect(0, 0, pageWidth, 28, 'F');
-      if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
-      pdfDoc.setFontSize(14);
-      pdfDoc.setFont("helvetica", "bold");
-      pdfDoc.setTextColor(255, 255, 255);
-      pdfDoc.text("ESTADÍSTICAS COMERCIALES Y RENDIMIENTO", logoImg.complete ? 36 : 12, 17.5);
-      pdfDoc.setDrawColor(255, 107, 0);
-      pdfDoc.line(12, 29, pageWidth - 12, 29);
+    const totalRetiros = retiros.reduce((s, r) => s + (r.monto || 0), 0);
+    const gananciaBruta = totalV - totalC - totalRetiros;
 
-      let y = 40;
-      const resumenes = [
-          { label: 'Volumen Bruto Ventas', value: `$${totalV.toFixed(2)}`, color: [255, 107, 0] },
-          { label: 'Inversión Almacén (Costo)', value: `$${totalC.toFixed(2)}` },
-          { label: 'Ganancia Neta Bruta', value: `$${(totalV - totalC).toFixed(2)}`, color: [34, 197, 94] }
-      ];
-      const cardWidth = (pageWidth - 24) / 3;
-      let startX = 12;
-      resumenes.forEach(r => {
-          pdfDoc.setFillColor(248, 250, 252);
-          pdfDoc.setDrawColor(226, 232, 240);
-          pdfDoc.roundedRect(startX, y, cardWidth - 1.5, 14, 1.5, 1.5, 'FD');
-          pdfDoc.setFontSize(6.5);
-          pdfDoc.setFont("helvetica", "bold");
-          pdfDoc.setTextColor(100);
-          pdfDoc.text(r.label.toUpperCase(), startX + 3, y + 4.5);
-          pdfDoc.setFontSize(10.5);
-          pdfDoc.setTextColor(...(r.color || [15, 23, 42]));
-          pdfDoc.text(r.value, startX + 3, y + 10.5);
-          startX += cardWidth;
-      });
-      y += 22;
+    const { jsPDF } = window.jspdf;
+    const pdfDoc = new jsPDF();
+    const pageWidth = pdfDoc.internal.pageSize.getWidth();
+    const logoImg = new Image();
+    logoImg.src = 'logo_oscuro.png';
+    await new Promise((resolve) => { logoImg.onload = logoImg.onerror = resolve; if (logoImg.complete) resolve(); });
 
-      const chartCanvas = document.getElementById('stats-chart');
-      if (chartCanvas) {
-          try {
-              await window.loadHtml2Canvas();
-              const chartImg = await html2canvas(chartCanvas, { scale: 2 });
-              const imgData = chartImg.toDataURL('image/png');
-              pdfDoc.setFont("helvetica", "bold");
-              pdfDoc.setFontSize(10);
-              pdfDoc.setTextColor(15, 23, 42);
-              pdfDoc.text("COMPORTAMIENTO MENSUAL DE OPERACIONES:", 12, y);
-              y += 4;
-              pdfDoc.addImage(imgData, 'PNG', 12, y, pageWidth - 24, 55);
-              y += 62;
-          } catch (e) { console.warn('Gráfico omitido:', e); }
-      }
+    // === ENCABEZADO ===
+    pdfDoc.setFillColor(255, 107, 0);
+    pdfDoc.rect(0, 0, pageWidth, 28, 'F');
+    if (logoImg.complete && logoImg.naturalWidth > 0) pdfDoc.addImage(logoImg, 'PNG', 12, 4, 20, 20);
+    pdfDoc.setFontSize(14);
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.setTextColor(255, 255, 255);
+    pdfDoc.text("ESTADÍSTICAS COMERCIALES Y RENDIMIENTO", logoImg.complete ? 36 : 12, 17.5);
+    pdfDoc.setDrawColor(255, 107, 0);
+    pdfDoc.line(12, 29, pageWidth - 12, 29);
 
-      if (y > 200) { pdfDoc.addPage(); y = 36; }
-      pdfDoc.setFont("helvetica", "bold");
-      pdfDoc.setFontSize(10);
-      pdfDoc.setTextColor(15, 23, 42);
-      pdfDoc.text("AUDITORÍA DE HISTORIAL CONTABLE CONSOLIDADO:", 12, y);
-      y += 4;
-      pdfDoc.autoTable({
-          startY: y,
-          head: [['Fecha Contable', 'Descripción Operativa de Movimiento', 'Total Bruto']],
-          body: bodyData,
-          theme: 'striped',
-          styles: { fontSize: 8, cellPadding: 2.5 },
-          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
-          columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 30, halign: 'right' } },
-          margin: { left: 12, right: 12 }
-      });
+    let y = 40;
 
-      const addFooter = window._setupProfessionalPDF(pdfDoc, 'ESTADÍSTICAS COMERCIALES Y RENDIMIENTO', logoImg);
-      addFooter(pdfDoc);
-      pdfDoc.save(`Estadisticas_Rendimiento_OBR.pdf`);
-  };
+    // === RESUMEN EN TARJETAS (4 recuadros) ===
+    const resumenes = [
+        { label: 'Ventas Totales', value: `$${totalV.toFixed(2)}`, color: [255, 107, 0] },
+        { label: 'Costo de Inventario', value: `$${totalC.toFixed(2)}`, color: [100, 100, 100] },
+        { label: 'Retiros / Salidas', value: `$${totalRetiros.toFixed(2)}`, color: [239, 68, 68] }, // 🔴 Rojo
+        { label: 'Ganancia Bruta', value: `$${gananciaBruta.toFixed(2)}`, color: [34, 197, 94] }   // 🟢 Verde
+    ];
+
+    const cardWidth = (pageWidth - 24) / 4;
+    let startX = 12;
+    resumenes.forEach(r => {
+        pdfDoc.setFillColor(248, 250, 252);
+        pdfDoc.setDrawColor(226, 232, 240);
+        pdfDoc.roundedRect(startX, y, cardWidth - 1.5, 14, 1.5, 1.5, 'FD');
+        pdfDoc.setFontSize(6.5);
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.setTextColor(100);
+        pdfDoc.text(r.label.toUpperCase(), startX + 3, y + 4.5);
+        pdfDoc.setFontSize(10.5);
+        pdfDoc.setTextColor(...(r.color || [15, 23, 42]));
+        pdfDoc.text(r.value, startX + 3, y + 10.5);
+        startX += cardWidth;
+    });
+    y += 22;
+
+    // === GRÁFICO DE BARRAS (si existe) ===
+    const chartCanvas = document.getElementById('stats-chart');
+    if (chartCanvas) {
+        try {
+            await window.loadHtml2Canvas();
+            const chartImg = await html2canvas(chartCanvas, { scale: 2 });
+            const imgData = chartImg.toDataURL('image/png');
+            pdfDoc.setFont("helvetica", "bold");
+            pdfDoc.setFontSize(10);
+            pdfDoc.setTextColor(15, 23, 42);
+            pdfDoc.text("COMPORTAMIENTO MENSUAL DE OPERACIONES:", 12, y);
+            y += 4;
+            pdfDoc.addImage(imgData, 'PNG', 12, y, pageWidth - 24, 55);
+            y += 62;
+        } catch (e) { console.warn('Gráfico omitido:', e); }
+    }
+
+    if (y > 200) { pdfDoc.addPage(); y = 36; }
+    pdfDoc.setFont("helvetica", "bold");
+    pdfDoc.setFontSize(10);
+    pdfDoc.setTextColor(15, 23, 42);
+    pdfDoc.text("AUDITORÍA DE HISTORIAL CONTABLE CONSOLIDADO:", 12, y);
+    y += 4;
+
+    // === TABLA DE VENTAS ===
+    pdfDoc.autoTable({
+        startY: y,
+        head: [['Fecha Contable', 'Descripción Operativa de Movimiento', 'Total Bruto']],
+        body: bodyData,
+        theme: 'striped',
+        styles: { fontSize: 8, cellPadding: 2.5 },
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255] },
+        columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 30, halign: 'right' } },
+        margin: { left: 12, right: 12 }
+    });
+    y = pdfDoc.lastAutoTable.finalY + 8;
+
+    // === TABLA DE RETIROS (en rojo) ===
+    if (retiros.length > 0) {
+        if (y > 200) { pdfDoc.addPage(); y = 36; }
+        pdfDoc.setFont("helvetica", "bold");
+        pdfDoc.setFontSize(10);
+        pdfDoc.setTextColor(239, 68, 68); // Texto rojo para el título
+        pdfDoc.text("SALIDAS / RETIROS REGISTRADOS:", 12, y);
+        y += 4;
+        
+        const retirosBody = retiros.map(r => [
+            new Date(r.timestamp).toLocaleDateString('es-MX'),
+            r.concepto || 'Sin concepto',
+            `-$${r.monto.toFixed(2)}`
+        ]);
+        
+        pdfDoc.autoTable({
+            startY: y,
+            head: [['Fecha', 'Concepto', 'Monto']],
+            body: retirosBody,
+            theme: 'striped',
+            styles: { fontSize: 8, cellPadding: 2.5, textColor: [180, 60, 60] }, // Texto rojo oscuro
+            headStyles: { fillColor: [239, 68, 68], textColor: [255, 255, 255] }, // Fondo rojo, texto blanco
+            columnStyles: { 0: { cellWidth: 30 }, 1: { cellWidth: 'auto' }, 2: { cellWidth: 30, halign: 'right' } },
+            margin: { left: 12, right: 12 }
+        });
+        y = pdfDoc.lastAutoTable.finalY + 8;
+    }
+
+    // === FOOTER ===
+    const addFooter = window._setupProfessionalPDF(pdfDoc, 'ESTADÍSTICAS COMERCIALES Y RENDIMIENTO', logoImg);
+    addFooter(pdfDoc);
+    pdfDoc.save(`Estadisticas_Rendimiento_OBR.pdf`);
+};
 
   window.exportCSV = (tipo) => {
       if (tipo === 'ventas') {
@@ -13336,100 +13476,246 @@ document.getElementById('permisos-aceptar').onclick = async () => {
           toggleModal('modal-contact', false);
       }
   };
-  // ===== SISTEMA DE CHAT =====
-  // ===== SISTEMA DE CHAT =====
-  window.loadChatList = async () => {
-      const listEl = document.getElementById('chat-list-items');
-      if (!listEl) return;
-      listEl.innerHTML = '<p class="text-xs text-gray-500 text-center">Cargando chats...</p>';
+  
 
-      if (!auth.currentUser) return;
+  // ============================================================
+// CARGAR LISTA DE CHATS CON ESTADO EN TIEMPO REAL Y ELIMINAR
+// ============================================================
+window.loadChatList = async () => {
+    const listEl = document.getElementById('chat-list-items');
+    if (!listEl) return;
+    listEl.innerHTML = '<p class="text-xs text-gray-500 text-center">Cargando chats...</p>';
 
-      const q = query(collection(db, "chats"), where("participantes", "array-contains", auth.currentUser.uid));
-      const snap = await getDocs(q);
-      listEl.innerHTML = '';
+    if (!auth.currentUser) return;
 
-      if (snap.empty) {
-          listEl.innerHTML = '<p class="text-xs text-gray-500 text-center">No hay chats activos</p>';
-          return;
-      }
+    const q = query(collection(db, "chats"), where("participantes", "array-contains", auth.currentUser.uid));
+    const snap = await getDocs(q);
+    listEl.innerHTML = '';
 
-      snap.forEach(docSnap => {
-          const chat = docSnap.data();
-          const otroNombre = chat.nombres ? (chat.nombres[auth.currentUser.uid] || 'Desconocido') : 'Cliente';
-          listEl.innerHTML += `
-              <div class="bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10" onclick="window.openChat('${docSnap.id}')">
-                  <p class="text-sm font-bold text-white">${chat.titulo || 'Chat'}</p>
-                  <p class="text-xs text-gray-400">${otroNombre}</p>
-              </div>
-          `;
-      });
-  };
+    if (snap.empty) {
+        listEl.innerHTML = '<p class="text-xs text-gray-500 text-center">No hay chats activos</p>';
+        return;
+    }
+
+    // Procesar cada chat y obtener su estado en tiempo real
+    snap.forEach(async (docSnap) => {
+        const chat = docSnap.data();
+        const chatId = docSnap.id;
+        const otroNombre = chat.nombres ? (chat.nombres[auth.currentUser.uid] || 'Desconocido') : 'Cliente';
+
+        // Intentar vincular el chat a un servicio (Rescate o Entrega)
+        let servicioId = chat.titulo || chatId.slice(-6);
+        let estadoTexto = 'Activo';
+        let colorEstado = 'text-green-400';
+        let tipoServicio = '📞 Chat';
+
+        try {
+            // Buscar en rescates
+            const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("chatId", "==", chatId), limit(1)));
+            if (!rescatesSnap.empty) {
+                const rData = rescatesSnap.docs[0].data();
+                servicioId = rData.shortId || rData.id.slice(-6);
+                tipoServicio = '🚨 Rescate';
+                // Estado del rescate
+                const estadoMap = {
+                    'pending': '⏳ Pendiente',
+                    'accepted': '🚚 En camino',
+                    'repairing': '🔧 Reparando',
+                    'to_shop': '🚚 Al taller',
+                    'ready': '✅ Listo',
+                    'completed': '✅ Completado',
+                    'cancelled': '❌ Cancelado'
+                };
+                estadoTexto = estadoMap[rData.status] || 'Activo';
+                colorEstado = rData.status === 'completed' ? 'text-green-400' :
+                             (rData.status === 'cancelled' ? 'text-red-400' : 'text-yellow-400');
+            } else {
+                // Buscar en pedidos_online
+                const pedidosSnap = await getDocs(query(collection(db, "pedidos_online"), where("chatId", "==", chatId), limit(1)));
+                if (!pedidosSnap.empty) {
+                    const pData = pedidosSnap.docs[0].data();
+                    servicioId = pData.shortId || pData.id.slice(-6);
+                    tipoServicio = '📦 Entrega';
+                    const estadoMap = {
+                        'pendiente': '⏳ Pendiente',
+                        'aceptado': '✅ Aceptado',
+                        'en_camino': '🚚 En camino',
+                        'entregado': '✅ Entregado',
+                        'cancelado': '❌ Cancelado'
+                    };
+                    estadoTexto = estadoMap[pData.estado_entrega] || 'Activo';
+                    colorEstado = pData.estado_entrega === 'entregado' ? 'text-green-400' :
+                                 (pData.estado_entrega === 'cancelado' ? 'text-red-400' : 'text-yellow-400');
+                }
+            }
+        } catch (e) {
+            console.warn('Error al obtener estado del servicio:', e);
+        }
+
+        // Generar el elemento de la lista
+        listEl.innerHTML += `
+            <div class="bg-white/5 p-3 rounded-xl cursor-pointer hover:bg-white/10 flex justify-between items-center" onclick="window.openChat('${chatId}')">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold text-white truncate">${otroNombre}</span>
+                        <span class="text-[9px] px-2 py-0.5 rounded-full bg-white/10 text-gray-300">${tipoServicio}</span>
+                    </div>
+                    <div class="flex items-center gap-2 mt-0.5">
+                        <span class="text-[10px] text-gray-400">${servicioId}</span>
+                        <span class="text-[9px] font-bold ${colorEstado}">${estadoTexto}</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 ml-2">
+                    <button onclick="event.stopPropagation(); window.eliminarChat('${chatId}')" 
+                            class="text-red-400 hover:text-red-300 text-sm p-1 hover:bg-red-500/20 rounded-lg transition-colors" 
+                            title="Eliminar chat">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+};
+
+
+// ============================================================
+// ELIMINAR CHAT (CON MODAL INTERNO)
+// ============================================================
+window.eliminarChat = async function(chatId) {
+    // Usar el modal de confirmación de la app en lugar de confirm()
+    window.confirmModal(
+        "¿Eliminar este chat permanentemente? Esta acción no se puede deshacer.",
+        async () => {
+            try {
+                // 1. Eliminar todos los mensajes del chat
+                const msgsSnap = await getDocs(collection(db, "chats", chatId, "mensajes"));
+                for (const msgDoc of msgsSnap.docs) {
+                    await deleteDoc(msgDoc.ref);
+                }
+
+                // 2. Eliminar el documento del chat
+                await deleteDoc(doc(db, "chats", chatId));
+
+                window.showToast("✅ Chat eliminado correctamente");
+                
+                // 3. Refrescar la lista de chats
+                if (typeof window.loadChatList === 'function') {
+                    window.loadChatList();
+                }
+            } catch (error) {
+                console.error('Error al eliminar chat:', error);
+                window.showToast("❌ Error al eliminar el chat", true);
+            }
+        },
+        () => {
+            // Si el usuario cancela, no hacer nada
+        }
+    );
+};
 
   window.openChat = (chatId) => {
-      if (chatUnsubscribe) chatUnsubscribe();
-      activeChatUid = chatId;
+    if (chatUnsubscribe) chatUnsubscribe();
+    activeChatUid = chatId;
 
-      getDoc(doc(db, "chats", chatId)).then(snap => {
-          if (snap.exists()) {
-              const data = snap.data();
-              const titleEl = document.getElementById('chat-title');
-              if (titleEl) titleEl.innerText = data.titulo || 'Chat';
-          }
-      });
+   // Dentro de openChat, en la parte donde se actualiza el título:
+getDoc(doc(db, "chats", chatId)).then(async (snap) => {
+    if (snap.exists()) {
+        const data = snap.data();
+        const titleEl = document.getElementById('chat-title');
+        
+        let servicioId = chatId.slice(-6);
+        // Buscar en rescates
+        const rescatesSnap = await getDocs(query(collection(db, "rescates"), where("chatId", "==", chatId), limit(1)));
+        if (!rescatesSnap.empty) {
+            const rData = rescatesSnap.docs[0].data();
+            servicioId = rData.shortId || rData.id.slice(-6);
+        } else {
+            const pedidosSnap = await getDocs(query(collection(db, "pedidos_online"), where("chatId", "==", chatId), limit(1)));
+            if (!pedidosSnap.empty) {
+                const pData = pedidosSnap.docs[0].data();
+                servicioId = pData.shortId || pData.id.slice(-6);
+            }
+        }
 
-      toggleModal('modal-chat-list', false);
-      toggleModal('modal-chat', true);
+        if (titleEl) {
+            titleEl.innerText = `SOPORTE OBR | ${servicioId}`;
+        }
+    }
+});
 
-      const messagesContainer = document.getElementById('chat-messages');
-      if (!messagesContainer) return;
-      messagesContainer.innerHTML = '';
+    toggleModal('modal-chat-list', false);
+    toggleModal('modal-chat', true);
 
-      chatUnsubscribe = onSnapshot(collection(db, "chats", chatId, "mensajes"), (snap) => {
-          snap.docChanges().forEach(change => {
-              if (change.type === 'added') {
-                  const msg = change.doc.data();
-                  if (msg.uid !== auth.currentUser.uid) {
-                      playSound('notif');
-                      const shortId = chatId.slice(-6);
-                      speakTTS(`Tienes un nuevo mensaje del servicio OBR-${shortId}`);
-                  }
-              }
-          });
+    const messagesContainer = document.getElementById('chat-messages');
+    if (!messagesContainer) return;
+    messagesContainer.innerHTML = '';
 
-          messagesContainer.innerHTML = '';
-          snap.forEach(doc => {
-              const msg = doc.data();
-              const isMine = msg.uid === auth.currentUser.uid;
-              messagesContainer.innerHTML += `
-                  <div class="flex ${isMine ? 'justify-end' : 'justify-start'} mb-2">
-                      <div class="${isMine ? 'bg-naranja text-white' : 'bg-white/10 text-white'} p-3 rounded-2xl max-w-[75%] text-xs">
-                          <p>${escapeHtml(msg.texto)}</p>
-                          <span class="text-[0.6rem] opacity-60">${new Date(msg.timestamp).toLocaleTimeString()}</span>
-                      </div>
-                  </div>
-              `;
-          });
-          messagesContainer.scrollTop = messagesContainer.scrollHeight;
-      });
-  };
+    chatUnsubscribe = onSnapshot(collection(db, "chats", chatId, "mensajes"), (snap) => {
+        snap.docChanges().forEach(change => {
+            if (change.type === 'added') {
+                const msg = change.doc.data();
+                if (msg.uid !== auth.currentUser.uid) {
+                    playSound('notif');
+                    speakTTS(`Tienes un nuevo mensaje del servicio OBR-${chatId.slice(-6)}`);
+                }
+            }
+        });
+
+        messagesContainer.innerHTML = '';
+        snap.forEach(doc => {
+            const msg = doc.data();
+            const isMine = msg.uid === auth.currentUser.uid;
+            const fechaHora = new Date(msg.timestamp).toLocaleString();
+            
+            // ✅ Determinar el nombre del remitente
+            let nombreRemitente = '';
+            if (isMine) {
+                // El usuario logueado (cliente o admin)
+                nombreRemitente = window.currentUserDoc?.name || 'Tú';
+            } else {
+                // El otro lado: si es cliente, ve "SOPORTE OBR". Si es admin, ve el nombre real.
+                if (window.currentUserDoc?.role === 'admin' || window.currentUserDoc?.role === 'mecanico') {
+                    // Admin ve el nombre real del otro usuario
+                    nombreRemitente = msg.nombre || 'Cliente';
+                } else {
+                    // Cliente ve "SOPORTE OBR"
+                    nombreRemitente = 'SOPORTE OBR';
+                }
+            }
+
+            messagesContainer.innerHTML += `
+                <div class="flex ${isMine ? 'justify-end' : 'justify-start'} mb-3">
+                    <div class="${isMine ? 'bg-naranja text-white' : 'bg-white/10 text-white'} p-3 rounded-2xl max-w-[80%]">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="font-bold text-xs">${nombreRemitente}</span>
+                            <span class="text-[9px] opacity-60">${fechaHora}</span>
+                        </div>
+                        <p class="text-sm">${escapeHtml(msg.texto)}</p>
+                    </div>
+                </div>
+            `;
+        });
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    });
+};
 
   window.sendMessage = async () => {
-      const input = document.getElementById('chat-input');
-      const texto = input?.value.trim();
-      if (!texto || !activeChatUid) return;
+    const input = document.getElementById('chat-input');
+    const texto = input?.value.trim();
+    if (!texto || !activeChatUid) return;
 
-      try {
-          await addDoc(collection(db, "chats", activeChatUid, "mensajes"), {
-              uid: auth.currentUser.uid,
-              texto: texto,
-              timestamp: Date.now()
-          });
-          input.value = '';
-      } catch (e) {
-          console.warn('Error al enviar mensaje', e);
-      }
-  };
+    try {
+        await addDoc(collection(db, "chats", activeChatUid, "mensajes"), {
+            uid: auth.currentUser.uid,
+            nombre: window.currentUserDoc?.name || 'Técnico OBR', // ✅ Guardar nombre real
+            texto: texto,
+            timestamp: Date.now()
+        });
+        input.value = '';
+    } catch (e) {
+        console.warn('Error al enviar mensaje', e);
+    }
+};
 
   window.closeChat = () => {
       if (chatUnsubscribe) {
@@ -15371,5 +15657,594 @@ window.reemplazarCelularPorNombre = async (phoneInput) => {
         }
     } catch (err) {
         console.warn('Error al buscar cliente:', err);
+    }
+};
+
+// ============================================================
+// ABRIR VENTAS REALIZADAS EN PANTALLA COMPLETA
+// ============================================================
+window.abrirVentasFullScreen = function() {
+    const modalHTML = `
+        <div id="modal-ventas-fullscreen" class="fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center p-0 hidden backdrop-blur-sm">
+            <div class="bg-asfalto w-full h-full flex flex-col p-6 overflow-hidden">
+                <!-- Encabezado -->
+                <div class="flex justify-between items-center mb-4 shrink-0">
+                    <div class="flex items-center gap-4">
+                        <h3 class="text-2xl font-black text-white">
+                            <i class="fas fa-history text-naranja mr-2"></i>Ventas Realizadas
+                        </h3>
+                        <button onclick="toggleModal('modal-garantias', true)" 
+                                class="bg-green-600/20 text-green-400 border border-green-500/50 px-3 py-1 rounded-xl text-[10px] font-black uppercase hover:bg-green-600/30 transition-colors">
+                            Ver Garantías
+                        </button>
+                    </div>
+                    <button onclick="toggleModal('modal-ventas-fullscreen', false)" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times text-2xl"></i>
+                    </button>
+                </div>
+
+                <!-- Filtro por mes -->
+                <div class="mb-4 shrink-0">
+                    <select id="filtro-mes-ventas-fullscreen" 
+                            onchange="window.aplicarFiltroMesVentasFullscreen()" 
+                            class="bg-asfalto border border-white/10 text-white text-sm p-2 rounded-lg w-full md:w-64 focus:outline-none focus:border-naranja/50">
+                        <option value="todos">Todos los meses</option>
+                    </select>
+                </div>
+
+                <!-- Lista de ventas (con scroll) -->
+                <div id="ventas-realizadas-fullscreen-list" class="flex-1 overflow-y-auto hide-scroll grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4"></div>
+            </div>
+        </div>
+    `;
+
+    const existing = document.getElementById('modal-ventas-fullscreen');
+    if (existing) existing.remove();
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    toggleModal('modal-ventas-fullscreen', true);
+
+    // Cargar opciones de meses
+    const selectFull = document.getElementById('filtro-mes-ventas-fullscreen');
+    if (selectFull) {
+        const q = query(collection(db, "ventas"), orderBy("fecha", "desc"), limit(300));
+        onSnapshot(q, (snap) => {
+            const mesesSet = new Set();
+            snap.forEach(doc => {
+                const data = doc.data();
+                if (data.fecha) {
+                    const fecha = new Date(data.fecha);
+                    const mesKey = fecha.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }).toLowerCase();
+                    mesesSet.add(mesKey);
+                }
+            });
+            const mesesArray = Array.from(mesesSet).sort((a, b) => {
+                const dateA = new Date(a);
+                const dateB = new Date(b);
+                return dateB - dateA;
+            });
+            const ahora = new Date();
+            const mesActualLabel = ahora.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }).toLowerCase();
+
+            selectFull.innerHTML = '';
+            const optTodos = document.createElement('option');
+            optTodos.value = 'todos';
+            optTodos.textContent = 'Todos los meses';
+            selectFull.appendChild(optTodos);
+
+            mesesArray.forEach(mes => {
+                const option = document.createElement('option');
+                option.value = mes;
+                option.textContent = mes.charAt(0).toUpperCase() + mes.slice(1);
+                if (mes === mesActualLabel) option.selected = true;
+                selectFull.appendChild(option);
+            });
+        });
+    }
+
+    // Cargar ventas usando la misma función de tarjeta
+    cargarVentasFullscreen('todos');
+};
+
+// ============================================================
+// CARGAR VENTAS EN PANTALLA COMPLETA
+// ============================================================
+function cargarVentasFullscreen(filtroMes = 'todos') {
+    const container = document.getElementById('ventas-realizadas-fullscreen-list');
+    if (!container) return;
+
+    const q = query(collection(db, "ventas"), orderBy("fecha", "desc"), limit(300));
+    onSnapshot(q, (snap) => {
+        let todasLasVentas = [];
+        snap.forEach(doc => {
+            const data = doc.data();
+            data.id = doc.id;
+            todasLasVentas.push(data);
+        });
+
+        let ventasFiltradas = todasLasVentas;
+        if (filtroMes !== 'todos') {
+            ventasFiltradas = todasLasVentas.filter(v => {
+                if (!v.fecha) return false;
+                const fecha = new Date(v.fecha);
+                const mesKey = fecha.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }).toLowerCase();
+                return mesKey === filtroMes;
+            });
+        }
+
+        if (ventasFiltradas.length === 0) {
+            container.innerHTML = '<p class="text-gray-400 text-center py-8">No hay ventas en este período.</p>';
+            return;
+        }
+
+        let html = '';
+        ventasFiltradas.forEach(v => {
+            html += window.generarTarjetaVenta(v);
+        });
+        container.innerHTML = html;
+    });
+}
+
+// ============================================================
+// APLICAR FILTRO EN PANTALLA COMPLETA
+// ============================================================
+window.aplicarFiltroMesVentasFullscreen = function() {
+    const select = document.getElementById('filtro-mes-ventas-fullscreen');
+    if (select) {
+        const filtroMes = select.value;
+        cargarVentasFullscreen(filtroMes);
+    }
+};
+
+// ============================================================
+// GENERAR TARJETA DE VENTA (CON EMOJIS Y MÉTODO DE PAGO)
+// ============================================================
+window.generarTarjetaVenta = (v) => {
+    const itemsCount = v.ticket ? v.ticket.length : 0;
+    const tienePDF = v.pdfUrl ? true : false;
+    let accionHTML = '';
+
+    if (tienePDF) {
+        accionHTML = `
+            <button onclick="event.stopPropagation(); window.descargarPDF('${v.pdfUrl}', '${v.shortId || v.id}')" 
+                    class="bg-naranja text-white px-2 py-1 rounded text-[9px] font-bold hover:opacity-80">
+                <i class="fas fa-download"></i>
+            </button>
+        `;
+    } else {
+        accionHTML = `
+            <div class="flex items-center gap-2">
+                <button onclick="event.stopPropagation(); window.reimprimirVenta('${v.id}')" 
+                        class="bg-blue-600 text-white px-2 py-1 rounded text-[9px] font-bold hover:bg-blue-500">
+                    Reimprimir
+                </button>
+                <i class="fas fa-exclamation-triangle text-yellow-400 text-sm" title="PDF no disponible"></i>
+            </div>
+        `;
+    }
+
+    const fechaDisplay = v.fecha ? new Date(v.fecha).toLocaleDateString() : 'Sin fecha';
+    const metodoPagoFormateado = window.formatearMetodoPago(v.metodoPago);
+
+    return `
+        <div onclick="window.verDetalleVenta('${v.id}')" 
+             class="bg-white/5 border border-white/10 p-3 rounded-xl text-xs text-white cursor-pointer hover:bg-white/10 hover:border-naranja/50 transition-all duration-200 flex flex-col justify-between">
+            <div>
+                <div class="flex justify-between items-start">
+                    <span class="font-bold text-naranja text-sm">${v.shortId || v.id}</span>
+                    <span class="text-gray-400 text-[9px] whitespace-nowrap">${fechaDisplay}</span>
+                </div>
+                <p class="text-gray-300 text-[11px] mt-1 line-clamp-2">${v.desc || 'Sin descripción'}</p>
+                ${metodoPagoFormateado ? `
+                    <span class="inline-block mt-1 text-[9px] bg-white/5 px-2 py-0.5 rounded text-gray-400">
+                        ${metodoPagoFormateado}
+                    </span>
+                ` : ''}
+            </div>
+            <div class="flex justify-between items-center mt-3 pt-2 border-t border-white/5">
+                <p class="text-naranja font-black text-base">$${v.total?.toFixed(2) || '0.00'}</p>
+                <div>
+                    ${accionHTML}
+                </div>
+            </div>
+        </div>
+    `;
+};
+
+// ============================================================
+// FORMATEAR MÉTODO DE PAGO CON EMOJI
+// ============================================================
+window.formatearMetodoPago = (metodo) => {
+    if (!metodo) return '';
+    const metodoUpper = metodo.toUpperCase().trim();
+    const emojis = {
+        'TARJETA': '💳 TARJETA',
+        'EFECTIVO': '💵 EFECTIVO',
+        'TRANSFERENCIA': '🏦 TRANSFERENCIA',
+        'PENDIENTE': '⏳ PENDIENTE',
+        'CRÉDITO': '💰 CRÉDITO',
+        'CREDITO': '💰 CRÉDITO',
+        'DÉBITO': '💳 DÉBITO',
+        'DEBITO': '💳 DÉBITO',
+    };
+    return emojis[metodoUpper] || `💳 ${metodoUpper}`;
+};
+
+// ============================================================
+// VINCULAR RESCATE MANUAL (Desde el taller) - VERSIÓN FINAL
+// ============================================================
+
+let vincularLat = null;
+let vincularLng = null;
+let vincularMapInstance = null;
+let vincularMarker = null;
+let debounceTimeout = null;
+let _vincularUserData = null; // Guardar datos del usuario para el WhatsApp
+
+// 1. Abrir modal y cargar servicios/mecánicos
+window.abrirModalVincularRescate = async function() {
+    // Limpiar campos
+    document.getElementById('vincular-phone').value = '';
+    document.getElementById('vincular-direccion').value = '';
+    document.getElementById('vincular-extra-phone').value = '';
+    document.getElementById('vincular-total-display').innerText = '$0.00';
+    document.getElementById('vincular-phone-status').innerText = '';
+    document.getElementById('vincular-mapa-container').classList.add('hidden');
+    document.getElementById('vincular-sugerencias').classList.add('hidden');
+    _vincularUserData = null;
+    vincularLat = null;
+    vincularLng = null;
+    if (vincularMapInstance) {
+        vincularMapInstance.remove();
+        vincularMapInstance = null;
+    }
+
+    // ✅ Cargar servicios desde Firestore (si shopServices no está lleno)
+    if (!shopServices || shopServices.length === 0) {
+        await loadServicesCatalog(); // Esperar a que se cargue
+    }
+
+    const selectServicio = document.getElementById('vincular-servicio');
+    selectServicio.innerHTML = '<option value="0">Sin fallo específico (Tarifa base)</option>';
+    // Usar shopServices que ya está lleno
+    shopServices.forEach(s => {
+        selectServicio.innerHTML += `<option value="${s.id}">${s.name} ($${s.price || 0})</option>`;
+    });
+
+    // Cargar mecánicos
+    const selectMecanico = document.getElementById('vincular-mecanico');
+    selectMecanico.innerHTML = '<option value="">Selecciona un mecánico/admin...</option>';
+    const snapMec = await getDocs(query(collection(db, "users"), where("role", "in", ["mecanico", "admin"])));
+    snapMec.forEach(d => {
+        const u = d.data();
+        selectMecanico.innerHTML += `<option value="${d.id}">${u.name || u.phone}</option>`;
+    });
+
+    toggleModal('modal-vincular-rescate', true);
+};
+
+// 2. Verificar si el celular existe y guardar datos
+document.addEventListener('input', function(e) {
+    if (e.target.id === 'vincular-phone') {
+        const phone = e.target.value.trim();
+        const status = document.getElementById('vincular-phone-status');
+        if (phone.length === 10) {
+            status.innerText = '⏳ Verificando...';
+            status.className = 'text-[9px] mt-1 font-bold text-yellow-400';
+            setTimeout(async () => {
+                const full = '+52' + phone;
+                const q = query(collection(db, "users"), where("phone", "==", full), limit(1));
+                const snap = await getDocs(q);
+                if (!snap.empty) {
+                    _vincularUserData = snap.docs[0].data();
+                    _vincularUserData.uid = snap.docs[0].id;
+                    status.innerText = `✅ Cliente encontrado: ${_vincularUserData.name || phone}`;
+                    status.className = 'text-[9px] mt-1 font-bold text-green-400';
+                } else {
+                    _vincularUserData = { phone: full, name: `Cliente ${phone}`, role: 'cliente', isNew: true };
+                    status.innerText = '🆕 Cliente nuevo (se creará automáticamente)';
+                    status.className = 'text-[9px] mt-1 font-bold text-orange-400';
+                }
+            }, 500);
+        } else {
+            status.innerText = '';
+            _vincularUserData = null;
+        }
+    }
+});
+
+// 3. Geocodificación automática con sugerencias
+document.addEventListener('input', function(e) {
+    if (e.target.id === 'vincular-direccion') {
+        clearTimeout(debounceTimeout);
+        const query = e.target.value.trim();
+        const sugerencias = document.getElementById('vincular-sugerencias');
+        if (query.length < 3) {
+            sugerencias.classList.add('hidden');
+            return;
+        }
+        debounceTimeout = setTimeout(async () => {
+            try {
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=4&addressdetails=1`;
+                const res = await fetch(url, { headers: { 'User-Agent': 'OBR-App' } });
+                const data = await res.json();
+                if (data.length === 0) {
+                    sugerencias.classList.add('hidden');
+                    return;
+                }
+                let html = '';
+                data.forEach(item => {
+                    const display = item.display_name || item.name || 'Sin nombre';
+                    html += `
+                        <div onclick="window.seleccionarSugerenciaVincular('${item.lat}', '${item.lon}', '${display.replace(/'/g, "\\'")}')" 
+                             class="p-2 hover:bg-naranja/30 cursor-pointer text-white text-sm border-b border-white/10 last:border-0">
+                            ${display}
+                        </div>
+                    `;
+                });
+                sugerencias.innerHTML = html;
+                sugerencias.classList.remove('hidden');
+            } catch (e) {
+                console.warn('Error en geocodificación:', e);
+            }
+        }, 500);
+    }
+});
+
+// 4. Seleccionar una sugerencia
+window.seleccionarSugerenciaVincular = function(lat, lng, display) {
+    document.getElementById('vincular-direccion').value = display;
+    document.getElementById('vincular-sugerencias').classList.add('hidden');
+    vincularLat = parseFloat(lat);
+    vincularLng = parseFloat(lng);
+    document.getElementById('vincular-mapa-container').classList.remove('hidden');
+    setTimeout(() => inicializarMapaVincular(vincularLat, vincularLng), 300);
+    window.actualizarTotalVincular();
+};
+
+function inicializarMapaVincular(lat, lng) {
+    const container = document.getElementById('vincular-mapa');
+    if (!container) return;
+    if (vincularMapInstance) {
+        vincularMapInstance.setView([lat, lng], 15);
+        if (vincularMarker) vincularMarker.setLatLng([lat, lng]);
+        return;
+    }
+    vincularMapInstance = L.map(container).setView([lat, lng], 15);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(vincularMapInstance);
+    vincularMarker = L.marker([lat, lng], { draggable: true }).addTo(vincularMapInstance);
+    vincularMarker.on('dragend', function() {
+        const pos = vincularMarker.getLatLng();
+        vincularLat = pos.lat;
+        vincularLng = pos.lng;
+        window.actualizarTotalVincular();
+    });
+    vincularMapInstance.on('click', function(e) {
+        const pos = e.latlng;
+        vincularMarker.setLatLng(pos);
+        vincularLat = pos.lat;
+        vincularLng = pos.lng;
+        window.actualizarTotalVincular();
+    });
+    setTimeout(() => vincularMapInstance.invalidateSize(), 300);
+}
+
+// 5. Calcular total
+window.actualizarTotalVincular = function() {
+    const servicioId = document.getElementById('vincular-servicio').value;
+    let total = 0;
+    const dist = vincularLat && vincularLng ? getDistanceKm(vincularLat, vincularLng, globalSettings.centerLat, globalSettings.centerLng) : 0;
+
+    let rescueCost = 0;
+    if (globalSettings.priceMode === 'km') {
+        const ranges = globalSettings.rescueKmRanges || [];
+        let matched = false;
+        for (let r of ranges) {
+            if (dist <= r.km) {
+                rescueCost = r.price;
+                matched = true;
+                break;
+            }
+        }
+        if (!matched && ranges.length > 0) {
+            rescueCost = ranges[ranges.length-1].price + Math.max(0, (dist - ranges[ranges.length-1].km)) * (globalSettings.rescueKmExtra || 0);
+        }
+    } else {
+        rescueCost = globalSettings.rescueBase || 0;
+    }
+
+    let serviceCost = 0;
+    if (servicioId !== "0") {
+        const s = shopServices.find(x => x.id === servicioId);
+        if (s) {
+            serviceCost = s.price || 0;
+            if (s.materiales) {
+                s.materiales.forEach(mat => {
+                    const id = typeof mat === 'string' ? mat : mat.id;
+                    const qty = typeof mat === 'string' ? 1 : (mat.quantity || 1);
+                    const prod = (window.publicInventory || []).find(p => p.id === id);
+                    if (prod) serviceCost += (prod.pricePublic || 0) * qty;
+                });
+            }
+        }
+    }
+
+    total = rescueCost + serviceCost;
+    document.getElementById('vincular-total-display').innerText = `$${total.toFixed(2)}`;
+};
+
+// 6. Guardar el rescate vinculado y enviar WhatsApp
+window.guardarRescateVinculado = async function() {
+    const phone = document.getElementById('vincular-phone').value.trim();
+    const direccion = document.getElementById('vincular-direccion').value.trim();
+    const servicioId = document.getElementById('vincular-servicio').value;
+    const extraPhone = document.getElementById('vincular-extra-phone').value.trim();
+    const mechUid = document.getElementById('vincular-mecanico').value;
+
+    if (phone.length !== 10) return showToast("Celular de 10 dígitos requerido", true);
+    if (!vincularLat || !vincularLng) return showToast("Selecciona una ubicación válida", true);
+    if (!mechUid) return showToast("Selecciona un mecánico/admin para asignar", true);
+
+    const btn = document.querySelector('#modal-vincular-rescate button.bg-red-600');
+    btn.disabled = true;
+    btn.innerText = 'Procesando...';
+
+    try {
+        // 1. Asegurar usuario
+        const fullPhone = '+52' + phone;
+        let uid, userData, isNewUser = false;
+        if (_vincularUserData && _vincularUserData.uid) {
+            uid = _vincularUserData.uid;
+            userData = _vincularUserData;
+            isNewUser = _vincularUserData.isNew || false;
+        } else {
+            // Buscar nuevamente por seguridad
+            const q = query(collection(db, "users"), where("phone", "==", fullPhone), limit(1));
+            const snap = await getDocs(q);
+            if (!snap.empty) {
+                uid = snap.docs[0].id;
+                userData = snap.docs[0].data();
+                isNewUser = false;
+            } else {
+                // Crear usuario nuevo
+                const fakeEmail = `${phone}@motorescateobr.com`;
+                const cred = await createUserWithEmailAndPassword(auth, fakeEmail, '123456');
+                uid = cred.user.uid;
+                userData = { name: `Cliente ${phone}`, phone: fullPhone, role: 'cliente', pwd: '123456', firstLogin: true };
+                await setDoc(doc(db, "users", uid), userData);
+                isNewUser = true;
+            }
+        }
+
+        // 2. Calcular costos finales
+        const dist = getDistanceKm(vincularLat, vincularLng, globalSettings.centerLat, globalSettings.centerLng);
+        let rescueCost = 0;
+        if (globalSettings.priceMode === 'km') {
+            const ranges = globalSettings.rescueKmRanges || [];
+            let matched = false;
+            for (let r of ranges) {
+                if (dist <= r.km) {
+                    rescueCost = r.price;
+                    matched = true;
+                    break;
+                }
+            }
+            if (!matched && ranges.length > 0) {
+                rescueCost = ranges[ranges.length-1].price + Math.max(0, (dist - ranges[ranges.length-1].km)) * (globalSettings.rescueKmExtra || 0);
+            }
+        } else {
+            rescueCost = globalSettings.rescueBase || 0;
+        }
+
+        let serviceCost = 0;
+        let servicioNombre = 'Sin fallo específico';
+        if (servicioId !== "0") {
+            const s = shopServices.find(x => x.id === servicioId);
+            if (s) {
+                servicioNombre = s.name;
+                serviceCost = s.price || 0;
+                if (s.materiales) {
+                    s.materiales.forEach(mat => {
+                        const id = typeof mat === 'string' ? mat : mat.id;
+                        const qty = typeof mat === 'string' ? 1 : (mat.quantity || 1);
+                        const prod = (window.publicInventory || []).find(p => p.id === id);
+                        if (prod) serviceCost += (prod.pricePublic || 0) * qty;
+                    });
+                }
+            }
+        }
+        const total = rescueCost + serviceCost;
+
+        // 3. Crear rescate
+        const shortId = generateShortId();
+        const rData = {
+            uid: uid,
+            shortId: shortId,
+            clientName: userData.name || `Cliente ${phone}`,
+            phone: fullPhone,
+            extraPhone: extraPhone || '',
+            marca: 'Vinculado desde taller',
+            modelo: '',
+            cc: '',
+            falla: `[Rescate vinculado] ${servicioNombre} | ${direccion}`,
+            mediaUrl: '',
+            lat: vincularLat,
+            lng: vincularLng,
+            manualAddress: direccion,
+            costoRescateEstimado: rescueCost,
+            costoServicio: serviceCost,
+            tarifaDomicilio: 0,
+            total: total,
+            status: 'accepted',
+            tallerStatus: 'recibida',
+            mech_uid: mechUid,
+            mech_name: (await getDoc(doc(db, "users", mechUid))).data()?.name || 'Mecánico',
+            esVinculado: true,
+            timestamp: Date.now()
+        };
+
+        await addDoc(collection(db, "rescates"), rData);
+        await set(dbRef(rtdb, 'sos_alerts/' + uid), rData);
+
+        const chatRef = await addDoc(collection(db, "chats"), {
+            participantes: [uid, mechUid],
+            nombres: { [uid]: rData.clientName, [mechUid]: rData.mech_name },
+            titulo: `Servicio ${shortId}`,
+            estado: 'activo',
+            creado: Date.now()
+        });
+        await updateDoc(doc(db, "rescates", rData.id), { chatId: chatRef.id });
+
+        // ✅ ENVIAR WHATSAPP PERSONALIZADO
+        const nombreCliente = userData.name || `Cliente ${phone}`;
+        const tipoServicio = servicioNombre;
+        const enlaceApp = `https://exploracionesobr.github.io/RESCATE-OBR`;
+        
+        let mensaje = `Gracias por confiar en OBR, ${nombreCliente}. Tu servicio ha sido generado con éxito.\n\n`;
+        mensaje += `*FOLIO*: ${shortId}\n`;
+        mensaje += `*TIPO DE SERVICIO*: ${tipoServicio}\n`;
+        mensaje += `*DIRECCIÓN*: ${direccion}\n`;
+        mensaje += `*TOTAL A PAGAR*: $${total.toFixed(2)}\n\n`;
+        mensaje += `Podrás seguir a tu mecánico asignado desde la app:\n`;
+        mensaje += `${enlaceApp}\n\n`;
+
+        if (isNewUser) {
+            mensaje += `___\n`;
+            mensaje += `Tu cuenta está en proceso. Entra a nuestra app con tu número celular y usa la contraseña temporal *123456* para ingresar y dar seguimiento a tu mecánico asignado.`;
+        } else {
+            mensaje += `Gracias por preferirnos.`;
+        }
+
+        const cleanPhone = fullPhone.replace('+52', '');
+        window.open(`https://wa.me/52${cleanPhone}?text=${encodeURIComponent(mensaje)}`, '_blank');
+
+        showToast(`✅ Rescate vinculado y asignado a ${rData.mech_name}`);
+        toggleModal('modal-vincular-rescate', false);
+        window.cargarListadoSOS();
+        window.renderSOSMapa();
+    } catch (e) {
+        console.error(e);
+        showToast('Error al vincular rescate', true);
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'Vincular y asignar';
+    }
+};
+
+// ============================================================
+// REGRESAR A LA LISTA DE CHATS
+// ============================================================
+window.regresarListaChats = function() {
+    // Cerrar el chat actual
+    if (typeof window.closeChat === 'function') {
+        window.closeChat();
+    }
+    // Abrir la lista de chats
+    if (typeof toggleModal === 'function') {
+        toggleModal('modal-chat-list', true);
+        // Recargar la lista de chats
+        if (typeof window.loadChatList === 'function') {
+            window.loadChatList();
+        }
     }
 };
