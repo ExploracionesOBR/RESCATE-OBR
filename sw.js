@@ -1,7 +1,7 @@
 // ============================================================
 // VERSIÓN DE LA CACHÉ
 // ============================================================
-const CACHE_NAME = 'obr-cache-v55';
+const CACHE_NAME = 'obr-cache-v56';
 const BASE_PATH = '/RESCATE-OBR';
 
 const ALL_FILES = [
