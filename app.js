@@ -3082,6 +3082,22 @@ onAuthStateChanged(auth, async user => {
     );
     if (btn) btn.classList.add('tab-active');
 
+    // ============================================================
+    // ✅ ACTUALIZAR POSICIÓN DE CONTROLES DEL MAPA (EJECUCIÓN DOBLE)
+    // ============================================================
+    // 1. Ejecución inmediata (por si el DOM ya está listo)
+    if (typeof updateMapControlsPosition === 'function') {
+        updateMapControlsPosition();
+    }
+    // 2. Ejecución diferida (por si el DOM tarda en renderizar)
+    setTimeout(() => {
+        if (typeof updateMapControlsPosition === 'function') {
+            updateMapControlsPosition();
+        }
+    }, 200);
+
+    // ============================================================
+
     // Cargar datos según la vista
     if (id === 'a-view-config') {
         window.adminRefreshConfigUI();
@@ -3143,7 +3159,6 @@ onAuthStateChanged(auth, async user => {
     
     window.fixMaps?.();
 };
-
 
 // ============================================================
 // LISTENER DEL INPUT DE CELULAR (con reemplazo por nombre)
@@ -9324,56 +9339,78 @@ window.enviarBroadcast = async function() {
   };
 
   // ===== ESTIMACIÓN DE PRECIO CON IA (Groq) =====
-  async function consultaGroqTexto(prompt) {
-      const key = localStorage.getItem('groq_api_key') || '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';
-      try {
-          const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-              body: JSON.stringify({
-                  model: "llama-3.3-70b-versatile",
-                  messages: [
-                      { role: "system", content: "Eres un experto en mecánica automotriz en Ciudad Obregón, Sonora. Respondes ÚNICAMENTE con un número entero en pesos mexicanos (MXN) que representa el costo de mano de obra justo para el servicio indicado. No uses puntos, comas ni signos de pesos. Solo el número." },
-                      { role: "user", content: prompt }
-                  ],
-                  temperature: 0.2,
-                  max_tokens: 20
-              })
-          });
-          if (!response.ok) throw new Error('Error en Groq');
-          const data = await response.json();
-          return data.choices[0].message.content.trim();
-      } catch (e) {
-          console.error('Error IA:', e);
-          return null;
-      }
-  }
+  // ============================================================
+// CONSULTA A GROQ CON API KEY DINÁMICA
+// ============================================================
+async function consultaGroqTexto(prompt) {
+    // 1. Intentar obtener la clave desde Firestore (si el admin la guardó)
+    let key = localStorage.getItem('groq_api_key');
+    try {
+        const settingsSnap = await getDoc(doc(db, 'settings', 'general'));
+        if (settingsSnap.exists() && settingsSnap.data().groqApiKey) {
+            key = settingsSnap.data().groqApiKey;
+            localStorage.setItem('groq_api_key', key); // actualizar caché local
+        }
+    } catch (e) {
+        console.warn('No se pudo leer la API Key de Firestore, usando local:', e);
+    }
 
-  window.estimateServicePriceWithAI = async function() {
-      const nameInput = document.getElementById('edit-service-name');
-      const resultDiv = document.getElementById('ai-estimate-result');
-      const resultText = document.getElementById('ai-estimate-text');
-      
-      const serviceName = nameInput.value.trim();
-      if (!serviceName) {
-          window.showToast("Escribe el nombre del servicio primero.", true);
-          return;
-      }
+    if (!key || !key.startsWith('gsk_')) {
+        console.warn('❌ No hay API Key de Groq válida.');
+        return null;
+    }
 
-      resultDiv.classList.remove('hidden');
-      resultText.innerText = "Consultando IA... ⏳";
-      
-      const prompt = `Estima el precio de mano de obra en Ciudad Obregón para el servicio: "${serviceName}"`;
-      const estimatedPrice = await consultaGroqTexto(prompt);
-      
-      if (estimatedPrice && !isNaN(parseFloat(estimatedPrice))) {
-          resultText.innerText = `💰 Precio estimado: $${estimatedPrice}`;
-          window._tempAIEstimate = parseFloat(estimatedPrice);
-      } else {
-          resultText.innerText = "❌ No se pudo obtener una estimación.";
-          window._tempAIEstimate = null;
-      }
-  };
+    try {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+            body: JSON.stringify({
+                model: "llama-3.3-70b-versatile",
+                messages: [
+                    { role: "system", content: "Eres un experto en mecánica automotriz en Ciudad Obregón, Sonora. Respondes ÚNICAMENTE con un número entero en pesos mexicanos (MXN) que representa el costo de mano de obra justo para el servicio indicado. No uses puntos, comas ni signos de pesos. Solo el número." },
+                    { role: "user", content: prompt }
+                ],
+                temperature: 0.2,
+                max_tokens: 20
+            })
+        });
+        if (!response.ok) throw new Error('Error en Groq');
+        const data = await response.json();
+        return data.choices[0].message.content.trim();
+    } catch (e) {
+        console.error('Error IA:', e);
+        return null;
+    }
+}
+
+// ============================================================
+// ESTIMAR PRECIO CON IA (usa la función mejorada)
+// ============================================================
+window.estimateServicePriceWithAI = async function() {
+    const nameInput = document.getElementById('edit-service-name');
+    const resultDiv = document.getElementById('ai-estimate-result');
+    const resultText = document.getElementById('ai-estimate-text');
+    
+    const serviceName = nameInput.value.trim();
+    if (!serviceName) {
+        window.showToast("Escribe el nombre del servicio primero.", true);
+        return;
+    }
+
+    resultDiv.classList.remove('hidden');
+    resultText.innerText = "Consultando IA... ⏳";
+    
+    const prompt = `Estima el precio de mano de obra en Ciudad Obregón para el servicio: "${serviceName}"`;
+    const estimatedPrice = await consultaGroqTexto(prompt);
+    
+    if (estimatedPrice && !isNaN(parseFloat(estimatedPrice))) {
+        resultText.innerText = `💰 Precio estimado: $${estimatedPrice}`;
+        window._tempAIEstimate = parseFloat(estimatedPrice);
+    } else {
+        resultText.innerText = "❌ No se pudo obtener una estimación.";
+        window._tempAIEstimate = null;
+    }
+};
 
   window.applyAIEstimate = function() {
       const priceInput = document.getElementById('edit-service-price');
@@ -9405,7 +9442,20 @@ window.enviarBroadcast = async function() {
               role,
               pwd: '123456',
               firstLogin: true,
-              vistasPermitidas: ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas','a-view-entregas']
+              vistasPermitidas: [
+    'a-view-pos',
+    'a-view-servicios',
+    'a-view-alertas',
+    'a-view-inventario',
+    'a-view-promos',
+    'a-view-usuarios',
+    'a-view-config',
+    'a-view-stats',
+    'a-view-citas',
+    'a-view-entregas',
+    'a-view-publicidad', // ✅ NUEVO
+    'a-view-retenes'
+]
           });
           // Restaurar sesión del administrador
           if (window._lastLoginPhone && window._lastLoginPassword) {
@@ -9692,7 +9742,20 @@ window.filtrarUsuarios = function() {
 
       // Permisos
       const vistas = ['a-view-pos','a-view-servicios','a-view-alertas','a-view-inventario','a-view-promos','a-view-usuarios','a-view-config','a-view-stats','a-view-citas','a-view-entregas','a-view-publicidad','a-view-retenes'];
-  const vistasNombres = ['Caja','Taller','SOS','Almacén','Promos','Usuarios','Ajustes','Estadíst.','Citas','Entregas','Retenes'];
+  const vistasNombres = [
+    'Caja', 
+    'Taller', 
+    'SOS', 
+    'Almacén', 
+    'Promos', 
+    'Usuarios', 
+    'Ajustes', 
+    'Estadíst.', 
+    'Citas', 
+    'Entregas',
+    'Publicidad',   // ✅ AÑADIDO (para que coincida con 'a-view-publicidad')
+    'Retenes'
+];
       const vistasActuales = user.vistasPermitidas || vistas;
       let vistasHTML = vistas.map((v,i) => {
           const checked = vistasActuales.includes(v) ? 'checked' : '';
@@ -14798,6 +14861,17 @@ window.adminLoadLoyalty = async function() {
       const inviteModal = document.getElementById('modal-whatsapp-invite');
       if (inviteModal) inviteModal.classList.add('hidden');
   }
+
+  // ============================================================
+// EJECUTAR POSICIONAMIENTO DE CONTROLES AL INICIAR LA APP
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        if (typeof updateMapControlsPosition === 'function') {
+            updateMapControlsPosition();
+        }
+    }, 500); // 500ms para asegurar que el DOM ya esté renderizado
+});
   // ===== EJECUCIÓN AL CARGAR LA PÁGINA =====
   window.addEventListener('load', () => {
       setTimeout(() => {
@@ -15125,9 +15199,6 @@ async function activarWakeLockGlobal() {
         });
 
     } catch (error) {
-        console.error('❌ Error al activar Wake Lock:', error);
-        // Reintentar en 5 segundos si falla
-        setTimeout(activarWakeLockGlobal, 5000);
     }
 }
 // ============================================================
@@ -15180,7 +15251,6 @@ function ocultarBannerMantenerAppAbierta() {
         banner.classList.remove('hide');
     }, 500);
 }
-// ===== CONTROL DE LISTAS FLOTANTES CON BOTÓN DE RETRACCIÓN =====
 // ===== CONTROL DE LISTAS FLOTANTES CON BOTÓN DE RETRACCIÓN =====
 function toggleFloatingList(listId, btnId) {
     const list = document.getElementById(listId);
