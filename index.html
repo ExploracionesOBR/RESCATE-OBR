@@ -1610,16 +1610,18 @@
                 <button onclick="window.switchAdminView?.('a-view-inventario')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-green-400 min-w-[60px]"><i class="fas fa-box-open text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Almacén</span></button>
                 <button onclick="window.switchAdminView?.('a-view-promos')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-purple-400 min-w-[60px]"><i class="fas fa-percent text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Promos</span></button>
                 <button onclick="window.switchAdminView?.('a-view-usuarios')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-blue-400 min-w-[60px]"><i class="fas fa-users text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Usuarios</span></button>
-
                 <button onclick="window.switchAdminView?.('a-view-publicidad')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-purple-400 min-w-[60px]">
     <i class="fas fa-bullhorn text-xl mb-1"></i>
     <span class="text-[8px] font-black uppercase tracking-widest mt-1">Publicidad</span>
 </button>
-
                 <button onclick="window.switchAdminView?.('a-view-stats')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-naranja min-w-[60px]"><i class="fas fa-chart-bar text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Estadíst.</span></button>
                 <button onclick="window.switchAdminView?.('a-view-citas')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-green-400 min-w-[60px]"><i class="fas fa-calendar-check text-xl mb-1"></i><span class="text-[8px] font-black uppercase tracking-widest mt-1">Citas</span></button>
                <button onclick="window.switchAdminView?.('a-view-retenes')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-yellow-400 min-w-[60px]"><i class="fas fa-shield-alt text-xl mb-1"></i>            <span class="text-[8px] font-black uppercase tracking-widest mt-1">RETENES</span>
         </button>
+        <button onclick="window.switchAdminView?.('a-view-config')" class="a-nav-btn flex flex-col items-center opacity-50 [&.tab-active]:opacity-100 transition-all text-gray-400 min-w-[60px]">
+    <i class="fas fa-cog text-xl mb-1"></i>
+    <span class="text-[8px] font-black uppercase tracking-widest mt-1">Ajustes</span>
+</button>
             </div>
         </nav>
     </div>
@@ -1758,10 +1760,10 @@
             </div>
         </div>
     </div>
-<!-- Modal Editar/Crear Servicio (con dos columnas, materiales y cantidades) -->
-<div id="modal-edit-service" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-4 hidden backdrop-blur-sm">
-    <div class="bg-asfalto w-full max-w-4xl max-h-[90vh] rounded-[2rem] p-6 relative border border-naranja/30 shadow-2xl overflow-y-auto">
-        <button onclick="toggleModal('modal-edit-service', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+<!-- Modal Editar/Crear Servicio (Responsivo) -->
+<div id="modal-edit-service" class="fixed inset-0 bg-black/95 z-[300] flex items-center justify-center p-0 lg:p-4 hidden backdrop-blur-sm">
+    <div class="bg-asfalto w-full h-full lg:w-auto lg:max-w-4xl lg:h-auto lg:max-h-[90vh] rounded-none lg:rounded-[2rem] p-4 lg:p-6 relative border-0 lg:border border-naranja/30 shadow-2xl overflow-y-auto flex flex-col">
+        <button onclick="toggleModal('modal-edit-service', false)" class="absolute top-4 right-4 text-gray-400 hover:text-white z-10"><i class="fas fa-times"></i></button>
         <h2 id="modal-service-title" class="text-xl font-black mb-4 text-white">Crear Servicio</h2>
         
         <input type="hidden" id="edit-service-id">
@@ -1770,24 +1772,18 @@
             <!-- COLUMNA IZQUIERDA: Productos del almacén -->
             <div class="lg:w-1/2">
                 <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Productos disponibles (Almacén)</label>
-                <div id="service-materials-grid" class="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-64 overflow-y-auto hide-scroll p-2 bg-asfalto/50 rounded-xl border border-white/10">
-    <!-- Los productos se renderizarán aquí mediante JavaScript -->
-</div>
-<p class="text-[9px] text-gray-500 mt-1">Haz clic en un producto para seleccionarlo. La cantidad se añade automáticamente como 1.</p>
-                <p class="text-[9px] text-gray-500 mt-1">Mantén presionado Ctrl/Cmd para seleccionar varios. La cantidad se añade automáticamente como 1.</p>
-                <!-- Lista de materiales seleccionados con cantidades (se renderiza dinámicamente) -->
+                <div id="service-materials-grid" class="grid grid-cols-3 md:grid-cols-4 gap-2 max-h-64 overflow-y-auto hide-scroll p-2 bg-white/5 rounded-xl border border-white/10"></div>
+                <p class="text-[9px] text-gray-500 mt-1">Haz clic en un producto para seleccionarlo.</p>
                 <div id="edit-materials-container" class="mt-3 space-y-2 max-h-40 overflow-y-auto hide-scroll"></div>
             </div>
 
             <!-- COLUMNA DERECHA: Datos del servicio -->
             <div class="lg:w-1/2 space-y-4">
-                <!-- Nombre -->
                 <div>
                     <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Nombre del Servicio</label>
                     <input id="edit-service-name" type="text" placeholder="Ej. Cambio de Aceite" class="w-full bg-white/5 border border-white/10 p-3 rounded-xl text-white text-sm focus:border-naranja">
                 </div>
 
-                <!-- Mano de Obra (con estimación automática IA) -->
                 <div>
                     <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Mano de Obra ($)</label>
                     <div class="flex space-x-2 items-center">
@@ -1802,17 +1798,14 @@
                     </div>
                 </div>
 
-                <!-- Cargo Extra (descripción y monto) -->
                 <div>
                     <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Cargo Extra (opcional)</label>
                     <div class="flex space-x-2">
                         <input id="edit-service-extra-desc" type="text" placeholder="Descripción (Ej. Kit de limpieza)" class="w-2/3 bg-white/5 border border-white/10 p-3 rounded-xl text-white text-sm">
                         <input id="edit-service-extra-price" type="number" placeholder="Monto ($)" class="w-1/3 bg-white/5 border border-white/10 p-3 rounded-xl text-white text-sm">
                     </div>
-                    <p class="text-[9px] text-gray-500 mt-1">Se agregará como un cargo extra en el POS si se usa.</p>
                 </div>
 
-                <!-- Descripción (con IA generativa) -->
                 <div>
                     <div class="flex justify-between items-center">
                         <label class="text-[10px] text-gray-400 font-bold uppercase tracking-widest ml-1">Descripción Breve</label>
@@ -1825,7 +1818,6 @@
             </div>
         </div>
 
-        <!-- Botones de acción -->
         <div class="flex space-x-3 mt-6 pt-4 border-t border-white/10">
             <button id="btn-save-service" onclick="window.saveEditService()" class="flex-1 bg-green-600 hover:bg-green-500 text-white py-3 rounded-xl font-black uppercase">Guardar</button>
             <button onclick="toggleModal('modal-edit-service', false)" class="bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-xl font-black uppercase">Cancelar</button>
