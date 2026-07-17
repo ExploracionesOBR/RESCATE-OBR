@@ -1610,7 +1610,7 @@ body.light-mode #chat-ia-modal-dinamico {
 /* --- 1. Botón Hamburguesa (común para todos los mapas) --- */
 .map-hamburger-btn {
     position: absolute !important;
-    top: 70px 
+    top: 80px 
     left: 20px !important;
     z-index: 2000 !important;
     background: rgba(255, 255, 255, 0.95) !important;
@@ -2432,11 +2432,11 @@ button, a, [onclick], [role="button"], .cursor-pointer, .clickable, input[type="
     flex-direction: column !important;
     gap: 0 !important;
 }
-
 /* Eliminar el margen superior del contenedor de retiros */
 #a-view-stats .mt-6 {
     margin-top: 0.5rem !important; /* Reducir el margen */
 }
+
 
 /* ============================================================
    MARCADORES UNIFICADOS (ESTILO RETENES/ENTREGAS)
@@ -2529,4 +2529,68 @@ button, a, [onclick], [role="button"], .cursor-pointer, .clickable, input[type="
 #modal-rescue-alert {
     z-index: 999999 !important;
     pointer-events: auto !important;
+}
+
+/* ============================================================
+   MODAL EDITAR SERVICIO - RESPONSIVO CON FONDO OSCURO
+   ============================================================ */
+@media (max-width: 768px) {
+    #modal-edit-service {
+        padding: 0 !important;
+        background-color: #1A1A1A !important; /* bg-asfalto */
+    }
+    #modal-edit-service > .bg-asfalto {
+        border-radius: 0 !important;
+        border: none !important;
+        padding: 1.5rem !important;
+        height: 100vh !important;
+        width: 100vw !important;
+        overflow-y: auto !important;
+        background-color: #1A1A1A !important;
+    }
+}
+
+/* Service Materials Grid - Fondo transparente y texto legible */
+#service-materials-grid {
+    background: rgba(255, 255, 255, 0.05) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 12px !important;
+    padding: 0.5rem !important;
+}
+#service-materials-grid > div {
+    background: rgba(255, 255, 255, 0.03) !important;
+    border: 1px solid rgba(255, 255, 255, 0.05) !important;
+    border-radius: 8px !important;
+    padding: 0.25rem !important;
+    transition: all 0.2s ease !important;
+    min-height: 60px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+#service-materials-grid > div:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    border-color: #FF6B00 !important;
+}
+#service-materials-grid > div.selected {
+    border: 2px solid #FF6B00 !important;
+    background: rgba(255, 107, 0, 0.15) !important;
+}
+#service-materials-grid img {
+    max-height: 32px !important;
+    object-fit: contain !important;
+    margin-bottom: 2px !important;
+}
+#service-materials-grid p {
+    font-size: 8px !important;
+    line-height: 1.1 !important;
+    color: #ffffff !important;
+    text-align: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    word-break: break-word !important;
+}
+#service-materials-grid p.text-gray-400 {
+    color: #9ca3af !important;
 }
